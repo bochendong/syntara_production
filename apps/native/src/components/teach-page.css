@@ -17,20 +17,288 @@
   font-size: 13px;
 }
 
-/* 课程列表 */
-.tp-course + .tp-course {
-  border-top: 1px solid rgb(15 23 42 / 6%);
+@media (min-width: 1280px) {
+  .phone-large-head.tp-teaching-head,
+  .cp-management .phone-large-head.tp-head {
+    padding-left: 0;
+  }
 }
 
-.tp-course-row:disabled {
-  opacity: 0.55;
+/* 每门管理中的课程独立成卡。 */
+.tp-courses-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 6px 0 16px;
+}
+
+.tp-courses-heading h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.tp-courses-heading > span {
+  color: var(--tp-muted);
+  font-size: 12px;
+}
+
+.tp-course-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
+  gap: 18px;
+}
+
+.tp-course-card {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 24px;
+  border: 1px solid rgb(15 23 42 / 6%);
+  border-radius: 20px;
+  padding: 22px;
+  background: rgb(255 255 255 / 92%);
+  box-shadow: 0 3px 12px rgb(15 23 42 / 3%);
+}
+
+.tp-course-card.has-course-scene {
+  position: relative;
+  isolation: isolate;
+  gap: 14px;
+  padding: 100px 18px 18px;
+  background: #fff;
+}
+
+.tp-course-card.has-course-scene::before {
+  position: absolute;
+  z-index: -1;
+  inset: 0 0 auto;
+  height: 86px;
+  border-radius: 19px 19px 0 0;
+  background-image: var(--tp-card-scene);
+  background-position: center;
+  background-size: cover;
+  content: '';
+  pointer-events: none;
+}
+
+.tp-course-card-head {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 13px;
+}
+
+.tp-course-card-identity {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 10px;
+}
+
+.tp-course-card-identity .tp-course-card-select {
+  min-width: 0;
+  flex: 1;
+}
+
+.tp-course-notifications {
+  position: relative;
+  display: grid;
+  width: 36px;
+  height: 36px;
+  flex: none;
+  place-items: center;
+  border: 1px solid rgb(15 23 42 / 9%);
+  border-radius: 50%;
+  background: #f8fafc;
+  color: #64748b;
+  cursor: pointer;
+}
+
+.tp-course-notifications:hover {
+  background: #eef2f7;
+  color: #0f172a;
+}
+
+.tp-course-notifications:focus-visible {
+  outline: 2px solid var(--tp-blue);
+  outline-offset: 2px;
+}
+
+.tp-course-notification-count {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  display: grid;
+  min-width: 18px;
+  height: 18px;
+  place-items: center;
+  border: 2px solid #fff;
+  border-radius: 999px;
+  padding: 0 3px;
+  background: #ef4444;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.tp-course-card-title {
+  min-width: 0;
+}
+
+.tp-course-card-title h3 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+
+.tp-course-card-title p {
+  display: -webkit-box;
+  margin: 5px 0 0;
+  overflow: hidden;
+  color: var(--tp-muted);
+  font-size: 12px;
+  line-height: 1.5;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.tp-course-card-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0;
+}
+
+.tp-course-card-stats > div + div {
+  border-left: 1px solid rgb(15 23 42 / 7%);
+  padding-left: 10px;
+}
+
+.tp-course-card-stats dt {
+  color: var(--tp-muted);
+  font-size: 12px;
+}
+
+.tp-course-card-stats dd {
+  margin: 7px 0 0;
+  font-size: 24px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+
+.tp-course-card-stats dd span {
+  color: var(--tp-muted);
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.tp-course-card.has-course-scene .tp-course-card-stats dd {
+  margin-top: 4px;
+}
+
+.tp-course-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: auto;
+  border-top: 1px solid rgb(15 23 42 / 6%);
+  padding-top: 16px;
+}
+
+.tp-course-card-footer:has(.tp-course-card-actions) {
+  justify-content: flex-end;
+}
+
+.tp-course-card.has-course-scene .tp-course-card-footer {
+  padding-top: 12px;
+}
+
+.tp-course-state {
+  color: var(--tp-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.tp-course-state.is-ready {
+  color: #27836a;
+}
+
+.tp-course-card-actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+}
+
+.tp-course-card-publish {
+  min-height: 36px;
+  border: 1px solid rgb(15 23 42 / 12%);
+  border-radius: 10px;
+  padding: 0 10px;
+  background: transparent;
+  color: #334155;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 550;
+  cursor: pointer;
+}
+
+.tp-course-card-publish:hover {
+  background: rgb(15 23 42 / 5%);
+}
+
+.tp-course-card-publish:focus-visible {
+  outline: 2px solid var(--tp-blue);
+  outline-offset: 2px;
+}
+
+.tp-course-card-open {
+  display: inline-flex;
+  flex: none;
+  min-height: 36px;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  border-radius: 10px;
+  padding: 0 12px;
+  background: #0f172a;
+  color: #fff;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 550;
+  cursor: pointer;
+}
+
+.tp-course-card-open:hover {
+  background: #334155;
+}
+
+.tp-course-card-open:disabled {
+  background: #e2e8f0;
+  color: #94a3b8;
+  cursor: not-allowed;
+}
+
+.tp-course-card-open:focus-visible {
+  outline: 2px solid var(--tp-blue);
+  outline-offset: 3px;
+}
+
+.tp-course-card-open:disabled {
+  opacity: 0.45;
   cursor: default;
 }
 
 .tp-course-marble {
   flex: none;
-  width: 40px;
-  height: 40px;
+  width: 46px;
+  height: 46px;
   border-radius: 999px;
   object-fit: cover;
   filter: drop-shadow(0 3px 6px rgb(15 23 42 / 14%));
@@ -99,7 +367,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  padding: 0 16px 12px 68px;
+  padding: 0;
 }
 
 .tp-past button {
@@ -693,4 +961,48 @@
 
 .tp-sheet-foot .phone-confirm-button {
   flex: 1;
+}
+
+/* 认领课程 */
+.tp-head .tp-claim-entry {
+  margin-left: 8px;
+}
+
+.tp-head h1 + .tp-claim-entry {
+  margin-left: auto;
+}
+
+.tp-claim-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.tp-claim-empty .phone-confirm-button {
+  min-width: 160px;
+  padding: 0 24px;
+}
+
+.tp-claim-search {
+  margin: 4px 0 14px;
+}
+
+.tp-claim-row {
+  cursor: default;
+}
+
+.tp-get-pill.is-quiet {
+  color: var(--tp-muted);
+}
+
+.tp-get-pill:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.tp-claim-taken {
+  flex: none;
+  color: var(--tp-muted);
+  font-size: 13px;
 }

@@ -1,3 +1,5 @@
+import { CourseAdmissionError } from '@/lib/server/course-admissions';
+import { readManagedCourseProblems } from '@/lib/server/course-content-drafts';
 import { NextRequest, NextResponse } from 'next/server';
 
 import {
@@ -17,9 +19,9 @@ export const runtime = 'nodejs';
 
 const NO_STORE = { headers: { 'Cache-Control': 'private, no-store' } };
 
-/** App 拉取网页题库：since 之后改过的题、当前全部题目 id，以及这个账号的做题进度。 */
-export async function GET(request: NextRequest) {
-  const requestId = publicApiRequestId(request);
+/** managed=1 returns a complete shared-only workspace snapshot, including draft undo; since applies only to learning sync.
+ * App 拉取网页题库：since 之后改过的题、当前全部题目 id，以及这个账号的做题进度。 */
+async function getContent(request: NextRequest, requestId: string) {
   const principal = await requireNativePlatformApi(request, requestId);
   if (principal instanceof NextResponse) return principal;
   const prisma = getOptionalPrisma();
@@ -32,7 +34,10 @@ export async function GET(request: NextRequest) {
   }
   const sinceParam = Number(request.nextUrl.searchParams.get('since'));
   const since = Number.isFinite(sinceParam) && sinceParam > 0 ? sinceParam : null;
-  const data = await readNativeProblems(prisma, principal.userId, courseId, since);
+  const data =
+    request.nextUrl.searchParams.get('managed') === '1'
+      ? await readManagedCourseProblems(prisma, principal.userId, courseId)
+      : await readNativeProblems(prisma, principal.userId, courseId, since);
   if (!data) return publicApiError(requestId, 404, 'not_found', 'Course not found.');
   return publicApiSuccess(requestId, data, NO_STORE);
 }
@@ -59,4 +64,24 @@ export async function POST(request: NextRequest) {
   const data = await saveNativeProblemAttempts(prisma, principal.userId, parsed.data);
   if (!data) return publicApiError(requestId, 404, 'not_found', 'Course not found.');
   return publicApiSuccess(requestId, { courseId: parsed.data.courseId, ...data }, NO_STORE);
+}
+
+export async function GET(request: NextRequest) {
+  const requestId = publicApiRequestId(request);
+  try {
+    return await getContent(request, requestId);
+  } catch (error) {
+    if (error instanceof CourseAdmissionError)
+      return publicApiError(
+        requestId,
+        error.status,
+        error.status === 403
+          ? 'unauthorized'
+          : error.status === 404
+            ? 'not_found'
+            : 'invalid_request',
+        error.message,
+      );
+    throw error;
+  }
 }

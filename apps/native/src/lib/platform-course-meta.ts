@@ -6,6 +6,7 @@ import type { NativePlatformCourse } from '../data/platform-api-contracts';
  */
 export type PlatformCourseMeta = {
   accessRole: NativePlatformCourse['accessRole'];
+  visibility?: NativePlatformCourse['visibility'];
   organizationName: string | null;
   hasUpdate: boolean;
   /** 「+3 题，改了 1 篇笔记」；打开课程时在聊天上方亮一下。 */
@@ -45,6 +46,9 @@ export function savePlatformCourseMeta(courses: NativePlatformCourse[]) {
         course.id,
         {
           accessRole: course.accessRole,
+          visibility:
+            course.visibility ??
+            (course.accessRole === 'enrolled' || course.organizationName ? 'public' : undefined),
           organizationName: course.organizationName ?? null,
           hasUpdate: Boolean(course.hasUpdate),
           updateSummary: course.updateSummary || null,

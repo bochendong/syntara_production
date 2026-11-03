@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Loader2, RotateCcw, Sparkles, X } from 'lucide-react';
+import { Loader2, RotateCcw, X } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -223,55 +223,6 @@ export function CourseUpdatePill({ courseId, text }: { courseId: string; text: s
         <X className="size-3.5" />
       </button>
     </span>
-  );
-}
-
-/** 发布者：把改过的内容打包成新版本，学员那边出现「有更新」和「新」。 */
-export function CourseReleaseButton({
-  courseId,
-  layers,
-  onReleased,
-}: {
-  courseId: string;
-  layers: OwnerLayers;
-  onReleased: () => void;
-}) {
-  const [busy, setBusy] = useState(false);
-  if (!layers.canRelease) return null;
-  return (
-    <Button
-      size="sm"
-      variant="outline"
-      className="gap-1.5 rounded-full"
-      disabled={busy}
-      title={`当前第 ${layers.contentVersion} 版`}
-      onClick={async () => {
-        setBusy(true);
-        try {
-          const result = await backendJson<{ version: number; text: string }>(
-            layersPath(courseId),
-            {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ action: 'release' }),
-            },
-          );
-          toast.success(
-            result.text
-              ? `已发布第 ${result.version} 版：${result.text}`
-              : `已发布第 ${result.version} 版`,
-          );
-          onReleased();
-        } catch (error) {
-          toast.error(error instanceof Error ? error.message : '发布失败');
-        } finally {
-          setBusy(false);
-        }
-      }}
-    >
-      {busy ? <Loader2 className="size-3.5 animate-spin" /> : <Sparkles className="size-3.5" />}
-      发布新版本
-    </Button>
   );
 }
 

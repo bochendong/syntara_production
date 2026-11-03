@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { Check, Trash2 } from 'lucide-react';
+import { Check, Store, Trash2 } from 'lucide-react';
 import type { CourseLearningPage } from '../lib/native-launch';
 import { useBackDismiss } from '../lib/use-back-dismiss';
 import { LearningToolIcon } from './LearningToolIcon';
@@ -51,6 +51,8 @@ export function CourseToolsMenu({
   onDelete,
   deleteDisabled = false,
   deleteOnboarding,
+  onPublish,
+  publishLabel = '发布到商城',
 }: {
   anchor: HTMLButtonElement;
   courseName: string;
@@ -62,6 +64,8 @@ export function CourseToolsMenu({
   onDelete?: () => void;
   deleteDisabled?: boolean;
   deleteOnboarding?: string;
+  onPublish?: () => void;
+  publishLabel?: string;
 }) {
   return (
     <GlassMenu
@@ -70,6 +74,16 @@ export function CourseToolsMenu({
       align={align}
       onClose={onClose}
       items={[
+        ...(onPublish
+          ? [
+              {
+                key: 'publish',
+                label: publishLabel,
+                icon: <Store size={17} aria-hidden />,
+                onSelect: onPublish,
+              },
+            ]
+          : []),
         ...tools
           .filter(({ page }) => !wide || (page !== 'memory' && page !== 'classroom'))
           .map(({ page, label }) => ({

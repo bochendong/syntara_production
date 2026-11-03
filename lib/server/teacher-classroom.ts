@@ -1,8 +1,16 @@
 import { randomInt } from 'node:crypto';
 
-import type { Prisma } from '@/lib/server/generated-prisma';
+import { Prisma } from '@/lib/server/generated-prisma';
 import { teacherCourseAccessWhere } from '@/lib/server/external-course-access';
 import { prisma } from '@/lib/server/prisma';
+import type { DbClient } from '@/lib/server/repositories/types';
+import { currentAcademicPeriod } from './teacher-classroom-period';
+import {
+  assertCourseAdmissionForEnrollment,
+  CourseAdmissionError,
+  lockAdmissionCourse,
+} from './course-admissions';
+export { currentAcademicPeriod } from './teacher-classroom-period';
 
 /**
  * 老师端班级与课堂练习。
@@ -34,17 +42,6 @@ const TERM_LABEL: Record<AcademicTerm, string> = {
 
 export function academicTermLabel(year: number, term: AcademicTerm): string {
   return `${year} ${TERM_LABEL[term]}`;
-}
-
-export function currentAcademicPeriod(now = new Date()): {
-  academicYear: number;
-  academicTerm: AcademicTerm;
-} {
-  const month = now.getMonth() + 1;
-  return {
-    academicYear: now.getFullYear(),
-    academicTerm: month <= 4 ? 'winter' : month <= 8 ? 'summer' : 'fall',
-  };
 }
 
 /** 班级码：6 位大写字母数字（至少一个字母），去掉容易看错的 0/O/1/I。 */
@@ -99,7 +96,7 @@ function isAdmin(viewer: ClassroomViewer): boolean {
   return viewer.role === 'ADMIN';
 }
 
-/** 能在哪些课上开班：自己的课、Speedup 老师身份的课、所属机构的课。 */
+/** 能在哪些课上开班：自己认领的课、自己的课、Speedup 老师身份的课、所属机构的课。 */
 export function teachableCourseWhere(userId: string): Prisma.CourseWhereInput {
   return {
     OR: [
@@ -115,7 +112,14 @@ async function assertCanTeachCourse(viewer: ClassroomViewer, courseId: string) {
     where: isAdmin(viewer)
       ? { id: courseId }
       : { id: courseId, ...teachableCourseWhere(viewer.userId) },
-    select: { id: true, name: true, courseCode: true, ownerId: true, organizationId: true },
+    select: {
+      id: true,
+      name: true,
+      courseCode: true,
+      ownerId: true,
+      organizationId: true,
+      listedInCourseStore: true,
+    },
   });
   if (!course) throw new ClassroomError(404, '没有找到这门课，或者你不是这门课的老师。');
   return course;
@@ -143,6 +147,14 @@ async function ensureEnrollment(
 ) {
   const course = await db.course.findUnique({ where: { id: courseId }, select: { ownerId: true } });
   if (!course || course.ownerId === userId) return;
+  await lockAdmissionCourse(db, courseId);
+  try {
+    await assertCourseAdmissionForEnrollment(db, userId, courseId);
+  } catch (error) {
+    if (error instanceof CourseAdmissionError)
+      throw new ClassroomError(error.status, error.message);
+    throw error;
+  }
   await db.courseEnrollment.upsert({
     where: { userId_courseId: { userId, courseId } },
     update: {},
@@ -154,18 +166,29 @@ async function ensureEnrollment(
 /* 老师：课程与班级                                                     */
 /* ------------------------------------------------------------------ */
 
-export async function listTeachableCourses(viewer: ClassroomViewer) {
+export async function listTeachableCourses(viewer: ClassroomViewer, db: DbClient = prisma) {
   const period = currentAcademicPeriod();
-  const courses = await prisma.course.findMany({
+  const courses = await db.course.findMany({
     where: teachableCourseWhere(viewer.userId),
     orderBy: { updatedAt: 'desc' },
-    take: 100,
     select: {
       id: true,
       name: true,
       courseCode: true,
       avatarUrl: true,
       publishedProblemCount: true,
+      listedInCourseStore: true,
+      ownerId: true,
+      externalBinding: { select: { id: true } },
+      managers: {
+        where: {
+          userId: viewer.userId,
+          user: { isActive: true, role: { in: ['TEACHER', 'ADMIN'] } },
+        },
+        select: { userId: true },
+      },
+      _count: { select: { joinApplications: { where: { status: 'pending' } } } },
+      claimedTeacherId: true,
       classes: {
         orderBy: [{ academicYear: 'desc' }, { createdAt: 'desc' }],
         select: {
@@ -184,6 +207,20 @@ export async function listTeachableCourses(viewer: ClassroomViewer) {
       },
     },
   });
+  const statistics = courses.length
+    ? await db.$queryRaw<Array<{ id: string; notebookCount: number; learnerCount: number }>>`
+        SELECT c.id,
+          (SELECT count(*)::int FROM "Notebook" n
+           WHERE n."courseId" = c.id AND n."ownerId" = c."ownerId" AND n."removedAt" IS NULL) AS "notebookCount",
+          (SELECT count(*)::int FROM (
+             SELECT e."userId" FROM "CourseEnrollment" e WHERE e."courseId" = c.id
+             UNION
+             SELECT p."buyerId" FROM "CoursePurchase" p WHERE p."sourceCourseId" = c.id
+           ) learners WHERE learners."userId" <> c."ownerId") AS "learnerCount"
+        FROM "Course" c WHERE c.id IN (${Prisma.join(courses.map((course) => course.id))})
+      `
+    : [];
+  const statisticsByCourse = new Map(statistics.map((item) => [item.id, item]));
   return {
     currentPeriod: {
       ...period,
@@ -200,6 +237,18 @@ export async function listTeachableCourses(viewer: ClassroomViewer) {
         courseCode: course.courseCode,
         avatarUrl: course.avatarUrl,
         problemCount: course.publishedProblemCount,
+        notebookCount: statisticsByCourse.get(course.id)?.notebookCount ?? 0,
+        learnerCount: statisticsByCourse.get(course.id)?.learnerCount ?? 0,
+        listed: course.listedInCourseStore,
+        canPublish:
+          !course.externalBinding &&
+          (course.ownerId === viewer.userId ||
+            (course.listedInCourseStore &&
+              (isAdmin(viewer) ||
+                course.managers.length > 0 ||
+                course.claimedTeacherId === viewer.userId))),
+        pendingApplications: course._count.joinApplications,
+        claimedByMe: course.claimedTeacherId === viewer.userId,
         currentClass: current
           ? {
               id: current.id,
@@ -235,6 +284,9 @@ export async function ensureCurrentTermClass(viewer: ClassroomViewer, courseId: 
       throw new ClassroomError(409, '这门课本学期的班已经由另一位老师负责。');
     }
     return existing.id;
+  }
+  if (!course.listedInCourseStore) {
+    throw new ClassroomError(400, '请先将课程发布到商城，再开班。');
   }
   const label = academicTermLabel(period.academicYear, period.academicTerm);
   try {

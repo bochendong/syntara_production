@@ -4,6 +4,7 @@ import {
   browserGrade,
   browserCommand,
   browserCommandHeaders,
+  browserFetch,
   browserRequest,
 } from './browser-platform';
 import type {
@@ -428,8 +429,11 @@ export function getNativeMiniLecturePage(
 }
 
 /** 一本网页笔记的完整内容（含图片）。 */
-export function getNativeNotebook(notebookId: string): Promise<NativeNotebookArchive> {
-  return invokeQuery('native_get_notebook', { id: notebookId });
+export function getNativeNotebook(
+  notebookId: string,
+  managedCourseId?: string,
+): Promise<NativeNotebookArchive> {
+  return invokeQuery('native_get_notebook', { id: notebookId, managedCourseId });
 }
 
 /** 把手机上的学习进度写回账号，网页右侧的学习进度会跟着变。 */
@@ -519,8 +523,13 @@ export function runNativeHiddenTests(input: {
 export function getNativeProblems(
   courseId: string,
   since?: number | null,
+  managed = false,
 ): Promise<NativeProblemSnapshot> {
-  return invokeQuery('native_get_problems', { courseId, since: since ?? undefined });
+  return invokeQuery('native_get_problems', {
+    courseId,
+    since: since ?? undefined,
+    managed: managed ? 1 : undefined,
+  });
 }
 
 /** 把 App 上的作答传到网页题库，返回已记下和不用再传的作答 id。 */
@@ -600,6 +609,13 @@ export type TeachHome = {
     courseCode: string | null;
     avatarUrl: string | null;
     problemCount: number;
+    notebookCount: number;
+    learnerCount: number;
+    listed: boolean;
+    canPublish: boolean;
+    pendingApplications: number;
+    /** 这门课是我认领的（一门课只能有一位老师认领）。 */
+    claimedByMe: boolean;
     currentClass: {
       id: string;
       name: string;
@@ -729,6 +745,33 @@ function teachAction<T>(payload: unknown): Promise<T> {
   return invokeJson('native_teach_action', { requestId: crypto.randomUUID(), payload });
 }
 
+export type TeachClaimableCourse = {
+  id: string;
+  name: string;
+  courseCode: string | null;
+  avatarUrl: string | null;
+  organizationName: string | null;
+  problemCount: number;
+  claim: 'mine' | 'free' | 'taken';
+};
+
+/** 老师可以认领的机构课（我认领的在前，其次是没人认领的）。 */
+export async function getTeachClaimableCourses(query = ''): Promise<TeachClaimableCourse[]> {
+  const result = await invokeQuery<{ courses: TeachClaimableCourse[] }>('native_get_teach', {
+    claim: '1',
+    ...(query.trim() ? { q: query.trim() } : {}),
+  });
+  return result.courses;
+}
+
+export function claimTeachCourse(courseId: string): Promise<TeachHome> {
+  return teachAction({ action: 'claim', courseId });
+}
+
+export function releaseTeachCourse(courseId: string): Promise<TeachHome> {
+  return teachAction({ action: 'release-claim', courseId });
+}
+
 export function openTeachClass(courseId: string): Promise<{ classId: string }> {
   return teachAction({ action: 'open-class', courseId });
 }
@@ -745,14 +788,340 @@ export function teachSessionAction(payload: TeachSessionAction): Promise<TeachSe
   return teachAction(payload);
 }
 
+export type AdminRole = 'USER' | 'STUDENT' | 'TEACHER' | 'ADMIN';
+
+export type AdminUsage = { estimatedCostUsd: number; requestCount: number };
+
+export type AdminLlmConfig = {
+  modelId: string;
+  tierModels: { low: string; medium: string; high: string };
+  baseUrl: string;
+  hasApiKey: boolean;
+  maskedApiKey: string;
+  source: 'database' | 'environment';
+  updatedAt: string | null;
+};
+
+export type AdminGlobalUsage = {
+  limit: {
+    enabled: boolean;
+    weeklyCostLimitUsd: number | null;
+    weeklyRequestLimit: number | null;
+    updatedBy: string | null;
+    updatedAt: string | null;
+  };
+  usage: AdminUsage;
+};
+
+export type AdminOverview = {
+  me: { userId: string; email: string | null };
+  llm: AdminLlmConfig;
+  modelOptions: Array<{ id: string; label: string; description: string }>;
+  providers: Array<{
+    kind: 'image' | 'tts' | 'webSearch';
+    id: string;
+    name: string;
+    configured: boolean;
+    keyLast4: string | null;
+    envName: string | null;
+  }>;
+  usage: AdminGlobalUsage;
+  roleCounts: Record<AdminRole, number>;
+};
+
+export type AdminUser = {
+  id: string;
+  name: string | null;
+  email: string | null;
+  image: string | null;
+  role: AdminRole;
+  isActive: boolean;
+  createdAt: number;
+  limit: {
+    weeklyCostLimitUsd: number | null;
+    weeklyRequestLimit: number | null;
+    disabled: boolean;
+  } | null;
+  usage: AdminUsage;
+};
+
+/** 只有管理员能拿到 true；其他账号接口返回 403，这里当成 false。 */
+export async function isAdminAccount(): Promise<boolean> {
+  try {
+    const result = await invokeQuery<{ admin?: boolean }>('native_get_admin', { check: 1 });
+    return result.admin === true;
+  } catch {
+    return false;
+  }
+}
+
+/** 管理页总览。不是管理员会报 403。 */
+export function getAdminOverview(): Promise<AdminOverview> {
+  return invokeQuery('native_get_admin', {});
+}
+
+export type AdminUsersPage = {
+  users: AdminUser[];
+  total: number;
+  page: number;
+  pageSize: number;
+};
+
+export type AdminUserCourse = {
+  id: string;
+  name: string;
+  courseCode: string | null;
+  university: string | null;
+  avatarUrl: string;
+  accessRole: 'owner' | 'enrolled';
+};
+
+export type AdminCoursePerson = {
+  id: string;
+  name: string | null;
+  email: string | null;
+  image: string | null;
+  role: AdminRole;
+  isActive: boolean;
+};
+
+export type AdminManagedCourse = {
+  id: string;
+  name: string;
+  courseCode: string | null;
+  avatarUrl: string;
+  organizationName: string | null;
+  owner: AdminCoursePerson;
+  managers: AdminCoursePerson[];
+  claimedTeacher?: AdminCoursePerson | null;
+  responsiblePeople: AdminCoursePerson[];
+};
+
+export type AdminCoursePage = {
+  courses: AdminManagedCourse[];
+  total: number;
+  page: number;
+  pageSize: number;
+};
+
+export type AdminCourseStudentPage = {
+  students: AdminCoursePerson[];
+  total: number;
+  page: number;
+  pageSize: number;
+};
+
+export function listAdminCourseStudents(
+  courseId: string,
+  query: string,
+  page: number,
+): Promise<AdminCourseStudentPage> {
+  return invokeQuery('native_get_admin', { students: 1, courseId, query: query.trim(), page });
+}
+
+export function removeAdminCourseStudent(
+  courseId: string,
+  userId: string,
+): Promise<{ removed: boolean }> {
+  return adminAction({ action: 'remove-course-student', courseId, userId });
+}
+
+export async function downloadAdminCourseMaterials(courseId: string): Promise<{ path?: string }> {
+  if (!browserApp) {
+    assertTauriRuntime();
+    const { invoke } = await import('@tauri-apps/api/core');
+    return invoke('native_download_admin_course', {
+      request: { syntaraToken: await resolveNativePlatformToken(), query: { courseId } },
+    });
+  }
+  const response = await browserFetch(
+    `/api/native/v1/admin?${new URLSearchParams({ export: '1', courseId })}`,
+  );
+  const blob = await response.blob();
+  if (!blob.size || !response.headers.get('Content-Type')?.includes('application/zip')) {
+    throw new Error('课程资料打包失败，请重试。');
+  }
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `course-${courseId.replace(/[^A-Za-z0-9_-]/g, '_')}-materials.zip`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  return {};
+}
+
+export function listAdminCourses(query: string, page: number): Promise<AdminCoursePage> {
+  return invokeQuery('native_get_admin', { catalog: 1, query: query.trim(), page });
+}
+
+export async function searchAdminAssignees(query: string): Promise<AdminCoursePerson[]> {
+  return (
+    await invokeQuery<{ users: AdminCoursePerson[] }>('native_get_admin', {
+      assignees: 1,
+      query: query.trim(),
+    })
+  ).users;
+}
+
+export async function setAdminCourseAssignment(
+  courseId: string,
+  userId: string,
+  assigned: boolean,
+): Promise<AdminManagedCourse> {
+  return (
+    await adminAction<{ course: AdminManagedCourse }>({
+      action: 'set-course-manager',
+      courseId,
+      userId,
+      assigned,
+    })
+  ).course;
+}
+
+export async function getAdminUserCourses(userId: string): Promise<AdminUserCourse[]> {
+  const result = await invokeQuery<{ courses: AdminUserCourse[] }>('native_get_admin', {
+    courses: 1,
+    userId,
+  });
+  return result.courses;
+}
+
+export function searchAdminUsers(
+  query: string,
+  role: AdminRole | null,
+  page = 1,
+): Promise<AdminUsersPage> {
+  return invokeQuery('native_get_admin', {
+    users: 1,
+    query: query.trim() || undefined,
+    role: role ?? undefined,
+    page,
+  });
+}
+
+function adminAction<T>(payload: unknown): Promise<T> {
+  return invokeJson('native_admin_action', { requestId: crypto.randomUUID(), payload });
+}
+
+export async function saveAdminLlm(input: {
+  modelId?: string;
+  tierModels?: AdminLlmConfig['tierModels'];
+  apiKey?: string;
+  baseUrl?: string;
+}): Promise<AdminLlmConfig> {
+  return (await adminAction<{ llm: AdminLlmConfig }>({ action: 'save-llm', ...input })).llm;
+}
+
+export async function setAdminUserRole(userId: string, role: AdminRole): Promise<AdminUser> {
+  return (await adminAction<{ user: AdminUser }>({ action: 'set-role', userId, role })).user;
+}
+
+export async function setAdminUserLimit(input: {
+  userId: string;
+  weeklyCostLimitUsd: number | null;
+  weeklyRequestLimit: number | null;
+  disabled: boolean;
+}): Promise<AdminUser> {
+  return (await adminAction<{ user: AdminUser }>({ action: 'set-user-limit', ...input })).user;
+}
+
+export async function setAdminGlobalLimit(input: {
+  enabled: boolean;
+  weeklyCostLimitUsd: number | null;
+  weeklyRequestLimit: number | null;
+}): Promise<AdminGlobalUsage> {
+  return (await adminAction<{ usage: AdminGlobalUsage }>({ action: 'set-global-limit', ...input }))
+    .usage;
+}
+
 /** join：从商城加入课程；seen：打开过加入的课程，熄灭「有更新」。 */
 export function nativeStoreAction(
   courseId: string,
   action: 'join' | 'seen',
-): Promise<{ courseId: string; created?: boolean; seen?: boolean }> {
+  answers?: Record<string, string>,
+): Promise<{ courseId: string; created?: boolean; seen?: boolean; status?: 'joined' | 'pending' }> {
   return invokeJson('native_store_action', {
     requestId: crypto.randomUUID(),
-    payload: { courseId, action },
+    payload: { courseId, action, answers },
+  });
+}
+
+export type CourseAdmissionField = { id: string; label: string; kind: 'text' | 'phone_last4' };
+export type CourseAdmissionConfig = { mode: 'open' | 'approval'; fields: CourseAdmissionField[] };
+export type CoursePublicationInput = {
+  name: string;
+  campus: string;
+  organization: 'none' | 'speedup';
+  admission: CourseAdmissionConfig;
+};
+export type CoursePublication = CoursePublicationInput & {
+  courseId: string;
+  avatarUrl: string | null;
+  canEditProfile: boolean;
+  listed: boolean;
+  canPublish: boolean;
+  speedupAvailable: boolean;
+  organizationName: string | null;
+  currentClass: { id: string; mine: boolean; name: string } | null;
+};
+export async function updateManagedCourseProfile(
+  courseId: string,
+  profile: { name: string; avatarId: string | null },
+): Promise<CoursePublication> {
+  return (
+    await invokeJson<unknown, { publication: CoursePublication }>('native_store_action', {
+      requestId: crypto.randomUUID(),
+      payload: { action: 'update-course-profile', courseId, profile },
+    })
+  ).publication;
+}
+export type CourseApplication = {
+  id: string;
+  createdAt: string;
+  applicant: { id: string; name: string | null; email: string | null; image: string | null };
+  answersJson: Array<CourseAdmissionField & { value: string }>;
+};
+export type CourseApplicationPage = {
+  applications: CourseApplication[];
+  total: number;
+  page: number;
+  pageSize: number;
+};
+export async function getCoursePublication(courseId: string): Promise<CoursePublication> {
+  return (
+    await invokeQuery<{ publication: CoursePublication }>('native_get_store', {
+      publicationOf: courseId,
+    })
+  ).publication;
+}
+export async function publishCourseToStore(
+  courseId: string,
+  publication: CoursePublicationInput,
+): Promise<CoursePublication> {
+  return (
+    await invokeJson<unknown, { publication: CoursePublication }>('native_store_action', {
+      requestId: crypto.randomUUID(),
+      payload: { action: 'publish', courseId, publication },
+    })
+  ).publication;
+}
+export function getCourseApplications(
+  courseId: string,
+  page = 1,
+  query = '',
+): Promise<CourseApplicationPage> {
+  return invokeQuery('native_get_store', { applicationsOf: courseId, page, query });
+}
+export function reviewCourseApplication(
+  courseId: string,
+  applicationId: string,
+  decision: 'approved' | 'rejected',
+): Promise<{ status: string }> {
+  return invokeJson('native_store_action', {
+    requestId: crypto.randomUUID(),
+    payload: { action: 'review-application', courseId, applicationId, decision },
   });
 }
 
@@ -822,6 +1191,27 @@ export async function nativeOnboardingAction(
     { requestId: crypto.randomUUID(), payload },
   );
   return result.onboarding;
+}
+
+export type SpeedupPhoneState = { needed: boolean; courses: string[] };
+
+/** 学生加入了 Speedup 的课、还没留手机尾号时 needed = true（几门课也只问一次）。 */
+export async function getSpeedupPhoneState(): Promise<SpeedupPhoneState> {
+  const result = await invokeQuery<{ speedupPhone: SpeedupPhoneState }>('native_get_onboarding', {
+    part: 'speedup-phone',
+  });
+  return result.speedupPhone;
+}
+
+export async function saveSpeedupPhoneLast4(last4: string): Promise<SpeedupPhoneState> {
+  const result = await invokeJson<
+    { action: 'speedup-phone'; last4: string },
+    { speedupPhone: SpeedupPhoneState }
+  >('native_onboarding_action', {
+    requestId: crypto.randomUUID(),
+    payload: { action: 'speedup-phone', last4 },
+  });
+  return result.speedupPhone;
 }
 
 /** 资料页的笔记 / 题目写进账号，网页和其他设备都能同步到。 */
@@ -930,4 +1320,200 @@ export function syncNativePreferences(payload: {
   progressTourSeen?: boolean;
 }> {
   return invokeJson('native_sync_preferences', { requestId: crypto.randomUUID(), payload });
+}
+
+export type ManagedContentKind = 'notes' | 'problems';
+export type ManagedContentPage = {
+  total: number;
+  page: number;
+  pageSize: number;
+  items: Array<{
+    id: string;
+    title: string;
+    updatedAt: string;
+    status: string | null;
+    chapterId?: string | null;
+    notebookId?: string | null;
+    pending?: 'add' | 'update' | 'delete';
+  }>;
+};
+/** group：题库按分组取（c:章节 id / n:笔记 id / none），分组里按题号排。 */
+export function getManagedCourseContent(
+  courseId: string,
+  kind: ManagedContentKind,
+  page: number,
+  query: string,
+  group?: string,
+): Promise<ManagedContentPage> {
+  return invokeQuery('native_get_store', { managementOf: courseId, kind, page, query, group });
+}
+export type ManagedProblemGroup = { key: string; id: string; name: string; count: number };
+export type ManagedProblemGroups = {
+  chapters: ManagedProblemGroup[];
+  notebooks: ManagedProblemGroup[];
+  ungrouped: number;
+};
+/** 题库的章节（含空章节）、按笔记的分组和每组题数。 */
+export function getManagedProblemGroups(courseId: string): Promise<ManagedProblemGroups> {
+  return invokeQuery('native_get_store', { problemGroupsOf: courseId });
+}
+export type ManagedCourseStudents = {
+  total: number;
+  /** 机构课程才有学情（最近活跃、做题、提问）；私有课程为 false。 */
+  insights: boolean;
+  terms: Array<{
+    key: string;
+    label: string;
+    students: Array<{
+      userId: string;
+      name: string | null;
+      email: string | null;
+      image: string | null;
+      joinedAt: string;
+      method: 'open' | 'approval';
+      lastActiveAt: string | null;
+    }>;
+  }>;
+};
+/** 从商城加入这门课的学生，按加入的学期分组。 */
+export function getManagedCourseStudents(courseId: string): Promise<ManagedCourseStudents> {
+  return invokeQuery('native_get_store', { studentsOf: courseId });
+}
+export type ManagedCourseStudent = {
+  student: {
+    userId: string;
+    name: string | null;
+    email: string | null;
+    image: string | null;
+    joinedAt: string;
+    method: 'open' | 'approval';
+    answers: Array<{ id: string; label: string; value: string }>;
+  };
+  /** 私有课程为 null：老师看不到学生的做题和提问。 */
+  insights: {
+    attempted: number;
+    passed: number;
+    accuracy: number | null;
+    attemptCount: number;
+    lastActiveAt: string | null;
+    attempts: Array<{
+      id: string;
+      problemId: string;
+      title: string;
+      chapterName: string | null;
+      status: 'pending' | 'passed' | 'failed' | 'partial' | 'error';
+      score: number | null;
+      answerPreview: string;
+      createdAt: string;
+    }>;
+    questions: Array<{ id: string; text: string; createdAt: string; conversationTitle: string }>;
+  } | null;
+};
+/** 一个学生在这门课的情况（只给课程主人）。 */
+export function getManagedCourseStudent(
+  courseId: string,
+  userId: string,
+): Promise<ManagedCourseStudent> {
+  return invokeQuery('native_get_store', { studentOf: courseId, userId });
+}
+export type MyCourseApplication = {
+  id: string;
+  status: 'pending' | 'rejected';
+  updatedAt: string;
+  answers: Record<string, string>;
+  course: {
+    id: string;
+    name: string;
+    courseCode: string | null;
+    avatarUrl: string | null;
+    admission: CourseAdmissionConfig;
+    organization: { id: string; name: string } | null;
+  };
+};
+/** 自己待批准、未通过的加入申请（侧边栏显示，可以改了重发）。 */
+export async function getMyCourseApplications(): Promise<MyCourseApplication[]> {
+  return (
+    await invokeQuery<{ applications: MyCourseApplication[] }>('native_get_store', {
+      myApplications: 1,
+    })
+  ).applications;
+}
+export type ManagedReleaseStatus = {
+  deletions?: number;
+  draftCount?: number;
+  changes?: Array<{ id: string; title: string; kind: string; operation: string; draft: boolean }>;
+  addedProblems: number;
+  updatedProblems: number;
+  addedNotebooks: number;
+  updatedNotebooks: number;
+  total: number;
+  canRelease: boolean;
+  lastReleasedAt: string | null;
+  version: number;
+};
+/** 上次「发布新版」以来有多少新增 / 改过的内容，以及自己能不能发布。 */
+export function getManagedReleaseStatus(courseId: string): Promise<ManagedReleaseStatus> {
+  return invokeQuery('native_get_store', { releaseOf: courseId });
+}
+export function addManagedCourseContent(
+  courseId: string,
+  kind: ManagedContentKind,
+  title: string,
+  text: string,
+): Promise<unknown> {
+  return invokeJson('native_store_action', {
+    requestId: crypto.randomUUID(),
+    payload: { action: 'add-managed-content', courseId, kind, title, text },
+  });
+}
+/** 课程管理里改一本笔记：名称和各小节的 Markdown。 */
+export function updateManagedCourseNote(
+  courseId: string,
+  id: string,
+  patch: { title?: string; sections?: Array<{ id: string; markdown: string }> },
+): Promise<unknown> {
+  return invokeJson('native_store_action', {
+    requestId: crypto.randomUUID(),
+    payload: { action: 'update-managed-note', courseId, id, ...patch },
+  });
+}
+/** 课程管理里改一道公有题；publicContent / grading 和网页题库的结构一致。 */
+export function updateManagedCourseProblem(
+  courseId: string,
+  id: string,
+  patch: {
+    title?: string;
+    status?: 'draft' | 'published';
+    difficulty?: 'easy' | 'medium' | 'hard';
+    chapterId?: string | null;
+    notebookId?: string | null;
+    publicContent?: Record<string, unknown>;
+    grading?: Record<string, unknown>;
+  },
+): Promise<unknown> {
+  return invokeJson('native_store_action', {
+    requestId: crypto.randomUUID(),
+    payload: { action: 'update-managed-problem', courseId, id, ...patch },
+  });
+}
+export function deleteManagedCourseContent(
+  courseId: string,
+  kind: ManagedContentKind,
+  id: string,
+): Promise<unknown> {
+  return invokeJson('native_store_action', {
+    requestId: crypto.randomUUID(),
+    payload: { action: 'delete-managed-content', courseId, kind, id },
+  });
+}
+
+export function undoManagedCourseContent(
+  courseId: string,
+  kind: ManagedContentKind,
+  id: string,
+): Promise<unknown> {
+  return invokeJson('native_store_action', {
+    requestId: crypto.randomUUID(),
+    payload: { action: 'undo-managed-content', courseId, kind, id },
+  });
 }

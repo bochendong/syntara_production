@@ -386,6 +386,8 @@ export interface NativePlatformCourse {
   language: string;
   avatarUrl: string;
   accessRole: 'owner' | 'enrolled';
+  /** 机构 / 共享课程是公有版，未发布的个人课程是私有版。旧后端可能不返回。 */
+  visibility?: 'public' | 'private';
   /** 从商城加入的机构课程才有。 */
   organizationName?: string | null;
   /** 机构发布了新版、自己还没打开看过。 */
@@ -436,6 +438,12 @@ export interface NativeStoreCourse {
   university: string | null;
   tags: string[];
   joined: boolean;
+  campus?: string | null;
+  admission?: {
+    mode: 'open' | 'approval';
+    fields: Array<{ id: string; label: string; kind: 'text' | 'phone_last4' }>;
+  };
+  applicationStatus?: string | null;
   updatedAt: string;
 }
 

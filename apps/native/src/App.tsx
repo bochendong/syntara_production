@@ -6,6 +6,7 @@ import { AppNavigationRail } from './components/AppNavigationRail';
 import { AppNavigationContext, type AppNavigation } from './components/app-navigation-context';
 import { browserApp, platformAvailable } from './data/browser-runtime';
 import { CreateCourseDialog } from './components/CreateCourseDialog';
+import { CoursePublishDialog } from './components/CoursePublishDialog';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { AlertTriangle } from 'lucide-react';
 
@@ -40,10 +41,18 @@ import {
 } from './components/ClassroomPanel';
 import { syncCourseData } from './data/course-sync';
 import { TeachPage } from './components/TeachPage';
+import { AdminPage } from './components/AdminPage';
 import { OnboardingCoach } from './components/OnboardingCoach';
+import { SpeedupPhoneDialog } from './components/SpeedupPhoneDialog';
+import { readLoginIntent } from './lib/login-intent';
 import { completeOnboardingStep, PLATFORM_TUTORIAL_COURSE_ID } from './lib/onboarding';
 import { guideCourseCreated } from './lib/onboarding-guide';
-import { deleteNativeCourse, editNativeCourse, getTeachHome } from './data/platform-api-client';
+import {
+  deleteNativeCourse,
+  editNativeCourse,
+  getTeachHome,
+  isAdminAccount,
+} from './data/platform-api-client';
 import { readPlatformCourseMeta } from './lib/platform-course-meta';
 import { resolveNativeCourseAvatar } from './assets';
 import { marbleImages } from './lib/learning-action-marbles';
@@ -84,7 +93,7 @@ function AuthenticatedApp() {
   const [creatingCourse, setCreatingCourse] = useState(false);
   const [managedCourse, setManagedCourse] = useState<{
     course: LocalCourseSummary;
-    action: 'edit' | 'delete';
+    action: 'edit' | 'delete' | 'publish';
   } | null>(null);
   const [removingCourse, setRemovingCourse] = useState(false);
   const [chatDraft, setChatDraft] = useState({ text: '', revision: 0 });
@@ -108,24 +117,38 @@ function AuthenticatedApp() {
   const classroomEnabled = classroomAvailable(phoneLayout);
   const [classroomOpen, setClassroomOpen] = useState(false);
   const classroom = useClassroomState(classroomEnabled, classroomOpen);
-  // 「教学」入口只给能开班的账号（课程所属机构的成员等），手机上没有。
+  // 「教学」入口只给能开班的账号（认领了课的老师、课程所属机构的成员等），手机上没有。
+  // 从「老师登录」进来的账号即使还没认领课也有入口，好去认领。
+  const teacherLogin = readLoginIntent() === 'teacher';
   const [canTeach, setCanTeach] = useState(false);
   useEffect(() => {
     if (!classroomEnabled) return;
     let cancelled = false;
-    getTeachHome()
-      .then((home) => {
-        if (!cancelled) setCanTeach(home.courses.length > 0);
-      })
-      .catch(() => undefined);
+    const unsubscribe = subscribeVisibleRefresh(async () => {
+      const home = await getTeachHome();
+      if (!cancelled) setCanTeach(teacherLogin || home.courses.length > 0);
+    });
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
+  }, [classroomEnabled, teacherLogin]);
+  // 「管理」入口（测试服管理员控制台）只给管理员账号。
+  const [canAdmin, setCanAdmin] = useState(false);
+  useEffect(() => {
+    if (!platformAvailable()) return;
+    let cancelled = false;
+    void isAdminAccount().then((admin) => {
+      if (!cancelled) setCanAdmin(admin);
+    });
     return () => {
       cancelled = true;
     };
-  }, [classroomEnabled]);
+  }, []);
   const compactLayout = useCompactLayout();
-  const [globalPage, setGlobalPage] = useState<'calendar' | 'profile' | 'store' | 'teach' | null>(
-    null,
-  );
+  const [globalPage, setGlobalPage] = useState<
+    'calendar' | 'profile' | 'store' | 'teach' | 'classroom' | 'admin' | null
+  >(() => (teacherLogin && classroomEnabled ? 'teach' : null));
   const [globalEvents, setGlobalEvents] = useState<LocalCourseEvent[]>([]);
   const [calendarLoading, setCalendarLoading] = useState(false);
   const [calendarError, setCalendarError] = useState<string | null>(null);
@@ -626,13 +649,20 @@ function AuthenticatedApp() {
             ? 'store'
             : globalPage === 'teach'
               ? 'teach'
-              : 'chat',
+              : globalPage === 'classroom'
+                ? 'classroom'
+                : globalPage === 'admin'
+                  ? 'admin'
+                  : 'chat',
     avatarUrl: avatarTheme.avatarUrl,
     onOpenCalendar: () => setGlobalPage('calendar'),
     onOpenStore: () => setGlobalPage('store'),
     onOpenSettings: () => setGlobalPage('profile'),
-    onOpenClassroom: classroomEnabled ? () => setClassroomOpen(true) : undefined,
+    onOpenClassroom: classroomEnabled
+      ? () => (canTeach ? setGlobalPage('classroom') : setClassroomOpen(true))
+      : undefined,
     onOpenTeach: classroomEnabled && canTeach ? () => setGlobalPage('teach') : undefined,
+    onOpenAdmin: canAdmin ? () => setGlobalPage('admin') : undefined,
     onManageCourse: platformAvailable()
       ? (course, action) => setManagedCourse({ course, action })
       : undefined,
@@ -689,7 +719,17 @@ function AuthenticatedApp() {
             />
           </PracticeOverlay>
         ) : null}
-        {managedCourse?.action === 'edit' ? (
+        {managedCourse?.action === 'publish' ? (
+          <CoursePublishDialog
+            courseId={managedCourse.course.id}
+            onClose={() => setManagedCourse(null)}
+            onPublished={async () => {
+              await loadCourses(selectedCourseId ?? undefined);
+              await refreshWorkspace();
+              setManagedCourse(null);
+            }}
+          />
+        ) : managedCourse?.action === 'edit' ? (
           <CreateCourseDialog
             editing={{
               name: managedCourse.course.name,
@@ -774,7 +814,23 @@ function AuthenticatedApp() {
                 ) : null}
               </>
             ) : globalPage === 'teach' ? (
-              <TeachPage onBack={() => setGlobalPage(null)} />
+              <TeachPage
+                key="teaching"
+                onBack={() => setGlobalPage(null)}
+                onCourseChanged={async () => {
+                  await loadCourses();
+                  await refreshWorkspace();
+                }}
+              />
+            ) : globalPage === 'classroom' ? (
+              <TeachPage
+                key="classroom"
+                mode="classroom"
+                onBack={() => setGlobalPage(null)}
+                onJoinClass={() => setClassroomOpen(true)}
+              />
+            ) : globalPage === 'admin' ? (
+              <AdminPage onBack={() => setGlobalPage(null)} />
             ) : globalPage === 'store' ? (
               <StorePage
                 onBack={() => setGlobalPage(null)}
@@ -828,7 +884,8 @@ function AuthenticatedApp() {
           />
         ) : null}
 
-        <OnboardingCoach courses={courses} />
+        {teacherLogin ? null : <OnboardingCoach courses={courses} />}
+        <SpeedupPhoneDialog courseCount={courses.length} />
 
         {toast ? <NativeToast title={toast} /> : null}
       </main>

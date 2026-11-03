@@ -5,6 +5,11 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { BadgeCheck, ChevronLeft, ChevronRight, Star } from 'lucide-react';
 import { PurchaseConfirmDialog } from '@/components/courses/purchase-confirm-dialog';
+import {
+  CourseApplicationDialog,
+  CoursePrivacyNote,
+} from '@/components/store/course-application-dialog';
+import type { StoreCourseAdmission } from '@/lib/utils/database';
 import { useStoreStaging } from '@/components/courses/store-runtime';
 import { toast } from '@/lib/notifications/client-toast';
 import { backendJson } from '@/lib/utils/backend-api';
@@ -41,6 +46,8 @@ type StoreCourseDetailResponse = {
     publishedProblemCount: number;
     purchased: boolean;
     notebooks: StoreNotebook[];
+    admission?: StoreCourseAdmission;
+    application?: { status: string; answers: Record<string, string> } | null;
   };
   reviews: Array<{
     id: string;
@@ -105,6 +112,7 @@ export default function StoreCourseDetailPage() {
   const [comment, setComment] = useState('');
   const [expanded, setExpanded] = useState(false);
   const [coursePurchaseOpen, setCoursePurchaseOpen] = useState(false);
+  const [applyOpen, setApplyOpen] = useState(false);
   const [revision, setRevision] = useState(0);
 
   useEffect(() => {
@@ -213,6 +221,13 @@ export default function StoreCourseDetailPage() {
 
   const { course, reviews } = data;
   const art = courseArt(course.id, course.avatarUrl);
+  // 加入需要老师同意（不是课程要审核）：申请状态 pending 待批准、rejected 未通过。
+  const applicationStatus =
+    course.application?.status === 'approved' ? null : (course.application?.status ?? null);
+  const needsApproval =
+    !course.purchased &&
+    course.admission?.mode === 'approval' &&
+    course.application?.status !== 'approved';
   const title =
     storeCourseCode({ ...course, organizationName: course.organization?.name }) || course.name;
   const pages = course.notebooks.reduce((sum, notebook) => sum + notebookPages(notebook), 0);
@@ -255,16 +270,36 @@ export default function StoreCourseDetailPage() {
                 id === PLATFORM_TUTORIAL_COURSE_ID && !course.purchased ? 'tutorial-get' : undefined
               }
               disabled={buying}
-              onClick={() => (course.purchased ? openCourse() : setCoursePurchaseOpen(true))}
+              onClick={() =>
+                course.purchased
+                  ? openCourse()
+                  : needsApproval
+                    ? setApplyOpen(true)
+                    : setCoursePurchaseOpen(true)
+              }
             >
               {buying ? (
                 <span className={store.getRing} aria-label="正在获取" />
               ) : course.purchased ? (
                 '打开'
+              ) : applicationStatus === 'pending' ? (
+                '修改申请'
+              ) : applicationStatus === 'rejected' ? (
+                '重新申请'
               ) : (
                 '获取'
               )}
             </button>
+            {needsApproval ? (
+              <p className={styles.muted}>
+                {applicationStatus === 'pending'
+                  ? '待批准：申请已发送，等老师同意后就能进入课程'
+                  : applicationStatus === 'rejected'
+                    ? '未通过：可以改好填写的内容后重新申请'
+                    : '加入需要老师同意'}
+              </p>
+            ) : null}
+            {course.organization && !course.purchased ? <CoursePrivacyNote /> : null}
           </div>
         </header>
 
@@ -422,6 +457,20 @@ export default function StoreCourseDetailPage() {
           confirmLabel="获取课程"
           onConfirm={handleBuy}
         />
+        {needsApproval && course.admission ? (
+          <CourseApplicationDialog
+            open={applyOpen}
+            onOpenChange={setApplyOpen}
+            course={{ ...course, admission: course.admission }}
+            status={applicationStatus}
+            initialAnswers={course.application?.answers}
+            onSubmitted={(status) => {
+              toast.success(status === 'joined' ? '已加入课程' : '申请已发送，等老师同意');
+              if (status === 'joined') openCourse();
+              else setRevision((value) => value + 1);
+            }}
+          />
+        ) : null}
       </main>
     </div>
   );

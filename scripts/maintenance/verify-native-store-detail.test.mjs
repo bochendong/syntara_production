@@ -59,6 +59,7 @@ function fixture({ listed = true } = {}) {
     },
     coursePurchase: { findMany: async () => [] },
     courseEnrollment: { groupBy: async () => [] },
+    courseJoinApplication: { findMany: async () => [] },
     courseReview: { groupBy: async () => [], findMany: async () => [] },
     notebook: { findMany: readNotebooks },
     $queryRaw: async () => [],

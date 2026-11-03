@@ -1,5 +1,13 @@
 import { useState } from 'react';
-import { CalendarDays, GraduationCap, Home, Radio, UserRound, Store } from 'lucide-react';
+import {
+  CalendarDays,
+  GraduationCap,
+  Home,
+  Radio,
+  ShieldCheck,
+  UserRound,
+  Store,
+} from 'lucide-react';
 import { nativeAccountAvatarUrl } from '../assets';
 import type { AppNavigation } from './app-navigation-context';
 import './app-navigation-rail.css';
@@ -13,6 +21,7 @@ export function AppNavigationRail({
   onOpenSettings,
   onOpenClassroom,
   onOpenTeach,
+  onOpenAdmin,
 }: AppNavigation & { onOpenChat: () => void }) {
   const [failedAvatar, setFailedAvatar] = useState<string | null>(null);
   const image = avatarUrl || nativeAccountAvatarUrl(null, null);
@@ -53,7 +62,7 @@ export function AppNavigationRail({
         <button
           type="button"
           aria-label="教学"
-          title="教学：班级和上课"
+          title="教学：课程管理"
           aria-current={active === 'teach' ? 'page' : undefined}
           onClick={onOpenTeach}
         >
@@ -64,12 +73,25 @@ export function AppNavigationRail({
       {onOpenClassroom ? (
         <button
           type="button"
-          aria-label="进入课堂"
-          title="输课堂码进入课堂"
+          aria-label="上课"
+          title="上课和加入课堂"
+          aria-current={active === 'classroom' ? 'page' : undefined}
           onClick={onOpenClassroom}
         >
           <Radio size={22} strokeWidth={1.7} aria-hidden />
           <span className="app-navigation-label">上课</span>
+        </button>
+      ) : null}
+      {onOpenAdmin ? (
+        <button
+          type="button"
+          aria-label="管理"
+          title="管理：全站模型、Key、账号和用量"
+          aria-current={active === 'admin' ? 'page' : undefined}
+          onClick={onOpenAdmin}
+        >
+          <ShieldCheck size={22} strokeWidth={1.7} aria-hidden />
+          <span className="app-navigation-label">管理</span>
         </button>
       ) : null}
       <button

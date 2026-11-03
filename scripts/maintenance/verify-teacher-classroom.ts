@@ -51,12 +51,56 @@ async function main() {
   assert.equal(classroom.currentAcademicPeriod(new Date(2026, 5, 1)).academicTerm, 'summer');
   console.log('ok  码的格式与学期');
 
+  // 检查开班前置条件；只替换查询方法，不连接数据库或创建真实班级。
+  process.env.DATABASE_URL ??= 'postgresql://fixture:fixture@127.0.0.1:1/fixture';
+  const { prisma } = await import('../../lib/server/prisma');
+  const originalFindCourse = prisma.course.findFirst;
+  const originalFindClass = prisma.courseClass.findUnique;
+  const originalCreateClass = prisma.courseClass.create;
+  try {
+    prisma.course.findFirst = (async () => ({
+      id: 'fixture-course',
+      name: 'Fixture',
+      courseCode: null,
+      ownerId: 'fixture-owner',
+      organizationId: null,
+      listedInCourseStore: false,
+    })) as typeof prisma.course.findFirst;
+    prisma.courseClass.findUnique = (async () =>
+      null) as unknown as typeof prisma.courseClass.findUnique;
+    let created = false;
+    prisma.courseClass.create = (async () => {
+      created = true;
+      throw new Error('unexpected create');
+    }) as unknown as typeof prisma.courseClass.create;
+    await assert.rejects(
+      classroom.ensureCurrentTermClass({ userId: 'fixture-owner' }, 'fixture-course'),
+      (error: unknown) =>
+        error instanceof classroom.ClassroomError &&
+        error.status === 400 &&
+        error.message.includes('先将课程发布'),
+    );
+    assert.equal(created, false, '未发布课程不能创建班级');
+    prisma.courseClass.findUnique = (async () => ({
+      id: 'existing-class',
+      teacherId: 'fixture-owner',
+    })) as unknown as typeof prisma.courseClass.findUnique;
+    assert.equal(
+      await classroom.ensureCurrentTermClass({ userId: 'fixture-owner' }, 'fixture-course'),
+      'existing-class',
+    );
+    console.log('ok  未发布课程不能开班，已有班级仍可打开');
+  } finally {
+    prisma.course.findFirst = originalFindCourse;
+    prisma.courseClass.findUnique = originalFindClass;
+    prisma.courseClass.create = originalCreateClass;
+  }
+
   if (!testDatabaseUrl) {
     console.log('skip 数据库流程（没有设置 CLASSROOM_TEST_DATABASE_URL）');
     return;
   }
 
-  const { prisma } = await import('../../lib/server/prisma');
   const run = `t${Date.now().toString(36)}`;
   const user = (name: string) =>
     prisma.user.create({

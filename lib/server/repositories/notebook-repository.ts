@@ -389,7 +389,11 @@ export async function refreshCourseSummaryFields(db: DbClient, courseId: string)
   // acquiring both counters concurrently then exhausts the pool before Prisma
   // has a chance to replace the stale connections.
   const problemCount = await db.notebookProblem.count({
-    where: { ownerId: null, OR: [{ courseId }, { notebook: { courseId } }] },
+    where: {
+      ownerId: null,
+      status: { not: 'archived' },
+      OR: [{ courseId }, { notebook: { courseId } }],
+    },
   });
   const publishedProblemCount = await db.notebookProblem.count({
     where: {
@@ -518,7 +522,7 @@ export async function listReadableNotebookLibraryItems(
   courseId: string,
 ) {
   const access = await resolveCourseNotebookAccess(db, userId, courseId);
-  if (!access || access.role === 'owner') {
+  if (!access) {
     return listOwnedNotebookLibraryItems(db, userId, courseId);
   }
   // 加入的课程：课程的笔记 + 自己上传的笔记（allowedNotebookIds 已包含两者）。

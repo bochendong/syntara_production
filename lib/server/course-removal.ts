@@ -25,6 +25,13 @@ export async function removeCourseForUser(
   if (!accessRole) return { status: 'not_found' };
 
   if (accessRole === 'owner') {
+    const course = await prisma.course.findUnique({
+      where: { id: courseId },
+      select: { ownerId: true },
+    });
+    if (course?.ownerId !== userId) {
+      return { status: 'locked', message: '只有课程原负责人可以删除课程。' };
+    }
     const externalBinding = await prisma.externalCourseBinding.findUnique({
       where: { courseId },
       select: { id: true },

@@ -74,6 +74,7 @@
     "test:racket-judge": "jiti scripts/maintenance/verify-racket-judge.ts",
     "test:python-cs103": "jiti scripts/maintenance/verify-python-cs103.ts",
     "test:teacher-classroom": "jiti scripts/maintenance/verify-teacher-classroom.ts",
+    "test:teacher-claim": "jiti scripts/maintenance/verify-teacher-claim.ts",
     "test:problem-auto-archive-contracts": "node scripts/maintenance/verify-problem-auto-archive-contracts.mjs",
     "test:problem-learning-system": "node scripts/maintenance/verify-problem-learning-system-contracts.mjs",
     "test:python-code-runner": "node scripts/maintenance/verify-python-code-runner.mjs",

@@ -36,6 +36,7 @@ import {
   Dices,
   FileText,
   Library,
+  LockKeyhole,
   FileQuestion,
   FolderUp,
   Menu,
@@ -46,6 +47,7 @@ import {
   Presentation,
   Radio,
   GraduationCap,
+  ShieldCheck,
   Save,
   Search,
   SendHorizontal,
@@ -89,6 +91,11 @@ import {
   type GeneralChatClient,
 } from '../data/general-chat';
 import { browserApp } from '../data/browser-runtime';
+import {
+  loadNativeAuthSession,
+  subscribeNativeAuth,
+  type NativeAuthSession,
+} from '../data/native-auth';
 import { streamNativeChat, detectChatSurface } from '../ai/chat';
 import { buildNativeChatContext } from '../ai/context';
 import {
@@ -160,6 +167,7 @@ import {
   type RuntimeMiniLectureDeck,
 } from '../domain/learning-experiences';
 import { LocalResourceViewer, type LocalResourceDocument } from './LocalResourceViewer';
+import { PendingCourseApplications } from './PendingCourseApplications';
 import {
   buildEventsByDay,
   buildLearningCalendarDays,
@@ -1178,6 +1186,28 @@ export function PhoneChatDrawer<
   // 手机和窄窗口没有左侧细导航栏：商城、日历放在新聊天下面，「我的」放在底部。
   const compact = useCompactLayout();
   const navigation = useAppNavigation();
+  const [accountRole, setAccountRole] = useState<NativeAuthSession['user']['role'] | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    const unsubscribe = subscribeNativeAuth((session) => {
+      if (!cancelled) setAccountRole(session?.user.role ?? null);
+    });
+    void loadNativeAuthSession()
+      .then((session) => {
+        if (!cancelled) setAccountRole(session?.user.role ?? null);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
+  }, []);
+  const brandEdition =
+    accountRole === 'ADMIN' || navigation?.onOpenAdmin
+      ? '开发者版'
+      : accountRole === 'TEACHER'
+        ? '老师版'
+        : '测试版';
   const accountAvatar = navigation?.avatarUrl || nativeAccountAvatarUrl(null, null);
   const [failedAvatar, setFailedAvatar] = useState<string | null>(null);
   const [searching, setSearching] = useState(false);
@@ -1415,11 +1445,15 @@ export function PhoneChatDrawer<
           {'__TAURI_INTERNALS__' in window ? (
             'Syntara'
           ) : (
-            <a className="phone-drawer-home" href={homeHref} aria-label="Syntara 首页">
+            <a
+              className="phone-drawer-home"
+              href={homeHref}
+              aria-label={`Syntara ${brandEdition} 首页`}
+            >
               Syntara
             </a>
           )}
-          <span className="phone-drawer-beta">测试版</span>
+          <span className="phone-drawer-beta">{brandEdition}</span>
         </h2>
         <button
           type="button"
@@ -1475,6 +1509,12 @@ export function PhoneChatDrawer<
                 <span>上课</span>
               </button>
             ) : null}
+            {navigation.onOpenAdmin ? (
+              <button type="button" className="phone-drawer-tool" onClick={navigation.onOpenAdmin}>
+                <ShieldCheck size={20} strokeWidth={1.8} aria-hidden />
+                <span>管理</span>
+              </button>
+            ) : null}
           </>
         ) : null}
       </nav>
@@ -1506,6 +1546,8 @@ export function PhoneChatDrawer<
                   {!courses.length ? <p className="phone-drawer-empty">还没有课程</p> : null}
                   {shownCourses.map((course) => {
                     const current = course.id === selectedCourseId;
+                    const visibility = courseMeta[course.id]?.visibility;
+                    const visibilityLabel = visibility === 'private' ? '私有版' : '公有版';
                     const avatarUrl = current
                       ? selectedCourseAvatarUrl
                       : resolveNativeCourseAvatar(course.id, course.courseCode);
@@ -1531,10 +1573,10 @@ export function PhoneChatDrawer<
                                 ? 'tutorial-course'
                                 : undefined
                             }
-                            aria-label={course.courseCode || course.name}
+                            aria-label={`${course.courseCode || course.name}${visibility ? `，${visibilityLabel}` : ''}`}
                             aria-expanded={expanded}
                             aria-controls={expanded ? 'course-chats-' + course.id : undefined}
-                            title={course.name}
+                            title={`${course.name}${visibility ? ` · ${visibilityLabel}` : ''}`}
                             onClick={() =>
                               setExpandedCourses((ids) =>
                                 expanded
@@ -1549,7 +1591,9 @@ export function PhoneChatDrawer<
                               aria-hidden
                               data-marble-target={current ? '1' : undefined}
                             />
-                            <span>{sidebarCourseLabel(course.courseCode || course.name)}</span>
+                            <span className="phone-drawer-course-label">
+                              {sidebarCourseLabel(course.courseCode || course.name)}
+                            </span>
                             {courseMeta[course.id]?.hasUpdate ? (
                               <img
                                 className="phone-drawer-course-update"
@@ -1612,6 +1656,15 @@ export function PhoneChatDrawer<
                               <Ellipsis size={18} strokeWidth={1.7} aria-hidden />
                             </button>
                           </div>
+                          {visibility === 'private' ? (
+                            <span
+                              className="phone-drawer-course-private"
+                              title="Private · 私有版"
+                              aria-hidden
+                            >
+                              <LockKeyhole size={13} strokeWidth={1.8} />
+                            </span>
+                          ) : null}
                         </div>
                         {expanded ? (
                           <div
@@ -1642,6 +1695,7 @@ export function PhoneChatDrawer<
                       </div>
                     );
                   })}
+                  <PendingCourseApplications />
                   {hiddenCourses.length || allCoursesShown ? (
                     <button
                       type="button"
@@ -1764,6 +1818,18 @@ export function PhoneChatDrawer<
               ? []
               : [
                   {
+                    key: 'publish',
+                    label:
+                      courseMeta[courseActions.course.id]?.visibility === 'private'
+                        ? '发布到商城'
+                        : '发布设置',
+                    icon: <FolderUp size={17} strokeWidth={1.7} aria-hidden />,
+                    onSelect: () => {
+                      setCourseActions(null);
+                      navigation?.onManageCourse?.(courseActions.course, 'publish');
+                    },
+                  },
+                  {
                     key: 'edit',
                     label: '编辑',
                     icon: <PencilLine size={17} strokeWidth={1.7} aria-hidden />,
@@ -1808,6 +1874,18 @@ export function PhoneChatDrawer<
             navigation?.onManageCourse?.(courseMenu.course, 'delete');
           }}
           courseName={courseMenu.course.courseCode || courseMenu.course.name}
+          onPublish={
+            courseMeta[courseMenu.course.id]?.accessRole !== 'enrolled' &&
+            navigation?.onManageCourse
+              ? () => {
+                  setCourseMenu(null);
+                  navigation.onManageCourse?.(courseMenu.course, 'publish');
+                }
+              : undefined
+          }
+          publishLabel={
+            courseMeta[courseMenu.course.id]?.visibility === 'private' ? '发布到商城' : '发布设置'
+          }
           onClose={() => setCourseMenu(null)}
           onSelect={(page) => {
             setCourseMenu(null);
@@ -5903,10 +5981,6 @@ export function CourseWorkspace({
                       materialKinds.includes('problems')
                         ? (files) => uploadFromPage('problems', files)
                         : undefined
-                    }
-                    canRelease={
-                      courseMeta[workspace.course.id]?.accessRole === 'owner' &&
-                      Boolean(courseMeta[workspace.course.id]?.organizationName)
                     }
                     layered={enrolledCourse}
                     onContentChanged={resyncCourseContent}

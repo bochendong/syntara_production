@@ -9,7 +9,6 @@ import {
   listCoursePurchasesForSources,
   listPublicStoreCoursesForUser,
 } from '@/lib/server/repositories/store-repository';
-import { cloneStoreCourseForUser } from '@/lib/server/services/store-purchase-service';
 import { recordTutorialStep } from '@/lib/server/onboarding';
 import { ensurePlatformTutorial } from '@/lib/server/platform-tutorial';
 import {
@@ -18,6 +17,7 @@ import {
 } from '@/lib/course-space/course-update-summary';
 import { courseUpdateSummariesForUser } from '@/lib/server/store-course-layers';
 import { PLATFORM_TUTORIAL_COURSE_ID } from '@/lib/onboarding/spotlight';
+import { courseAdmissionConfig, requestCourseEntry } from './course-admissions';
 
 /** App 商城的一门机构课程（和网页 /store/courses 同一份数据）。 */
 export type NativeStoreCourse = {
@@ -38,6 +38,9 @@ export type NativeStoreCourse = {
   university: string | null;
   tags: string[];
   joined: boolean;
+  campus: string | null;
+  admission: ReturnType<typeof courseAdmissionConfig>;
+  applicationStatus: string | null;
   updatedAt: string;
 };
 
@@ -101,6 +104,11 @@ export async function listNativeStoreCourses(
     prisma,
     rows.map((row) => row.id),
   );
+  const applications = await prisma.courseJoinApplication.findMany({
+    where: { userId, courseId: { in: rows.map((row) => row.id) } },
+    select: { courseId: true, status: true },
+  });
+  const applicationStatuses = new Map(applications.map((item) => [item.courseId, item.status]));
   // 「使用教程」排在最前面，新手引导好找。
   const ordered = [...rows].sort(
     (a, b) =>
@@ -133,7 +141,10 @@ export async function listNativeStoreCourses(
       purpose: row.purpose,
       university: row.university ?? null,
       tags: row.tags,
-      joined: joined.has(row.id),
+      joined: row.ownerId === userId || Boolean(row.managers?.length) || joined.has(row.id),
+      campus: row.campus,
+      admission: courseAdmissionConfig(row.admissionConfig),
+      applicationStatus: applicationStatuses.get(row.id) ?? null,
       updatedAt: row.updatedAt.toISOString(),
     };
   });
@@ -144,11 +155,13 @@ export async function joinNativeStoreCourse(
   prisma: PrismaClient,
   userId: string,
   courseId: string,
+  answers: Record<string, string> = {},
 ) {
-  const result = await cloneStoreCourseForUser(prisma, userId, courseId);
-  if (result.status === 'not_found') return null;
-  await recordTutorialStep(prisma, userId, courseId, 'store');
-  return { courseId, created: result.status === 'created' };
+  const result = await prisma.$transaction((tx) =>
+    requestCourseEntry(tx, userId, courseId, answers),
+  );
+  if (result.status === 'joined') await recordTutorialStep(prisma, userId, courseId, 'store');
+  return result;
 }
 
 /** 打开加入的机构课程后熄灭「有更新」；自己建的课程没有这一步。 */
@@ -160,6 +173,7 @@ export async function markNativeCourseSeen(prisma: PrismaClient, userId: string,
 
 export type NativeCourseStoreMeta = {
   organizationName: string | null;
+  visibility: 'public' | 'private';
   hasUpdate: boolean;
   /** 「+3 题，改了 1 篇笔记」；发布新版但说不出具体变化时为空串 */
   updateSummary: string;
@@ -175,7 +189,13 @@ export async function loadNativeCourseStoreMeta(
   const [courses, enrollments] = await Promise.all([
     prisma.course.findMany({
       where: { id: { in: courseIds } },
-      select: { id: true, contentVersion: true, organization: { select: { name: true } } },
+      select: {
+        id: true,
+        contentVersion: true,
+        organizationId: true,
+        listedInCourseStore: true,
+        organization: { select: { name: true } },
+      },
     }),
     prisma.courseEnrollment
       .findMany({
@@ -196,6 +216,7 @@ export async function loadNativeCourseStoreMeta(
         course.id,
         {
           organizationName: course.organization?.name ?? null,
+          visibility: course.organizationId || course.listedInCourseStore ? 'public' : 'private',
           hasUpdate: seenVersion !== undefined && seenVersion < course.contentVersion,
           updateSummary: formatCourseUpdateSummary(summaries.get(course.id)),
         },

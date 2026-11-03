@@ -4,6 +4,8 @@ import { requireAdmin } from '@/lib/server/admin-auth';
 import {
   getCloudUsageGlobalLimit,
   getCloudUsageUserLimit,
+  saveCloudUsageGlobalLimit,
+  saveCloudUsageUserLimit,
   summarizeCloudUsage,
 } from '@/lib/server/cloud-usage-limits';
 import { getOptionalPrisma } from '@/lib/server/prisma-safe';
@@ -142,30 +144,13 @@ export async function PUT(request: Request) {
 
   try {
     if (body.scope === 'global') {
-      await prisma.$executeRaw(
-        Prisma.sql`
-          INSERT INTO "CloudUsageGlobalLimit" (
-            "id", "enabled", "weeklyCostLimitUsd", "weeklyRequestLimit", "updatedBy", "updatedAt"
-          )
-          VALUES (
-            'global',
-            ${Boolean(body.enabled)},
-            ${weeklyCostLimitUsd},
-            ${weeklyRequestLimit},
-            ${admin.identity.email ?? admin.identity.userId},
-            CURRENT_TIMESTAMP
-          )
-          ON CONFLICT ("id") DO UPDATE SET
-            "enabled" = EXCLUDED."enabled",
-            "weeklyCostLimitUsd" = EXCLUDED."weeklyCostLimitUsd",
-            "weeklyRequestLimit" = EXCLUDED."weeklyRequestLimit",
-            "updatedBy" = EXCLUDED."updatedBy",
-            "updatedAt" = CURRENT_TIMESTAMP
-        `,
-      );
-
       const [limit, usage] = await Promise.all([
-        getCloudUsageGlobalLimit(prisma),
+        saveCloudUsageGlobalLimit(prisma, {
+          enabled: Boolean(body.enabled),
+          weeklyCostLimitUsd,
+          weeklyRequestLimit,
+          updatedBy: admin.identity.email ?? admin.identity.userId,
+        }),
         summarizeCloudUsage(prisma),
       ]);
       return apiSuccess({ global: { limit, usage } });
@@ -181,32 +166,15 @@ export async function PUT(request: Request) {
       });
       if (!user) return apiError('INVALID_REQUEST', 404, '用户不存在');
 
-      await prisma.$executeRaw(
-        Prisma.sql`
-          INSERT INTO "CloudUsageUserLimit" (
-            "userId", "weeklyCostLimitUsd", "weeklyRequestLimit", "disabled", "note", "updatedBy", "updatedAt"
-          )
-          VALUES (
-            ${userId},
-            ${weeklyCostLimitUsd},
-            ${weeklyRequestLimit},
-            ${Boolean(body.disabled)},
-            ${body.note?.trim() || null},
-            ${admin.identity.email ?? admin.identity.userId},
-            CURRENT_TIMESTAMP
-          )
-          ON CONFLICT ("userId") DO UPDATE SET
-            "weeklyCostLimitUsd" = EXCLUDED."weeklyCostLimitUsd",
-            "weeklyRequestLimit" = EXCLUDED."weeklyRequestLimit",
-            "disabled" = EXCLUDED."disabled",
-            "note" = EXCLUDED."note",
-            "updatedBy" = EXCLUDED."updatedBy",
-            "updatedAt" = CURRENT_TIMESTAMP
-        `,
-      );
-
       const [limit, usage] = await Promise.all([
-        getCloudUsageUserLimit(prisma, userId),
+        saveCloudUsageUserLimit(prisma, {
+          userId,
+          weeklyCostLimitUsd,
+          weeklyRequestLimit,
+          disabled: Boolean(body.disabled),
+          note: body.note?.trim() || null,
+          updatedBy: admin.identity.email ?? admin.identity.userId,
+        }),
         summarizeCloudUsage(prisma, userId),
       ]);
       return apiSuccess({ user: { id: userId, limit, usage } });

@@ -5976,6 +5976,22 @@ select,
   white-space: nowrap;
 }
 
+.phone-drawer-course .phone-drawer-course-label {
+  min-width: 0;
+}
+
+.phone-drawer-course-heading > .phone-drawer-course-private {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  margin: 0 10px 0 4px;
+  color: #64748b;
+}
+
+.phone-drawer-course-private svg {
+  flex: none;
+}
+
 .phone-drawer-scroll {
   flex: 1;
   min-height: 0;

@@ -13,6 +13,7 @@ import {
 } from '@/lib/server/repositories/store-repository';
 import type { RootDbClient } from '@/lib/server/repositories/types';
 import type { Prisma } from '@/lib/server/generated-prisma';
+import { assertCourseAdmissionForEnrollment, lockAdmissionCourse } from '../course-admissions';
 
 export type StorePurchaseResult<T> =
   | { status: 'not_found' }
@@ -81,6 +82,8 @@ export async function cloneStoreCourseForUser(
   await ensureCourseEnrollmentTable(db);
 
   const course = await db.$transaction(async (tx) => {
+    await lockAdmissionCourse(tx, source.id);
+    await assertCourseAdmissionForEnrollment(tx, userId, source.id);
     // 引用而不是复制：内容一直读机构那份，用户的记忆/进度/做题按 userId + courseId 另存。
     await createCourseEnrollment(tx, {
       userId,

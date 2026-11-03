@@ -1,5 +1,6 @@
 import { ensurePlatformTutorial } from '@/lib/server/platform-tutorial';
 import { NextResponse } from 'next/server';
+import { courseAdmissionConfig } from '@/lib/server/course-admissions';
 import { prisma } from '@/lib/server/prisma';
 import { requireUserId } from '@/lib/server/api-auth';
 import { safeRoute } from '@/lib/server/json-error-response';
@@ -35,10 +36,15 @@ export async function GET() {
     const rows = await listPublicStoreCoursesForUser(prisma, userId);
 
     const courseIds = rows.map((row) => row.id);
-    const [reviews, purchases] = await Promise.all([
+    const [reviews, purchases, applications] = await Promise.all([
       listCourseReviewRatings(prisma, courseIds),
       listCoursePurchasesForSources(prisma, userId, courseIds),
+      prisma.courseJoinApplication.findMany({
+        where: { userId, courseId: { in: courseIds } },
+        select: { courseId: true, status: true },
+      }),
     ]);
+    const applicationStatus = new Map(applications.map((row) => [row.courseId, row.status]));
 
     const reviewMap = new Map<string, { sum: number; count: number }>();
     for (const review of reviews) {
@@ -70,6 +76,9 @@ export async function GET() {
         averageRating: reviewStats ? reviewStats.sum / reviewStats.count : 0,
         reviewCount: reviewStats?.count ?? 0,
         purchased: purchasedSet.has(row.id),
+        // 加入方式：所有人可加入，或需要老师同意（要填的字段）；自己的申请状态。
+        admission: courseAdmissionConfig(row.admissionConfig),
+        applicationStatus: applicationStatus.get(row.id) ?? null,
       };
     });
 

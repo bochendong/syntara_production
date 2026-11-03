@@ -1,5 +1,13 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type CSSProperties,
+  type FormEvent,
+} from 'react';
+import {
+  Bell,
   ChevronRight,
   Copy,
   Eye,
@@ -15,8 +23,12 @@ import {
   X,
 } from 'lucide-react';
 
-import { resolveNativeCourseAvatar } from '../assets';
+import { profileThemeForAvatar, resolveNativeCourseAvatar } from '../assets';
 import {
+  claimTeachCourse,
+  getTeachClaimableCourses,
+  releaseTeachCourse,
+  type TeachClaimableCourse,
   getTeachClass,
   getTeachHome,
   getTeachProblemChoices,
@@ -32,9 +44,12 @@ import {
   type TeachSession,
 } from '../data/platform-api-client';
 import { marbleImages } from '../lib/learning-action-marbles';
+import { readLoginIntent } from '../lib/login-intent';
 import { GlassSkeletonRows } from './GlassLoadMore';
 import { PhoneConfirm, PhoneEmpty, PhonePage } from './PhonePages';
 import './teach-page.css';
+import { TeachCourseView } from './TeachCourseView';
+import { CoursePublishDialog } from './CoursePublishDialog';
 
 /**
  * 「教学」页（网页版、iPad、电脑 App；手机没有）：老师的班级和上课。
@@ -43,6 +58,8 @@ import './teach-page.css';
 
 type View =
   | { kind: 'home' }
+  | { kind: 'course'; courseId: string }
+  | { kind: 'claim' }
   | { kind: 'class'; classId: string }
   | { kind: 'session'; sessionId: string; classId: string | null };
 
@@ -82,7 +99,7 @@ function problemName(problem: { number: number | null; title: string }) {
 }
 
 function courseLabel(course: { courseCode: string | null; name: string }) {
-  return course.courseCode?.trim() || course.name;
+  return course.name.trim() || course.courseCode?.trim() || '';
 }
 
 function clock(timestamp: number) {
@@ -122,8 +139,27 @@ function usePolled<T>(load: () => Promise<T>, intervalMs: number) {
   return { data, setData, error, setError, reload };
 }
 
-export function TeachPage({ onBack }: { onBack: () => void }) {
+export function TeachPage({
+  onBack,
+  mode = 'teaching',
+  onJoinClass,
+  onCourseChanged,
+}: {
+  onBack: () => void;
+  mode?: 'teaching' | 'classroom';
+  onJoinClass?: () => void;
+  onCourseChanged?: () => Promise<void> | void;
+}) {
   const [view, setView] = useState<View>({ kind: 'home' });
+  if (view.kind === 'course')
+    return (
+      <TeachCourseView
+        key={view.courseId}
+        courseId={view.courseId}
+        onBack={() => setView({ kind: 'home' })}
+        onCourseChanged={onCourseChanged}
+      />
+    );
   if (view.kind === 'class') {
     return (
       <TeachClassView
@@ -136,6 +172,9 @@ export function TeachPage({ onBack }: { onBack: () => void }) {
       />
     );
   }
+  if (view.kind === 'claim') {
+    return <TeachClaimView onBack={() => setView({ kind: 'home' })} />;
+  }
   if (view.kind === 'session') {
     return (
       <TeachSessionView
@@ -145,109 +184,414 @@ export function TeachPage({ onBack }: { onBack: () => void }) {
       />
     );
   }
+  if (mode === 'classroom')
+    return (
+      <ClassroomHomeView
+        onBack={onBack}
+        onJoinClass={onJoinClass}
+        onOpenClass={(classId) => setView({ kind: 'class', classId })}
+      />
+    );
   return (
     <TeachHomeView
       onBack={onBack}
-      onOpenClass={(classId) => setView({ kind: 'class', classId })}
-      onOpenSession={(sessionId) => setView({ kind: 'session', sessionId, classId: null })}
+      onOpenCourse={(courseId) => setView({ kind: 'course', courseId })}
+      onOpenClaim={() => setView({ kind: 'claim' })}
     />
   );
 }
 
+// 老师登录后第一次进教学页、还没有课时，直接进认领页（只自动跳一次）。
+let autoClaimShown = false;
+
 function TeachHomeView({
   onBack,
-  onOpenClass,
-  onOpenSession,
+  onOpenCourse,
+  onOpenClaim,
 }: {
   onBack: () => void;
-  onOpenClass: (classId: string) => void;
-  onOpenSession: (sessionId: string) => void;
+  onOpenCourse: (courseId: string) => void;
+  onOpenClaim: () => void;
 }) {
-  const { data, error, setError } = usePolled<TeachHome>(getTeachHome, 0);
-  const [busy, setBusy] = useState<string | null>(null);
-
-  const open = async (courseId: string) => {
-    setBusy(courseId);
-    try {
-      onOpenClass((await openTeachClass(courseId)).classId);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : '开班失败');
-      setBusy(null);
-    }
-  };
+  const { data, error, reload } = usePolled<TeachHome>(getTeachHome, 30_000);
+  const [publishingCourseId, setPublishingCourseId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!data || data.courses.length || autoClaimShown || readLoginIntent() !== 'teacher') return;
+    autoClaimShown = true;
+    onOpenClaim();
+  }, [data, onOpenClaim]);
 
   return (
     <PhonePage title="教学" overlay largeTitle onBack={onBack}>
       <div className="tp-page">
-        <header className="phone-large-head tp-head">
+        <header className="phone-large-head tp-head tp-teaching-head">
           <h1>教学</h1>
-          {data ? <span className="tp-term">{data.currentPeriod.label}</span> : null}
+          <button type="button" className="tp-get-pill tp-claim-entry" onClick={onOpenClaim}>
+            <Plus size={14} aria-hidden />
+            认领课程
+          </button>
         </header>
         {error ? <p className="phone-page-error">{error}</p> : null}
         {!data && !error ? <GlassSkeletonRows rows={4} height={54} /> : null}
         {data && !data.courses.length ? (
-          <PhoneEmpty
-            title="还没有可以开班的课程"
-            hint="机构把你加为课程所属机构的成员后，这里会出现对应课程。"
-          />
+          <div className="tp-claim-empty">
+            <PhoneEmpty title="还没有认领课程" hint="认领你教的课，就可以在这里管理课程。" />
+            <button type="button" className="phone-confirm-button is-primary" onClick={onOpenClaim}>
+              认领课程
+            </button>
+          </div>
         ) : null}
         {data?.courses.length ? (
           <>
-            <p className="phone-group-title">我的课程</p>
-            <div className="phone-group">
+            <div className="tp-courses-heading">
+              <h2>我管理的课程</h2>
+              <span>{data.courses.length} 门课程</span>
+            </div>
+            <div className="tp-course-grid">
               {data.courses.map((course) => {
-                const current = course.currentClass;
-                const blocked = Boolean(current && !current.mine);
+                const avatar = resolveNativeCourseAvatar(
+                  course.id,
+                  course.courseCode,
+                  course.avatarUrl,
+                );
+                const scene = profileThemeForAvatar(avatar)?.backgroundUrl;
                 return (
-                  <div key={course.id} className="tp-course">
-                    <button
-                      type="button"
-                      className="phone-row tp-course-row"
-                      disabled={blocked || busy === course.id}
-                      onClick={() =>
-                        current?.liveSessionId && current.mine
-                          ? onOpenSession(current.liveSessionId)
-                          : void open(course.id)
-                      }
-                    >
-                      <img
-                        className="tp-course-marble"
-                        src={resolveNativeCourseAvatar(course.id, course.courseCode)}
-                        alt=""
-                      />
-                      <span className="tp-course-copy">
-                        <strong>{courseLabel(course)}</strong>
-                        <small>
-                          {blocked
-                            ? '本学期由其他老师带'
-                            : current
-                              ? `本学期 ${current.memberCount} 人`
-                              : `${course.problemCount} 道题 · 还没开班`}
-                        </small>
-                      </span>
-                      {current?.liveSessionId && current.mine ? (
-                        <span className="tp-live-pill">上课中</span>
-                      ) : !blocked ? (
-                        <span className="tp-get-pill">{current ? '打开' : '开班'}</span>
-                      ) : null}
-                    </button>
-                    {course.pastClasses.length ? (
-                      <div className="tp-past">
-                        {course.pastClasses.map((past) => (
-                          <button key={past.id} type="button" onClick={() => onOpenClass(past.id)}>
-                            {past.label} · {past.memberCount} 人
-                            <ChevronRight size={12} aria-hidden />
-                          </button>
-                        ))}
+                  <article
+                    key={course.id}
+                    className={`tp-course-card${scene ? ' has-course-scene' : ''}`}
+                    aria-label={courseLabel(course)}
+                    style={
+                      scene
+                        ? ({ '--tp-card-scene': `url(${JSON.stringify(scene)})` } as CSSProperties)
+                        : undefined
+                    }
+                  >
+                    <div className="tp-course-card-identity">
+                      <button
+                        type="button"
+                        className="tp-course-card-head tp-course-card-select"
+                        aria-label={`管理课程：${courseLabel(course)}`}
+                        onClick={() => onOpenCourse(course.id)}
+                      >
+                        <img className="tp-course-marble" src={avatar} alt="" />
+                        <div className="tp-course-card-title">
+                          <h3>{courseLabel(course)}</h3>
+                        </div>
+                      </button>
+                      <button
+                        type="button"
+                        className="tp-course-notifications"
+                        aria-label={`${courseLabel(course)}的加入申请，${course.pendingApplications} 人等你同意`}
+                        title="查看加入申请"
+                        onClick={() => onOpenCourse(course.id)}
+                      >
+                        <Bell size={18} aria-hidden />
+                        {course.pendingApplications > 0 ? (
+                          <span className="tp-course-notification-count" aria-hidden>
+                            {course.pendingApplications > 99 ? '99+' : course.pendingApplications}
+                          </span>
+                        ) : null}
+                      </button>
+                    </div>
+                    <dl className="tp-course-card-stats">
+                      <div>
+                        <dt>题库</dt>
+                        <dd>
+                          {course.problemCount}
+                          <span> 道题</span>
+                        </dd>
                       </div>
-                    ) : null}
-                  </div>
+                      <div>
+                        <dt>笔记</dt>
+                        <dd>
+                          {course.notebookCount}
+                          <span> 本</span>
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>已添加</dt>
+                        <dd>
+                          {course.learnerCount}
+                          <span> 人</span>
+                        </dd>
+                      </div>
+                    </dl>
+                    <div className="tp-course-card-footer">
+                      <div className="tp-course-card-actions">
+                        {course.canPublish ? (
+                          <button
+                            type="button"
+                            className="tp-course-card-publish"
+                            aria-label={`${course.listed ? '发布设置' : '发布'}：${courseLabel(course)}`}
+                            onClick={() => setPublishingCourseId(course.id)}
+                          >
+                            {course.listed ? '发布设置' : '发布'}
+                          </button>
+                        ) : null}
+                        <button
+                          type="button"
+                          className="tp-course-card-open"
+                          aria-label={`查看课程：${courseLabel(course)}`}
+                          onClick={() => onOpenCourse(course.id)}
+                        >
+                          管理课程
+                          <ChevronRight size={15} aria-hidden />
+                        </button>
+                      </div>
+                    </div>
+                  </article>
                 );
               })}
             </div>
           </>
         ) : null}
       </div>
+      {publishingCourseId ? (
+        <CoursePublishDialog
+          courseId={publishingCourseId}
+          onClose={() => setPublishingCourseId(null)}
+          onPublished={async () => {
+            setPublishingCourseId(null);
+            await reload();
+          }}
+        />
+      ) : null}
+    </PhonePage>
+  );
+}
+
+function ClassroomHomeView({
+  onBack,
+  onJoinClass,
+  onOpenClass,
+}: {
+  onBack: () => void;
+  onJoinClass?: () => void;
+  onOpenClass: (classId: string) => void;
+}) {
+  const { data, error } = usePolled<TeachHome>(getTeachHome, 30_000);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [actionError, setActionError] = useState('');
+  const publishedCourses = data?.courses.filter((course) => course.listed) ?? [];
+  return (
+    <PhonePage title="上课" overlay largeTitle onBack={onBack}>
+      <div className="tp-page">
+        <header className="phone-large-head tp-head">
+          <h1>上课</h1>
+          {data ? <span className="tp-term">{data.currentPeriod.label}</span> : null}
+        </header>
+        <div className="tp-courses-heading">
+          <h2>我的班级</h2>
+          {onJoinClass ? (
+            <button type="button" className="tp-course-card-publish" onClick={onJoinClass}>
+              输入课堂码 / 班级码
+            </button>
+          ) : null}
+        </div>
+        {error || actionError ? (
+          <p className="phone-page-error" role="alert">
+            {actionError || error}
+          </p>
+        ) : null}
+        {!data && !error ? <GlassSkeletonRows rows={4} height={54} /> : null}
+        {data && !publishedCourses.length ? (
+          <PhoneEmpty
+            title="暂无可开班的课程"
+            hint="发布课程或由管理员分配已发布的课程后，可以在这里开班。"
+          />
+        ) : null}
+        <div className="tp-course-grid">
+          {publishedCourses.map((course) => {
+            const current = course.currentClass;
+            const blocked = Boolean(current && !current.mine);
+            return (
+              <article key={course.id} className="tp-course-card" aria-label={courseLabel(course)}>
+                <div className="tp-course-card-head">
+                  <img
+                    className="tp-course-marble"
+                    src={resolveNativeCourseAvatar(course.id, course.courseCode, course.avatarUrl)}
+                    alt=""
+                  />
+                  <div className="tp-course-card-title">
+                    <h3>{courseLabel(course)}</h3>
+                    <p>{current ? `${current.memberCount} 位学生` : '课程班级'}</p>
+                  </div>
+                </div>
+                <div className="tp-course-card-footer">
+                  <span className={current?.mine ? 'tp-course-state is-ready' : 'tp-course-state'}>
+                    {current?.liveSessionId && current.mine
+                      ? '上课中'
+                      : blocked
+                        ? '本学期由其他老师带'
+                        : current
+                          ? '本学期已开班'
+                          : '本学期未开班'}
+                  </span>
+                  <button
+                    type="button"
+                    className="tp-course-card-open"
+                    disabled={blocked || Boolean(busy)}
+                    onClick={async () => {
+                      setBusy(course.id);
+                      setActionError('');
+                      try {
+                        onOpenClass((await openTeachClass(course.id)).classId);
+                      } catch (cause) {
+                        setActionError(cause instanceof Error ? cause.message : '开班失败');
+                        setBusy(null);
+                      }
+                    }}
+                  >
+                    {busy === course.id ? '正在打开…' : current ? '打开班级' : '开班'}{' '}
+                    <ChevronRight size={15} aria-hidden />
+                  </button>
+                </div>
+                {course.pastClasses.length ? (
+                  <div className="tp-past">
+                    {course.pastClasses.map((past) => (
+                      <button key={past.id} type="button" onClick={() => onOpenClass(past.id)}>
+                        {past.label} · {past.memberCount} 人<ChevronRight size={12} aria-hidden />
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+              </article>
+            );
+          })}
+        </div>
+      </div>
+    </PhonePage>
+  );
+}
+
+/** 认领课程：一门课只能由一位老师认领，先到先得，不用审批；自己认领的可以退出。 */
+function TeachClaimView({ onBack }: { onBack: () => void }) {
+  const [query, setQuery] = useState('');
+  const [courses, setCourses] = useState<TeachClaimableCourse[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [releasing, setReleasing] = useState<TeachClaimableCourse | null>(null);
+
+  const load = useCallback(async (text: string) => {
+    try {
+      setCourses(await getTeachClaimableCourses(text));
+      setError(null);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : '没加载出来');
+    }
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => void load(query), query ? 250 : 0);
+    return () => window.clearTimeout(timer);
+  }, [load, query]);
+
+  const act = async (course: TeachClaimableCourse, release: boolean) => {
+    setBusy(course.id);
+    setError(null);
+    try {
+      if (release) await releaseTeachCourse(course.id);
+      else await claimTeachCourse(course.id);
+      await load(query);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : release ? '退出失败' : '认领失败');
+      await load(query);
+    } finally {
+      setBusy(null);
+      setReleasing(null);
+    }
+  };
+
+  const mine = courses?.filter((course) => course.claim === 'mine') ?? [];
+  const others = courses?.filter((course) => course.claim !== 'mine') ?? [];
+
+  const row = (course: TeachClaimableCourse) => (
+    <div key={course.id} className="phone-row tp-course-row tp-claim-row">
+      <img
+        className="tp-course-marble"
+        src={resolveNativeCourseAvatar(course.id, course.courseCode)}
+        alt=""
+      />
+      <span className="tp-course-copy">
+        <strong>{courseLabel(course)}</strong>
+        <small>
+          {[
+            course.courseCode && course.name !== course.courseCode ? course.name : null,
+            course.organizationName,
+            `${course.problemCount} 道题`,
+          ]
+            .filter(Boolean)
+            .join(' · ')}
+        </small>
+      </span>
+      {course.claim === 'mine' ? (
+        <button
+          type="button"
+          className="tp-get-pill is-quiet"
+          disabled={busy === course.id}
+          onClick={() => setReleasing(course)}
+        >
+          已认领
+        </button>
+      ) : course.claim === 'taken' ? (
+        <span className="tp-claim-taken">已有老师</span>
+      ) : (
+        <button
+          type="button"
+          className="tp-get-pill"
+          disabled={busy !== null}
+          onClick={() => void act(course, false)}
+        >
+          {busy === course.id ? '认领中' : '认领'}
+        </button>
+      )}
+    </div>
+  );
+
+  return (
+    <PhonePage title="认领课程" overlay largeTitle onBack={onBack}>
+      <div className="tp-page">
+        <header className="phone-large-head tp-head">
+          <h1>认领课程</h1>
+        </header>
+        <label className="phone-search tp-claim-search">
+          <Search size={17} aria-hidden />
+          <input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="搜课号、课程名或机构"
+            type="search"
+          />
+        </label>
+        {error ? <p className="phone-page-error">{error}</p> : null}
+        {!courses && !error ? <GlassSkeletonRows rows={5} height={54} /> : null}
+        {mine.length ? (
+          <>
+            <p className="phone-group-title">我认领的</p>
+            <div className="phone-group">{mine.map(row)}</div>
+          </>
+        ) : null}
+        {courses && others.length ? (
+          <>
+            <p className="phone-group-title">{query ? '搜索结果' : '可以认领'}</p>
+            <div className="phone-group">{others.map(row)}</div>
+          </>
+        ) : null}
+        {courses && !courses.length ? (
+          <PhoneEmpty title="没有找到课程" hint="换个课号或机构名试试。" />
+        ) : null}
+      </div>
+      {releasing ? (
+        <PhoneConfirm
+          title="退出认领？"
+          message={`${courseLabel(releasing)} 会回到可认领列表，已开的班和课堂记录保留。`}
+          confirmLabel="退出"
+          destructive
+          busy={busy === releasing.id}
+          onConfirm={() => void act(releasing, true)}
+          onCancel={() => setReleasing(null)}
+        />
+      ) : null}
     </PhonePage>
   );
 }

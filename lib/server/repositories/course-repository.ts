@@ -164,6 +164,14 @@ export function listAccessibleCoursesForUser(
             AND "course"."ownerId" = (SELECT "id" FROM "ResolvedUser")
           )
           OR EXISTS (
+            SELECT 1 FROM "CourseManager" AS "manager"
+            INNER JOIN "User" AS "managerUser" ON "managerUser"."id" = "manager"."userId"
+            WHERE "manager"."courseId" = "course"."id"
+              AND "manager"."userId" = (SELECT "id" FROM "ResolvedUser")
+              AND "managerUser"."isActive" = true
+              AND "managerUser"."role" IN ('TEACHER', 'ADMIN')
+          )
+          OR EXISTS (
             SELECT 1 FROM "ExternalCourseMembership" AS "teacherMembership"
             WHERE "teacherMembership"."bindingId" = "ownerBinding"."id"
               AND "teacherMembership"."userId" = (SELECT "id" FROM "ResolvedUser")
@@ -214,6 +222,14 @@ export function listAccessibleCoursesForUser(
           (
             "joinedBinding"."id" IS NULL
             AND "course"."ownerId" = (SELECT "id" FROM "ResolvedUser")
+          )
+          OR EXISTS (
+            SELECT 1 FROM "CourseManager" AS "manager"
+            INNER JOIN "User" AS "managerUser" ON "managerUser"."id" = "manager"."userId"
+            WHERE "manager"."courseId" = "course"."id"
+              AND "manager"."userId" = (SELECT "id" FROM "ResolvedUser")
+              AND "managerUser"."isActive" = true
+              AND "managerUser"."role" IN ('TEACHER', 'ADMIN')
           )
           OR EXISTS (
             SELECT 1 FROM "ExternalCourseMembership" AS "teacherMembership"

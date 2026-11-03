@@ -1,7 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import { Copy, Ellipsis, RotateCcw, Trash2, X } from 'lucide-react';
 
-import { releaseNativeCourseVersion } from '../data/platform-api-client';
 import type { NativeHiddenCourseContent } from '../data/platform-api-contracts';
 import { marbleImages } from '../lib/learning-action-marbles';
 import { GlassSpinner } from './GlassLoadMore';
@@ -227,34 +226,6 @@ export function CourseUpdateCard({ text, onClose }: { text: string; onClose: () 
       <button type="button" aria-label="知道了" onClick={onClose}>
         <X size={14} />
       </button>
-    </div>
-  );
-}
-
-/** 机构发布者在当前网页和 App 题库中发布公有内容的版本。 */
-export function CourseReleaseButton({ courseId }: { courseId: string }) {
-  const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
-  return (
-    <div className="lay-release">
-      <button
-        type="button"
-        disabled={busy}
-        onClick={() => {
-          setBusy(true);
-          setMessage(null);
-          void releaseNativeCourseVersion(courseId)
-            .then((release) => setMessage(`已发布第 ${release.version} 版：${release.text}`))
-            .catch((cause) =>
-              setMessage(cause instanceof Error ? cause.message : '发布失败，请重试。'),
-            )
-            .finally(() => setBusy(false));
-        }}
-      >
-        {busy ? <GlassSpinner size={14} /> : null}
-        {busy ? '正在发布…' : '发布新版本'}
-      </button>
-      <p role="status">{message}</p>
     </div>
   );
 }

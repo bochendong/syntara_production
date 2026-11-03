@@ -209,6 +209,12 @@ export async function findCourseAccessRole(
     where: { id: courseId },
     select: {
       ownerId: true,
+      claimedTeacherId: true,
+      claimedTeacher: { select: { isActive: true } },
+      managers: {
+        where: { userId, user: { isActive: true, role: { in: ['TEACHER', 'ADMIN'] } } },
+        select: { userId: true },
+      },
       externalBinding: {
         select: {
           memberships: {
@@ -220,6 +226,13 @@ export async function findCourseAccessRole(
     },
   });
   if (!course) return null;
+  if (course.managers.length) return 'owner';
+  if (
+    !course.externalBinding &&
+    course.claimedTeacherId === userId &&
+    course.claimedTeacher?.isActive
+  )
+    return 'owner';
   if (course.externalBinding) {
     if (course.externalBinding.memberships.some((membership) => membership.role === 'TEACHER')) {
       return 'owner';

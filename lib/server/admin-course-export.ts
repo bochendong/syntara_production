@@ -1,8 +1,8 @@
 import JSZip from 'jszip';
 import { Readable } from 'node:stream';
-import type { PrismaClient } from '@prisma/client';
+import type { DbClient } from '@/lib/server/repositories/types';
 
-type Database = PrismaClient;
+type Database = DbClient;
 
 function safeSegment(value: string) {
   return (
@@ -63,7 +63,11 @@ function collectGeneratedImagePaths(value: unknown, paths: Set<string>): void {
   }
 }
 
-export async function buildAdminCourseArchive(db: Database, courseIds: string[]) {
+export async function buildAdminCourseArchive(
+  db: Database,
+  courseIds: string[],
+  options: { materialsOnly?: boolean } = {},
+) {
   const zip = new JSZip();
   const courses = await db.course.findMany({
     where: { id: { in: courseIds } },
@@ -104,7 +108,10 @@ export async function buildAdminCourseArchive(db: Database, courseIds: string[])
     const generatedImagePaths = new Set<string>();
     zip.file(`${root}/course.json`, json(course));
     const sources = await db.courseSource.findMany({
-      where: { courseId: course.id },
+      where: {
+        courseId: course.id,
+        ...(options.materialsOnly ? { ownerId: course.ownerId, removedAt: null } : {}),
+      },
       orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
       select: {
         id: true,
@@ -172,7 +179,10 @@ export async function buildAdminCourseArchive(db: Database, courseIds: string[])
     }
 
     const notebooks = await db.notebook.findMany({
-      where: { courseId: course.id },
+      where: {
+        courseId: course.id,
+        ...(options.materialsOnly ? { ownerId: course.ownerId, removedAt: null } : {}),
+      },
       orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
       select: {
         id: true,
@@ -263,7 +273,22 @@ export async function buildAdminCourseArchive(db: Database, courseIds: string[])
     zip.file(`${root}/04-organized-problem-bank/chapters.json`, json(chapters));
     zip.file(`${root}/04-organized-problem-bank/tags.json`, json(tags));
     const problems = await db.notebookProblem.findMany({
-      where: { OR: [{ courseId: course.id }, { notebook: { courseId: course.id } }] },
+      where: {
+        OR: [{ courseId: course.id }, { notebook: { courseId: course.id } }],
+        ...(options.materialsOnly
+          ? {
+              AND: [
+                { OR: [{ ownerId: null }, { ownerId: course.ownerId }] },
+                {
+                  OR: [
+                    { notebookId: null },
+                    { notebookId: { in: notebooks.map((item) => item.id) } },
+                  ],
+                },
+              ],
+            }
+          : {}),
+      },
       orderBy: [{ order: 'asc' }, { id: 'asc' }],
       include: { secret: true, tagAssignments: true },
     });
@@ -275,7 +300,22 @@ export async function buildAdminCourseArchive(db: Database, courseIds: string[])
       );
     }
     const imports = await db.problemImportBatch.findMany({
-      where: { OR: [{ courseId: course.id }, { notebook: { courseId: course.id } }] },
+      where: {
+        OR: [{ courseId: course.id }, { notebook: { courseId: course.id } }],
+        ...(options.materialsOnly
+          ? {
+              ownerId: course.ownerId,
+              AND: [
+                {
+                  OR: [
+                    { notebookId: null },
+                    { notebookId: { in: notebooks.map((item) => item.id) } },
+                  ],
+                },
+              ],
+            }
+          : {}),
+      },
       orderBy: { createdAt: 'asc' },
     });
     for (const item of imports) {

@@ -203,6 +203,9 @@ model User {
   nativeAppActivatedAt   DateTime?
   /// 新手引导的进度：{ status, marks }，见 lib/server/onboarding.ts。
   onboarding             Json?
+  /// Speedup 机构要求的手机尾号（4 位），学生第一次登录时填一次，只记录不比对。
+  speedupPhoneLast4      String?   @db.VarChar(4)
+  speedupPhoneSavedAt    DateTime?
 
   accounts                   Account[]
   sessions                   Session[]
@@ -211,6 +214,9 @@ model User {
   nativeActivationCodes      NativeActivationCode[]
 
   courses                   Course[]
+  managedCourses            CourseManager[]
+  courseJoinApplications    CourseJoinApplication[]      @relation("CourseApplicant")
+  courseApplicationReviews  CourseJoinApplication[]      @relation("CourseApplicationReviewer")
   notebooks                 Notebook[]
   conversations             Conversation[]
   messages                  Message[]
@@ -263,6 +269,7 @@ model User {
   externalCourseBindings    ExternalCourseBinding[]      @relation("ExternalCourseBindingActivator")
   externalCourseMemberships ExternalCourseMembership[]
   taughtClasses             CourseClass[]                @relation("CourseClassTeacher")
+  claimedCourses            Course[]                     @relation("CourseClaimedTeacher")
   classMemberships          CourseClassMember[]
   taughtClassSessions       ClassSession[]               @relation("ClassSessionTeacher")
   classSessionJoins         ClassSessionParticipant[]
@@ -372,13 +379,14 @@ model NativeActivationCode {
 }
 
 model Course {
-  id                    String              @id @default(cuid())
+  contentDrafts         CourseContentDraft[]
+  id                    String               @id @default(cuid())
   ownerId               String
   name                  String
   description           String?
-  language              String              @default("zh-CN")
+  language              String               @default("zh-CN")
   tags                  String[]
-  purpose               CoursePurpose       @default(daily)
+  purpose               CoursePurpose        @default(daily)
   university            String?
   courseCode            String?
   academicYear          Int?
@@ -387,9 +395,11 @@ model Course {
   /**
    * 开启后出现在「课程商城」社区列表
    */
-  listedInCourseStore   Boolean             @default(false)
-  coursePriceCents      Int                 @default(0)
+  listedInCourseStore   Boolean              @default(false)
+  coursePriceCents      Int                  @default(0)
   storePublishedAt      DateTime?
+  campus                String?              @db.VarChar(120)
+  admissionConfig       Json?
   sourceCourseId        String?
   /**
    * 非空 = 机构课程。商城只展示机构课程，用户从商城添加时只写 CourseEnrollment（引用，不复制）。
@@ -398,20 +408,24 @@ model Course {
   /**
    * 机构每次「发布新版」+1；加入者的 CourseEnrollment.seenContentVersion 落后时显示更新提示。
    */
-  contentVersion        Int                 @default(1)
+  contentVersion        Int                  @default(1)
   /**
    * 上次「发布新版」的时间；之后改动的公有内容在下一次发布时盖上新版本号。
    */
   lastReleasedAt        DateTime?
-  notebookCount         Int                 @default(0)
-  sceneCount            Int                 @default(0)
-  problemCount          Int                 @default(0)
-  publishedProblemCount Int                 @default(0)
-  speechReadyCount      Int                 @default(0)
-  speechTotalCount      Int                 @default(0)
+  notebookCount         Int                  @default(0)
+  sceneCount            Int                  @default(0)
+  problemCount          Int                  @default(0)
+  publishedProblemCount Int                  @default(0)
+  speechReadyCount      Int                  @default(0)
+  speechTotalCount      Int                  @default(0)
 
   owner                  User                      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   organization           Organization?             @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  /// 认领这门课的老师：一门课只能有一位，老师在「教学」里自己认领，不用审批。
+  claimedTeacherId       String?
+  claimedAt              DateTime?
+  claimedTeacher         User?                     @relation("CourseClaimedTeacher", fields: [claimedTeacherId], references: [id], onDelete: SetNull)
   notebooks              Notebook[]
   notebookPages          NotebookPage[]
   markdownSections       MarkdownNotebookSection[]
@@ -442,6 +456,8 @@ model Course {
   assignments            CourseAssignment[]
   externalBinding        ExternalCourseBinding?
   classes                CourseClass[]
+  managers               CourseManager[]
+  joinApplications       CourseJoinApplication[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -449,7 +465,42 @@ model Course {
   @@index([ownerId, updatedAt(sort: Desc)])
   @@index([ownerId, academicYear, academicTerm])
   @@index([listedInCourseStore, updatedAt(sort: Desc)])
+  @@index([claimedTeacherId])
   @@index([organizationId, listedInCourseStore, updatedAt(sort: Desc)])
+}
+
+model CourseJoinApplication {
+  id           String    @id @default(cuid())
+  courseId     String
+  userId       String
+  status       String    @default("pending") @db.VarChar(16)
+  answersJson  Json
+  reviewedById String?
+  reviewedAt   DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  course    Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  applicant User   @relation("CourseApplicant", fields: [userId], references: [id], onDelete: Cascade)
+  reviewer  User?  @relation("CourseApplicationReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@unique([courseId, userId])
+  @@index([courseId, status, createdAt])
+  @@index([userId, status])
+}
+
+/// 管理员为单门课程指定的管理者；不改变原负责人或其他课程权限。
+model CourseManager {
+  courseId     String
+  userId       String
+  assignedById String
+  createdAt    DateTime @default(now())
+
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([courseId, userId])
+  @@index([userId])
 }
 
 /// 机构：在商城上架课程的主体（学校、培训机构、Syntara 官方等）。
@@ -2159,4 +2210,18 @@ model ClassSessionItem {
 
   @@unique([sessionId, problemId])
   @@index([sessionId, position])
+}
+
+/// Workspace changes are isolated from the live content until publication.
+model CourseContentDraft {
+  courseId      String
+  kind          String
+  targetId      String
+  operation     String
+  payload       Json
+  baseUpdatedAt DateTime?
+  updatedAt     DateTime  @default(now())
+  course        Course    @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@id([courseId, kind, targetId])
 }

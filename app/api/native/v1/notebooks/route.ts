@@ -1,3 +1,5 @@
+import { CourseAdmissionError } from '@/lib/server/course-admissions';
+import { contentDrafts, draftAuthority } from '@/lib/server/course-content-drafts';
 import { NextRequest, NextResponse } from 'next/server';
 
 import { buildNativeNotebookArchive } from '@/lib/server/native-course-sync';
@@ -12,8 +14,7 @@ import {
 export const runtime = 'nodejs';
 
 /** App 打开一本网页笔记时下载它的完整内容，存到本机后离线可读。 */
-export async function GET(request: NextRequest) {
-  const requestId = publicApiRequestId(request);
+async function getContent(request: NextRequest, requestId: string) {
   const principal = await requireNativePlatformApi(request, requestId);
   if (principal instanceof NextResponse) return principal;
   const prisma = getOptionalPrisma();
@@ -29,9 +30,89 @@ export async function GET(request: NextRequest) {
   if (!notebookId || notebookId.length > 200) {
     return publicApiError(requestId, 400, 'invalid_request', 'id is required.');
   }
-  const archive = await buildNativeNotebookArchive(prisma, principal.userId, notebookId);
+  const managedCourseId = request.nextUrl.searchParams.get('managedCourseId');
+  const management = managedCourseId
+    ? await draftAuthority(prisma, principal.userId, managedCourseId)
+    : null;
+  const live = await prisma.notebook.findUnique({
+    where: { id: notebookId },
+    select: { courseId: true, ownerId: true },
+  });
+  if (
+    management &&
+    live &&
+    (live.courseId !== managedCourseId || live.ownerId !== management.ownerId)
+  )
+    return publicApiError(requestId, 404, 'not_found', 'Notebook not found.');
+  let archive = await buildNativeNotebookArchive(prisma, principal.userId, notebookId, {
+    managedCourseId: managedCourseId || undefined,
+  });
+  if (managedCourseId) {
+    await draftAuthority(prisma, principal.userId, managedCourseId);
+    const draft = (await contentDrafts(prisma, managedCourseId)).find(
+      (row) => row.kind === 'notes' && row.targetId === notebookId,
+    );
+    if (draft) {
+      const p = draft.payload;
+      const now = draft.updatedAt.getTime();
+      archive = {
+        ...(archive || {
+          notebookPages: [],
+          assets: [],
+          pageAssets: [],
+          notebookAssets: [],
+          missingAssetPaths: [],
+        }),
+        notebook: {
+          ...(archive?.notebook || {
+            id: notebookId,
+            courseId: managedCourseId,
+            description: '',
+            kind: 'markdown' as const,
+            tags: [],
+            sectionCount: p.markdownSections.length,
+            contentVersion: 1,
+            createdAt: now,
+          }),
+          name: p.name,
+          updatedAt: now,
+        },
+        markdownSections: p.markdownSections.map(
+          (section: { id: string; title: string; order: number; markdown: string }) => ({
+            ...section,
+            notebookId,
+            courseId: managedCourseId,
+            summary: section.markdown.slice(0, 240),
+            sourceMeta: {},
+            createdAt: now,
+            updatedAt: now,
+          }),
+        ),
+      };
+    }
+  }
   if (!archive) return publicApiError(requestId, 404, 'not_found', 'Notebook not found.');
   return publicApiSuccess(requestId, archive, {
     headers: { 'Cache-Control': 'private, no-store' },
   });
+}
+
+export async function GET(request: NextRequest) {
+  const requestId = publicApiRequestId(request);
+  try {
+    return await getContent(request, requestId);
+  } catch (error) {
+    if (error instanceof CourseAdmissionError)
+      return publicApiError(
+        requestId,
+        error.status,
+        error.status === 403
+          ? 'unauthorized'
+          : error.status === 404
+            ? 'not_found'
+            : 'invalid_request',
+        error.message,
+      );
+    throw error;
+  }
 }
