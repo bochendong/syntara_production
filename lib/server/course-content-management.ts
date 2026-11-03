@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import type { DbClient } from '@/lib/server/repositories/types';
 import { refreshCourseSummaryFields } from '@/lib/server/repositories/notebook-repository';
 import { pendingCourseRelease } from '@/lib/server/store-course-layers';
+import { hasTeacherCourseAccess } from './external-course-access';
 import {
   DuplicateCourseProblemError,
   updateCourseProblem,
@@ -355,12 +356,22 @@ const termOf = (date: Date) => {
 /** 学生都从商城加入：直接加入（store）或老师批准（approval）。 */
 const STORE_SOURCES = ['store', 'approval'];
 
+async function requireStudentManagement(db: DbClient, userId: string, courseId: string) {
+  const course = await requireCourseManagement(db, userId, courseId);
+  if (course.ownerId !== userId) {
+    const viewer = await db.user.findUnique({ where: { id: userId }, select: { role: true } });
+    if (viewer?.role !== 'ADMIN' && !(await hasTeacherCourseAccess(db, userId, courseId)))
+      throw new CourseAdmissionError(403, '你没有这门课的学生管理权限。');
+  }
+  return course;
+}
+
 /**
  * 从商城加入这门课的学生，按加入的学期分组。机构课程带上最近活跃时间（做题或提问）；
  * 私有课程不看学生的做题和提问，只给加入时间。
  */
 export async function listManagedCourseStudents(db: DbClient, userId: string, courseId: string) {
-  const course = await requireCourseManagement(db, userId, courseId);
+  const course = await requireStudentManagement(db, userId, courseId);
   const enrollments = await db.courseEnrollment.findMany({
     where: { courseId, userId: { not: course.ownerId }, source: { in: STORE_SOURCES } },
     select: {
@@ -457,7 +468,7 @@ const messageText = (plainText: string | null, content: unknown): string => {
 };
 
 /**
- * 一个学生在这门课里的情况。只给课程主人看，只读这门课的数据。
+ * 一个学生在这门课里的情况。课程主人、课程老师和管理员可看，只读这门课的数据。
  * 机构课程才有学情（做题、提问、正确率）；私有课程只有基本信息和加入时填的内容。
  */
 export async function getManagedCourseStudent(
@@ -466,9 +477,7 @@ export async function getManagedCourseStudent(
   courseId: string,
   studentId: string,
 ) {
-  const course = await requireCourseManagement(db, userId, courseId);
-  if (course.ownerId !== userId)
-    throw new CourseAdmissionError(403, '只有课程主人可以查看学生学情。');
+  const course = await requireStudentManagement(db, userId, courseId);
   const enrollment = await db.courseEnrollment.findFirst({
     where: { courseId, userId: studentId, source: { in: STORE_SOURCES } },
     select: {

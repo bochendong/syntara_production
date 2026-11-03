@@ -84,7 +84,7 @@ async function getStore(request: NextRequest, requestId: string) {
       headers: { 'Cache-Control': 'private, no-store' },
     });
   }
-  // 一个学生在这门课的学情：只给课程主人，只读这门课；私有课程只有基本信息。
+  // 一个学生在这门课的学情：仅课程主人、课程老师和管理员；私有课程只有基本信息。
   const studentOf = request.nextUrl.searchParams.get('studentOf')?.trim();
   if (studentOf) {
     const studentId = request.nextUrl.searchParams.get('userId')?.trim() ?? '';
