@@ -1539,6 +1539,22 @@ export function updateManagedCourseProblem(
     payload: { action: 'update-managed-problem', courseId, id, ...patch },
   });
 }
+export type CourseAiRule = { id: string; content: string; updatedAt: string };
+export type CourseAiRulePack = { rules: CourseAiRule[]; limit: number; maxChars: number };
+/** 课程管理「AI 规则」：老师给这门课助教定的作答规则（课程主人和管理员可见）。 */
+export function getCourseAiRules(courseId: string): Promise<CourseAiRulePack> {
+  return invokeQuery('native_get_store', { aiRulesOf: courseId });
+}
+/** 整包保存，顺序就是 AI 读规则的顺序；没传的旧规则会删除。 */
+export function saveCourseAiRules(
+  courseId: string,
+  rules: Array<{ id?: string; content: string }>,
+): Promise<CourseAiRulePack> {
+  return invokeJson('native_store_action', {
+    requestId: crypto.randomUUID(),
+    payload: { action: 'save-ai-rules', courseId, rules },
+  });
+}
 export function deleteManagedCourseContent(
   courseId: string,
   kind: ManagedContentKind,

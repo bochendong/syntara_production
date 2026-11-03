@@ -5,8 +5,22 @@ function section(title: string, lines: string[]): string {
   return lines.length ? `## ${title}\n${lines.join('\n')}` : '';
 }
 
+/** 老师在「管理课程 → AI 规则」里设的规则包；排在通用回答习惯之前。 */
+export function courseRulesSection(rules: Array<{ content: string }>): string {
+  if (!rules.length) return '';
+  return [
+    '## 这门课的规则（老师设定，必须遵守）',
+    '下面是这门课的老师定下的作答规则。它们优先于你的通用知识和习惯写法；课程笔记和规则冲突时以规则为准，题目原文明确给了别的要求时以题目为准。',
+    '你写出的每一段代码、每一个示例都必须符合这些规则，哪怕学生没有提到格式。',
+    ...rules.map((rule, index) => `### 规则 ${index + 1}\n${rule.content}`),
+  ].join('\n\n');
+}
+
 /** 手机 / 桌面端助教的 system prompt。和网页端的提示词完全独立。 */
-export function buildNativeChatSystemPrompt(input: NativeChatRequest): string {
+export function buildNativeChatSystemPrompt(
+  input: NativeChatRequest,
+  courseRules: Array<{ content: string }> = [],
+): string {
   if (input.scope === 'general') {
     return [
       '你是 Syntara，一位耐心、直接的 AI 助手。这是普通聊天，不属于任何课程。',
@@ -27,6 +41,7 @@ export function buildNativeChatSystemPrompt(input: NativeChatRequest): string {
       `课程：「${course.name}」${course.code ? `（${course.code}）` : ''}。`,
       problemCoachRules(english ? 'en-US' : 'zh-CN'),
       '支持 Markdown 和 LaTeX。',
+      courseRulesSection(courseRules),
       section('学生正在做的题', [coach.problem]),
       section('这一轮', [problemCoachInstruction(coach.move)]),
       section(
@@ -132,7 +147,8 @@ export function buildNativeChatSystemPrompt(input: NativeChatRequest): string {
       )
     : '';
 
-  return [role, style, tools, courseInfo, notes, memories, calendar, attempts, problems]
+  const rules = courseRulesSection(courseRules);
+  return [role, rules, style, tools, courseInfo, notes, memories, calendar, attempts, problems]
     .filter(Boolean)
     .join('\n\n');
 }
