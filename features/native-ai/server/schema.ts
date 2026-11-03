@@ -57,6 +57,7 @@ export const nativeChatRequestSchema = z.object({
           completedNotebooks: z.number().int().min(0).max(10_000),
           totalNotebooks: z.number().int().min(0).max(10_000),
           currentNotebook: shortText(300).nullish(),
+          unset: z.boolean().optional(),
         })
         .optional(),
       /** 按这次问题挑出的笔记片段，只来自学习进度之内的笔记本。 */
@@ -123,6 +124,14 @@ export const nativeChatRequestSchema = z.object({
         )
         .max(40)
         .default([]),
+      /** 学生在聊天里点名的那道题（App 按标题里的题号 / 函数名找到），题面原文，不含答案。 */
+      focusProblem: z
+        .object({
+          id: shortText(200),
+          title: shortText(300),
+          text: z.string().max(10_000),
+        })
+        .optional(),
       /**
        * 做题页「问 AI」：学生正在做的这道题（App 端拼好的题面、作答、测试结果、参考答案）。
        * 有它时助教按提示梯子引导，不直接给答案。

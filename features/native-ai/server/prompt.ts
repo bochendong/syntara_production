@@ -1,6 +1,17 @@
 import { problemCoachInstruction, problemCoachRules } from '@/lib/problem-bank/problem-coach';
 import type { NativeChatRequest } from './schema';
 
+/** 题库列表的摘要：App 发来的是 publicContent 的 JSON 片段，只留题干文字。 */
+function problemExcerpt(excerpt: string): string {
+  const stem = /"stem"\s*:\s*"((?:[^"\\]|\\.)*)/.exec(excerpt)?.[1] ?? '';
+  return stem
+    .replace(/\\n/g, ' ')
+    .replace(/\\"/g, '"')
+    .replace(/#+\s*|\s+/g, ' ')
+    .trim()
+    .slice(0, 160);
+}
+
 function section(title: string, lines: string[]): string {
   return lines.length ? `## ${title}\n${lines.join('\n')}` : '';
 }
@@ -93,11 +104,13 @@ export function buildNativeChatSystemPrompt(
   ].join('\n');
 
   const today = context.today ? `今天是 ${context.today}。` : '';
-  const progress = context.progress
-    ? `学习进度：已学完 ${context.progress.completedNotebooks} / ${context.progress.totalNotebooks} 本笔记${
-        context.progress.currentNotebook ? `，正在学「${context.progress.currentNotebook}」` : ''
-      }。只基于已学内容讲，超前内容可以提但要说明“后面会学到”。`
-    : '';
+  const progress = context.progress?.unset
+    ? `学生还没有标记学习进度（共 ${context.progress.totalNotebooks} 本笔记），下面的笔记来自整门课，可以直接用。`
+    : context.progress
+      ? `学习进度：已学完 ${context.progress.completedNotebooks} / ${context.progress.totalNotebooks} 本笔记${
+          context.progress.currentNotebook ? `，正在学「${context.progress.currentNotebook}」` : ''
+        }。只基于已学内容讲，超前内容可以提但要说明“后面会学到”。`
+      : '';
   const courseInfo = section(
     '课程',
     [course.description ? course.description.slice(0, 1500) : '', today, progress].filter(Boolean),
@@ -142,13 +155,36 @@ export function buildNativeChatSystemPrompt(
           (problem) =>
             `- id=${problem.id} ${problem.title}${problem.tags.length ? ` [${problem.tags.join(', ')}]` : ''}${
               problem.difficulty ? ` 难度:${problem.difficulty}` : ''
-            }${problem.status ? ` 状态:${problem.status}` : ''}`,
+            }${problem.status ? ` 状态:${problem.status}` : ''}${
+              problem.excerpt && problemExcerpt(problem.excerpt)
+                ? `\n  摘要：${problemExcerpt(problem.excerpt)}`
+                : ''
+            }`,
         ),
       )
     : '';
 
   const rules = courseRulesSection(courseRules);
-  return [role, rules, style, tools, courseInfo, notes, memories, calendar, attempts, problems]
+  const focus =
+    !phone && context.focusProblem
+      ? section('学生提到的这道题（题库原文，不含答案）', [
+          '回答时以这份原文为准：数据定义名、函数名、要求都照它写；不要编造原文里没有的内容。学生要思路时先给提示，不直接给完整答案。',
+          context.focusProblem.text,
+        ])
+      : '';
+  return [
+    role,
+    rules,
+    style,
+    tools,
+    courseInfo,
+    focus,
+    notes,
+    memories,
+    calendar,
+    attempts,
+    problems,
+  ]
     .filter(Boolean)
     .join('\n\n');
 }
