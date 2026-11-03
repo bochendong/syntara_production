@@ -1,6 +1,7 @@
 /* The input, painted text and line numbers must use identical text metrics. */
 .code-answer-editor .code-answer-input,
 .code-answer-editor .code-answer-highlight,
+.code-answer-editor .code-answer-match,
 .code-answer-editor .code-answer-gutter {
   box-sizing: border-box;
   margin: 0;
@@ -22,7 +23,8 @@
 }
 
 .code-answer-editor .code-answer-input,
-.code-answer-editor .code-answer-highlight {
+.code-answer-editor .code-answer-highlight,
+.code-answer-editor .code-answer-match {
   padding-inline: 16px;
   white-space: pre;
   overflow-wrap: normal;

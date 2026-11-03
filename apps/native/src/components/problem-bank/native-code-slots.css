@@ -8,6 +8,7 @@
 
 .native-unified-code .code-answer-input,
 .native-unified-code .code-answer-highlight,
+.native-unified-code .code-answer-match,
 .native-unified-code .code-answer-gutter {
   font-size: 14px;
 }
@@ -21,6 +22,7 @@
 @media (max-width: 600px) {
   .native-unified-code .code-answer-input,
   .native-unified-code .code-answer-highlight,
+  .native-unified-code .code-answer-match,
   .native-unified-code .code-answer-gutter {
     font-size: 16px;
   }

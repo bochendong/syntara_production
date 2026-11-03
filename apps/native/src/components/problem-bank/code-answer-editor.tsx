@@ -1,9 +1,19 @@
-import { useCallback, useLayoutEffect, useRef, type KeyboardEvent } from 'react';
+import {
+  useCallback,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type ReactNode,
+} from 'react';
 import { Code2 } from 'lucide-react';
 import { cn } from '../../lib/cn';
 import { pythonNewlineEdit } from './python-editor-indentation';
 import {
   isRacketLanguage,
+  racketBracketAtCaret,
+  racketBracketPairs,
   racketLineTokens,
   racketNewlineEdit,
 } from '../../../../../lib/problem-bank/racket-editor';
@@ -255,6 +265,70 @@ export function codeLanguageLabel(language?: string) {
   return language && language.toLowerCase() !== 'python' ? language : 'Python';
 }
 
+/**
+ * DrRacket-style shading behind the text: the span between the bracket next to the caret
+ * and its partner, with lines the span runs past shaded to the editor's right edge.
+ * The text is transparent so widths match the code layer exactly (CJK included).
+ */
+function BracketMatchLayer({
+  value,
+  open,
+  close,
+  matched,
+}: {
+  value: string;
+  open: number;
+  close: number;
+  matched: boolean;
+}) {
+  const lines = value.split('\n');
+  const lineStarts = [0];
+  for (const line of lines) lineStarts.push(lineStarts.at(-1)! + line.length + 1);
+  return (
+    <>
+      {lines.map((line, index) => {
+        const lineStart = lineStarts[index];
+        const lineEnd = lineStart + line.length;
+        if (lineEnd < open || lineStart > close) {
+          return (
+            <div key={index} className="h-6">
+              {line}
+            </div>
+          );
+        }
+        const from = Math.max(open, lineStart) - lineStart;
+        const to = Math.min(close + 1, lineEnd) - lineStart;
+        const continues = close >= lineEnd;
+        const segment = line.slice(from, to);
+        const bracketClass = matched ? 'bg-slate-300/90' : 'bg-rose-200';
+        // Split the segment so the two brackets get their own darker chip.
+        const parts: ReactNode[] = [];
+        let plainStart = 0;
+        for (let i = 0; i <= segment.length; i += 1) {
+          const at = lineStart + from + i;
+          if (i < segment.length && at !== open && at !== close) continue;
+          if (i > plainStart) parts.push(segment.slice(plainStart, i));
+          if (i < segment.length) {
+            parts.push(
+              <span key={i} className={cn('rounded-[2px]', bracketClass)}>
+                {segment[i]}
+              </span>,
+            );
+          }
+          plainStart = i + 1;
+        }
+        return (
+          <div key={index} className="flex h-6">
+            <span>{line.slice(0, from)}</span>
+            <span className={cn(matched && 'bg-slate-200', continues && 'flex-1')}>{parts}</span>
+            <span>{continues ? '' : line.slice(to)}</span>
+          </div>
+        );
+      })}
+    </>
+  );
+}
+
 export function CodeAnswerEditor({
   value,
   onChange,
@@ -281,10 +355,19 @@ export function CodeAnswerEditor({
   const indentUnit = racket ? '  ' : INDENT;
   const lineGutterRef = useRef<HTMLDivElement>(null);
   const codeLayerRef = useRef<HTMLPreElement>(null);
+  const matchLayerRef = useRef<HTMLPreElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const pendingSelection = useRef<{ start: number; end: number } | null>(null);
   const lineNumbers = lineNumbersFor(value);
   const selectionRef = useRef({ start: 0, end: 0 });
+  const [caret, setCaret] = useState<number | null>(null);
+  const bracketPairs = useMemo(() => (racket ? racketBracketPairs(value) : null), [racket, value]);
+  const bracketMatch =
+    bracketPairs && caret !== null && caret <= value.length
+      ? racketBracketAtCaret(value, caret, bracketPairs)
+      : null;
+  const trackCaret = (target: HTMLTextAreaElement) =>
+    setCaret(target.selectionStart === target.selectionEnd ? target.selectionStart : null);
 
   const syncScroll = useCallback(() => {
     const input = inputRef.current;
@@ -292,9 +375,9 @@ export function CodeAnswerEditor({
     if (lineGutterRef.current) {
       lineGutterRef.current.style.transform = `translateY(-${input.scrollTop}px)`;
     }
-    if (codeLayerRef.current) {
-      codeLayerRef.current.style.transform = `translate(${-input.scrollLeft}px, ${-input.scrollTop}px)`;
-    }
+    const transform = `translate(${-input.scrollLeft}px, ${-input.scrollTop}px)`;
+    if (codeLayerRef.current) codeLayerRef.current.style.transform = transform;
+    if (matchLayerRef.current) matchLayerRef.current.style.transform = transform;
   }, []);
 
   useLayoutEffect(syncScroll, [value, syncScroll]);
@@ -303,8 +386,9 @@ export function CodeAnswerEditor({
     const selection = pendingSelection.current;
     if (!selection || !inputRef.current) return;
     inputRef.current.setSelectionRange(selection.start, selection.end);
+    if (racket) trackCaret(inputRef.current);
     pendingSelection.current = null;
-  }, [value]);
+  }, [value, racket]);
 
   const updateSelection = (_target: HTMLTextAreaElement, start: number, end = start) => {
     pendingSelection.current = { start, end };
@@ -406,6 +490,14 @@ export function CodeAnswerEditor({
         </div>
         <div className="code-answer-surface relative h-full min-h-0 overflow-hidden bg-white dark:bg-white">
           <pre
+            ref={matchLayerRef}
+            aria-hidden="true"
+            className="code-answer-match pointer-events-none absolute inset-0 min-w-max whitespace-pre px-4 py-3 font-mono text-[13px] leading-6 text-transparent"
+            style={{ tabSize: 4 }}
+          >
+            {bracketMatch ? <BracketMatchLayer value={value} {...bracketMatch} /> : null}
+          </pre>
+          <pre
             ref={codeLayerRef}
             aria-hidden="true"
             className="code-answer-highlight pointer-events-none absolute inset-0 min-w-max whitespace-pre px-4 py-3 font-mono text-[13px] leading-6 text-slate-900"
@@ -441,6 +533,7 @@ export function CodeAnswerEditor({
             aria-label={locale === 'zh-CN' ? '代码编辑器' : 'Code editor'}
             value={value}
             onSelect={(event) => {
+              if (racket) trackCaret(event.currentTarget);
               selectionRef.current = {
                 start: event.currentTarget.selectionStart,
                 end: event.currentTarget.selectionEnd,
@@ -456,6 +549,7 @@ export function CodeAnswerEditor({
               }
             }}
             onKeyDown={handleKeyDown}
+            onBlur={racket ? () => setCaret(null) : undefined}
             onScroll={syncScroll}
             disabled={disabled}
             placeholder={placeholder}

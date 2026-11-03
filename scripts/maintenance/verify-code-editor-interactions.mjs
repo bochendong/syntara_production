@@ -17,7 +17,15 @@ const output = ts.transpileModule(
 const loaded = { exports: {} };
 new Function('require', 'module', 'exports', output)(
   (name) => {
-    if (name === 'react') return { ...require('react'), useRef: () => ({ current: null }) };
+    if (name === 'react')
+      return {
+        ...require('react'),
+        useRef: () => ({ current: null }),
+        useMemo: (compute) => compute(),
+        useState: (initial) => [initial, () => {}],
+      };
+    if (name === '@/lib/problem-bank/racket-editor')
+      return require('../../lib/problem-bank/racket-editor.ts');
     if (name === '@/lib/utils') return { cn: (...values) => values.filter(Boolean).join(' ') };
     return require(name);
   },
