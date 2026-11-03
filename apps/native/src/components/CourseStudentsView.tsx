@@ -7,28 +7,11 @@ import {
   type ManagedCourseStudent,
   type ManagedCourseStudents,
 } from '../data/platform-api-client';
-import { marbleImages } from '../lib/learning-action-marbles';
+import { StudentProblemAttempts } from './StudentAttemptReview';
 import { GlassSkeletonRows } from './GlassLoadMore';
 import { PhoneEmpty } from './PhonePages';
 
 type Student = ManagedCourseStudents['terms'][number]['students'][number];
-type Attempt = NonNullable<ManagedCourseStudent['insights']>['attempts'][number];
-
-const ATTEMPT_MARBLES: Record<Attempt['status'], string> = {
-  passed: marbleImages.green,
-  partial: marbleImages.amber,
-  failed: marbleImages.pink,
-  error: marbleImages.pink,
-  pending: marbleImages.blue,
-};
-const ATTEMPT_LABELS: Record<Attempt['status'], string> = {
-  passed: '通过',
-  partial: '部分正确',
-  failed: '未通过',
-  error: '出错',
-  pending: '待批改',
-};
-
 /** 「3 分钟前」「昨天」「10/28」 */
 function ago(value: string | null) {
   if (!value) return '';
@@ -180,7 +163,6 @@ function StudentDetail({
   onBack: () => void;
 }) {
   const [state, setState] = useState<{ data?: ManagedCourseStudent; error?: string } | null>(null);
-  const [openAttempt, setOpenAttempt] = useState<string | null>(null);
   useEffect(() => {
     let active = true;
     getManagedCourseStudent(courseId, student.userId)
@@ -263,33 +245,16 @@ function StudentDetail({
             <div className="csv-columns">
               <section className="csv-card" aria-label="最近做题">
                 <h3>最近做题</h3>
-                {!insights.attempts.length ? <p className="ccp-muted">还没有做过题。</p> : null}
+                {!insights.problems.length ? <p className="ccp-muted">还没有做过题。</p> : null}
                 <ul className="csv-attempts">
-                  {insights.attempts.map((attempt) => (
-                    <li key={attempt.id}>
-                      <button
-                        type="button"
-                        aria-expanded={openAttempt === attempt.id}
-                        disabled={!attempt.answerPreview}
-                        onClick={() =>
-                          setOpenAttempt(openAttempt === attempt.id ? null : attempt.id)
-                        }
-                      >
-                        <img src={ATTEMPT_MARBLES[attempt.status]} alt="" />
-                        <span className="csv-attempt-copy">
-                          <strong>{attempt.title}</strong>
-                          <small>
-                            {[attempt.chapterName, ATTEMPT_LABELS[attempt.status]]
-                              .filter(Boolean)
-                              .join(' · ')}
-                          </small>
-                        </span>
-                        <time dateTime={attempt.createdAt}>{ago(attempt.createdAt)}</time>
-                      </button>
-                      {openAttempt === attempt.id ? (
-                        <pre className="csv-answer">{attempt.answerPreview}</pre>
-                      ) : null}
-                    </li>
+                  {insights.problems.map((problem) => (
+                    <StudentProblemAttempts
+                      key={problem.id}
+                      courseId={courseId}
+                      studentId={student.userId}
+                      problem={problem}
+                      ago={ago}
+                    />
                   ))}
                 </ul>
               </section>
