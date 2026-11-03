@@ -350,7 +350,7 @@ export async function buildNativeChatContext(
         },
       ];
     });
-    // 学生点名了某道题：把题面原文带上（不含答案），不然助教只看得到标题。
+    // 学生点名了某道题：把题面原文和参考答案带上，不然助教只看得到标题。
     const focused = findFocusedProblem(workspace.problems, question, earlier);
     if (focused)
       context.focusProblem = {

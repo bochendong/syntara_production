@@ -124,7 +124,7 @@ export const nativeChatRequestSchema = z.object({
         )
         .max(40)
         .default([]),
-      /** 学生在聊天里点名的那道题（App 按标题里的题号 / 函数名找到），题面原文，不含答案。 */
+      /** 学生在聊天里点名的那道题（App 按标题里的题号 / 函数名找到），题面原文 + 参考答案。 */
       focusProblem: z
         .object({
           id: shortText(200),
