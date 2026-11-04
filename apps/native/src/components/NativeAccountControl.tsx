@@ -1,4 +1,4 @@
-import { browserApp } from '../data/browser-runtime';
+import { browserApp, previewChat } from '../data/browser-runtime';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import {
   CheckCircle2,
@@ -232,11 +232,15 @@ export function NativeAuthGate({ children }: { children: ReactNode }) {
         <div className="native-auth-trust">
           <span>
             <ShieldCheck size={16} />
-            平台 AI 仅对登录用户开放
+            {previewChat ? '聊天使用已连接的测试服账号' : '平台 AI 仅对登录用户开放'}
           </span>
           <span>
             <LockKeyhole size={16} />
-            {browserApp ? 'Google 安全登录' : '凭据由系统钥匙串保护'}
+            {previewChat
+              ? '设备凭据保留在本机服务端'
+              : browserApp
+                ? 'Google 安全登录'
+                : '凭据由系统钥匙串保护'}
           </span>
         </div>
       </section>
@@ -249,13 +253,15 @@ export function NativeAuthGate({ children }: { children: ReactNode }) {
           <p className="native-account-eyebrow">Syntara Account</p>
           <h2 id="native-auth-title">{browserPreview ? '本机预览模式' : '登录后继续'}</h2>
           <p className="native-account-copy">
-            {browserPreview
-              ? '当前是浏览器预览，无法使用平台登录与平台 AI。可先进入本机预览改界面；正式登录请打开 macOS 开发版窗口。'
-              : browserApp
-                ? '使用 Google 账号登录后，即可在浏览器中使用。'
-                : nativeChannel === 'staging'
-                  ? '使用你自己的 Google 账号登录，在浏览器中确认后即可返回测试版 App。'
-                  : '在浏览器中登录并完成当前环境的身份验证。'}
+            {previewChat
+              ? '进入预览即可用本机题库测试 AI 聊天。聊天请求由测试服处理，对话保存在本机。'
+              : browserPreview
+                ? '当前是浏览器预览，无法使用平台登录与平台 AI。可先进入本机预览改界面；正式登录请打开 macOS 开发版窗口。'
+                : browserApp
+                  ? '使用 Google 账号登录后，即可在浏览器中使用。'
+                  : nativeChannel === 'staging'
+                    ? '使用你自己的 Google 账号登录，在浏览器中确认后即可返回测试版 App。'
+                    : '在浏览器中登录并完成当前环境的身份验证。'}
           </p>
 
           {browserPreview ? (

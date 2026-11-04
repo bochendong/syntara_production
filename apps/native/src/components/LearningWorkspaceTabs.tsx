@@ -1,4 +1,11 @@
-import { useEffect, useId, useRef, type KeyboardEvent, type ReactNode } from 'react';
+import {
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useRef,
+  type KeyboardEvent,
+  type ReactNode,
+} from 'react';
 import { ChevronDown, ChevronLeft, MessageCircle } from 'lucide-react';
 import type { CourseLearningPage } from '../lib/native-launch';
 import { LearningToolIcon } from './LearningToolIcon';
@@ -40,12 +47,73 @@ export function LearningWorkspaceTabs({
 }) {
   const id = useId();
   const tabRefs = useRef(new Map<CourseLearningPage | 'chat', HTMLButtonElement>());
+  const tabListRef = useRef<HTMLDivElement>(null);
+  const rollerRef = useRef<HTMLSpanElement>(null);
   const visiblePages = compact ? pages : (Object.keys(tools) as CourseLearningPage[]);
   const order: (CourseLearningPage | 'chat')[] = ['chat', ...visiblePages];
   const current = activePage ?? 'chat';
   useEffect(() => {
     tabRefs.current.get(current)?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   }, [current]);
+
+  useLayoutEffect(() => {
+    const list = tabListRef.current;
+    const roller = rollerRef.current;
+    if (compact || !list || !roller) return;
+    const place = () => {
+      const tab = tabRefs.current.get(current);
+      if (!tab) return;
+      const bounds = tab.getBoundingClientRect();
+      const x = bounds.left - list.getBoundingClientRect().left + list.scrollLeft - list.clientLeft;
+      roller.style.setProperty('--tab-marble-x', `${x}px`);
+      roller.style.setProperty('--tab-marble-width', `${bounds.width}px`);
+    };
+    const previousX = parseFloat(roller.style.getPropertyValue('--tab-marble-x'));
+    place();
+    const nextX = parseFloat(roller.style.getPropertyValue('--tab-marble-x'));
+    const direction = Math.sign(nextX - previousX);
+    const glass = roller.firstElementChild;
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const motion =
+      roller.dataset.active && roller.dataset.active !== current && !reducedMotion.matches
+        ? glass?.animate(
+            [
+              { transform: 'none', offset: 0, easing: 'ease-out' },
+              {
+                transform: `translateX(${direction * -4}px) scale(1.28, .8)`,
+                offset: 0.3,
+                easing: 'ease-in-out',
+              },
+              {
+                transform: `translateX(${direction * 2}px) scale(.95, 1.04)`,
+                offset: 0.76,
+                easing: 'ease-out',
+              },
+              { transform: 'none', offset: 1 },
+            ],
+            { duration: 440 },
+          )
+        : undefined;
+    roller.dataset.active = current;
+    const stopMotion = () => {
+      if (reducedMotion.matches) motion?.cancel();
+    };
+    reducedMotion.addEventListener('change', stopMotion);
+    const frame = requestAnimationFrame(() => {
+      roller.dataset.ready = 'true';
+    });
+    const observer = new ResizeObserver(place);
+    observer.observe(list);
+    tabRefs.current.forEach((tab) => observer.observe(tab));
+    list.addEventListener('scroll', place, { passive: true });
+    return () => {
+      cancelAnimationFrame(frame);
+      motion?.cancel();
+      reducedMotion.removeEventListener('change', stopMotion);
+      observer.disconnect();
+      list.removeEventListener('scroll', place);
+    };
+  }, [current, compact]);
 
   const select = (tab: CourseLearningPage | 'chat') => {
     if (tab === 'chat') onChat();
@@ -109,7 +177,15 @@ export function LearningWorkspaceTabs({
         ) : null
       ) : (
         <div className="learning-workspace-bar">
-          <div className="learning-workspace-tabs" role="tablist" aria-label="学习标签页">
+          <div
+            ref={tabListRef}
+            className="learning-workspace-tabs"
+            role="tablist"
+            aria-label="学习标签页"
+          >
+            <span ref={rollerRef} className="learning-tab-roller" aria-hidden="true">
+              <span className="learning-tab-roller-glass" />
+            </span>
             <div
               className={
                 current === 'chat'
@@ -124,9 +200,12 @@ export function LearningWorkspaceTabs({
                 aria-label="聊天"
                 data-onboarding="chat-tab"
               >
-                <i className="learning-workspace-marble" aria-hidden>
-                  <MessageCircle size={14} strokeWidth={1.9} />
-                </i>
+                <MessageCircle
+                  className="learning-tool-icon"
+                  size={18}
+                  strokeWidth={1.8}
+                  aria-hidden="true"
+                />
                 <span>聊天</span>
               </button>
             </div>

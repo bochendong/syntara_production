@@ -58,7 +58,7 @@ const migrationRoot = path.join(ROOT, 'apps/native/src-tauri/migrations');
 const migrations = readdirSync(migrationRoot)
   .filter((name) => /^\d+.*\.sql$/.test(name))
   .sort();
-assert.equal(migrations.at(-1), '0010_problem_chapters.sql');
+assert(migrations.includes('0010_problem_chapters.sql'));
 function migrate(database, files = migrations) {
   for (const name of files) database.exec(readFileSync(path.join(migrationRoot, name), 'utf8'));
 }
@@ -73,7 +73,7 @@ let database;
 try {
   const filename = path.join(temp, 'local.db');
   database = new DatabaseSync(filename);
-  migrate(database, migrations.slice(0, -1));
+  migrate(database, migrations.slice(0, migrations.indexOf('0010_problem_chapters.sql')));
   database
     .prepare('INSERT INTO courses (id,name,created_at,updated_at) VALUES (?,?,?,?)')
     .run('course', 'MAT102', timestamp, timestamp);
@@ -82,7 +82,7 @@ try {
       'INSERT INTO problems (id,course_id,title,type,created_at,updated_at) VALUES (?,?,?,?,?,?)',
     )
     .run('legacy', 'course', 'Existing problem', 'proof', timestamp, timestamp);
-  migrate(database, migrations.slice(-1));
+  migrate(database, migrations.slice(migrations.indexOf('0010_problem_chapters.sql')));
   let repo = repository(database);
   const legacy = await repo.loadProblemDocument('legacy');
   assert(legacy);

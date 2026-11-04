@@ -140,6 +140,8 @@ function writeCourseValue(
 
 function problemOrder(a: LocalProblem, b: LocalProblem): number {
   return (
+    ((a.chapterId ? a.order : undefined) ?? Number.POSITIVE_INFINITY) -
+      ((b.chapterId ? b.order : undefined) ?? Number.POSITIVE_INFINITY) ||
     a.createdAt - b.createdAt ||
     a.title.localeCompare(b.title, 'zh-CN', { numeric: true }) ||
     a.id.localeCompare(b.id)

@@ -172,6 +172,7 @@ function mapProblem(row: SqlRow): LocalProblem {
     notebookId: nullableString(row.notebook_id),
     chapterId: nullableString(row.chapter_id),
     chapterName: nullableString(row.chapter_name),
+    order: typeof row.course_order === 'number' ? row.course_order : undefined,
     title: stringValue(row.title),
     type: stringValue(row.type),
     status: stringValue(row.status) as LocalProblem['status'],
@@ -2252,11 +2253,12 @@ export class SqliteLocalRepository implements LocalRepository {
       await database.execute(
         `INSERT INTO problems
           (id, course_id, notebook_id, chapter_id, chapter_name, title, type, status, difficulty, tags_json,
-           public_content_json, grading_json, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+           public_content_json, grading_json, created_at, updated_at, course_order)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
          ON CONFLICT(id) DO UPDATE SET
            course_id = excluded.course_id, notebook_id = excluded.notebook_id,
            chapter_id = excluded.chapter_id, chapter_name = excluded.chapter_name,
+           course_order = excluded.course_order,
            title = excluded.title, type = excluded.type, status = excluded.status,
            difficulty = excluded.difficulty, tags_json = excluded.tags_json,
            public_content_json = excluded.public_content_json,
@@ -2277,6 +2279,7 @@ export class SqliteLocalRepository implements LocalRepository {
           JSON.stringify(problem.grading),
           problem.createdAt,
           problem.updatedAt,
+          problem.order ?? null,
         ],
       );
     }

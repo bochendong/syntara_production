@@ -7,6 +7,7 @@ import {
   type ReactNode,
 } from 'react';
 
+import { PracticeMarble } from './PracticeMarble';
 import './course-pages.css';
 
 /** iPad/桌面做题：几乎全屏的玻璃弹窗，盖住侧栏；Esc 或左上角返回回到答题卡。 */
@@ -165,9 +166,7 @@ export function PracticeOverlay({
           if (!didDrag.current || event.detail === 0) onRestore();
         }}
       >
-        <span className="practice-marble-glass" aria-hidden="true">
-          <span className="practice-marble-current" />
-        </span>
+        <PracticeMarble active={minimized} />
       </button>
     </>
   );

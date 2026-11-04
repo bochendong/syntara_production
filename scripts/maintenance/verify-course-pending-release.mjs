@@ -78,6 +78,15 @@ try {
         });
         const status = () => managedReleaseStatus(tx, owner.id, course.id);
         const snapshot = () => readNativeProblems(tx, student.id, course.id, null);
+        const orderedProblems = new Map(
+          (await snapshot()).problems.map((row) => [row.id, row.order]),
+        );
+        assert.equal(
+          orderedProblems.get(problems[0]),
+          0,
+          'The sync API preserves zero-based order',
+        );
+        assert.equal(orderedProblems.get(problems[186]), 186, 'The sync API sends course order');
         const transactional = new Proxy(tx, {
           get(target, key) {
             if (key === '$transaction')

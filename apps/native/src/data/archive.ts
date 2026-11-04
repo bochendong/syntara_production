@@ -301,6 +301,8 @@ export function parseSyntaraArchive(input: string | unknown): SyntaraArchiveV1 {
         title: stringValue(row.title, '未命名题目'),
         chapterId: nullableString(row.chapterId),
         chapterName: nullableString(row.chapterName),
+        order:
+          typeof row.order === 'number' && Number.isSafeInteger(row.order) ? row.order : undefined,
         type: stringValue(row.type, 'short_answer'),
         status: row.status === 'published' || row.status === 'archived' ? row.status : 'draft',
         difficulty:

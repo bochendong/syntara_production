@@ -3905,8 +3905,8 @@ span.pb-row-marble img {
 }
 
 /*
- * 收起：题目缩成一颗圆片、染上玻璃珠的青色，被右下角的玻璃珠「吸」进去；
- * 玻璃珠接住时压扁回弹、荡开一圈水纹，里面的流光快转一圈再慢下来。
+ * 收起：题目缩成一颗圆片、染上玻璃珠的青紫色，被右下角的玻璃珠「吸」进去；
+ * 玻璃珠接住时压扁回弹、荡开一圈水纹，里面的极光短暂亮起后恢复流动。
  * 展开：反过来，从玻璃珠的位置像泡泡一样撑开。
  */
 .practice-resume-marble {
@@ -3925,7 +3925,7 @@ span.pb-row-marble img {
   cursor: grab;
   touch-action: none;
   user-select: none;
-  filter: drop-shadow(0 5px 8px rgb(15 23 42 / 28%));
+  filter: drop-shadow(0 4px 6px rgb(49 80 78 / 16%));
   transition:
     opacity 110ms ease 320ms,
     transform 220ms cubic-bezier(0.3, 1.6, 0.5, 1),
@@ -3949,7 +3949,7 @@ span.pb-row-marble img {
 /* 拖着走时轻轻提起来，松手弹回去。 */
 .practice-resume-marble[data-dragging] {
   transform: scale(1.12);
-  filter: drop-shadow(0 12px 14px rgb(15 23 42 / 26%));
+  filter: drop-shadow(0 10px 12px rgb(49 80 78 / 20%));
 }
 
 /* 点开时玻璃珠胀大散开，题目从它的位置撑开。 */
@@ -3965,7 +3965,7 @@ span.pb-row-marble img {
 .practice-resume-marble::after {
   position: absolute;
   inset: 0;
-  border: 2px solid rgb(110 255 226 / 75%);
+  border: 1px solid rgb(157 216 195 / 60%);
   border-radius: 50%;
   content: '';
   opacity: 0;
@@ -3982,68 +3982,26 @@ span.pb-row-marble img {
   width: 100%;
   height: 100%;
   overflow: hidden;
-  border: 1px solid rgb(220 255 251 / 75%);
   border-radius: 50%;
-  background:
-    radial-gradient(ellipse at 73% 79%, #5effdd 0%, transparent 29%),
-    radial-gradient(ellipse at 27% 22%, #b9fff9 0%, #45d9cb 23%, transparent 56%),
-    radial-gradient(circle at 52% 43%, #197c98 4%, #093b61 67%, #07162f 100%);
-  box-shadow:
-    inset 0 1px 2px #fff,
-    inset 0 -3px 6px rgb(86 255 227 / 55%),
-    inset 0 -8px 14px rgb(1 16 42 / 55%),
-    0 3px 12px rgb(20 184 166 / 40%);
-  animation: practice-marble-float 4.6s ease-in-out infinite;
+  background: url('../assets/practice-intelligence-marble-v1.webp') center / 100% 100% no-repeat;
+  animation: practice-marble-breathe 6s ease-in-out infinite;
 }
 
 .practice-marble-current {
   position: absolute;
-  inset: -22%;
-  border-radius: 50%;
-  background: conic-gradient(
-    from 28deg,
-    transparent 0 14%,
-    rgb(97 255 220 / 80%) 24%,
-    rgb(110 181 255 / 72%) 29%,
-    transparent 39% 54%,
-    rgb(144 110 255 / 75%) 67%,
-    rgb(154 255 239 / 85%) 74%,
-    transparent 83% 100%
-  );
-  filter: blur(3px);
-  mix-blend-mode: screen;
-  animation: practice-marble-swirl 8s linear infinite;
-}
-
-/* 刚接住题目：流光被搅快一圈半，再落回平常的慢转。 */
-.practice-resume-marble:not(:disabled) .practice-marble-current {
-  animation:
-    practice-marble-stir 1100ms cubic-bezier(0.15, 0.7, 0.3, 1) 300ms backwards,
-    practice-marble-swirl 8s linear 1400ms infinite;
-}
-
-.practice-marble-glass::before,
-.practice-marble-glass::after {
-  position: absolute;
-  content: '';
-  pointer-events: none;
-}
-
-.practice-marble-glass::before {
-  inset: 7% 9% 12%;
-  border-radius: 50%;
-  background:
-    radial-gradient(ellipse at 26% 20%, #fff 0 4%, transparent 12%),
-    radial-gradient(ellipse at 44% 11%, rgb(255 255 255 / 88%) 0 2%, transparent 7%),
-    linear-gradient(146deg, rgb(255 255 255 / 66%), transparent 37%);
-  transform: rotate(-14deg);
-}
-
-.practice-marble-glass::after {
   inset: 0;
+  width: 100%;
+  height: 100%;
   border-radius: 50%;
-  background: radial-gradient(ellipse at 69% 83%, rgb(234 255 246 / 84%), transparent 30%);
-  box-shadow: inset 0 0 7px rgb(220 255 253 / 45%);
+  transition: filter 240ms ease;
+}
+
+.practice-resume-marble:is(:hover, [data-dragging]) .practice-marble-current {
+  filter: brightness(1.15) saturate(1.1);
+}
+
+.practice-resume-marble:not(:disabled) .practice-marble-current {
+  animation: practice-marble-arrival 1100ms ease-out 300ms backwards;
 }
 
 .practice-resume-marble:disabled .practice-marble-glass,
@@ -4051,21 +4009,19 @@ span.pb-row-marble img {
   animation-play-state: paused;
 }
 
-@keyframes practice-marble-float {
+@keyframes practice-marble-breathe {
   50% {
-    transform: translateY(-4px);
+    transform: scale(0.985);
   }
 }
 
-@keyframes practice-marble-swirl {
-  to {
-    transform: rotate(1turn);
+@keyframes practice-marble-arrival {
+  0% {
+    filter: brightness(1.45) saturate(1.15);
   }
-}
 
-@keyframes practice-marble-stir {
-  from {
-    transform: rotate(-1.5turn);
+  100% {
+    filter: brightness(1) saturate(1);
   }
 }
 
@@ -4109,7 +4065,7 @@ span.pb-row-marble img {
 }
 
 .practice-resume-marble:focus-visible {
-  outline: 2px solid #15803d;
+  outline: 2px solid var(--marble-green-ink, #2f7a4a);
   outline-offset: 4px;
 }
 
@@ -4142,17 +4098,17 @@ span.pb-row-marble img {
     opacity 90ms linear;
 }
 
-/* 缩小时盖在题目上的一层玻璃珠青色，让圆片看起来是「变成」了玻璃珠。 */
+/* 缩小时盖在题目上的一层玻璃珠青紫色，让圆片看起来是「变成」了玻璃珠。 */
 .practice-overlay-card::after {
   position: absolute;
   inset: 0;
   z-index: 10;
   background: radial-gradient(
     circle at 50% 50%,
-    #45d9cb 0,
-    #197c98 60px,
-    #093b61 150px,
-    rgb(9 59 97 / 0%) 360px
+    #94f5d8 0,
+    #21a998 60px,
+    rgb(48 54 128 / 75%) 150px,
+    rgb(48 54 128 / 0%) 360px
   );
   content: '';
   opacity: 0;

@@ -74,6 +74,7 @@ const migrationFiles = [
   '0008_message_metadata.sql',
   '0009_memory_conversation.sql',
   '0010_problem_chapters.sql',
+  '0011_problem_order.sql',
 ];
 
 async function migrate(database, files = migrationFiles) {
@@ -97,7 +98,7 @@ assert.equal(snapshot.problems.length, 1_223, '内置题库应包含 1,223 道�
 const now = 1_785_000_000_000;
 
 const legacyChapterDatabase = new DatabaseSync(':memory:');
-await migrate(legacyChapterDatabase, migrationFiles.slice(0, -1));
+await migrate(legacyChapterDatabase, migrationFiles.slice(0, -2));
 legacyChapterDatabase
   .prepare('INSERT INTO courses (id, name, created_at, updated_at) VALUES (?, ?, ?, ?)')
   .run('legacy-chapter-course', 'Legacy course', now, now);
@@ -107,7 +108,7 @@ legacyChapterDatabase
      VALUES (?, ?, ?, ?, ?, ?)`,
   )
   .run('legacy-chapter-problem', 'legacy-chapter-course', 'Legacy problem', 'proof', now, now);
-await migrate(legacyChapterDatabase, migrationFiles.slice(-1));
+await migrate(legacyChapterDatabase, migrationFiles.slice(-2));
 const legacyChapterRepository = new SqliteLocalRepository();
 legacyChapterRepository.connection = new NodeSqliteAdapter(legacyChapterDatabase);
 const legacyChapterProblem =
@@ -417,6 +418,7 @@ const archive = parseSyntaraArchive({
       notebookId: 'notebook-fixture',
       chapterId: 'chapter-functions',
       chapterName: '函数与映射',
+      order: 0,
       title: '本地题目',
       type: 'multiple_choice',
       status: 'published',
@@ -531,18 +533,22 @@ assert.equal(problem.attempts.length, 1);
 assert.equal(problem.progress?.status, 'passed');
 assert.equal(problem.problem.chapterId, 'chapter-functions');
 assert.equal(problem.problem.chapterName, '函数与映射');
+assert.equal(problem.problem.order, 0);
 const reparsedArchive = parseSyntaraArchive(JSON.stringify(archive));
 assert.equal(reparsedArchive.problems[0].chapterId, 'chapter-functions');
 assert.equal(reparsedArchive.problems[0].chapterName, '函数与映射');
 reparsedArchive.problems[0].chapterId = 'chapter-relations';
 reparsedArchive.problems[0].chapterName = '关系';
+reparsedArchive.problems[0].order = 12;
 await repository.importArchive(reparsedArchive);
 const updatedChapterProblem = await repository.loadProblemDocument('problem-fixture');
 assert.equal(updatedChapterProblem?.problem.chapterId, 'chapter-relations');
 assert.equal(updatedChapterProblem?.problem.chapterName, '关系');
+assert.equal(updatedChapterProblem?.problem.order, 12);
 const legacyArchiveInput = JSON.parse(JSON.stringify(archive));
 delete legacyArchiveInput.problems[0].chapterId;
 delete legacyArchiveInput.problems[0].chapterName;
+delete legacyArchiveInput.problems[0].order;
 const legacyArchive = parseSyntaraArchive(legacyArchiveInput);
 assert.equal(legacyArchive.problems[0].chapterId, null, '旧格式归档缺少章节时兼容为空');
 assert.equal(legacyArchive.problems[0].chapterName, null);
@@ -550,6 +556,7 @@ await repository.importArchive(legacyArchive);
 const unassignedProblem = await repository.loadProblemDocument('problem-fixture');
 assert.equal(unassignedProblem?.problem.chapterId, null);
 assert.equal(unassignedProblem?.problem.chapterName, null);
+assert.equal(unassignedProblem?.problem.order, undefined);
 
 const searchResults = await repository.searchCourse('course-fixture', '等于多少');
 assert.equal(searchResults[0]?.resourceId, 'problem-fixture');

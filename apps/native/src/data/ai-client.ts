@@ -1,4 +1,4 @@
-import { browserApp, platformAvailable } from './browser-runtime';
+import { browserApp, platformAvailable, previewChat } from './browser-runtime';
 import { getNativePlatformCapabilities } from './platform-api-client';
 import { parseNativeSyllabus } from './platform-api-client';
 
@@ -66,7 +66,7 @@ function isTauriRuntime(): boolean {
 }
 
 export async function getAiSettings(): Promise<AiSettings> {
-  if (browserApp) {
+  if (browserApp || previewChat) {
     const capabilities = await getNativePlatformCapabilities();
     const model = capabilities.models?.find((m) => m.recommended)?.id;
     return {

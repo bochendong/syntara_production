@@ -59,7 +59,7 @@ const migrationRoot = path.join(ROOT, 'apps/native/src-tauri/migrations');
 const migrations = readdirSync(migrationRoot)
   .filter((name) => /^\d+.*\.sql$/.test(name))
   .sort();
-assert.equal(migrations.at(-1), '0010_problem_chapters.sql');
+assert(migrations.includes('0010_problem_chapters.sql'));
 function migrate(database, files = migrations) {
   for (const name of files) database.exec(readFileSync(path.join(migrationRoot, name), 'utf8'));
 }

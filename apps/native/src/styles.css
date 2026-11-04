@@ -7309,25 +7309,109 @@ select,
   pointer-events: auto;
 }
 .learning-workspace-tabs {
+  position: relative;
+  isolation: isolate;
   display: flex;
   align-items: center;
   min-width: 0;
-  gap: 2px;
-  padding: 4px;
+  gap: 3px;
+  padding: 5px;
   overflow-x: auto;
-  border: 1px solid rgb(255 255 255 / 80%);
+  border: 1px solid rgb(255 255 255 / 86%);
   border-radius: 999px;
-  background: rgb(255 255 255 / 55%);
+  background: linear-gradient(180deg, rgb(235 240 247 / 64%), rgb(247 249 253 / 78%));
   box-shadow:
-    0 8px 24px rgb(15 23 42 / 7%),
+    0 4px 18px rgb(35 55 85 / 4%),
     inset 0 1px 0 #fff,
-    inset 0 -1px 2px rgb(15 23 42 / 4%);
-  backdrop-filter: blur(var(--glass-blur-md)) saturate(1.8);
-  -webkit-backdrop-filter: blur(var(--glass-blur-md)) saturate(1.8);
+    inset 0 -1px 0 rgb(113 137 169 / 7%);
+  backdrop-filter: blur(var(--glass-blur-md)) saturate(1.4);
+  -webkit-backdrop-filter: blur(var(--glass-blur-md)) saturate(1.4);
   scrollbar-width: none;
 }
 .learning-workspace-tabs::-webkit-scrollbar {
   display: none;
+}
+@property --tab-glass-tint {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #73c8d8;
+}
+.learning-tab-roller {
+  position: absolute;
+  z-index: 0;
+  top: 50%;
+  left: 0;
+  width: var(--tab-marble-width, 72px);
+  height: 36px;
+  margin-top: -18px;
+  pointer-events: none;
+  transform: translateX(var(--tab-marble-x, 0px));
+  opacity: 0;
+}
+.learning-tab-roller[data-active='problems'] {
+  --tab-glass-tint: rgb(var(--marble-blue-rgb));
+}
+.learning-tab-roller[data-active='notes'] {
+  --tab-glass-tint: rgb(var(--marble-amber-rgb));
+}
+.learning-tab-roller[data-active='progress'] {
+  --tab-glass-tint: rgb(var(--marble-green-rgb));
+}
+.learning-tab-roller[data-active='memory'] {
+  --tab-glass-tint: rgb(var(--marble-purple-rgb));
+}
+.learning-tab-roller[data-active='classroom'] {
+  --tab-glass-tint: rgb(var(--marble-pink-rgb));
+}
+.learning-tab-roller[data-active='materials'] {
+  --tab-glass-tint: #879cf8;
+}
+.learning-tab-roller[data-ready] {
+  opacity: 1;
+  transition:
+    transform 440ms cubic-bezier(0.4, 0, 0.15, 1),
+    width 440ms cubic-bezier(0.4, 0, 0.15, 1),
+    --tab-glass-tint 440ms ease-in-out;
+}
+.learning-tab-roller-glass {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border: 1px solid rgb(255 255 255 / 94%);
+  border-radius: 999px;
+  background:
+    radial-gradient(ellipse at 25% 2%, rgb(255 255 255 / 90%), transparent 51%),
+    radial-gradient(
+      ellipse at 82% 112%,
+      color-mix(in srgb, var(--tab-glass-tint) 64%, transparent),
+      transparent 68%
+    ),
+    linear-gradient(
+      155deg,
+      color-mix(in srgb, var(--tab-glass-tint) 27%, transparent),
+      rgb(255 255 255 / 13%) 44%,
+      rgb(255 255 255 / 36%)
+    );
+  box-shadow:
+    0 2px 5px color-mix(in srgb, var(--tab-glass-tint) 29%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--tab-glass-tint) 37%, transparent),
+    inset 0 2px 2px rgb(255 255 255 / 88%),
+    inset 0 -3px 5px color-mix(in srgb, var(--tab-glass-tint) 38%, transparent);
+}
+.learning-tab-roller-glass::after {
+  content: '';
+  position: absolute;
+  inset: 2px 6% 1px;
+  border-radius: inherit;
+  border-top: 1px solid rgb(255 255 255 / 74%);
+  border-bottom: 1px solid rgb(255 255 255 / 78%);
+  transform: rotate(-3deg);
+  pointer-events: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .learning-tab-roller[data-ready] {
+    transition: none;
+  }
 }
 .learning-workspace-tab {
   --tone-mid: var(--marble-blue-mid);
@@ -7335,6 +7419,7 @@ select,
   --tone-ink: var(--marble-blue-ink);
   --tone-rgb: var(--marble-blue-rgb);
   position: relative;
+  z-index: 1;
   display: flex;
   flex: none;
   align-items: center;
@@ -7382,11 +7467,8 @@ select,
   --tone-rgb: var(--marble-pink-rgb);
 }
 .learning-workspace-tab.is-active {
-  color: var(--tone-ink);
-  background: #fff;
-  box-shadow:
-    0 4px 14px rgb(var(--tone-rgb) / 20%),
-    0 1px 2px rgb(15 23 42 / 6%);
+  color: #163b62;
+  text-shadow: 0 1px 0 rgb(255 255 255 / 90%);
 }
 .learning-workspace-bar button {
   display: flex;
@@ -7401,10 +7483,10 @@ select,
   cursor: pointer;
 }
 .learning-workspace-tab [role='tab'] {
-  gap: 7px;
+  gap: 8px;
   min-width: 0;
-  height: 34px;
-  padding: 0 9px;
+  height: 36px;
+  padding: 0 12px;
   border-radius: 999px;
   font-size: 13px;
   font-weight: 600;

@@ -93,7 +93,9 @@ test('browser access requires staging Google account, active DB membership and s
 });
 
 test('browser transport handles split Unicode SSE, preserves v2 metadata, rejects errors and truncation', async () => {
-  const runtime = moduleUrl("export const browserAccountId=()=> 'user-a';");
+  const runtime = moduleUrl(
+    "export const browserAccountId=()=> 'user-a'; export const previewChat=false;",
+  );
   const source = compile(read('apps/native/src/data/browser-platform.ts')).replaceAll(
     "'./browser-runtime'",
     `'${runtime}'`,

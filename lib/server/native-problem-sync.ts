@@ -143,6 +143,7 @@ export async function readNativeProblems(
       status: problem.status,
       difficulty: problem.difficulty,
       tags: problem.tags,
+      order: problem.order,
       publicContent: jsonRecord(problem.publicContentJson),
       grading: jsonRecord(problem.gradingJson),
       layer: problem.ownerId ? ('private' as const) : ('public' as const),

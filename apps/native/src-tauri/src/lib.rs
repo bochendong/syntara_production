@@ -69,6 +69,12 @@ pub fn run() {
             sql: include_str!("../migrations/0010_problem_chapters.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 11,
+            description: "add_problem_order",
+            sql: include_str!("../migrations/0011_problem_order.sql"),
+            kind: MigrationKind::Up,
+        },
     ];
 
     tauri::Builder::default()

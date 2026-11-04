@@ -6,6 +6,7 @@ import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { pythonRuntimePlugin } from './python-runtime-plugin';
 import { handwritingGradingPlugin } from './handwriting-grading-plugin.mjs';
+import { previewChatPlugin } from './preview-chat-plugin.mjs';
 
 const host = process.env.TAURI_DEV_HOST;
 
@@ -16,7 +17,13 @@ export default defineConfig({
         execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(),
     ),
   },
-  plugins: [react(), tailwindcss(), pythonRuntimePlugin(), handwritingGradingPlugin()],
+  plugins: [
+    react(),
+    tailwindcss(),
+    pythonRuntimePlugin(),
+    handwritingGradingPlugin(),
+    previewChatPlugin(),
+  ],
   clearScreen: false,
   server: {
     port: 1420,

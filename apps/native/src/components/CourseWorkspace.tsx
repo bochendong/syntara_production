@@ -4786,32 +4786,46 @@ export function CourseWorkspace({
   const composerFormRef = useRef<HTMLFormElement | null>(null);
   const [autoSendTick, setAutoSendTick] = useState(0);
   const [attachedProblem, setAttachedProblem] = useState<ProblemChatAttachment | null>(null);
+  const handledProblemChatRequestRef = useRef<ProblemChatRequest | null>(null);
   // 下一次发送用的提问方式（快捷提问）；手动打字发送就是 ask。
   const problemMoveRef = useRef<ProblemCoachMove>('ask');
 
   useEffect(() => {
-    if (!problemChatRequest) return;
+    if (!problemChatRequest || handledProblemChatRequestRef.current === problemChatRequest || busy)
+      return;
     const { id, attachment, move } = problemChatRequest;
+    // 打开课程聊天时平台能力可能还在检查，等结果出来再自动发送。
+    if (move !== 'ask' && platformAiAccess.status === 'checking') return;
+    handledProblemChatRequestRef.current = problemChatRequest;
     onProblemChatHandled?.(id);
+    const lastUserMessage = [...messages].reverse().find((message) => message.role === 'user');
     const sameProblem =
       attachedProblem?.problemId === attachment.problemId ||
-      problemChatCard([...messages].reverse().find((message) => message.role === 'user')?.metadata)
-        ?.id === attachment.problemId;
+      (scopeReady && problemChatCard(lastUserMessage?.metadata)?.id === attachment.problemId);
     // 换了一道题：开一段新聊天，旧对话不混进这道题。
-    if (!sameProblem && messages.length) createConversation();
+    if (!sameProblem && selectedConversationId) createConversation();
     else setPhonePage(null);
     setAttachedProblem(attachment);
     setError(null);
+    problemMoveRef.current = move;
     if (move === 'ask') {
       window.setTimeout(() => composerTextareaRef.current?.focus({ preventScroll: true }), 0);
       return;
     }
-    problemMoveRef.current = move;
     setDraft(problemCoachUserText(move, 'zh-CN'));
     setAutoSendTick((tick) => tick + 1);
-    // 只响应新的交接请求。
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [problemChatRequest?.id]);
+  }, [
+    attachedProblem,
+    busy,
+    createConversation,
+    messages,
+    onProblemChatHandled,
+    platformAiAccess.status,
+    problemChatRequest,
+    scopeReady,
+    selectedConversationId,
+    setPhonePage,
+  ]);
 
   const send = useCallback(
     async (event: FormEvent) => {
@@ -5052,7 +5066,7 @@ export function CourseWorkspace({
     ],
   );
 
-  // 点了教程里的默认问题：草稿填好后立刻发出去。
+  // 快捷提问和教程里的默认问题：草稿、题目卡片就绪后立刻发送。
   useEffect(() => {
     if (autoSendTick) composerFormRef.current?.requestSubmit();
   }, [autoSendTick]);

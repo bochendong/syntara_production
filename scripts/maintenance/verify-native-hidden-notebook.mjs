@@ -2,7 +2,7 @@
 
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { readFile } from 'node:fs/promises';
+import { readFile, readdir } from 'node:fs/promises';
 import { registerHooks } from 'node:module';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
@@ -62,22 +62,14 @@ const [{ parseSyntaraArchive }, { SqliteLocalRepository }] = await Promise.all([
   import(path.join(ROOT, 'apps/native/src/data/sqlite-repository.ts')),
 ]);
 
-const migrationFiles = [
-  '0001_core.sql',
-  '0002_learning_content.sql',
-  '0003_assets.sql',
-  '0004_asset_file_storage.sql',
-  '0005_local_course_search.sql',
-  '0006_app_metadata.sql',
-  '0007_course_events_and_lectures.sql',
-  '0008_message_metadata.sql',
-];
+const migrationRoot = path.join(ROOT, 'apps/native/src-tauri/migrations');
+const migrationFiles = (await readdir(migrationRoot))
+  .filter((name) => /^\d+.*\.sql$/.test(name))
+  .sort();
 
 async function migrate(database) {
   for (const migrationFile of migrationFiles) {
-    database.exec(
-      await readFile(path.join(ROOT, 'apps/native/src-tauri/migrations', migrationFile), 'utf8'),
-    );
+    database.exec(await readFile(path.join(migrationRoot, migrationFile), 'utf8'));
   }
 }
 

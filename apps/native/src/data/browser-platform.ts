@@ -3,7 +3,7 @@ import type {
   NativePlatformStreamEvent,
   PlatformJsonCommandRequest,
 } from './platform-api-contracts';
-import { browserAccountId } from './browser-runtime';
+import { browserAccountId, previewChat } from './browser-runtime';
 
 export async function browserRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
   const response = await browserFetch(path, init);
@@ -40,15 +40,17 @@ export async function browserGrade<T>(payload: unknown, headers: HeadersInit): P
 
 export async function browserFetch(path: string, init: RequestInit = {}) {
   if (!path.startsWith('/api/native/')) throw new Error('Unsupported platform endpoint.');
+  const localChat =
+    previewChat && (path === '/api/native/v1/capabilities' || path === '/api/native/v2/chat');
   const headers = new Headers(init.headers);
-  headers.set('X-Syntara-User', browserAccountId());
+  if (!localChat) headers.set('X-Syntara-User', browserAccountId());
   const response = await fetch(path, {
     ...init,
     headers,
-    credentials: 'same-origin',
+    credentials: localChat ? 'omit' : 'same-origin',
     cache: 'no-store',
   });
-  if (response.status === 401) {
+  if (response.status === 401 && !localChat) {
     window.location.replace('/test');
     throw new Error('请重新登录。');
   }

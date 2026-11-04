@@ -49,6 +49,7 @@ export interface LocalProblem {
   notebookId: string | null;
   chapterId?: string | null;
   chapterName?: string | null;
+  order?: number;
   title: string;
   type: string;
   status: 'draft' | 'published' | 'archived';

@@ -1,4 +1,4 @@
-import { browserApp } from './browser-runtime';
+import { browserApp, previewChat } from './browser-runtime';
 import {
   browserChat,
   browserGrade,
@@ -108,6 +108,12 @@ export async function getNativePlatformCapabilities(
   options: Pick<PlatformCommandOptions, 'syntaraToken'> = {},
 ): Promise<NativePlatformCapabilities> {
   if (browserApp) return browserRequest('/api/native/v1/capabilities');
+  if (previewChat) {
+    const capabilities = await browserRequest<NativePlatformCapabilities>(
+      '/api/native/v1/capabilities',
+    );
+    return { ...capabilities, capabilities: { chat: capabilities.capabilities.chat } };
+  }
   assertTauriRuntime();
   const { invoke } = await import('@tauri-apps/api/core');
   const syntaraToken =
@@ -192,7 +198,7 @@ async function runStreamingTurn<TPayload>(
   onEvent?: (event: NativePlatformStreamEvent) => void,
   signal?: AbortSignal,
 ): Promise<NativeChatTurnResult> {
-  if (browserApp) return browserChat(request, onEvent, signal);
+  if (browserApp || previewChat) return browserChat(request, onEvent, signal);
   signal?.throwIfAborted();
   assertTauriRuntime();
   const [{ invoke }, { listen }] = await Promise.all([

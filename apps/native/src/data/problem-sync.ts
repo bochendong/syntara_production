@@ -15,8 +15,8 @@ import { singleFlight } from '../lib/single-flight';
  * 手机上的作答先进本机，再传到网页题库，网页和别的设备都能看到做过哪些题。
  */
 
-// v2 fetches chapter metadata once for clients with an existing v1 checkpoint.
-const SYNC_STATE_PREFIX = 'syntara.problem-sync.v2:';
+// v3 fetches course order once for clients with an existing checkpoint.
+const SYNC_STATE_PREFIX = 'syntara.problem-sync.v3:';
 const OUTBOX_KEY = 'syntara.problem-attempt-outbox.v1';
 /** 和服务器 NATIVE_ATTEMPT_UPLOAD_LIMIT 一致。 */
 const UPLOAD_BATCH = 100;
@@ -52,9 +52,11 @@ function writeJson(key: string, value: unknown) {
 
 function readState(courseId: string): ProblemSyncState {
   const state = readJson<Partial<ProblemSyncState> | null>(`${SYNC_STATE_PREFIX}${courseId}`, null);
-  // Preserve the v1 server-owned IDs so withdrawn questions are still archived after upgrading.
+  // Refresh stored questions once to load their order while retaining server-owned IDs.
   const previous =
-    state ?? readJson<Partial<ProblemSyncState>>(`syntara.problem-sync.v1:${courseId}`, {});
+    state ??
+    readJson<Partial<ProblemSyncState> | null>(`syntara.problem-sync.v2:${courseId}`, null) ??
+    readJson<Partial<ProblemSyncState>>(`syntara.problem-sync.v1:${courseId}`, {});
   return {
     since: typeof state?.since === 'number' ? state.since : null,
     problemIds: Array.isArray(previous.problemIds) ? previous.problemIds : [],
@@ -320,7 +322,8 @@ async function syncCourseProblemsOnce(
         existing.updatedAt !== problem.updatedAt ||
         existing.status !== problem.status ||
         existing.chapterId !== problem.chapterId ||
-        existing.chapterName !== problem.chapterName
+        existing.chapterName !== problem.chapterName ||
+        existing.order !== problem.order
       );
     })
     // 层信息只存在 course-layers 里，不进本机题库表。
