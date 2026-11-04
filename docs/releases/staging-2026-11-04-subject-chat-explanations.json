@@ -1,0 +1,49 @@
+{
+  "at": "2026-11-04T15:02:27Z",
+  "status": "deployed",
+  "branch": "codex/staging-next",
+  "baselineBranch": "codex/staging-baseline",
+  "pullRequest": "https://github.com/bochendong/syntara_production/pull/38",
+  "deploymentId": "923f65f4-dc6b-435f-92ae-71c67462d34c",
+  "origin": "https://native-api-staging-staging-95a1.up.railway.app",
+  "revision": "4e6f5b391551b4a439252dee3551782eafdab61a",
+  "health": true,
+  "assets": [
+    {
+      "path": "/native-web/assets/index-D6U1XHr0.js",
+      "sha256": "46e119a52f49f548da82d4bfdbeb59ff9f064393abbffb4736a400095db541af",
+      "matched": true
+    },
+    {
+      "path": "/native-web/assets/index-BTpFOu5j.css",
+      "sha256": "7d3e6c70d90799c638ead64adee2d8f3474857f0c4da135e2b55ae66cea5890c",
+      "matched": true
+    }
+  ],
+  "changes": [
+    "Subject-aware explanations for Racket, Python and mathematics.",
+    "Practice coaching uses line numbers, draft changes, and available grading references.",
+    "Native chat renders trace blocks as interactive step cards."
+  ],
+  "verification": {
+    "formatLintAndTypes": true,
+    "productionBuild": true,
+    "offline": "Course-chat contracts, teaching-mode contracts, subject detection, and draft line changes.",
+    "fixtureBrowser": "Rendered Racket, Python, and math trace cards. Advanced the Racket card to step 2 and opened the five-step list.",
+    "stagingChat": {
+      "path": "/api/native/v2/chat",
+      "example": "Racket BSL length substitution using a synthetic list.",
+      "before": {
+        "revision": "80f2aefeb775cc5259f1768dcd750148e88ef792",
+        "model": "openai:gpt-6-sol",
+        "traceSteps": 0
+      },
+      "after": {
+        "revision": "4e6f5b391551b4a439252dee3551782eafdab61a",
+        "model": "openai:gpt-6-sol",
+        "traceSteps": 6
+      }
+    }
+  },
+  "migrations": "None added"
+}
