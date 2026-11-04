@@ -219,7 +219,7 @@ export async function listHiddenCourseContent(
   });
 }
 
-const problemFingerprintSql = Prisma.sql`md5(COALESCE("title", '') || "publicContentJson"::text || "gradingJson"::text)`;
+export const problemFingerprintSql = Prisma.sql`md5(COALESCE("title", '') || "publicContentJson"::text || "gradingJson"::text)`;
 
 export type CourseRelease = CourseUpdateSummary & { version: number; deletions: number };
 
