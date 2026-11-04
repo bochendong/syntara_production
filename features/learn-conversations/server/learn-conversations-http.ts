@@ -41,6 +41,7 @@ type LearnMessageContent = {
   publicTrace?: unknown;
   contextCompression?: unknown;
   attachments?: unknown;
+  problemCard?: unknown;
   nativeContent?: unknown;
   nativeContentAt?: unknown;
 };
@@ -149,6 +150,10 @@ const learnMessageSchema = z.object({
   artifacts: z.unknown().optional(),
   publicTrace: z.unknown().optional(),
   contextCompression: contextCompressionSchema.optional(),
+  /** 做题页「问 AI」带来的题目小卡（显示在用户消息上方）。 */
+  problemCard: z
+    .object({ id: z.string().trim().min(1).max(200), title: z.string().trim().max(300) })
+    .optional(),
   attachments: z
     .array(
       z.object({
@@ -204,6 +209,7 @@ function contentFromMessage(message: z.infer<typeof learnMessageSchema>): LearnM
     publicTrace: message.publicTrace ?? null,
     contextCompression: message.contextCompression ?? null,
     attachments: message.attachments ?? [],
+    problemCard: message.problemCard ?? null,
   };
 }
 
@@ -243,6 +249,7 @@ function messageFromRow(row: CourseConversationMessageRow) {
     publicTrace: content.publicTrace ?? undefined,
     contextCompression: content.contextCompression ?? undefined,
     attachments: Array.isArray(content.attachments) ? content.attachments : undefined,
+    problemCard: content.problemCard ?? undefined,
   };
 }
 

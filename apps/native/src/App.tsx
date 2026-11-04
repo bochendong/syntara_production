@@ -63,14 +63,10 @@ import { useBackDismiss } from './lib/use-back-dismiss';
 import { useCompactLayout, usePhoneLayout } from './lib/use-phone-layout';
 import { useAvatarTheme } from './lib/use-avatar-theme';
 import type { LocalCourseSummary, LocalCourseWorkspace } from './domain/models';
+import type { ProblemChatAttachment, ProblemChatRequest } from './lib/problem-chat';
+import type { ProblemCoachMove } from '../../../lib/problem-bank/problem-coach';
 
-type AppSurface =
-  | 'general'
-  | 'launch'
-  | 'course'
-  | 'problem-bank'
-  | 'notebook-library'
-  | 'problem-practice';
+type AppSurface = 'general' | 'launch' | 'course' | 'problem-bank' | 'notebook-library';
 
 function updateWithPlatformTransition(update: () => void) {
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -106,7 +102,14 @@ function AuthenticatedApp() {
   const [initialConversationId, setInitialConversationId] = useState<string | null>(null);
   const [workspace, setWorkspace] = useState<LocalCourseWorkspace | null>(null);
   const [surface, setSurface] = useState<AppSurface>('launch');
-  const [practiceLaunch, setPracticeLaunch] = useState<ProblemBankLaunch | null>(null);
+  const [practiceMinimized, setPracticeMinimized] = useState(false);
+  const [problemChatRequest, setProblemChatRequest] = useState<ProblemChatRequest | null>(null);
+  const [practiceSession, setPracticeSession] = useState<{
+    id: number;
+    launch: ProblemBankLaunch;
+    problems: LocalCourseWorkspace['problems'];
+    onReturn?: () => void;
+  } | null>(null);
   const [backendKind, setBackendKind] = useState<LocalBackendKind>('indexeddb');
   const [loading, setLoading] = useState(true);
   const [settledCourseId, setSettledCourseId] = useState<string | null>(null);
@@ -267,7 +270,6 @@ function AuthenticatedApp() {
       setInitialPage(target?.page);
       setCalendarDate(target?.date);
       setNewEventDate(target?.createEvent ? target.date : undefined);
-      setPracticeLaunch(null);
       setSurface('course');
     },
     [],
@@ -380,11 +382,7 @@ function AuthenticatedApp() {
     setSurface('course');
   }, []);
   useBackDismiss(globalPage !== null, () => setGlobalPage(null));
-  useBackDismiss(
-    ['problem-bank', 'notebook-library', 'problem-practice'].includes(surface),
-    openChat,
-    0,
-  );
+  useBackDismiss(['problem-bank', 'notebook-library'].includes(surface), openChat, 0);
 
   useEffect(() => {
     if (globalPage !== 'calendar') return;
@@ -420,17 +418,33 @@ function AuthenticatedApp() {
 
   const openProblemBank = useCallback(() => {
     updateWithPlatformTransition(() => {
-      setPracticeLaunch(null);
       setSurface('problem-bank');
     });
   }, []);
 
-  const openPractice = useCallback((launch: ProblemBankLaunch) => {
-    updateWithPlatformTransition(() => {
-      setPracticeLaunch(launch);
-      setSurface('problem-practice');
-    });
-  }, []);
+  const startPractice = useCallback(
+    (
+      launch: ProblemBankLaunch,
+      problems: LocalCourseWorkspace['problems'],
+      onReturn?: () => void,
+    ) => {
+      setPracticeMinimized(false);
+      setPracticeSession((previous) => ({
+        id: (previous?.id ?? 0) + 1,
+        launch,
+        problems,
+        onReturn,
+      }));
+    },
+    [],
+  );
+
+  const openPractice = useCallback(
+    (launch: ProblemBankLaunch, onReturn?: () => void) => {
+      if (workspace) startPractice(launch, workspace.problems, onReturn);
+    },
+    [startPractice, workspace],
+  );
 
   // 老师在课上发的题：先把这门课和题同步到本机，再打开平常的做题弹窗。
   const openClassroomProblem = useCallback<ClassroomOpenProblem>(
@@ -450,31 +464,27 @@ function AuthenticatedApp() {
         openCourse(courseId);
       }
       setWorkspace(loaded);
-      openPractice({ problemIds: available, initialProblemId: problemId, title });
+      startPractice({ problemIds: available, initialProblemId: problemId, title }, loaded.problems);
     },
-    [courses, loadCourses, openCourse, openPractice, selectedCourseId, surface],
+    [courses, loadCourses, openCourse, selectedCourseId, startPractice, surface],
   );
 
-  // iPad 和桌面的题库在课程工作台右侧，做题是盖在上面的弹窗，关掉就回到刚才的答题卡。
-  const backFromPractice = useCallback(() => {
-    if (!phoneLayout) {
-      try {
-        // 工作台一直开着，不用再靠它重新打开题库。
-        window.sessionStorage.removeItem('syntara.open-phone-page');
-      } catch {
-        // ignore
-      }
-    }
-    updateWithPlatformTransition(() => {
-      setPracticeLaunch(null);
-      setSurface(phoneLayout ? 'problem-bank' : 'course');
-    });
-  }, [phoneLayout]);
-  const practiceOverlay = !phoneLayout && surface === 'problem-practice' && practiceLaunch;
+  const minimizePractice = () => {
+    setPracticeMinimized(true);
+    practiceSession?.onReturn?.();
+  };
+  const practiceExpanded = practiceSession !== null && !practiceMinimized;
+
+  // 做题页「问 AI」：做题收成右下角弹珠，题目卡片挂到这门课的主聊天里。
+  const askAiInCourseChat = (attachment: ProblemChatAttachment, move: ProblemCoachMove) => {
+    minimizePractice();
+    setProblemChatRequest((previous) => ({ id: (previous?.id ?? 0) + 1, attachment, move }));
+    if (selectedCourseId === attachment.courseId) openChat();
+    else openCourse(attachment.courseId);
+  };
 
   const backFromProblemBank = useCallback(() => {
     updateWithPlatformTransition(() => {
-      setPracticeLaunch(null);
       setSurface('course');
     });
   }, []);
@@ -612,16 +622,6 @@ function AuthenticatedApp() {
         <NotebookLibraryPage workspace={workspace} onBack={backFromNotebookLibrary} />
       </div>
     );
-  } else if (surface === 'problem-practice' && practiceLaunch && phoneLayout) {
-    content = (
-      <div className="native-course-subview">
-        <ProblemPracticePage
-          problems={workspace.problems}
-          launch={practiceLaunch}
-          onBack={backFromPractice}
-        />
-      </div>
-    );
   } else {
     content = (
       <CourseWorkspace
@@ -644,6 +644,14 @@ function AuthenticatedApp() {
         calendarDate={calendarDate}
         onOpenProblemBank={openProblemBank}
         onOpenPractice={openPractice}
+        problemChatRequest={
+          problemChatRequest?.attachment.courseId === workspace.course.id
+            ? problemChatRequest
+            : null
+        }
+        onProblemChatHandled={(id) =>
+          setProblemChatRequest((current) => (current?.id === id ? null : current))
+        }
         onWorkspaceChanged={refreshWorkspace}
       />
     );
@@ -715,17 +723,24 @@ function AuthenticatedApp() {
             }}
           />
         )}
-        <div className="app-chat-surface" inert={globalPage !== null || Boolean(practiceOverlay)}>
+        <div className="app-chat-surface" inert={globalPage !== null || practiceExpanded}>
           <ChatWorkspaceShell enabled={!phoneLayout} onLocalNavigation={cancelPendingNavigation}>
             {content}
           </ChatWorkspaceShell>
         </div>
-        {practiceOverlay && workspace ? (
-          <PracticeOverlay onClose={backFromPractice}>
+        {practiceSession ? (
+          <PracticeOverlay
+            key={practiceSession.id}
+            onClose={minimizePractice}
+            minimized={practiceMinimized}
+            onRestore={() => setPracticeMinimized(false)}
+          >
             <ProblemPracticePage
-              problems={workspace.problems}
-              launch={practiceOverlay}
-              onBack={backFromPractice}
+              problems={practiceSession.problems}
+              launch={practiceSession.launch}
+              onBack={minimizePractice}
+              onMinimize={minimizePractice}
+              onAskAi={phoneLayout ? undefined : askAiInCourseChat}
             />
           </PracticeOverlay>
         ) : null}
@@ -796,7 +811,7 @@ function AuthenticatedApp() {
         ) : null}
 
         {globalPage ? (
-          <div className="native-global-page">
+          <div className="native-global-page" inert={practiceExpanded}>
             {globalPage === 'calendar' ? (
               <>
                 <GlobalCalendarApp
@@ -879,7 +894,7 @@ function AuthenticatedApp() {
           </div>
         ) : null}
 
-        {classroomEnabled && !classroomOpen && !practiceOverlay ? (
+        {classroomEnabled && !classroomOpen && !practiceExpanded ? (
           <ClassroomLiveBadge sessions={classroom.sessions} onOpen={() => setClassroomOpen(true)} />
         ) : null}
         {classroomOpen ? (

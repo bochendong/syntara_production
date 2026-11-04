@@ -35,6 +35,7 @@ import {
   FileCode2,
   FileText,
   Eye,
+  Minus,
   Play,
   PenLine,
   RotateCcw,
@@ -161,7 +162,9 @@ import {
   type ProblemLearningEvent,
 } from '../data/problem-learning-snapshot';
 import { ProblemSolutionConfirmation } from './problem-bank/ProblemSolutionConfirmation';
-import { ProblemAiCoachButton, ProblemAiCoachPanel } from './problem-bank/ProblemAiCoach';
+import { ProblemAiAskMenu, problemCoachText } from './problem-bank/ProblemAiCoach';
+import type { ProblemChatAttachment } from '../lib/problem-chat';
+import type { ProblemCoachMove } from '../../../../lib/problem-bank/problem-coach';
 import {
   hasBilingualProblem,
   localizeProblem,
@@ -172,6 +175,9 @@ type ProblemPracticePageProps = {
   problems: LocalProblem[];
   launch: ProblemBankLaunch;
   onBack: () => void;
+  onMinimize?: () => void;
+  /** iPad/桌面：「问 AI」把这道题交给课程主聊天。没有时不显示按钮。 */
+  onAskAi?: (attachment: ProblemChatAttachment, move: ProblemCoachMove) => void;
   loadHiddenTests?: (problemId: string, part?: string) => Promise<RevealedHiddenTests>;
 };
 
@@ -331,6 +337,8 @@ export function ProblemPracticePage({
   problems,
   launch,
   onBack,
+  onMinimize,
+  onAskAi,
   loadHiddenTests,
 }: ProblemPracticePageProps) {
   const [language, setLanguage] = useState<ProblemContentLanguage>(launch.language ?? 'zh-CN');
@@ -349,6 +357,7 @@ export function ProblemPracticePage({
   const textAnswerRef = useRef<HTMLTextAreaElement>(null);
   const partFormulaRef = useRef<PartFormulaHandle>(null);
   const [partNavigationTarget, setPartNavigationTarget] = useState<HTMLDivElement | null>(null);
+  const [runAllTarget, setRunAllTarget] = useState<HTMLSpanElement | null>(null);
   const [partSelection, setPartSelection] = useState<{ problemId: string; label: string } | null>(
     null,
   );
@@ -407,6 +416,7 @@ export function ProblemPracticePage({
   });
   const cancelDebugRef = useRef<(() => void) | null>(null);
   const [debugCode, setDebugCode] = useState('');
+  const [debugInput, setDebugInput] = useState('');
   const debugSequence = useRef(0);
   const debugRunning = debugResult.phase === 'loading' || debugResult.phase === 'running';
   const [statuses, setStatuses, mistakes] = useProblemStatuses(problems[0]?.courseId ?? '', launch);
@@ -418,8 +428,6 @@ export function ProblemPracticePage({
   const sheetAnchorRef = useRef<HTMLDivElement>(null);
   const sheetTriggerRef = useRef<HTMLButtonElement>(null);
   const [submissionNotice, setSubmissionNotice] = useState<SubmissionFeedback | null>(null);
-  const [coachOpen, setCoachOpen] = useState(false);
-  const [coachBusy, setCoachBusy] = useState(false);
   const stackedPanes = useStackedPanes();
   const [partDrafts, setPartDrafts] = useState<Record<string, LocalPartAnswer>>({});
   const [stemCollapsed, setStemCollapsed] = useState(true);
@@ -572,6 +580,7 @@ export function ProblemPracticePage({
     cancelDebugRef.current?.();
     cancelDebugRef.current = null;
     setDebugResult({ phase: 'idle', output: '', error: '' });
+    setDebugInput('');
     return () => {
       debugSequence.current += 1;
       cancelDebugRef.current?.();
@@ -634,6 +643,13 @@ export function ProblemPracticePage({
     };
   };
 
+  const debugProgram =
+    answer?.kind === 'code'
+      ? debugInput.trim()
+        ? [answer.code, debugInput].join('\n\n')
+        : answer.code
+      : '';
+
   const runDebug = () => {
     if (debugRunning) {
       cancelDebugRef.current?.();
@@ -643,12 +659,12 @@ export function ProblemPracticePage({
     if (answer?.kind !== 'code') return;
     saveDraft();
     const sequence = ++debugSequence.current;
-    setDebugCode(answer.code);
+    setDebugCode(debugProgram);
     setDebugResult({ phase: 'loading', output: '', error: '' });
     setLeftTab('output');
     if (serverRunsCode) {
       setDebugResult({ phase: 'running', output: '', error: '' });
-      void serverRunCode(answer.code).then((result) => {
+      void serverRunCode(debugProgram).then((result) => {
         if (sequence !== debugSequence.current) return;
         setDebugResult({
           phase: result.error ? 'error' : 'success',
@@ -660,7 +676,7 @@ export function ProblemPracticePage({
     }
     try {
       cancelDebugRef.current = runPythonDebug(
-        answer.code,
+        debugProgram,
         (event) => {
           if (sequence !== debugSequence.current) return;
           if (event.type === 'output') {
@@ -1396,6 +1412,47 @@ export function ProblemPracticePage({
       if (sequence === snapshotSequence.current) setSnapshotBusy(false);
     }
   };
+  // 「问 AI」交给主聊天：发送时现读最新的作答，完整解答答完才记求助。
+  const coachInputs = {
+    problem: displayedProblem ?? currentProblem,
+    answer: isMultipart
+      ? ({ kind: 'parts', parts: { ...savedParts.answers, ...partDrafts } } as LocalProblemAnswer)
+      : answer,
+    latestAttempt: document?.attempts[0],
+    runOutput: [debugResult.output, debugResult.error].filter(Boolean).join('\n'),
+    solutionSeen,
+    persistLearningAction,
+  };
+  const coachInputsRef = useRef(coachInputs);
+  useEffect(() => {
+    coachInputsRef.current = coachInputs;
+  });
+  const askAi = (move: ProblemCoachMove) => {
+    const problem = coachInputs.problem;
+    if (!onAskAi || !problem) return;
+    saveDraft();
+    let snapshot = problemCoachText({ ...coachInputs, problem });
+    onAskAi(
+      {
+        problemId: problem.id,
+        courseId: problem.courseId,
+        title: problem.title,
+        readContext: () => {
+          const live = coachInputsRef.current;
+          // 学生已经翻到别的题时，仍然用交出去那一刻的这道题。
+          if (live.problem?.id === problem.id) snapshot = problemCoachText({ ...live, problem });
+          return snapshot;
+        },
+        onSolutionDelivered: () => {
+          // 和点「答案」一样留一条求助记录，但不切到参考答案页。
+          const live = coachInputsRef.current;
+          if (live.problem?.id !== problem.id || live.solutionSeen || !live.answer) return;
+          void live.persistLearningAction('solution_viewed', live.answer, { openSolution: false });
+        },
+      },
+      move,
+    );
+  };
   const revealSolution = async (remember: boolean) => {
     if (!answer) return;
     const saved = await persistLearningAction(
@@ -1508,11 +1565,11 @@ export function ProblemPracticePage({
           <button
             type="button"
             className="phone-glass-button pp-close"
-            onClick={onBack}
+            onClick={onMinimize ?? onBack}
             disabled={snapshotBusy}
-            aria-label="关闭做题"
+            aria-label={onMinimize ? '最小化做题' : '关闭做题'}
           >
-            <X size={22} />
+            {onMinimize ? <Minus size={22} /> : <X size={22} />}
           </button>
         </header>
       </section>
@@ -1704,12 +1761,7 @@ export function ProblemPracticePage({
           ) : null}
         </div>
         <div className="pp-header-tools">
-          <ProblemAiCoachButton
-            open={coachOpen}
-            busy={coachBusy}
-            disabled={loading}
-            onClick={() => setCoachOpen((open) => !open)}
-          />
+          {onAskAi && currentProblem ? <ProblemAiAskMenu disabled={loading} onAsk={askAi} /> : null}
           {hasBilingualProblem(currentProblem) ? (
             <ContentLanguageSwitch
               label="题目语言"
@@ -1742,40 +1794,13 @@ export function ProblemPracticePage({
         <button
           type="button"
           className="phone-glass-button pp-close"
-          onClick={onBack}
+          onClick={onMinimize ?? onBack}
           disabled={snapshotBusy}
-          aria-label="关闭做题"
+          aria-label={onMinimize ? '最小化做题' : '关闭做题'}
         >
-          <X size={22} />
+          {onMinimize ? <Minus size={22} /> : <X size={22} />}
         </button>
       </header>
-
-      {currentProblem ? (
-        <ProblemAiCoachPanel
-          open={coachOpen}
-          problem={displayedProblem ?? currentProblem}
-          answer={
-            isMultipart
-              ? { kind: 'parts', parts: { ...savedParts.answers, ...partDrafts } }
-              : answer
-          }
-          latestAttempt={document?.attempts[0]}
-          runOutput={[debugResult.output, debugResult.error].filter(Boolean).join('\n')}
-          onClose={() => setCoachOpen(false)}
-          onBusyChange={setCoachBusy}
-          onSolutionAsked={() => {
-            // 和点「答案」一样留一条求助记录，但不切到参考答案页。
-            if (solutionSeen || !answer) return;
-            void persistLearningAction(
-              'solution_viewed',
-              isMultipart
-                ? { kind: 'parts', parts: { ...savedParts.answers, ...partDrafts } }
-                : answer,
-              { openSolution: false },
-            );
-          }}
-        />
-      ) : null}
 
       {finish === 'shown' ? (
         <PracticeFinish
@@ -1836,9 +1861,23 @@ export function ProblemPracticePage({
                     运行结果
                   </button>
                 </div>
-                <small className="pp-statement-difficulty">
-                  {difficultyLabel(currentProblem.difficulty)}
-                </small>
+                <div className="pp-header-actions">
+                  {visibleLeftTab === 'output' ? (
+                    <button
+                      type="button"
+                      className="pp-run-button"
+                      disabled={loading || submitting || snapshotBusy || answer?.kind !== 'code'}
+                      onClick={runDebug}
+                    >
+                      {debugRunning ? <Square size={13} /> : <Play size={13} />}
+                      {debugRunning ? '停止' : '运行'}
+                    </button>
+                  ) : (
+                    <small className="pp-statement-difficulty">
+                      {difficultyLabel(currentProblem.difficulty)}
+                    </small>
+                  )}
+                </div>
               </header>
             ) : supportsFormulaReference ? (
               <header className="native-problem-practice-pane-tabs pp-statement-tabs">
@@ -1936,14 +1975,28 @@ export function ProblemPracticePage({
                 />
               ) : isCode && codeContent ? (
                 visibleLeftTab === 'output' ? (
-                  <PythonRunOutput
-                    result={debugResult}
-                    stale={
-                      debugResult.phase !== 'idle' &&
-                      answer?.kind === 'code' &&
-                      answer.code !== debugCode
-                    }
-                  />
+                  <div className="pp-debug-console">
+                    <label className="pp-debug-input">
+                      <span>调试代码</span>
+                      <textarea
+                        value={debugInput}
+                        onChange={(event) => setDebugInput(event.target.value)}
+                        placeholder={
+                          serverRunsCode ? '(displayln (square 12))' : 'print(square(12))'
+                        }
+                        spellCheck={false}
+                        autoCapitalize="off"
+                        autoComplete="off"
+                      />
+                    </label>
+                    <div className="pp-debug-result">
+                      <h3>输出</h3>
+                      <PythonRunOutput
+                        result={debugResult}
+                        stale={debugResult.phase !== 'idle' && debugProgram !== debugCode}
+                      />
+                    </div>
+                  </div>
                 ) : (
                   <ProblemStatement
                     content={{ ...publicContent, type: 'code' }}
@@ -2166,17 +2219,7 @@ export function ProblemPracticePage({
                     ) : null}
                   </div>
                 ) : null}
-                {isCode && rightTab === 'code' ? (
-                  <button
-                    type="button"
-                    className="pp-run-button"
-                    disabled={loading || submitting || snapshotBusy || answer?.kind !== 'code'}
-                    onClick={runDebug}
-                  >
-                    {debugRunning ? <Square size={13} /> : <Play size={13} />}
-                    {debugRunning ? '停止' : '运行'}
-                  </button>
-                ) : null}
+                {isCode && rightTab === 'tests' ? <span ref={setRunAllTarget} /> : null}
                 {isCode && !isMultipart && rightTab !== 'history' && rightTab !== 'solution' ? (
                   <button
                     type="button"
@@ -2286,6 +2329,7 @@ export function ProblemPracticePage({
                         typeof publicContent.stdin === 'string' ? publicContent.stdin : undefined
                       }
                       tests={visibleCodeTests(codeContent ?? {})}
+                      runAllTarget={runAllTarget}
                       example={codeContent?.sampleIO?.[0]?.input}
                       language={codeLanguage}
                       onRunTests={serverRunsCode ? serverRunPublicTests : undefined}

@@ -133,8 +133,8 @@ export const nativeChatRequestSchema = z.object({
         })
         .optional(),
       /**
-       * 做题页「问 AI」：学生正在做的这道题（App 端拼好的题面、作答、测试结果、参考答案）。
-       * 有它时助教按提示梯子引导，不直接给答案。
+       * 做题页「问 AI」交到课程主聊天：学生正在做的这道题（App 拼好的题面、作答、测试结果）。
+       * 参考答案不由 App 发，服务端按 problemId 从题库读。有它时助教按提示梯子引导。
        */
       problemCoach: z
         .object({

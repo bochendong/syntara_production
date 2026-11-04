@@ -1,6 +1,11 @@
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { Check, Copy } from 'lucide-react';
-import { codeLanguageColor, codeLanguageLabel, highlightCodeLines } from './code-highlight';
+import {
+  chatCodeLanguage,
+  codeLanguageColor,
+  codeLanguageLabel,
+  highlightCodeLines,
+} from './code-highlight';
 
 async function copyText(text: string): Promise<boolean> {
   try {
@@ -29,9 +34,10 @@ export const ChatCodeBlock = memo(function ChatCodeBlock({
   code: string;
   language: string;
 }) {
+  const displayLanguage = chatCodeLanguage(code, language);
   const lines = useMemo(
-    () => highlightCodeLines(code.replace(/\n+$/, ''), language),
-    [code, language],
+    () => highlightCodeLines(code.replace(/\n+$/, ''), displayLanguage),
+    [code, displayLanguage],
   );
   const [copied, setCopied] = useState(false);
   const timer = useRef<number | undefined>(undefined);
@@ -45,11 +51,14 @@ export const ChatCodeBlock = memo(function ChatCodeBlock({
   };
 
   return (
-    <figure className="chat-code" data-language={language || undefined}>
+    <figure className="chat-code" data-language={displayLanguage || undefined}>
       <header className="chat-code-bar">
         <span className="chat-code-tab">
-          <span className="chat-code-dot" style={{ background: codeLanguageColor(language) }} />
-          {codeLanguageLabel(language)}
+          <span
+            className="chat-code-dot"
+            style={{ background: codeLanguageColor(displayLanguage) }}
+          />
+          {codeLanguageLabel(displayLanguage)}
         </span>
         <button
           type="button"

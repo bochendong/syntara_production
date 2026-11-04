@@ -53,9 +53,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { MessageResponse } from '@/components/ai-elements/message';
 import { AnswerComposer, AnswerComposerToolbar } from '@/components/problem-bank/answer-composer';
 import {
-  ProblemAiCoachButton,
-  ProblemAiCoachPanel,
+  ProblemAiAskMenu,
+  stashProblemChatHandoff,
+  type ProblemChatHandoff,
 } from '@/components/problem-bank/problem-ai-coach';
+import { buildProblemCoachContext } from '@/lib/chat/problem-explain-prompt';
+import type { ProblemCoachMove } from '@/lib/problem-bank/problem-coach';
 import { ProblemEditDialog } from '@/components/problem-bank/problem-edit-dialog';
 import { ProblemDraftForm } from '@/components/problem-bank/problem-draft-form';
 import { ProblemLanguageToggle } from '@/components/problem-bank/problem-language-toggle';
@@ -1130,8 +1133,8 @@ export function CourseProblemBankView({
   onPracticeAttemptResolved,
   onPracticeHeaderStateChange,
   practiceAiHelp,
-  aiCoachOpen: controlledAiCoachOpen,
-  onAiCoachOpenChange,
+  aiAskRequest,
+  onAskAi,
   showCourseTitle = true,
   showChromeBackground = true,
   showCourseNavigation = false,
@@ -1159,9 +1162,12 @@ export function CourseProblemBankView({
   onPracticeAttemptResolved?: (event: CourseProblemPracticeAttemptResolvedEvent) => void;
   onPracticeHeaderStateChange?: (state: CourseProblemPracticeHeaderState | null) => void;
   practiceAiHelp?: PracticeAiHelpController;
-  /** 做题时的「问 AI」面板；外部顶栏（课程学习弹窗）自己放按钮时由外部控制。 */
-  aiCoachOpen?: boolean;
-  onAiCoachOpenChange?: (open: boolean) => void;
+  /** 外部顶栏（课程学习弹窗）的「问 AI」按下时传进来，由这里拼好这道题交出去。 */
+  aiAskRequest?: { id: number; move: ProblemCoachMove } | null;
+  /**
+   * 「问 AI」把这道题交给课程主聊天。没有时（独立题库页）存起来再跳到课程聊天。
+   */
+  onAskAi?: (handoff: ProblemChatHandoff) => void;
   showCourseTitle?: boolean;
   showChromeBackground?: boolean;
   showCourseNavigation?: boolean;
@@ -1172,16 +1178,6 @@ export function CourseProblemBankView({
   forumCount?: number;
 }) {
   const hasSharedShell = useCourseSpaceShell();
-  const [localAiCoachOpen, setLocalAiCoachOpen] = useState(false);
-  const [aiCoachBusy, setAiCoachBusy] = useState(false);
-  const aiCoachOpen = controlledAiCoachOpen ?? localAiCoachOpen;
-  const setAiCoachOpen = useCallback(
-    (open: boolean) => {
-      if (controlledAiCoachOpen === undefined) setLocalAiCoachOpen(open);
-      onAiCoachOpenChange?.(open);
-    },
-    [controlledAiCoachOpen, onAiCoachOpenChange],
-  );
   const view = useCourseProblemBankController({
     courseId,
     initialNotebookId,
@@ -1717,6 +1713,42 @@ export function CourseProblemBankView({
     selectedProblemCurrentAnswer,
   ]);
   const selectedProblemLatestDetailedAttempt = selectedProblemAttempts[0] ?? null;
+
+  // 「问 AI」：把题面和当前作答交给课程主聊天；参考答案由服务端按题目 id 读。
+  const askAiInCourseChat = (move: ProblemCoachMove) => {
+    if (!selectedProblem || !selectedProblemContent) return;
+    const handoff: ProblemChatHandoff = {
+      courseId,
+      problemId: selectedProblem.id,
+      title: selectedProblemTitle || selectedProblem.title,
+      problem: buildProblemCoachContext({
+        problem: selectedProblem,
+        problemTitle: selectedProblemTitle,
+        problemContent: selectedProblemContent,
+        notebookName: selectedProblemChapterLabel || courseName || '',
+        currentAnswer: selectedProblemCurrentAnswer,
+        latestAttempt: selectedProblemLatestDetailedAttempt,
+      }),
+      move,
+      recordSolution: !canEditProblems && !previewMode && !adminReadOnly,
+    };
+    if (onAskAi) {
+      onAskAi(handoff);
+      return;
+    }
+    stashProblemChatHandoff(handoff);
+    router.push(`/learn?courseId=${encodeURIComponent(courseId)}`);
+  };
+  const askAiRef = useRef(askAiInCourseChat);
+  useEffect(() => {
+    askAiRef.current = askAiInCourseChat;
+  });
+  const handledAskRequestRef = useRef(aiAskRequest?.id ?? 0);
+  useEffect(() => {
+    if (!aiAskRequest || aiAskRequest.id === handledAskRequestRef.current) return;
+    handledAskRequestRef.current = aiAskRequest.id;
+    askAiRef.current(aiAskRequest.move);
+  }, [aiAskRequest]);
   const selectedProblemSubmissionCount = selectedProblemAttempts.filter(
     (attempt) => attempt.kind === 'submit' || attempt.kind === 'answer',
   ).length;
@@ -1998,11 +2030,10 @@ export function CourseProblemBankView({
 
     return (
       <div className="flex shrink-0 items-center gap-1">
-        <ProblemAiCoachButton
-          open={aiCoachOpen}
-          busy={aiCoachBusy}
+        <ProblemAiAskMenu
           locale={locale}
-          onClick={() => setAiCoachOpen(!aiCoachOpen)}
+          disabled={!selectedProblemContent}
+          onAsk={(move) => askAiRef.current(move)}
           className="mr-1"
         />
         <Button
@@ -2050,9 +2081,7 @@ export function CourseProblemBankView({
       </div>
     );
   }, [
-    aiCoachBusy,
-    aiCoachOpen,
-    setAiCoachOpen,
+    selectedProblemContent,
     autoArchiving,
     canEditProblems,
     handlePracticeStepChange,
@@ -3058,23 +3087,6 @@ export function CourseProblemBankView({
             : 'p-0',
         )}
       >
-        {isPracticeMode && selectedProblem ? (
-          <ProblemAiCoachPanel
-            open={aiCoachOpen}
-            onOpenChange={setAiCoachOpen}
-            onBusyChange={setAiCoachBusy}
-            courseId={courseId}
-            courseName={courseName}
-            problem={selectedProblem}
-            problemTitle={selectedProblemTitle}
-            problemContent={selectedProblemContent}
-            notebookName={selectedProblemChapterLabel || courseName || ''}
-            currentAnswer={selectedProblemCurrentAnswer}
-            latestAttempt={selectedProblemLatestDetailedAttempt}
-            locale={locale}
-            recordHelpEvents={!canEditProblems && !previewMode && !adminReadOnly}
-          />
-        ) : null}
         {!isPracticeMode ? (
           <>
             <div

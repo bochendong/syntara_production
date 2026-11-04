@@ -2,7 +2,9 @@ import type { ModelMessage } from 'ai';
 import { stepCountIs } from 'ai';
 import type { NextRequest } from 'next/server';
 
+import { getCourseProblemForUser } from '@/features/problems/server/service';
 import { streamLLM } from '@/lib/ai/llm';
+import { formatGradingForPrompt } from '@/lib/chat/problem-explain-prompt';
 import { loadCourseAiRulesForChat } from '@/lib/server/course-ai-rules';
 import { getOptionalPrisma } from '@/lib/server/prisma-safe';
 import { getRequestContext } from '@/lib/server/request-context';
@@ -31,6 +33,35 @@ async function loadCourseRules(input: NativeChatRequest) {
     console.warn('[native-chat] course rules unavailable', error);
     return [];
   }
+}
+
+/**
+ * 做题「问 AI」的参考答案：服务端按题目 id 从题库读，App 不发参考答案。
+ * 题目不在服务端（本机导入的题）、没有权限或出错时就不带参考答案。
+ */
+async function loadProblemReference(input: NativeChatRequest): Promise<string> {
+  const coach = input.context.problemCoach;
+  const courseId = input.scope === 'course' ? input.course.id : undefined;
+  const userId = getRequestContext()?.userId;
+  if (!coach || !courseId || !userId || !getOptionalPrisma()) return '';
+  try {
+    const { problem } = await getCourseProblemForUser(userId, courseId, coach.problemId, {
+      skipMaintenance: true,
+    });
+    return formatGradingForPrompt(problem.grading).slice(0, 4000);
+  } catch (error) {
+    console.warn('[native-chat] problem reference unavailable', error);
+    return '';
+  }
+}
+
+/** 做题「问 AI」时只留记忆和日程提议，不弹课堂、选题卡片。 */
+function chatTools(input: NativeChatRequest, proposals: NativeChatProposals) {
+  if (input.scope === 'general') return undefined;
+  const tools = createNativeChatTools(input, proposals);
+  if (!input.context.problemCoach) return tools;
+  const { remember, propose_calendar } = tools;
+  return { remember, propose_calendar };
 }
 
 async function chatMessages(input: NativeChatRequest): Promise<ModelMessage[]> {
@@ -127,18 +158,17 @@ export async function runNativeChat(
   input: NativeChatRequest,
 ): Promise<ReadableStream<Uint8Array>> {
   const resolved = await resolveModelFromHeaders(request, { allowOpenAIModelOverride: true });
-  const courseRules = await loadCourseRules(input);
+  const [courseRules, problemReference] = await Promise.all([
+    loadCourseRules(input),
+    loadProblemReference(input),
+  ]);
   const proposals: NativeChatProposals = { actions: [], classroom: null, problemSelection: null };
   const result = await streamLLM(
     {
       model: resolved.model,
-      system: buildNativeChatSystemPrompt(input, courseRules),
+      system: buildNativeChatSystemPrompt(input, courseRules, problemReference),
       messages: await chatMessages(input),
-      // 做题页「问 AI」只讲这道题，不弹记忆、日程、课堂、选题卡片。
-      tools:
-        input.scope === 'general' || input.context.problemCoach
-          ? undefined
-          : createNativeChatTools(input, proposals),
+      tools: chatTools(input, proposals),
       stopWhen: stepCountIs(MAX_STEPS),
       maxOutputTokens: input.surface === 'phone' ? 4000 : 6000,
       maxRetries: 0,

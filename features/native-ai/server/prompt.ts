@@ -31,6 +31,8 @@ export function courseRulesSection(rules: Array<{ content: string }>): string {
 export function buildNativeChatSystemPrompt(
   input: NativeChatRequest,
   courseRules: Array<{ content: string }> = [],
+  /** 做题「问 AI」时服务端按题目 id 读到的参考答案；App 不发参考答案。 */
+  problemReference = '',
 ): string {
   if (input.scope === 'general') {
     return [
@@ -46,27 +48,9 @@ export function buildNativeChatSystemPrompt(
   }
   const { course, context, surface } = input;
   const english = course.language === 'en-US';
-  if (context.problemCoach) {
-    const coach = context.problemCoach;
-    return [
-      `课程：「${course.name}」${course.code ? `（${course.code}）` : ''}。`,
-      problemCoachRules(english ? 'en-US' : 'zh-CN'),
-      '支持 Markdown 和 LaTeX。',
-      courseRulesSection(courseRules),
-      section('学生正在做的题', [coach.problem]),
-      section('这一轮', [problemCoachInstruction(coach.move)]),
-      section(
-        '相关学习记忆',
-        context.memories
-          .slice(0, 8)
-          .map((memory) => `- [${memory.kind}] ${memory.title}：${memory.text}`),
-      ),
-    ]
-      .filter(Boolean)
-      .join('\n\n');
-  }
   const phone = surface === 'phone';
-  const practiceEnabled = !phone && context.problems.length > 0;
+  const coach = context.problemCoach;
+  const practiceEnabled = !phone && !coach && context.problems.length > 0;
 
   const role = [
     `你是 Syntara 的课程助教，正在${phone ? '手机' : surface === 'tablet' ? 'iPad' : '电脑'}上陪学生学「${course.name}」${course.code ? `（${course.code}）` : ''}。`,
@@ -92,16 +76,23 @@ export function buildNativeChatSystemPrompt(
     '- 学生附了文件（内容在 <attached_file> 里，或直接是 PDF）时：按学生的问题读文件作答，引用时说清是第几页 / 哪一节；没提问题就先用几句话说清文件讲了什么。文件被截断或读不出来就直说。',
   ].join('\n');
 
-  const tools = [
-    '## 工具',
-    '工具只是“提议”，学生在卡片上确认后才会生效。调用后照常用文字回答，不必复述卡片内容。',
-    '- remember：学生暴露了一个值得以后注意的错误、薄弱点或学习偏好（拍照批改发现的错误步骤也算），或者明确说“记住”时用（explicit=true）。一轮最多一条，不要记显而易见的事。带上相关的笔记片段 id 和 1–3 个概念；同一个点以前记过就填 memoryId 合并。',
-    '- propose_calendar：学生要求安排、修改或删除日程时用。日期用 YYYY-MM-DD，相对日期按“今天”换算。',
-    '- suggest_classroom：当一段带图的分步讲解（课堂）明显比文字更好时用，比如学生说看不懂、内容是空间/图形/多步骤过程，或学生直接要课堂、幻灯片、图解。普通问答不要用。',
-    practiceEnabled
-      ? '- select_practice：学生想练题时，只从下方题库列表里挑真实题号，不要编题。'
-      : '- 这台设备不提供题库：学生想练题时，可以在回答里出一两道口头小题，或建议到 iPad/电脑上做题库。',
-  ].join('\n');
+  const tools = coach
+    ? [
+        '## 工具',
+        '工具只是“提议”，学生在卡片上确认后才会生效。这一段在讲学生正在做的题：不要建议课堂、不要另外选题。',
+        '- remember：学生暴露了一个值得以后注意的错误或薄弱点，或明确说“记住”时用（explicit=true）。一轮最多一条。',
+        '- propose_calendar：只有学生主动要求安排日程时才用。',
+      ].join('\n')
+    : [
+        '## 工具',
+        '工具只是“提议”，学生在卡片上确认后才会生效。调用后照常用文字回答，不必复述卡片内容。',
+        '- remember：学生暴露了一个值得以后注意的错误、薄弱点或学习偏好（拍照批改发现的错误步骤也算），或者明确说“记住”时用（explicit=true）。一轮最多一条，不要记显而易见的事。带上相关的笔记片段 id 和 1–3 个概念；同一个点以前记过就填 memoryId 合并。',
+        '- propose_calendar：学生要求安排、修改或删除日程时用。日期用 YYYY-MM-DD，相对日期按“今天”换算。',
+        '- suggest_classroom：当一段带图的分步讲解（课堂）明显比文字更好时用，比如学生说看不懂、内容是空间/图形/多步骤过程，或学生直接要课堂、幻灯片、图解。普通问答不要用。',
+        practiceEnabled
+          ? '- select_practice：学生想练题时，只从下方题库列表里挑真实题号，不要编题。'
+          : '- 这台设备不提供题库：学生想练题时，可以在回答里出一两道口头小题，或建议到 iPad/电脑上做题库。',
+      ].join('\n');
 
   const today = context.today ? `今天是 ${context.today}。` : '';
   const progress = context.progress?.unset
@@ -174,18 +165,33 @@ export function buildNativeChatSystemPrompt(
           context.focusProblem.text,
         ])
       : '';
+  // 做题页「问 AI」交到主聊天：照常用笔记和记忆（带引用），但按提示梯子引导这道题。
+  const coaching = coach
+    ? [
+        section(
+          '学生正在做的题（做题页「问 AI」带过来的）',
+          [
+            problemCoachRules(english ? 'en-US' : 'zh-CN'),
+            coach.problem,
+            problemReference ? `【参考答案（只给你判断用）】\n${problemReference}` : '',
+          ].filter(Boolean),
+        ),
+        section('这一轮', [problemCoachInstruction(coach.move)]),
+      ]
+    : [];
   return [
     role,
     rules,
     style,
     tools,
     courseInfo,
-    focus,
+    coach ? '' : focus,
     notes,
     memories,
     calendar,
     attempts,
     problems,
+    ...coaching,
   ]
     .filter(Boolean)
     .join('\n\n');

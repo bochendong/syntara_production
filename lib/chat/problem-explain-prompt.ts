@@ -179,7 +179,8 @@ function formatProblemContentForPrompt(content: NotebookProblemPublicContent): s
   return lines.filter(Boolean).join('\n');
 }
 
-function formatGradingForPrompt(grading: NotebookProblemGrading): string {
+/** 参考答案 / 解析的提示词文本（只给 AI 判断用）。 */
+export function formatGradingForPrompt(grading: NotebookProblemGrading): string {
   switch (grading.type) {
     case 'choice':
       return [
@@ -268,8 +269,8 @@ export function buildProblemExplainPrompt(args: {
 }
 
 /**
- * 「问 AI」第一轮带上的题目上下文：题目、学生当前作答与测试结果、只给 AI 看的参考答案。
- * 规则和每轮要做的事见 lib/problem-bank/problem-coach.ts。
+ * 「问 AI」挂到课程主聊天的题目上下文：题目、学生当前作答与测试结果。
+ * 不含参考答案：服务端按题目 id 从题库读。规则和每轮要做的事见 lib/problem-bank/problem-coach.ts。
  */
 export function buildProblemCoachContext(args: {
   problem: NotebookProblemClientRecord;
@@ -279,7 +280,6 @@ export function buildProblemCoachContext(args: {
   currentAnswer?: NotebookProblemAttemptAnswer | null;
   latestAttempt?: NotebookProblemAttemptRecord | null;
 }): string {
-  const gradingText = formatGradingForPrompt(args.problem.grading);
   const studentContextText = formatStudentContextForPrompt({
     currentAnswer: args.currentAnswer,
     latestAttempt: args.latestAttempt,
@@ -292,18 +292,9 @@ export function buildProblemCoachContext(args: {
       args.problem.problemNumber ? `题号：${args.problem.problemNumber}` : '',
       formatProblemContentForPrompt(args.problemContent),
       studentContextText || '学生还没有作答。',
-      gradingText ? `【参考答案（只给你判断用）】\n${gradingText}` : '',
     ]
       .filter(Boolean)
       .join('\n\n'),
     12000,
   );
-}
-
-/** 后续轮次：学生改了作答时，把最新的编辑区内容带上。 */
-export function formatProblemCoachAnswerUpdate(
-  answer: NotebookProblemAttemptAnswer | null | undefined,
-): string {
-  const text = formatAttemptAnswerForPrompt(answer);
-  return text ? `【学生最新作答】\n${text}` : '';
 }

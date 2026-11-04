@@ -153,7 +153,14 @@ import {
   cleanupCourseChatAttachments,
   prepareCourseChatAttachmentsForModel,
 } from '@/lib/chat/ephemeral-course-chat-attachments';
-import { ProblemAiCoachButton } from '@/components/problem-bank/problem-ai-coach';
+import {
+  ProblemAiAskMenu,
+  ProblemChatCard,
+  takeProblemChatHandoff,
+  type AttachedChatProblem,
+  type ProblemChatHandoff,
+} from '@/components/problem-bank/problem-ai-coach';
+import { problemCoachUserText, type ProblemCoachMove } from '@/lib/problem-bank/problem-coach';
 import { createLearnActionExecutionResult } from '@/features/learn-core/client-actions';
 import {
   applyLearningCalendarDelete,
@@ -289,6 +296,7 @@ import { getCoursePublishBlockReason } from '@/lib/utils/course-publish';
 import { clearCourseWorkspaceCache } from '@/lib/utils/course-workspace-cache';
 import {
   listCourseProblemSummaries,
+  recordCourseProblemEvent,
   type CourseProblemClientSummary,
 } from '@/lib/utils/notebook-problem-api';
 import {
@@ -496,6 +504,8 @@ type LearnMessage = {
   artifacts?: LearnArtifact[];
   publicTrace?: LearnPublicTraceStep[];
   contextCompression?: ChatContextCompression;
+  /** 做题页「问 AI」带来的题目小卡，显示在用户消息上方。 */
+  problemCard?: { id: string; title: string };
   transient?: boolean;
 };
 
@@ -1607,6 +1617,7 @@ function remoteMessageToLearnMessage(message: RemoteLearnMessage): LearnMessage 
     publicTrace:
       message.publicTrace == null ? undefined : (message.publicTrace as LearnPublicTraceStep[]),
     contextCompression: message.contextCompression,
+    problemCard: message.problemCard,
     attachments: message.attachments
       ?.map(normalizeLearnAttachmentReference)
       .filter((attachment): attachment is LearnImageAttachment => Boolean(attachment)),
@@ -1641,6 +1652,7 @@ function learnMessageToRemotePayload(message: LearnMessage): RemoteLearnMessageP
     artifacts: settledMessage.artifacts,
     publicTrace: settledMessage.publicTrace,
     contextCompression: settledMessage.contextCompression,
+    problemCard: settledMessage.problemCard,
     attachments: settledMessage.attachments?.map(learnAttachmentReference),
   };
 }
@@ -6079,7 +6091,12 @@ export function LearnPageClient() {
   const [practicePopupSessionId, setPracticePopupSessionId] = useState<string | null>(null);
   const [practiceHeaderState, setPracticeHeaderState] =
     useState<CourseProblemPracticeHeaderState | null>(null);
-  const [practiceAiCoachOpen, setPracticeAiCoachOpen] = useState(false);
+  // 做题弹窗顶栏的「问 AI」：交给弹窗里的题库视图拼好这道题，再交回主聊天。
+  const [practiceAiAskRequest, setPracticeAiAskRequest] = useState<{
+    id: number;
+    move: ProblemCoachMove;
+  } | null>(null);
+  const [attachedProblem, setAttachedProblem] = useState<AttachedChatProblem | null>(null);
   const [syllabusImportMessage, setSyllabusImportMessage] = useState<string | null>(null);
   const [syllabusDialogOpen, setSyllabusDialogOpen] = useState(false);
   const [courseFilesDialogOpen, setCourseFilesDialogOpen] = useState(false);
@@ -10516,7 +10533,7 @@ export function LearnPageClient() {
       }
       syncPracticeSessionState(session);
       setPracticeHeaderState(null);
-      setPracticeAiCoachOpen(false);
+      setPracticeAiAskRequest(null);
       setPracticePopupSessionId(session.id);
     },
     [activeCourseId, localUserId, syncPracticeSessionState],
@@ -10543,7 +10560,7 @@ export function LearnPageClient() {
         syncPracticeSessionState(pausePracticeSession(practicePopupSessionId));
       }
       setPracticeHeaderState(null);
-      setPracticeAiCoachOpen(false);
+      setPracticeAiAskRequest(null);
       setPracticePopupSessionId(null);
       refreshPracticeSessions();
     },
@@ -12256,8 +12273,17 @@ export function LearnPageClient() {
   }, []);
 
   const sendMessage = useCallback(
-    async (textOverride?: string, attachmentOverride?: LearnImageAttachment[]) => {
+    async (
+      textOverride?: string,
+      attachmentOverride?: LearnImageAttachment[],
+      problemOverride?: { problem: AttachedChatProblem; move: ProblemCoachMove },
+    ) => {
       const text = (textOverride ?? draft).trim();
+      // 做题页「问 AI」挂着的题：这一轮带上题面和作答，服务端读参考答案、按提示梯子引导。
+      const chatProblem =
+        problemOverride?.problem ??
+        (attachedProblem?.courseId === activeCourse?.id ? attachedProblem : null);
+      const problemMove: ProblemCoachMove = problemOverride?.move ?? 'ask';
       const outgoingAttachments = attachmentOverride ?? attachments;
       const hasAttachments = outgoingAttachments.length > 0;
       const hasImageAttachments = outgoingAttachments.some((attachment) =>
@@ -12368,6 +12394,9 @@ export function LearnPageClient() {
         role: 'user',
         text: questionText,
         attachments: outgoingAttachments,
+        ...(chatProblem
+          ? { problemCard: { id: chatProblem.problemId, title: chatProblem.title } }
+          : {}),
         createdAt: Date.now(),
       };
       updateComposerDraft('');
@@ -12432,8 +12461,19 @@ export function LearnPageClient() {
             orchestratorAvatarUrl: activeCourse.avatarUrl,
             userProfile: { nickname: userName },
             surface: isTeacherCourseChat ? 'teacher-course-chat' : 'student-course-chat',
-            teachingMode: chatTeachingMode,
+            teachingMode: chatProblem
+              ? problemMove === 'solution'
+                ? 'reply'
+                : 'guided'
+              : chatTeachingMode,
             responseStrength: chatResponseStrength,
+            problemCoach: chatProblem
+              ? {
+                  problemId: chatProblem.problemId,
+                  problem: chatProblem.problem,
+                  move: problemMove,
+                }
+              : undefined,
             signal: controller.signal,
             onContextUsage: (usage) => {
               if (!canCommitTurn()) return;
@@ -12501,6 +12541,13 @@ export function LearnPageClient() {
             replaceLearnMessage(current, pendingWorkflowMessageId, answerMessage),
           );
           setRetryTurn(null);
+          // 只有「完整解答」和看参考答案一样记一次求助。
+          if (chatProblem?.recordSolution && problemMove === 'solution')
+            void recordCourseProblemEvent({
+              courseId: chatProblem.courseId,
+              problemId: chatProblem.problemId,
+              event: 'solution_viewed',
+            }).catch(() => undefined);
         } catch (error) {
           if (!canCommitTurn()) return;
           const stoppedByUser = turnRequest.stoppedByUser;
@@ -12565,6 +12612,7 @@ export function LearnPageClient() {
       activeCourse,
       activeMessageStoreKey,
       activeSessionId,
+      attachedProblem,
       attachments,
       chatTeachingMode,
       chatResponseStrength,
@@ -12584,6 +12632,37 @@ export function LearnPageClient() {
       userName,
     ],
   );
+
+  // 做题「问 AI」交过来的题：关掉做题弹窗（进度保留，可继续），题目卡片挂到输入框上方；
+  // 快捷提问立刻发出，「在聊天里问」只聚焦输入框。
+  const handleProblemChatHandoff = useCallback(
+    (handoff: ProblemChatHandoff) => {
+      const { move, ...problem } = handoff;
+      if (practicePopupSessionId) handlePracticePopupOpenChange(false);
+      setAttachedProblem(problem);
+      if (move === 'ask' || sending) {
+        if (move !== 'ask') updateComposerDraft(problemCoachUserText(move, 'zh-CN'));
+        window.requestAnimationFrame(() => draftTextareaRef.current?.focus());
+        return;
+      }
+      void sendMessage(problemCoachUserText(move, 'zh-CN'), undefined, { problem, move });
+    },
+    [
+      handlePracticePopupOpenChange,
+      practicePopupSessionId,
+      sendMessage,
+      sending,
+      updateComposerDraft,
+    ],
+  );
+
+  // 独立题库页点「问 AI」会先跳到这里：会话恢复好后取走那道题。
+  useEffect(() => {
+    if (!activeCourse || !activeMessageStoreKey) return;
+    if (localConversationReadyKey !== activeMessageStoreKey) return;
+    const handoff = takeProblemChatHandoff(activeCourse.id);
+    if (handoff) handleProblemChatHandoff(handoff);
+  }, [activeCourse, activeMessageStoreKey, handleProblemChatHandoff, localConversationReadyKey]);
 
   const sourceBackedNotebookIds = useMemo(() => {
     const ids = new Set<string>();
@@ -13641,13 +13720,12 @@ export function LearnPageClient() {
               </DialogDescription>
             </div>
             <div className="ml-auto flex shrink-0 items-center gap-2">
-              <ProblemAiCoachButton
-                open={practiceAiCoachOpen}
+              <ProblemAiAskMenu
                 locale="zh-CN"
-                onClick={() => setPracticeAiCoachOpen((open) => !open)}
-                className={cn(
-                  !practiceHeaderState?.problemContent && 'pointer-events-none opacity-50',
-                )}
+                disabled={!practiceHeaderState?.problemContent}
+                onAsk={(move) =>
+                  setPracticeAiAskRequest((previous) => ({ id: (previous?.id ?? 0) + 1, move }))
+                }
               />
               <div className="flex items-center gap-1 rounded-full border border-border bg-background p-1 shadow-sm">
                 <Button
@@ -13702,8 +13780,8 @@ export function LearnPageClient() {
               onPracticeProblemChange={handlePracticeProblemChange}
               onPracticeAnswerDraftChange={handlePracticeAnswerDraftChange}
               onPracticeAttemptResolved={handlePracticeAttemptResolved}
-              aiCoachOpen={practiceAiCoachOpen}
-              onAiCoachOpenChange={setPracticeAiCoachOpen}
+              aiAskRequest={practiceAiAskRequest}
+              onAskAi={handleProblemChatHandoff}
             />
           ) : null}
         </div>
@@ -16280,6 +16358,12 @@ export function LearnPageClient() {
                         >
                           {message.role === 'user' ? (
                             <>
+                              {message.problemCard ? (
+                                <ProblemChatCard
+                                  title={message.problemCard.title}
+                                  className="mb-2 flex w-fit"
+                                />
+                              ) : null}
                               {message.attachments?.length ? (
                                 <div className="mb-2 grid max-w-full grid-cols-2 gap-2">
                                   {message.attachments.map((attachment) =>
@@ -16519,6 +16603,14 @@ export function LearnPageClient() {
                         event.currentTarget.value = '';
                       }}
                     />
+                  ) : null}
+                  {attachedProblem && attachedProblem.courseId === activeCourse?.id ? (
+                    <div className="mb-2 flex px-1">
+                      <ProblemChatCard
+                        title={attachedProblem.title}
+                        onRemove={() => setAttachedProblem(null)}
+                      />
+                    </div>
                   ) : null}
                   {attachments.length > 0 ? (
                     <div className="mb-2 flex gap-2 overflow-x-auto px-1 pb-2">

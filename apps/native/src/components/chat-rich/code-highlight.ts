@@ -3,6 +3,8 @@
  * 不引第三方库：按语言给关键字表 + 注释/字符串规则，逐字符扫描出 token，再按行切开给行号用。
  */
 
+import { isRacketLanguage, racketLineTokens } from '../../../../../lib/problem-bank/racket-editor';
+
 export type CodeTokenKind =
   | 'plain'
   | 'comment'
@@ -655,8 +657,18 @@ const PLAIN_LABELS: Record<string, string> = {
 
 function resolveLanguage(language: string): { id: string; spec?: LanguageSpec } {
   const raw = language.trim().toLowerCase();
-  const id = ALIASES[raw] ?? raw;
+  const id = isRacketLanguage(raw) ? 'racket' : (ALIASES[raw] ?? raw);
   return { id, spec: SPECS[id] };
+}
+
+/** Recognize untagged teaching-language examples without guessing from parentheses alone. */
+export function chatCodeLanguage(code: string, language: string): string {
+  if (language.trim()) return language;
+  return /^\s*(?:#lang[ \t]+(?:racket(?:\/\S+)?|htdp\/\S+)\b|\((?:require[ \t]+spd\/tags\b|@htdf[ \t]))/m.test(
+    code,
+  )
+    ? 'racket'
+    : language;
 }
 
 /** 顶栏显示的语言名；没写语言就叫「代码」。 */
@@ -664,6 +676,7 @@ export function codeLanguageLabel(language: string): string {
   const raw = language.trim().toLowerCase();
   if (!raw) return '代码';
   const { spec } = resolveLanguage(raw);
+  if (isRacketLanguage(raw)) return 'Racket';
   return spec?.label ?? PLAIN_LABELS[raw] ?? language.trim();
 }
 
@@ -672,6 +685,7 @@ export function codeLanguageColor(language: string): string {
   const { id } = resolveLanguage(language);
   const colors: Record<string, string> = {
     python: '#3b82f6',
+    racket: '#9f1d20',
     javascript: '#f1e05a',
     jsx: '#61dafb',
     typescript: '#3178c6',
@@ -968,6 +982,24 @@ function tokenizeGeneric(code: string, spec: LanguageSpec, json: boolean): CodeT
 /** 高亮整段代码，按行切好（每行是一串 token），空行也保留。 */
 export function highlightCodeLines(code: string, language: string): CodeToken[][] {
   const { id, spec } = resolveLanguage(language);
+  if (id === 'racket') {
+    let state = { blockComment: false, string: false };
+    return code.split('\n').map((line) => {
+      const result = racketLineTokens(line, state);
+      state = result.state;
+      return result.tokens.map(({ kind, text }) => ({
+        text,
+        kind:
+          kind === 'text'
+            ? 'plain'
+            : kind === 'builtin'
+              ? 'function'
+              : kind === 'operator'
+                ? 'punct'
+                : kind,
+      }));
+    });
+  }
   if (id === 'diff' || id === 'patch') {
     return code.split('\n').map((line) => {
       const kind: CodeTokenKind = /^(?:\+\+\+|---|@@)/.test(line)

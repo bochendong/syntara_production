@@ -29,6 +29,7 @@ export type RemoteLearnMessage = {
   artifacts?: unknown;
   publicTrace?: unknown;
   contextCompression?: ChatContextCompression;
+  problemCard?: { id: string; title: string };
   attachments?: Array<{
     id?: string;
     name?: string;
@@ -105,6 +106,7 @@ export type RemoteLearnMessagePayload = {
   artifacts?: unknown;
   publicTrace?: unknown;
   contextCompression?: ChatContextCompression;
+  problemCard?: { id: string; title: string };
   attachments?: Array<{
     id?: string;
     name?: string;

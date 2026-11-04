@@ -31,6 +31,8 @@ export type AskCourseOrchestratorOptions = {
   surface?: 'course-chat' | 'teacher-course-chat' | 'student-course-chat';
   teachingMode?: CourseChatTeachingMode;
   responseStrength?: ChatResponseStrength;
+  /** 做题页「问 AI」挂在主聊天上的题；参考答案由服务端读。 */
+  problemCoach?: StatelessChatRequest['config']['problemCoach'];
   signal?: AbortSignal;
   onMessages?: (messages: UIMessage<ChatMessageMetadata>[]) => void;
   onContextUsage?: (usage: CourseChatContextUsage) => void;
@@ -185,6 +187,7 @@ export async function askCourseOrchestrator(
     surface: options.surface ?? 'course-chat',
     teachingMode: options.teachingMode,
     responseStrength: options.responseStrength,
+    problemCoach: options.problemCoach,
     courseContext,
     contextSelection: options.contextSelection,
     memoryMode: options.memoryMode,

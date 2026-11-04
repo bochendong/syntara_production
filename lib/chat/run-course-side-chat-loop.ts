@@ -39,6 +39,7 @@ export interface RunCourseSideChatParams {
   surface?: StatelessChatRequest['config']['surface'];
   teachingMode?: CourseChatTeachingMode;
   responseStrength?: ChatResponseStrength;
+  problemCoach?: StatelessChatRequest['config']['problemCoach'];
   courseContext?: CourseChatContext;
   contextSelection?: StatelessChatRequest['contextSelection'];
   memoryMode?: StatelessChatRequest['memoryMode'];
@@ -565,6 +566,7 @@ async function runCourseSideChatLoopUnqueued(
     surface,
     teachingMode,
     responseStrength,
+    problemCoach,
     courseContext,
     trustedLearnAnswererHandoffToken,
     apiKey,
@@ -638,6 +640,7 @@ async function runCourseSideChatLoopUnqueued(
       surface,
       teachingMode: teachingMode === 'guided' ? 'guided' : 'reply',
       responseStrength,
+      ...(problemCoach ? { problemCoach } : {}),
     };
     if (agentConfigs && agentConfigs.length > 0) {
       config.agentConfigs = agentConfigs;

@@ -780,6 +780,13 @@ export interface CourseChatHardRule {
   content: string;
 }
 
+export type CourseChatProblemCoach = {
+  problemId: string;
+  /** 题面、学生当前作答、最近一次提交（不含参考答案）。 */
+  problem: string;
+  move: 'hint' | 'next' | 'check' | 'solution' | 'ask';
+};
+
 export interface CourseChatContext {
   course: {
     id: string;
@@ -886,6 +893,11 @@ export interface StatelessChatRequest {
     teachingMode?: CourseChatTeachingMode;
     /** Server-approved model tier; callers cannot provide an arbitrary model ID. */
     responseStrength?: ChatResponseStrength;
+    /**
+     * 做题页「问 AI」交到课程主聊天的那道题：题面和学生当前作答（浏览器拼好），
+     * 参考答案由服务端按 problemId 从题库读，浏览器不发。
+     */
+    problemCoach?: CourseChatProblemCoach;
     /** Discussion topic (for agent-initiated discussions) */
     discussionTopic?: string;
     /** Discussion prompt (for agent-initiated discussions) */

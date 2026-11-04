@@ -1,5 +1,3 @@
-import { createPortal } from 'react-dom';
-import { PracticeOverlay } from './PracticeOverlay';
 import { subscribeVisibleRefresh } from '../lib/visible-refresh';
 import { saveSyncedCourseEvents, deleteSyncedCourseEvent } from '../data/calendar-sync';
 import {
@@ -85,6 +83,16 @@ import { VoiceInputButton } from './VoiceInputButton';
 import { LearningWorkspaceTabs } from './LearningWorkspaceTabs';
 import type { CourseLearningPage, CourseOpenTarget } from '../lib/native-launch';
 import { useRecentChats } from '../lib/use-recent-chats';
+import {
+  problemChatCard,
+  type ProblemChatAttachment,
+  type ProblemChatRequest,
+} from '../lib/problem-chat';
+import {
+  problemCoachUserText,
+  type ProblemCoachMove,
+} from '../../../../lib/problem-bank/problem-coach';
+import './problem-chat-card.css';
 import type { RecentChat } from '../data/recent-chats';
 import {
   generalChatClient as defaultGeneralChatClient,
@@ -214,7 +222,6 @@ import {
 } from './PhonePages';
 import { PhoneNotesPage } from './NotebookShelfPage';
 import { notebookAccentFor } from '../lib/notebook-reading';
-import { ProblemPracticePage } from './ProblemPracticePage';
 import { ProblemBankPage, type ProblemBankLaunch } from './ProblemBankPage';
 import { CourseUpdateCard } from './CourseLayerControls';
 import { ChatRichText, type ChatRichMemory, type ChatRichSource } from './chat-rich/ChatRichText';
@@ -309,8 +316,10 @@ function ChatMessageContent({
   if (message.role === 'user') {
     const images = chatImageThumbnails(message.metadata);
     const files = chatFileChips(message.metadata);
+    const problemCard = problemChatCard(message.metadata);
     return (
       <>
+        {problemCard ? <ProblemChatCardChip title={problemCard.title} /> : null}
         {images.length ? (
           <div className="chat-message-images">
             {images.map((image, index) => (
@@ -336,6 +345,25 @@ function ChatMessageContent({
       onOpenNotebookId={onOpenNotebookId}
       onOpenMemoryId={onOpenMemoryId}
     />
+  );
+}
+
+/** 做题页「问 AI」带过来的题：输入框上方可移除，消息气泡上方只展示。 */
+function ProblemChatCardChip({ title, onRemove }: { title: string; onRemove?: () => void }) {
+  return (
+    <span className={`problem-chat-card${onRemove ? ' is-pending' : ''}`} title={title}>
+      <img src={marbleImages.purple} alt="" />
+      <span className="problem-chat-card-text">
+        <small>正在做的题</small>
+        <strong>{title}</strong>
+      </span>
+      {onRemove ? (
+        <button type="button" onClick={onRemove} aria-label={`移除题目 ${title}`}>
+          <X size={12} />
+          移除
+        </button>
+      ) : null}
+    </span>
   );
 }
 
@@ -785,7 +813,10 @@ type CourseWorkspaceProps = {
   onCreateCourse?: () => void;
   onNewChat?: () => void;
   onOpenProblemBank: () => void;
-  onOpenPractice: (launch: ProblemBankLaunch) => void;
+  onOpenPractice: (launch: ProblemBankLaunch, onReturn?: () => void) => void;
+  /** 做题页「问 AI」交过来的题：挂到输入框上方，快捷提问立刻发出。 */
+  problemChatRequest?: ProblemChatRequest | null;
+  onProblemChatHandled?: (id: number) => void;
   onWorkspaceChanged: () => Promise<void>;
 };
 
@@ -2694,6 +2725,8 @@ export function CourseWorkspace({
   onBack,
   onOpenProblemBank,
   onOpenPractice,
+  problemChatRequest = null,
+  onProblemChatHandled,
   onWorkspaceChanged,
   courses,
   onSwitchCourse,
@@ -2882,7 +2915,6 @@ export function CourseWorkspace({
   const [miniLectureGenerationByMessageId, setMiniLectureGenerationByMessageId] = useState<
     Map<string, MiniLectureGenerationState>
   >(() => new Map());
-  const [reviewPracticeLaunch, setReviewPracticeLaunch] = useState<ProblemBankLaunch | null>(null);
   const [reviewPlanStatusRevision, setReviewPlanStatusRevision] = useState(0);
   const [busyLearningActionId, setBusyLearningActionId] = useState<string | null>(null);
   const [conversationToDelete, setConversationToDelete] = useState<LocalConversation | null>(null);
@@ -3943,6 +3975,7 @@ export function CourseWorkspace({
     setSelectedConversationId(null);
     setMessages([]);
     setScopeReady(true);
+    setAttachedProblem(null);
     setDraft('');
     setPendingImages([]);
     setPendingFiles([]);
@@ -3959,6 +3992,7 @@ export function CourseWorkspace({
         return;
       }
       setScopeReady(false);
+      setAttachedProblem(null);
       conversationLoadRequestRef.current += 1;
       skipConversationLoadRef.current = null;
       activeConversationIdRef.current = conversationId;
@@ -4179,25 +4213,24 @@ export function CourseWorkspace({
     [onOpenPractice, workspace.problems],
   );
 
+  const refreshReviewPracticeStatus = useCallback(() => {
+    setReviewPlanStatusRevision((current) => current + 1);
+  }, []);
+
   const openReviewPlanProblem = useCallback(
     (problemId: string, plan: NativeReviewPlan) => {
       const requestedIds = [...new Set(plan.tasks.flatMap((task) => task.problemIds ?? []))];
       const availableIds = requestedIds.filter((id) =>
         workspace.problems.some((problem) => problem.id === id),
       );
-      if (!availableIds.some((id) => id === problemId)) return;
-      setReviewPracticeLaunch({
-        problemIds: availableIds,
-        initialProblemId: problemId,
-      });
+      if (!availableIds.includes(problemId)) return;
+      onOpenPractice(
+        { problemIds: availableIds, initialProblemId: problemId },
+        refreshReviewPracticeStatus,
+      );
     },
-    [workspace.problems],
+    [onOpenPractice, refreshReviewPracticeStatus, workspace.problems],
   );
-
-  const closeReviewPlanPractice = useCallback(() => {
-    setReviewPracticeLaunch(null);
-    setReviewPlanStatusRevision((current) => current + 1);
-  }, []);
 
   const toggleReviewPlanCalendar = useCallback(
     async (
@@ -4496,7 +4529,7 @@ export function CourseWorkspace({
           return;
         }
         setError(null);
-        setReviewPracticeLaunch(launch);
+        onOpenPractice(launch, refreshReviewPracticeStatus);
         return;
       }
       if (
@@ -4735,8 +4768,10 @@ export function CourseWorkspace({
       busyLearningActionId,
       workspace.conversations,
       generateMiniLecture,
+      onOpenPractice,
       onWorkspaceChanged,
       openMemoryDialog,
+      refreshReviewPracticeStatus,
       scheduleItems,
       workspace.course.id,
       workspace.course.courseCode,
@@ -4750,6 +4785,34 @@ export function CourseWorkspace({
   const sendButtonRef = useRef<HTMLButtonElement | null>(null);
   const composerFormRef = useRef<HTMLFormElement | null>(null);
   const [autoSendTick, setAutoSendTick] = useState(0);
+  const [attachedProblem, setAttachedProblem] = useState<ProblemChatAttachment | null>(null);
+  // 下一次发送用的提问方式（快捷提问）；手动打字发送就是 ask。
+  const problemMoveRef = useRef<ProblemCoachMove>('ask');
+
+  useEffect(() => {
+    if (!problemChatRequest) return;
+    const { id, attachment, move } = problemChatRequest;
+    onProblemChatHandled?.(id);
+    const sameProblem =
+      attachedProblem?.problemId === attachment.problemId ||
+      problemChatCard([...messages].reverse().find((message) => message.role === 'user')?.metadata)
+        ?.id === attachment.problemId;
+    // 换了一道题：开一段新聊天，旧对话不混进这道题。
+    if (!sameProblem && messages.length) createConversation();
+    else setPhonePage(null);
+    setAttachedProblem(attachment);
+    setError(null);
+    if (move === 'ask') {
+      window.setTimeout(() => composerTextareaRef.current?.focus({ preventScroll: true }), 0);
+      return;
+    }
+    problemMoveRef.current = move;
+    setDraft(problemCoachUserText(move, 'zh-CN'));
+    setAutoSendTick((tick) => tick + 1);
+    // 只响应新的交接请求。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [problemChatRequest?.id]);
+
   const send = useCallback(
     async (event: FormEvent) => {
       event.preventDefault();
@@ -4767,6 +4830,9 @@ export function CourseWorkspace({
         setError(platformAiAccess.message);
         return;
       }
+      const problem = attachedProblem?.courseId === workspace.course.id ? attachedProblem : null;
+      const problemMove = problemMoveRef.current;
+      problemMoveRef.current = 'ask';
       setBusy(true);
       setError(null);
       setDraft('');
@@ -4796,9 +4862,12 @@ export function CourseWorkspace({
           conversationId,
           role: 'user',
           text,
-          ...(images.length || attachedFiles.length
+          ...(images.length || attachedFiles.length || problem
             ? {
                 metadata: {
+                  ...(problem
+                    ? { problemCard: { id: problem.problemId, title: problem.title } }
+                    : {}),
                   ...(images.length
                     ? {
                         images: images.map(({ name, thumbnailDataUrl }) => ({
@@ -4887,7 +4956,17 @@ export function CourseWorkspace({
               mimeType,
               dataBase64,
             })),
-            context,
+            context: problem
+              ? {
+                  ...context,
+                  problemCoach: {
+                    problemId: problem.problemId,
+                    title: problem.title.slice(0, 300),
+                    problem: problem.readContext(),
+                    move: problemMove,
+                  },
+                }
+              : context,
           },
           { responseStrength: phoneResponseStrength, model: aiModel },
           (delta) =>
@@ -4917,6 +4996,7 @@ export function CourseWorkspace({
         });
         if (workspace.course.id === PLATFORM_TUTORIAL_COURSE_ID)
           window.dispatchEvent(new Event('syntara:onboarding-question-sent'));
+        if (problem && problemMove === 'solution') problem.onSolutionDelivered?.();
         const now = Date.now();
         void pushConversation(repository, {
           id: conversationId,
@@ -4968,6 +5048,7 @@ export function CourseWorkspace({
       chatAvailable,
       pendingImages,
       pendingFiles,
+      attachedProblem,
     ],
   );
 
@@ -5776,6 +5857,14 @@ export function CourseWorkspace({
         </div>
 
         <footer className="conversation-composer-footer">
+          {attachedProblem ? (
+            <div className="composer-problem-strip">
+              <ProblemChatCardChip
+                title={attachedProblem.title}
+                onRemove={() => setAttachedProblem(null)}
+              />
+            </div>
+          ) : null}
           {pendingImages.length || pendingFiles.length ? (
             <div className="composer-image-strip" aria-label="待发送的附件">
               {pendingImages.map((image) => (
@@ -6199,19 +6288,6 @@ export function CourseWorkspace({
           setActiveMiniLecture(null);
         }}
       />
-      {reviewPracticeLaunch
-        ? createPortal(
-            <PracticeOverlay onClose={closeReviewPlanPractice}>
-              <ProblemPracticePage
-                problems={workspace.problems}
-                launch={reviewPracticeLaunch}
-                onBack={closeReviewPlanPractice}
-              />
-            </PracticeOverlay>,
-            document.body,
-          )
-        : null}
-
       {memoryDialogOpen ? (
         <NativeWorkspaceDialog
           open={memoryDialogOpen}

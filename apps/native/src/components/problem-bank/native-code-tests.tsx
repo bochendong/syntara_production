@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Check, Loader2, Play, X } from 'lucide-react';
 import type { NotebookCodeFile } from '../../../../../lib/problem-bank/schema';
 import { runPythonRowsInBrowser } from '../../../../../lib/client/browser-python';
@@ -20,6 +21,7 @@ export type ServerCodeTestRun = (
 export function NativeCodeTests({
   code,
   tests,
+  runAllTarget,
   files,
   onRunTests,
   label = '公开测试',
@@ -30,6 +32,8 @@ export function NativeCodeTests({
 }: {
   code: string;
   tests: TestCase[];
+  /** Undefined keeps the inline action. Null waits for the parent toolbar to mount. */
+  runAllTarget?: HTMLElement | null;
   files: NotebookCodeFile[];
   onRunTests?: ServerCodeTestRun;
   label?: '公开测试' | '隐藏测试';
@@ -125,6 +129,18 @@ export function NativeCodeTests({
     }
   }
   if (!tests.length) return null;
+  const runAllButton = (
+    <button
+      type="button"
+      className={runAllTarget ? 'pp-run-button' : undefined}
+      onClick={() => void run(tests)}
+      disabled={running.length > 0}
+      aria-label={label === '隐藏测试' ? '运行全部隐藏测试' : '运行全部'}
+    >
+      {running.length ? <Loader2 size={13} className="animate-spin" /> : <Play size={12} />}
+      运行全部
+    </button>
+  );
   return (
     <section className="native-code-tests" aria-label={`${label}用例`}>
       {onRunTests && assumedHelpersHint && label === '公开测试' ? (
@@ -134,16 +150,9 @@ export function NativeCodeTests({
         <span>
           {label} <small>{tests.length}</small>
         </span>
-        <button
-          type="button"
-          onClick={() => void run(tests)}
-          disabled={running.length > 0}
-          aria-label={label === '隐藏测试' ? '运行全部隐藏测试' : '运行全部'}
-        >
-          {running.length ? <Loader2 size={13} className="animate-spin" /> : <Play size={12} />}
-          运行全部
-        </button>
+        {runAllTarget === undefined ? runAllButton : null}
       </header>
+      {runAllTarget ? createPortal(runAllButton, runAllTarget) : null}
       <div className="native-code-test-list">
         {tests.map((test, index) => {
           const result = results[test.id];

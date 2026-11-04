@@ -96,6 +96,7 @@ export function NativeCodePlayground({
   stdin,
   example,
   tests = [],
+  runAllTarget,
   onRunTests,
   onPublicTestResult,
   className,
@@ -112,6 +113,7 @@ export function NativeCodePlayground({
   /// 占位里给的试法，用这道题自己的例子
   example?: string;
   tests?: ReturnType<typeof visibleCodeTests>;
+  runAllTarget?: HTMLElement | null;
   onRunTests?: ServerCodeTestRun;
   onPublicTestResult?: (code: string, passed: boolean) => void;
   className?: string;
@@ -178,6 +180,7 @@ export function NativeCodePlayground({
       <NativeCodeTests
         code={code}
         tests={tests}
+        runAllTarget={runAllTarget}
         files={files}
         onRunTests={onRunTests}
         onPublicTestResult={onPublicTestResult}

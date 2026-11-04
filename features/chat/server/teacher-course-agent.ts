@@ -29,6 +29,9 @@ import {
 } from '@/lib/server/course-agent-learner-insights';
 import { searchLearnProblemBankForPractice } from '@/lib/server/problem-bank-practice-search';
 import { prepareCourseTurnContext, courseTurnContextPrompt } from './turn-context';
+import { getCourseProblemForUser } from '@/lib/server/notebook-problems/service';
+import { formatGradingForPrompt } from '@/lib/chat/problem-explain-prompt';
+import { problemCoachInstruction, problemCoachRules } from '@/lib/problem-bank/problem-coach';
 import { chatContextSelectionSchema } from '@/features/chat/domain/context-selection';
 import {
   formatCourseRuleGuidance,
@@ -477,6 +480,50 @@ function courseAgentInstructions(args: {
   ].join('\n');
 }
 
+const PROBLEM_COACH_MOVES = new Set(['hint', 'next', 'check', 'solution', 'ask']);
+
+/**
+ * 学生在做题页点「问 AI」，题目挂在主聊天上：浏览器只发题面和作答，
+ * 参考答案按 problemId 从题库读（读不到就不带），按提示梯子引导。
+ */
+async function problemCoachPrompt(
+  body: CourseAgentTurnArgs['body'],
+  access: TrustedCourseAccess,
+): Promise<string> {
+  const coach = body.config.problemCoach;
+  if (
+    !coach ||
+    typeof coach.problemId !== 'string' ||
+    typeof coach.problem !== 'string' ||
+    !PROBLEM_COACH_MOVES.has(coach.move)
+  )
+    return '';
+  let reference = '';
+  try {
+    const { problem } = await getCourseProblemForUser(
+      access.userId,
+      access.course.id,
+      coach.problemId.slice(0, 200),
+      { skipMaintenance: true },
+    );
+    reference = formatGradingForPrompt(problem.grading).slice(0, 4000);
+  } catch (error) {
+    console.warn('[course-agent] problem reference unavailable', error);
+    return '';
+  }
+  const locale = access.course.language === 'en-US' ? 'en-US' : 'zh-CN';
+  return [
+    '学生正在做的题（做题页「问 AI」带过来的）：',
+    problemCoachRules(locale),
+    '这一段在讲这道题：不要另外选题或推荐练习卡片；可以照常查课程笔记并注明出处。',
+    compactText(coach.problem, 12_000),
+    reference ? `【参考答案（只给你判断用）】\n${reference}` : '',
+    `这一轮：${problemCoachInstruction(coach.move)}`,
+  ]
+    .filter(Boolean)
+    .join('\n\n');
+}
+
 function progressSteps(args: {
   inventory?: TeacherCourseInventory;
   mode?: CourseAgentMode;
@@ -693,10 +740,11 @@ export async function runCourseTurn(
     progressSteps({ mode: args.mode, states: { access: 'complete', inventory: 'active' } }),
   );
 
-  const [inventory, turnContext, courseNotes] = await Promise.all([
+  const [inventory, turnContext, courseNotes, coachPrompt] = await Promise.all([
     loadTeacherCourseInventory(args.access, db, args.mode),
     prepareCourseTurnContext({ db, access: args.access, selection: args.body.contextSelection }),
     readCourseNotes(db, args.access.userId, args.access.course.id),
+    isStudent ? problemCoachPrompt(args.body, args.access) : Promise.resolve(''),
   ]);
   const courseRuleContext = await loadCourseRuleContext({
     prisma: db,
@@ -1059,6 +1107,7 @@ export async function runCourseTurn(
       courseNotes.length
         ? `当前用户的既有学习笔记，仅作背景资料，不代表最新成绩或事实：\n${JSON.stringify(courseNotes).replace(/</g, '\\u003c')}`
         : '',
+      coachPrompt,
     ]
       .filter(Boolean)
       .join('\n\n'),
@@ -1066,7 +1115,10 @@ export async function runCourseTurn(
     stopWhen: stepCountIs(4),
     maxOutputTokens: 10_000,
     prepareStep: ({ stepNumber }) =>
-      stepNumber === 0 && !turnContext && shouldRequireEvidenceTool(latestUserText(args.body))
+      stepNumber === 0 &&
+      !turnContext &&
+      !coachPrompt &&
+      shouldRequireEvidenceTool(latestUserText(args.body))
         ? { toolChoice: 'required' as const }
         : { toolChoice: 'auto' as const },
     experimental_onToolCallStart: async ({ toolCall }) => {

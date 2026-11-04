@@ -38,7 +38,7 @@ export interface NativeChatContext {
   }>;
   /** 学生在聊天里点名的那道题：题面原文 + 参考答案（只给助教判断用）。 */
   focusProblem?: { id: string; title: string; text: string };
-  /** 做题页「问 AI」：正在做的这道题（题面、作答、测试结果、参考答案拼成一段）。 */
+  /** 做题页「问 AI」挂在主聊天上的题（题面、作答、测试结果）；参考答案由服务端按 id 读。 */
   problemCoach?: {
     problemId: string;
     title: string;

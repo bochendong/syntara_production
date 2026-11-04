@@ -1,9 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowUp, X } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { MessageCircle } from 'lucide-react';
 
-import { streamNativeChat, detectChatSurface } from '../../ai/chat';
-import type { ChatResponseStrength } from '../../data/ai-client';
-import { getLocalRepository } from '../../data/repository';
 import {
   problemOptions,
   problemPublicContent,
@@ -13,23 +10,12 @@ import {
 } from '../../data/local-problem-grading';
 import type { LocalProblem, LocalProblemAttempt } from '../../domain/models';
 import { marbleImages, type MarbleColor } from '../../lib/learning-action-marbles';
-import { problemSolution } from '../../lib/problem-solution';
 import { cn } from '../../lib/cn';
-import { ChatRichText } from '../chat-rich/ChatRichText';
 import {
   PROBLEM_COACH_CHIPS,
-  problemCoachUserText,
   type ProblemCoachMove,
 } from '../../../../../lib/problem-bank/problem-coach';
 import './problem-ai-coach.css';
-
-type CoachLine = {
-  id: string;
-  role: 'user' | 'assistant';
-  text: string;
-  move?: ProblemCoachMove;
-  failed?: boolean;
-};
 
 const CHIP_MARBLE: Record<Exclude<ProblemCoachMove, 'ask'>, MarbleColor> = {
   hint: 'amber',
@@ -106,7 +92,7 @@ function formatAttempt(attempt: LocalProblemAttempt | undefined): string {
   return lines.join('\n');
 }
 
-/** 拼出给助教看的这道题：题面、学生作答、测试结果、参考答案（只给 AI 判断用）。 */
+/** 拼出给助教看的这道题：题面、学生作答、测试结果。参考答案由服务端按题目 id 自己读。 */
 export function problemCoachText(input: {
   problem: LocalProblem;
   answer: LocalProblemAnswer | null;
@@ -116,7 +102,6 @@ export function problemCoachText(input: {
   const { problem } = input;
   const content = problemPublicContent(problem);
   const options = problemOptions(problem);
-  const solution = problemSolution(problem);
   const parts = Array.isArray(content.parts)
     ? (content.parts as Array<{ label: string; content: Record<string, unknown> }>)
         .map(
@@ -137,286 +122,108 @@ export function problemCoachText(input: {
     answer ? `【学生当前作答】\n${answer}` : '学生还没有作答。',
     formatAttempt(input.latestAttempt),
     input.runOutput?.trim() ? `【最近一次运行输出】\n${clip(input.runOutput.trim(), 1200)}` : '',
-    solution.answer || solution.code || solution.explanation
-      ? `【参考答案（只给你判断用）】\n${clip(
-          [
-            solution.answer,
-            solution.code ? `\`\`\`\n${solution.code}\n\`\`\`` : '',
-            solution.explanation,
-          ]
-            .filter(Boolean)
-            .join('\n\n'),
-          3000,
-        )}`
-      : '',
   ];
   return clip(sections.filter(Boolean).join('\n\n'), 11_800);
 }
 
-function readResponseStrength(): ChatResponseStrength {
-  try {
-    const stored = window.localStorage.getItem('syntara.phone.response-strength.v1');
-    return stored === 'low' || stored === 'high' ? stored : 'medium';
-  } catch {
-    return 'medium';
-  }
-}
-
-/** 做题顶栏的「AI」弹珠按钮。 */
-export function ProblemAiCoachButton({
-  open,
-  busy,
+/**
+ * 做题顶栏的「问 AI」：点开是一排快捷提问。选一个就把这道题交给课程主聊天
+ * （做题页收成右下角的弹珠），「在聊天里问」只挂上题目卡片、聚焦输入框。
+ */
+export function ProblemAiAskMenu({
   disabled,
-  onClick,
+  onAsk,
 }: {
-  open: boolean;
-  busy: boolean;
   disabled?: boolean;
-  onClick: () => void;
+  onAsk: (move: ProblemCoachMove) => void;
 }) {
-  return (
-    <button
-      type="button"
-      className={cn('pac-trigger', open && 'is-open', busy && 'is-busy')}
-      aria-pressed={open}
-      aria-label="问 AI 这道题"
-      disabled={disabled}
-      onClick={onClick}
-    >
-      <img src={marbleImages.purple} alt="" />
-      AI
-    </button>
-  );
-}
-
-/** 做题时的 AI 助教：默认只给提示，学生主动要「完整解答」才讲完整。 */
-export function ProblemAiCoachPanel({
-  open,
-  problem,
-  answer,
-  latestAttempt,
-  runOutput,
-  onClose,
-  onBusyChange,
-  onSolutionAsked,
-}: {
-  open: boolean;
-  problem: LocalProblem;
-  answer: LocalProblemAnswer | null;
-  latestAttempt?: LocalProblemAttempt;
-  runOutput?: string;
-  onClose: () => void;
-  onBusyChange: (busy: boolean) => void;
-  /** 学生要了完整解答：和看参考答案一样记一次求助。 */
-  onSolutionAsked: () => void;
-}) {
-  const threads = useRef(new Map<string, CoachLine[]>());
-  const [, setVersion] = useState(0);
-  const [sendingFor, setSendingFor] = useState<string | null>(null);
-  const [draft, setDraft] = useState('');
+  const [open, setOpen] = useState(false);
   const [confirmSolution, setConfirmSolution] = useState(false);
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const lines = threads.current.get(problem.id) ?? [];
-  const sending = sendingFor !== null;
-
-  useEffect(() => onBusyChange(sending), [onBusyChange, sending]);
-  useEffect(() => {
+  const rootRef = useRef<HTMLDivElement>(null);
+  const close = () => {
+    setOpen(false);
     setConfirmSolution(false);
-    setDraft('');
-  }, [problem.id]);
+  };
+
+  useEffect(() => {
+    if (!open) return;
+    const dismiss = () => {
+      setOpen(false);
+      setConfirmSolution(false);
+    };
+    const onPointer = (event: PointerEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) dismiss();
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      // 只关菜单，不让做题弹窗跟着关。
+      event.stopPropagation();
+      dismiss();
+    };
+    window.addEventListener('pointerdown', onPointer, true);
+    window.addEventListener('keydown', onKey, true);
+    return () => {
+      window.removeEventListener('pointerdown', onPointer, true);
+      window.removeEventListener('keydown', onKey, true);
+    };
+  }, [open]);
+
   useEffect(() => {
     if (!confirmSolution) return;
     const timer = window.setTimeout(() => setConfirmSolution(false), 3000);
     return () => window.clearTimeout(timer);
   }, [confirmSolution]);
-  const lastLength = lines.at(-1)?.text.length ?? 0;
-  useEffect(() => {
-    const node = scrollRef.current;
-    if (node) node.scrollTop = node.scrollHeight;
-  }, [lines.length, lastLength, open]);
 
-  const update = useCallback((problemId: string, next: CoachLine[]) => {
-    threads.current.set(problemId, next);
-    setVersion((value) => value + 1);
-  }, []);
-
-  const send = useCallback(
-    async (move: ProblemCoachMove, freeText = '') => {
-      if (sendingFor) return;
-      const problemId = problem.id;
-      const userText = problemCoachUserText(move, 'zh-CN', freeText);
-      if (!userText) return;
-      const history = threads.current.get(problemId) ?? [];
-      const at = Date.now();
-      const assistantId = `coach-a-${at}`;
-      let working: CoachLine[] = [
-        ...history,
-        { id: `coach-u-${at}`, role: 'user', text: userText, move },
-        { id: assistantId, role: 'assistant', text: '' },
-      ];
-      update(problemId, working);
-      setSendingFor(problemId);
-      const patch = (change: Partial<CoachLine>) => {
-        working = working.map((line) => (line.id === assistantId ? { ...line, ...change } : line));
-        update(problemId, working);
-      };
-      try {
-        const repository = await getLocalRepository();
-        const workspace = await repository.loadCourseWorkspace(problem.courseId);
-        const course = workspace?.course;
-        const result = await streamNativeChat(
-          {
-            requestId: `problem-coach-${crypto.randomUUID()}`,
-            surface: detectChatSurface(false),
-            course: {
-              id: problem.courseId,
-              name: course?.name || '课程',
-              code: course?.courseCode ?? null,
-              description: '',
-              language: course?.language ?? 'zh-CN',
-            },
-            messages: working
-              .filter((line) => line.id !== assistantId && !line.failed && line.text)
-              .slice(-12)
-              .map(({ role, text }) => ({ role, text: text.slice(0, 6000) })),
-            context: {
-              notes: [],
-              memories: [],
-              calendar: [],
-              attempts: [],
-              problems: [],
-              problemCoach: {
-                problemId,
-                title: problem.title.slice(0, 300),
-                problem: problemCoachText({ problem, answer, latestAttempt, runOutput }),
-                move,
-              },
-            },
-          },
-          { responseStrength: readResponseStrength() },
-          (delta) => {
-            const current = working.find((line) => line.id === assistantId)?.text ?? '';
-            patch({ text: current + delta });
-          },
-        );
-        patch({ text: result.text.trim() || '这次没有生成回答，再试一次。' });
-        if (move === 'solution') onSolutionAsked();
-      } catch (cause) {
-        patch({
-          text: `没能回答：${cause instanceof Error ? cause.message : '请稍后再试'}`,
-          failed: true,
-        });
-      } finally {
-        setSendingFor(null);
-      }
-    },
-    [answer, latestAttempt, onSolutionAsked, problem, runOutput, sendingFor, update],
-  );
-
-  const pressChip = (move: Exclude<ProblemCoachMove, 'ask'>) => {
+  const ask = (move: ProblemCoachMove) => {
     if (move === 'solution' && !confirmSolution) {
       setConfirmSolution(true);
       return;
     }
-    setConfirmSolution(false);
-    void send(move);
+    close();
+    onAsk(move);
   };
-  const submitDraft = () => {
-    const text = draft.trim();
-    if (!text || sending) return;
-    setDraft('');
-    void send('ask', text);
-  };
-
-  if (!open) return null;
 
   return (
-    <aside className="pac-panel" role="dialog" aria-label="AI 助教">
-      <header className="pac-head">
-        <img src={marbleImages.purple} alt="" />
-        <div>
-          <strong>AI</strong>
-          <small>{problem.title}</small>
-        </div>
-        <button type="button" className="pac-close" aria-label="关闭" onClick={onClose}>
-          <X size={16} />
-        </button>
-      </header>
-      <div className="pac-body" ref={scrollRef}>
-        {lines.length === 0 ? (
-          <div className="pac-empty">
-            <img src={marbleImages.purple} alt="" />
-            <p>卡住了？先来个提示</p>
-          </div>
-        ) : (
-          lines.map((line) =>
-            line.role === 'user' ? (
-              <div key={line.id} className="pac-user">
-                <span>
-                  {line.move && line.move !== 'ask' ? (
-                    <img src={marbleImages[CHIP_MARBLE[line.move]]} alt="" />
-                  ) : null}
-                  {line.text}
-                </span>
-              </div>
-            ) : (
-              <div key={line.id} className={cn('pac-answer', line.failed && 'is-failed')}>
-                {line.text ? (
-                  <ChatRichText text={line.text} />
-                ) : (
-                  <span className="pac-dots" aria-label="…">
-                    {(['amber', 'green', 'blue'] as const).map((color) => (
-                      <img key={color} src={marbleImages[color]} alt="" />
-                    ))}
-                  </span>
-                )}
-              </div>
-            ),
-          )
-        )}
-      </div>
-      <footer className="pac-foot">
-        <div className="pac-chips">
+    <div className="pac-ask" ref={rootRef}>
+      <button
+        type="button"
+        className={cn('pac-trigger', open && 'is-open')}
+        aria-expanded={open}
+        aria-haspopup="menu"
+        aria-label="问 AI 这道题"
+        disabled={disabled}
+        onClick={() => (open ? close() : setOpen(true))}
+      >
+        <img src={marbleImages.purple} alt="" />问 AI
+      </button>
+      {open ? (
+        <div className="pac-menu" role="menu" aria-label="问 AI">
           {PROBLEM_COACH_CHIPS.map((chip) => {
             const confirming = chip.move === 'solution' && confirmSolution;
             return (
               <button
                 key={chip.move}
                 type="button"
+                role="menuitem"
                 className={cn('pac-chip', confirming && 'is-confirming')}
-                disabled={sending}
-                onClick={() => pressChip(chip.move)}
+                onClick={() => ask(chip.move)}
               >
                 <img src={marbleImages[CHIP_MARBLE[chip.move]]} alt="" />
                 {confirming ? '再点一下' : chip.zh}
               </button>
             );
           })}
-        </div>
-        <form
-          className="pac-input"
-          onSubmit={(event) => {
-            event.preventDefault();
-            submitDraft();
-          }}
-        >
-          <textarea
-            rows={1}
-            value={draft}
-            placeholder="问这道题…"
-            onChange={(event) => setDraft(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
-                event.preventDefault();
-                submitDraft();
-              }
-            }}
-          />
-          <button type="submit" aria-label="发送" disabled={sending || !draft.trim()}>
-            <ArrowUp size={16} />
+          <button
+            type="button"
+            role="menuitem"
+            className="pac-chip pac-chip-free"
+            onClick={() => ask('ask')}
+          >
+            <MessageCircle size={15} />
+            在聊天里问
           </button>
-        </form>
-      </footer>
-    </aside>
+        </div>
+      ) : null}
+    </div>
   );
 }

@@ -3889,6 +3889,228 @@ span.pb-row-marble img {
   z-index: 120;
   display: flex;
   padding: 14px;
+  --practice-overlay-motion: 420ms;
+}
+
+.practice-overlay,
+.practice-resume-marble {
+  --practice-marble-right: max(22px, env(safe-area-inset-right));
+  --practice-marble-bottom: max(22px, env(safe-area-inset-bottom));
+}
+
+.practice-overlay.is-minimized {
+  visibility: hidden;
+  pointer-events: none;
+  transition: visibility 0s linear var(--practice-overlay-motion);
+}
+
+/*
+ * 收起：题目缩成一颗圆片、染上玻璃珠的青色，被右下角的玻璃珠「吸」进去；
+ * 玻璃珠接住时压扁回弹、荡开一圈水纹，里面的流光快转一圈再慢下来。
+ * 展开：反过来，从玻璃珠的位置像泡泡一样撑开。
+ */
+.practice-resume-marble {
+  position: fixed;
+  right: var(--practice-marble-right);
+  bottom: var(--practice-marble-bottom);
+  z-index: 121;
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  filter: drop-shadow(0 5px 8px rgb(15 23 42 / 28%));
+  transition:
+    opacity 110ms ease 320ms,
+    transform 220ms cubic-bezier(0.3, 1.6, 0.5, 1),
+    filter 220ms ease;
+}
+
+.practice-resume-marble:not(:disabled) {
+  animation: practice-marble-catch 640ms cubic-bezier(0.25, 0.8, 0.3, 1) 320ms backwards;
+}
+
+.practice-resume-marble:not(:disabled):hover {
+  transform: scale(1.06);
+}
+
+.practice-resume-marble:not(:disabled):active {
+  cursor: grabbing;
+  transform: scale(0.9);
+  transition-duration: 0s, 90ms, 90ms;
+}
+
+/* 拖着走时轻轻提起来，松手弹回去。 */
+.practice-resume-marble[data-dragging] {
+  transform: scale(1.12);
+  filter: drop-shadow(0 12px 14px rgb(15 23 42 / 26%));
+}
+
+/* 点开时玻璃珠胀大散开，题目从它的位置撑开。 */
+.practice-resume-marble:disabled {
+  opacity: 0;
+  pointer-events: none;
+  transform: scale(1.45);
+  transition:
+    opacity 200ms ease,
+    transform 260ms cubic-bezier(0.2, 0.7, 0.3, 1);
+}
+
+.practice-resume-marble::after {
+  position: absolute;
+  inset: 0;
+  border: 2px solid rgb(110 255 226 / 75%);
+  border-radius: 50%;
+  content: '';
+  opacity: 0;
+  pointer-events: none;
+}
+
+.practice-resume-marble:not(:disabled)::after {
+  animation: practice-marble-ripple 720ms cubic-bezier(0.2, 0.6, 0.3, 1) 350ms;
+}
+
+.practice-marble-glass {
+  position: relative;
+  isolation: isolate;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  border: 1px solid rgb(220 255 251 / 75%);
+  border-radius: 50%;
+  background:
+    radial-gradient(ellipse at 73% 79%, #5effdd 0%, transparent 29%),
+    radial-gradient(ellipse at 27% 22%, #b9fff9 0%, #45d9cb 23%, transparent 56%),
+    radial-gradient(circle at 52% 43%, #197c98 4%, #093b61 67%, #07162f 100%);
+  box-shadow:
+    inset 0 1px 2px #fff,
+    inset 0 -3px 6px rgb(86 255 227 / 55%),
+    inset 0 -8px 14px rgb(1 16 42 / 55%),
+    0 3px 12px rgb(20 184 166 / 40%);
+  animation: practice-marble-float 4.6s ease-in-out infinite;
+}
+
+.practice-marble-current {
+  position: absolute;
+  inset: -22%;
+  border-radius: 50%;
+  background: conic-gradient(
+    from 28deg,
+    transparent 0 14%,
+    rgb(97 255 220 / 80%) 24%,
+    rgb(110 181 255 / 72%) 29%,
+    transparent 39% 54%,
+    rgb(144 110 255 / 75%) 67%,
+    rgb(154 255 239 / 85%) 74%,
+    transparent 83% 100%
+  );
+  filter: blur(3px);
+  mix-blend-mode: screen;
+  animation: practice-marble-swirl 8s linear infinite;
+}
+
+/* 刚接住题目：流光被搅快一圈半，再落回平常的慢转。 */
+.practice-resume-marble:not(:disabled) .practice-marble-current {
+  animation:
+    practice-marble-stir 1100ms cubic-bezier(0.15, 0.7, 0.3, 1) 300ms backwards,
+    practice-marble-swirl 8s linear 1400ms infinite;
+}
+
+.practice-marble-glass::before,
+.practice-marble-glass::after {
+  position: absolute;
+  content: '';
+  pointer-events: none;
+}
+
+.practice-marble-glass::before {
+  inset: 7% 9% 12%;
+  border-radius: 50%;
+  background:
+    radial-gradient(ellipse at 26% 20%, #fff 0 4%, transparent 12%),
+    radial-gradient(ellipse at 44% 11%, rgb(255 255 255 / 88%) 0 2%, transparent 7%),
+    linear-gradient(146deg, rgb(255 255 255 / 66%), transparent 37%);
+  transform: rotate(-14deg);
+}
+
+.practice-marble-glass::after {
+  inset: 0;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at 69% 83%, rgb(234 255 246 / 84%), transparent 30%);
+  box-shadow: inset 0 0 7px rgb(220 255 253 / 45%);
+}
+
+.practice-resume-marble:disabled .practice-marble-glass,
+.practice-resume-marble:disabled .practice-marble-current {
+  animation-play-state: paused;
+}
+
+@keyframes practice-marble-float {
+  50% {
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes practice-marble-swirl {
+  to {
+    transform: rotate(1turn);
+  }
+}
+
+@keyframes practice-marble-stir {
+  from {
+    transform: rotate(-1.5turn);
+  }
+}
+
+/* 接住时压扁、弹高、再晃两下停稳。 */
+@keyframes practice-marble-catch {
+  0% {
+    transform: scale(0.82);
+  }
+
+  22% {
+    transform: scale(1.2, 0.84);
+  }
+
+  44% {
+    transform: scale(0.92, 1.1);
+  }
+
+  66% {
+    transform: scale(1.05, 0.96);
+  }
+
+  84% {
+    transform: scale(0.99, 1.02);
+  }
+
+  100% {
+    transform: none;
+  }
+}
+
+@keyframes practice-marble-ripple {
+  from {
+    opacity: 0.9;
+    transform: scale(0.9);
+  }
+
+  to {
+    opacity: 0;
+    transform: scale(2);
+  }
+}
+
+.practice-resume-marble:focus-visible {
+  outline: 2px solid #15803d;
+  outline-offset: 4px;
 }
 
 .practice-overlay-backdrop {
@@ -3897,7 +4119,7 @@ span.pb-row-marble img {
   background: rgb(15 23 42 / 22%);
   backdrop-filter: blur(var(--glass-blur-sm)) saturate(1.4);
   -webkit-backdrop-filter: blur(var(--glass-blur-sm)) saturate(1.4);
-  animation: practice-overlay-fade 200ms ease both;
+  transition: opacity var(--practice-overlay-motion) ease;
 }
 
 .practice-overlay-card {
@@ -3913,7 +4135,57 @@ span.pb-row-marble img {
   box-shadow:
     inset 0 1px 0 #fff,
     0 30px 80px rgb(15 23 42 / 24%);
-  animation: practice-overlay-in 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  clip-path: circle(75% at 50% 50%);
+  transition:
+    clip-path 460ms cubic-bezier(0.25, 0.85, 0.25, 1),
+    transform 460ms cubic-bezier(0.25, 0.85, 0.25, 1),
+    opacity 90ms linear;
+}
+
+/* 缩小时盖在题目上的一层玻璃珠青色，让圆片看起来是「变成」了玻璃珠。 */
+.practice-overlay-card::after {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  background: radial-gradient(
+    circle at 50% 50%,
+    #45d9cb 0,
+    #197c98 60px,
+    #093b61 150px,
+    rgb(9 59 97 / 0%) 360px
+  );
+  content: '';
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 280ms ease;
+}
+
+/*
+ * 卡片中心飞到玻璃珠中心（卡片四周各留 14px，所以中心就在屏幕正中），
+ * 同时裁成居中的圆片：80px × 0.35 = 28px，正好和玻璃珠一样大。
+ * 圆片一直居中，不会被卡片的直边切掉。
+ */
+.practice-overlay.is-minimized .practice-overlay-card {
+  clip-path: circle(80px at 50% 50%);
+  opacity: 0;
+  transform: translate(
+      calc(50vw - var(--practice-marble-right) - 28px),
+      calc(50dvh - var(--practice-marble-bottom) - 28px)
+    )
+    scale(0.35);
+  transition:
+    clip-path 400ms cubic-bezier(0.5, 0, 0.2, 1),
+    transform 400ms cubic-bezier(0.55, 0, 0.4, 1),
+    opacity 80ms linear 340ms;
+}
+
+.practice-overlay.is-minimized .practice-overlay-card::after {
+  opacity: 1;
+  transition: opacity 360ms cubic-bezier(0.5, 0, 0.8, 0.4);
+}
+
+.practice-overlay.is-minimized .practice-overlay-backdrop {
+  opacity: 0;
 }
 
 .practice-overlay-card > .native-problem-practice {
@@ -3925,23 +4197,31 @@ span.pb-row-marble img {
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
 }
 
-@keyframes practice-overlay-fade {
-  from {
+@starting-style {
+  .practice-overlay:not(.is-minimized) .practice-overlay-card {
     opacity: 0;
+    transform: scale(0.985);
   }
-}
 
-@keyframes practice-overlay-in {
-  from {
+  .practice-overlay:not(.is-minimized) .practice-overlay-backdrop {
     opacity: 0;
-    transform: translateY(18px) scale(0.985);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .practice-overlay.is-minimized,
   .practice-overlay-backdrop,
-  .practice-overlay-card {
-    animation: none;
+  .practice-overlay-card,
+  .practice-overlay-card::after,
+  .practice-resume-marble {
+    transition: none;
+  }
+
+  .practice-resume-marble,
+  .practice-resume-marble::after,
+  .practice-marble-glass,
+  .practice-marble-current {
+    animation: none !important;
   }
 }
 
@@ -4221,6 +4501,65 @@ span.pb-row-marble img {
   outline: 2px solid #6366f1;
   outline-offset: 2px;
 }
+.native-problem-practice .native-problem-practice-pane-body:has(> .pp-debug-console) {
+  grid-template-rows: minmax(272px, 1fr);
+  align-content: stretch;
+}
+
+.pp-debug-console {
+  display: grid;
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.pp-debug-input,
+.pp-debug-result {
+  min-width: 0;
+  min-height: 0;
+}
+
+.pp-debug-input {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pp-debug-input > span,
+.pp-debug-result > h3 {
+  color: #334155;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.pp-debug-input > textarea {
+  flex: 1;
+  min-height: 0;
+  padding: 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #f8fafc;
+  color: #0f172a;
+  font:
+    13px/1.6 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    monospace;
+  resize: none;
+  tab-size: 4;
+}
+
+.pp-debug-result {
+  overflow: auto;
+  border-top: 1px solid #e2e8f0;
+  padding-top: 12px;
+}
+
+.pp-debug-result > h3 {
+  margin: 0 0 8px;
+}
+
 .pp-run-output {
   min-width: 0;
 }
@@ -4273,6 +4612,7 @@ span.pb-row-marble img {
   }
   .pp-answer-header .pp-header-submit,
   .pp-answer-header .pp-run-button,
+  .pp-statement-tabs .pp-run-button,
   .pp-top-answer-actions .pp-header-submit,
   .pp-top-answer-actions .pp-run-button {
     padding-inline: 8px;
