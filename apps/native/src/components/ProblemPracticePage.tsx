@@ -162,7 +162,11 @@ import {
   type ProblemLearningEvent,
 } from '../data/problem-learning-snapshot';
 import { ProblemSolutionConfirmation } from './problem-bank/ProblemSolutionConfirmation';
-import { ProblemAiAskMenu, problemCoachText } from './problem-bank/ProblemAiCoach';
+import {
+  ProblemAiAskMenu,
+  problemCoachText,
+  problemCoachTextForSend,
+} from './problem-bank/ProblemAiCoach';
 import type { ProblemChatAttachment } from '../lib/problem-chat';
 import type { ProblemCoachMove } from '../../../../lib/problem-bank/problem-coach';
 import {
@@ -1456,7 +1460,9 @@ export function ProblemPracticePage({
         readContext: () => {
           const live = coachInputsRef.current;
           // 学生已经翻到别的题时，仍然用交出去那一刻的这道题。
-          if (live.problem?.id === problem.id) snapshot = problemCoachText({ ...live, problem });
+          if (live.problem?.id === problem.id) {
+            snapshot = problemCoachTextForSend({ ...live, problem });
+          }
           return snapshot;
         },
         onSolutionDelivered: () => {

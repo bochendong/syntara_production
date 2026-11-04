@@ -1,4 +1,9 @@
 import { problemCoachInstruction, problemCoachRules } from '@/lib/problem-bank/problem-coach';
+import {
+  coachMethodSection,
+  detectExplainSubject,
+  explainMethodSection,
+} from '@/lib/chat/explain-method';
 import type { NativeChatRequest } from './schema';
 
 /** 题库列表的摘要：App 发来的是 publicContent 的 JSON 片段，只留题干文字。 */
@@ -51,6 +56,13 @@ export function buildNativeChatSystemPrompt(
   const phone = surface === 'phone';
   const coach = context.problemCoach;
   const practiceEnabled = !phone && !coach && context.problems.length > 0;
+  const subject = detectExplainSubject({
+    courseCode: course.code,
+    courseName: course.name,
+    description: course.description,
+    problemText: coach?.problem ?? context.focusProblem?.text,
+  });
+  const explain = explainMethodSection(subject);
 
   const role = [
     `你是 Syntara 的课程助教，正在${phone ? '手机' : surface === 'tablet' ? 'iPad' : '电脑'}上陪学生学「${course.name}」${course.code ? `（${course.code}）` : ''}。`,
@@ -171,11 +183,12 @@ export function buildNativeChatSystemPrompt(
         section(
           '学生正在做的题（做题页「问 AI」带过来的）',
           [
-            problemCoachRules(english ? 'en-US' : 'zh-CN'),
+            problemCoachRules(english ? 'en-US' : 'zh-CN', true),
             coach.problem,
             problemReference ? `【参考答案（只给你判断用）】\n${problemReference}` : '',
           ].filter(Boolean),
         ),
+        coachMethodSection(subject),
         section('这一轮', [problemCoachInstruction(coach.move)]),
       ]
     : [];
@@ -183,6 +196,7 @@ export function buildNativeChatSystemPrompt(
     role,
     rules,
     style,
+    explain,
     tools,
     courseInfo,
     coach ? '' : focus,

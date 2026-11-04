@@ -15,6 +15,7 @@ import {
   PROBLEM_COACH_CHIPS,
   type ProblemCoachMove,
 } from '../../../../../lib/problem-bank/problem-coach';
+import { draftChangeNote, numberCodeLines } from '../../../../../lib/chat/explain-method';
 import './problem-ai-coach.css';
 
 const CHIP_MARBLE: Record<Exclude<ProblemCoachMove, 'ask'>, MarbleColor> = {
@@ -41,7 +42,9 @@ function formatAnswer(answer: LocalProblemAnswer | null): string {
         .filter(Boolean)
         .join('\n');
     case 'code':
-      return answer.code.trim() ? `代码：\n${clip(answer.code.trim(), 3000)}` : '';
+      return answer.code.trim()
+        ? `代码（行首是行号）：\n${numberCodeLines(clip(answer.code.trim(), 3000))}`
+        : '';
     case 'table':
       return Object.entries(answer.cells)
         .filter(([, value]) => value.trim())
@@ -93,11 +96,30 @@ function formatAttempt(attempt: LocalProblemAttempt | undefined): string {
 }
 
 /** 拼出给助教看的这道题：题面、学生作答、测试结果。参考答案由服务端按题目 id 自己读。 */
+/** 用来比较两次提问之间改动的作答原文（代码不带行号）。 */
+export function rawAnswerText(answer: LocalProblemAnswer | null): string {
+  if (answer?.kind === 'code') return answer.code;
+  return formatAnswer(answer);
+}
+
+/** 每道题上次问 AI 时发出去的作答；只在这次打开 App 期间记着。 */
+const sentAnswers = new Map<string, string>();
+
+/** 发送「问 AI」那一刻调用：带上和上次相比的改动，并记下这次的作答。 */
+export function problemCoachTextForSend(input: Parameters<typeof problemCoachText>[0]): string {
+  const key = input.problem.id;
+  const text = problemCoachText({ ...input, previousAnswer: sentAnswers.get(key) });
+  sentAnswers.set(key, rawAnswerText(input.answer));
+  return text;
+}
+
 export function problemCoachText(input: {
   problem: LocalProblem;
   answer: LocalProblemAnswer | null;
   latestAttempt?: LocalProblemAttempt;
   runOutput?: string;
+  /** 上次问 AI 时发出去的作答（rawAnswerText），用来列出这次改了哪些行。 */
+  previousAnswer?: string;
 }): string {
   const { problem } = input;
   const content = problemPublicContent(problem);
@@ -120,6 +142,9 @@ export function problemCoachText(input: {
     str(content.functionSignature) ? `函数签名：${str(content.functionSignature)}` : '',
     str(content.starterCode) ? `起始代码：\n${clip(str(content.starterCode), 2000)}` : '',
     answer ? `【学生当前作答】\n${answer}` : '学生还没有作答。',
+    input.previousAnswer !== undefined
+      ? draftChangeNote(input.previousAnswer, rawAnswerText(input.answer))
+      : '',
     formatAttempt(input.latestAttempt),
     input.runOutput?.trim() ? `【最近一次运行输出】\n${clip(input.runOutput.trim(), 1200)}` : '',
   ];

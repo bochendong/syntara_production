@@ -21,6 +21,7 @@ import { openUrl } from '@tauri-apps/plugin-opener';
 import { marbleImages, memoryMarble } from '../../lib/learning-action-marbles';
 import { renderProblemRichTextHtml } from '../problem-bank/problem-rich-text';
 import { ChatCodeBlock } from './ChatCodeBlock';
+import { ChatTrace } from './ChatTrace';
 import './chat-rich.css';
 
 /** 回答里 [^n] 指向的来源（第 n 条课程笔记片段）。 */
@@ -68,14 +69,15 @@ type CalloutKind = keyof typeof CALLOUTS;
 type Segment =
   | { kind: 'markdown'; text: string }
   | { kind: 'steps'; lines: string[] }
+  | { kind: 'trace'; title: string; lines: string[] }
   | { kind: 'callout'; variant: CalloutKind; title: string; text: string }
   | { kind: 'code'; language: string; code: string };
 
-const SPECIAL_FENCE = /^\s*```(steps|tip|warning|key)\b[ \t]*(.*)$/;
+const SPECIAL_FENCE = /^\s*```(steps|trace|tip|warning|key)\b[ \t]*(.*)$/;
 const CODE_FENCE = /^\s*(`{3,}|~{3,})[ \t]*([^\s`]*)/;
 
 /**
- * 把 ```steps / ```tip / ```warning / ```key 和普通代码块切出来；流式输出时没闭合的块也照常画。
+ * 把 ```steps / ```trace / ```tip / ```warning / ```key 和普通代码块切出来；流式输出时没闭合的块也照常画。
  * 代码块单独渲染，里面的 [^n]、$…$ 不会被当成引用或公式。
  */
 function splitSegments(text: string): Segment[] {
@@ -115,6 +117,8 @@ function splitSegments(text: string): Segment[] {
     }
     if (open[1] === 'steps') {
       segments.push({ kind: 'steps', lines: body.filter((line) => line.trim()) });
+    } else if (open[1] === 'trace') {
+      segments.push({ kind: 'trace', title: open[2].trim(), lines: body });
     } else {
       segments.push({
         kind: 'callout',
@@ -263,7 +267,7 @@ const NO_SOURCES: ChatRichSource[] = [];
 const NO_MEMORIES: ChatRichMemory[] = [];
 
 /**
- * 助教回答：Markdown + 引用胶囊、步骤列表、提示框、表格徽章。
+ * 助教回答：Markdown + 引用胶囊、步骤列表、逐步演示、提示框、表格徽章。
  * 点引用胶囊时回调第一条来源（下标从 0 开始）。
  */
 export const ChatRichText = memo(function ChatRichText({
@@ -311,6 +315,13 @@ export const ChatRichText = memo(function ChatRichText({
           <ChatCodeBlock key={index} code={segment.code} language={segment.language} />
         ) : segment.kind === 'steps' ? (
           <Steps key={index} lines={segment.lines} refs={refs} />
+        ) : segment.kind === 'trace' ? (
+          <ChatTrace
+            key={index}
+            title={segment.title}
+            lines={segment.lines}
+            renderNote={(note) => <Markdown text={note} refs={refs} />}
+          />
         ) : (
           <Callout
             key={index}
