@@ -31,6 +31,11 @@ import { searchLearnProblemBankForPractice } from '@/lib/server/problem-bank-pra
 import { prepareCourseTurnContext, courseTurnContextPrompt } from './turn-context';
 import { getCourseProblemForUser } from '@/lib/server/notebook-problems/service';
 import { formatGradingForPrompt } from '@/lib/chat/problem-explain-prompt';
+import {
+  coachMethodSection,
+  detectExplainSubject,
+  explainMethodSection,
+} from '@/lib/chat/explain-method';
 import { problemCoachInstruction, problemCoachRules } from '@/lib/problem-bank/problem-coach';
 import { chatContextSelectionSchema } from '@/features/chat/domain/context-selection';
 import {
@@ -410,6 +415,19 @@ function courseAgentInstructions(args: {
       : '你的职责：帮助课程 owner 查阅课程资料、了解某位已选课学生的近期问题和学习状态，并归纳班级近期的共同问题。回答使用清晰、直接的中文，并区分原始记录与基于证据的判断。',
     '',
     ...teachingModeRules,
+    ...(isStudent
+      ? [
+          '',
+          explainMethodSection(
+            detectExplainSubject({
+              courseCode: args.access.course.courseCode,
+              courseName: args.access.course.name,
+              description: args.access.course.description,
+            }),
+            { traceBlock: false },
+          ),
+        ]
+      : []),
     '',
     '当前课程事实：',
     `- 课程 ID：${args.access.course.id}`,
@@ -518,6 +536,14 @@ async function problemCoachPrompt(
     '这一段在讲这道题：不要另外选题或推荐练习卡片；可以照常查课程笔记并注明出处。',
     compactText(coach.problem, 12_000),
     reference ? `【参考答案（只给你判断用）】\n${reference}` : '',
+    coachMethodSection(
+      detectExplainSubject({
+        courseCode: access.course.courseCode,
+        courseName: access.course.name,
+        description: access.course.description,
+        problemText: coach.problem,
+      }),
+    ),
     `这一轮：${problemCoachInstruction(coach.move)}`,
   ]
     .filter(Boolean)

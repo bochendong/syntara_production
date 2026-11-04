@@ -6,6 +6,11 @@ import type {
 } from '@/lib/problem-bank';
 import type { NotebookProblemClientRecord } from '@/lib/utils/notebook-problem-api';
 import { formatPartLabel, partPromptText } from '@/lib/problem-bank/multipart';
+import {
+  detectExplainSubject,
+  explainMethodSection,
+  numberCodeLines,
+} from '@/lib/chat/explain-method';
 
 function decodeBasicHtmlEntities(text: string): string {
   return text
@@ -42,7 +47,11 @@ function formatAttemptAnswerForPrompt(answer: NotebookProblemAttemptAnswer | nul
   if (!answer) return '';
   const lines: string[] = [];
   if (answer.text?.trim()) lines.push(`文本答案：${clipPromptText(answer.text.trim(), 1600)}`);
-  if (answer.code?.trim()) lines.push(`代码答案：\n${clipPromptText(answer.code.trim(), 2600)}`);
+  if (answer.code?.trim()) {
+    lines.push(
+      `代码答案（行首是行号）：\n${numberCodeLines(clipPromptText(answer.code.trim(), 2600))}`,
+    );
+  }
   if (answer.selectedOptionIds?.length) {
     lines.push(`选择：${answer.selectedOptionIds.join('、')}`);
   }
@@ -213,8 +222,43 @@ export function formatGradingForPrompt(grading: NotebookProblemGrading): string 
       ]
         .filter(Boolean)
         .join('\n');
-    case 'code':
-      return grading.analysis ? `解析：${cleanPromptText(grading.analysis)}` : '';
+    case 'code': {
+      const solution = grading.solutionCode?.trim() ?? '';
+      const reference = grading.referenceAnswer?.trim() ?? '';
+      const slots = Object.entries(grading.solutionSlots ?? {}).filter(([, value]) => value.trim());
+      return [
+        solution ? `参考代码：\n${clipPromptText(solution, 3000)}` : '',
+        reference && reference !== solution ? `参考答案：${clipPromptText(reference, 2000)}` : '',
+        slots.length
+          ? `各空参考答案：\n${slots.map(([id, value]) => `${id}：${clipPromptText(value.trim(), 600)}`).join('\n')}`
+          : '',
+        grading.analysis ? `解析：${cleanPromptText(grading.analysis)}` : '',
+      ]
+        .filter(Boolean)
+        .join('\n');
+    }
+    case 'fill_blank':
+      return [
+        grading.blanks
+          .map((blank) => `空 ${blank.id}：${blank.acceptedAnswers.join(' / ')}`)
+          .join('\n'),
+        grading.analysis ? `解析：${cleanPromptText(grading.analysis)}` : '',
+      ]
+        .filter(Boolean)
+        .join('\n');
+    case 'table':
+      return [
+        grading.cells
+          .filter((cell) => cell.acceptedAnswers.length || cell.check)
+          .map(
+            (cell) =>
+              `${cell.rowId} · ${cell.colId}：${cell.acceptedAnswers.join(' / ') || `满足 ${cell.check}`}`,
+          )
+          .join('\n'),
+        grading.analysis ? `解析：${cleanPromptText(grading.analysis)}` : '',
+      ]
+        .filter(Boolean)
+        .join('\n');
     case 'multipart':
       return [
         ...grading.parts.map(
@@ -243,6 +287,11 @@ export function buildProblemExplainPrompt(args: {
     currentAnswer: args.currentAnswer,
     latestAttempt: args.latestAttempt,
   });
+  const problemText = formatProblemContentForPrompt(args.problemContent);
+  const method = explainMethodSection(
+    detectExplainSubject({ courseName: args.notebookName, problemText }),
+    { traceBlock: false },
+  );
   return clipPromptText(
     [
       '学生意图：讲解这道已经提供的题，重点是辅导学生理解和完成，不是查找题目或复述题面。',
@@ -255,10 +304,11 @@ export function buildProblemExplainPrompt(args: {
         '题面里的占位符、变量、函数名、正则和代码片段必须用反引号包起来，例如 `<s>`、`<integer>C`、`re.search`，避免被 Markdown 当作 HTML。',
         '语气像在旁边辅导学生，清晰但不要啰嗦。',
       ].join('\n'),
+      method,
       `题目标题：${args.problemTitle || args.problem.title}`,
       `题型：${args.problem.type}`,
       args.problem.problemNumber ? `题号：${args.problem.problemNumber}` : '',
-      formatProblemContentForPrompt(args.problemContent),
+      problemText,
       studentContextText,
       gradingText ? `\n可参考的标准答案或解析：\n${gradingText}` : '',
     ]
