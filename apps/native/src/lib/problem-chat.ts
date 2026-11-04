@@ -1,8 +1,7 @@
 import type { ProblemCoachMove } from '../../../../lib/problem-bank/problem-coach';
 
 /**
- * 做题页「问 AI」交给课程主聊天的那道题：聊天输入框上方挂一张题目小卡，
- * 卡片挂着时每条消息都带上这道题（题面 + 学生当前作答，不含参考答案）。
+ * 做题页「问 AI」交给课程主聊天的那道题。发送消息时附上题面和学生当前作答。
  */
 export type ProblemChatAttachment = {
   problemId: string;
@@ -17,7 +16,7 @@ export type ProblemChatAttachment = {
 export type ProblemChatRequest = {
   id: number;
   attachment: ProblemChatAttachment;
-  /** ask = 只挂卡片、聚焦输入框；其它 = 立刻发出这条快捷提问。 */
+  /** ask = 带入题目并聚焦输入框；其它 = 立刻发出这条快捷提问。 */
   move: ProblemCoachMove;
 };
 

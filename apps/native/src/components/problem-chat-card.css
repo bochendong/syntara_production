@@ -1,17 +1,12 @@
-/* 做题页「问 AI」带到主聊天的题目小卡：输入框上方（可移除）和用户消息气泡上方。 */
-.composer-problem-strip {
-  display: flex;
-  width: min(780px, 100%);
-  margin: 0 auto 6px;
-  padding: 4px 2px 0;
-}
-
+/* 做题页「问 AI」带到用户消息气泡上方的题目小卡。 */
 .problem-chat-card {
-  display: inline-flex;
+  display: flex;
+  width: fit-content;
   min-width: 0;
-  max-width: min(420px, 100%);
+  max-width: 100%;
   align-items: center;
   gap: 8px;
+  margin: 0 0 6px auto;
   padding: 5px 6px 5px 5px;
   border: 1px solid rgb(var(--marble-purple-rgb) / 28%);
   border-radius: var(--radius-sm);
@@ -51,34 +46,4 @@
   line-height: 1.3;
   white-space: nowrap;
   text-overflow: ellipsis;
-}
-
-.problem-chat-card button {
-  display: inline-flex;
-  flex: none;
-  align-items: center;
-  gap: 3px;
-  height: 26px;
-  padding: 0 9px 0 7px;
-  border: 0;
-  border-radius: 999px;
-  background: rgb(15 23 42 / 6%);
-  color: #475569;
-  font: inherit;
-  font-size: 12px;
-  font-weight: 550;
-  cursor: pointer;
-}
-
-.problem-chat-card button:hover {
-  background: rgb(15 23 42 / 11%);
-  color: #0f172a;
-}
-
-/* 气泡里的那张：独占一行，压在文字上面。 */
-.problem-chat-card:not(.is-pending) {
-  display: flex;
-  width: fit-content;
-  max-width: 100%;
-  margin: 0 0 6px auto;
 }

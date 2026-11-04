@@ -348,21 +348,15 @@ function ChatMessageContent({
   );
 }
 
-/** 做题页「问 AI」带过来的题：输入框上方可移除，消息气泡上方只展示。 */
-function ProblemChatCardChip({ title, onRemove }: { title: string; onRemove?: () => void }) {
+/** 用户消息附带的练习题。 */
+function ProblemChatCardChip({ title }: { title: string }) {
   return (
-    <span className={`problem-chat-card${onRemove ? ' is-pending' : ''}`} title={title}>
+    <span className="problem-chat-card" title={title}>
       <img src={marbleImages.purple} alt="" />
       <span className="problem-chat-card-text">
         <small>正在做的题</small>
         <strong>{title}</strong>
       </span>
-      {onRemove ? (
-        <button type="button" onClick={onRemove} aria-label={`移除题目 ${title}`}>
-          <X size={12} />
-          移除
-        </button>
-      ) : null}
     </span>
   );
 }
@@ -814,7 +808,7 @@ type CourseWorkspaceProps = {
   onNewChat?: () => void;
   onOpenProblemBank: () => void;
   onOpenPractice: (launch: ProblemBankLaunch, onReturn?: () => void) => void;
-  /** 做题页「问 AI」交过来的题：挂到输入框上方，快捷提问立刻发出。 */
+  /** 做题页「问 AI」交过来的题，随聊天请求发送。 */
   problemChatRequest?: ProblemChatRequest | null;
   onProblemChatHandled?: (id: number) => void;
   onWorkspaceChanged: () => Promise<void>;
@@ -5066,7 +5060,7 @@ export function CourseWorkspace({
     ],
   );
 
-  // 快捷提问和教程里的默认问题：草稿、题目卡片就绪后立刻发送。
+  // 快捷提问和教程里的默认问题：草稿就绪后立刻发送。
   useEffect(() => {
     if (autoSendTick) composerFormRef.current?.requestSubmit();
   }, [autoSendTick]);
@@ -5871,14 +5865,6 @@ export function CourseWorkspace({
         </div>
 
         <footer className="conversation-composer-footer">
-          {attachedProblem ? (
-            <div className="composer-problem-strip">
-              <ProblemChatCardChip
-                title={attachedProblem.title}
-                onRemove={() => setAttachedProblem(null)}
-              />
-            </div>
-          ) : null}
           {pendingImages.length || pendingFiles.length ? (
             <div className="composer-image-strip" aria-label="待发送的附件">
               {pendingImages.map((image) => (
