@@ -1,0 +1,54 @@
+{
+  "at": "2026-11-04T02:58:32.474Z",
+  "origin": "https://native-api-staging-staging-95a1.up.railway.app",
+  "deploymentId": "e4727bf6-50f9-4e67-a70d-df8a6d4d1dd9",
+  "previousDeploymentId": "6755793b-0644-4edc-91d8-cb94fabcd31b",
+  "branch": "codex/staging-next",
+  "status": "deployed",
+  "health": true,
+  "revision": "11161ea722bf578a07a75dcaae189f3bafe06a34",
+  "assets": [
+    {
+      "path": "/native-web/assets/index-DFM8xVyx.js",
+      "sha256": "929e96396f89c36f80799c4ac01e4fdf71727980675ad7b93953c193560fc328",
+      "matched": true
+    },
+    {
+      "path": "/native-web/assets/index-DRVh5Ewq.css",
+      "sha256": "c71936bcb8a363c2df6066cb2ca15e1921c7c037c2ee899e3dd313f81c073b85",
+      "matched": true
+    }
+  ],
+  "courses": [
+    {
+      "campus": "UTSG",
+      "count": 228,
+      "loops": 119
+    },
+    {
+      "campus": "UTM",
+      "count": 228,
+      "loops": 119
+    }
+  ],
+  "sameCourseOrder": true,
+  "changes": [
+    "Practice shortcuts send once after the course chat is ready and keep the problem context.",
+    "Learning tabs use tinted animated glass and minimized practice uses the animated restore marble.",
+    "Published course question order flows through the platform API, browser cache and native SQLite.",
+    "Opt-in device authentication for loopback Vite chat preview. The hosted app uses its existing session."
+  ],
+  "verification": {
+    "fullBuild": true,
+    "lintAndTypes": true,
+    "isolatedPostgres": "Existing 191 visible items are excluded from the pending count; drafts, publication, and question order verified.",
+    "sqlite": "Existing questions survive migration and order roundtrips through archive and sync storage.",
+    "localBrowser": "Changed tabs, rendered and restored the practice marble, and received a streamed staging reply after a single shortcut POST.",
+    "racketJudge": true,
+    "unchangedBaselineChecks": "Two legacy course answer source assertions fail on both a1fc4b12 and the release candidate."
+  },
+  "migrations": "Railway found 55 PostgreSQL migrations and none pending. SQLite migration ships with future native builds.",
+  "productionChanged": false,
+  "nativeInstallersRebuilt": false,
+  "unpublishedCourseContent": "CSC108 transition exercises are still drafts; this release shows the previously published question order."
+}
