@@ -73,6 +73,7 @@ export async function GET(request: NextRequest) {
             ? 'public'
             : meta?.visibility,
         organizationName: meta?.organizationName ?? null,
+        contentVersion: meta?.contentVersion,
         hasUpdate: meta?.hasUpdate ?? false,
         updateSummary: meta?.updateSummary ?? '',
         updatedAt: course.updatedAt.toISOString(),

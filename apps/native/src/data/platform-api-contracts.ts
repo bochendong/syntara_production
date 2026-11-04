@@ -390,6 +390,7 @@ export interface NativePlatformCourse {
   visibility?: 'public' | 'private';
   /** 从商城加入的机构课程才有。 */
   organizationName?: string | null;
+  contentVersion?: number;
   /** 机构发布了新版、自己还没打开看过。 */
   hasUpdate?: boolean;
   /** 「+3 题，改了 1 篇笔记」这样的更新摘要；没有更新时为空。 */

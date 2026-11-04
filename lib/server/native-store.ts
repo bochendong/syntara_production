@@ -164,16 +164,22 @@ export async function joinNativeStoreCourse(
   return result;
 }
 
-/** 打开加入的机构课程后熄灭「有更新」；自己建的课程没有这一步。 */
-export async function markNativeCourseSeen(prisma: PrismaClient, userId: string, courseId: string) {
-  if ((await findCourseAccessRole(prisma, userId, courseId)) !== 'enrolled') return false;
-  await markCourseEnrollmentSeen(prisma, userId, courseId);
+/** 只更新当前用户的报名记录。已报名的老师也可以确认看过新版。 */
+export async function markNativeCourseSeen(
+  prisma: PrismaClient,
+  userId: string,
+  courseId: string,
+  contentVersion?: number,
+) {
+  if (!(await findCourseAccessRole(prisma, userId, courseId))) return false;
+  await markCourseEnrollmentSeen(prisma, userId, courseId, contentVersion);
   return true;
 }
 
 export type NativeCourseStoreMeta = {
   organizationName: string | null;
   visibility: 'public' | 'private';
+  contentVersion: number;
   hasUpdate: boolean;
   /** 「+3 题，改了 1 篇笔记」；发布新版但说不出具体变化时为空串 */
   updateSummary: string;
@@ -217,6 +223,7 @@ export async function loadNativeCourseStoreMeta(
         {
           organizationName: course.organization?.name ?? null,
           visibility: course.organizationId || course.listedInCourseStore ? 'public' : 'private',
+          contentVersion: course.contentVersion,
           hasUpdate: seenVersion !== undefined && seenVersion < course.contentVersion,
           updateSummary: formatCourseUpdateSummary(summaries.get(course.id)),
         },

@@ -176,3 +176,44 @@ test('browser profile and navigation storage remain account scoped and preview s
   );
   assert.equal(preview.accountStorageKey('profile'), 'profile');
 });
+
+test('an acknowledged course update stays dismissed after reload and stale sync', async (t) => {
+  const runtimeUrl = moduleUrl(compile(read('apps/native/src/data/browser-runtime.ts')));
+  const metaUrl = moduleUrl(
+    compile(read('apps/native/src/lib/platform-course-meta.ts')).replace(
+      "'../data/browser-runtime'",
+      JSON.stringify(runtimeUrl),
+    ),
+  );
+  const { setBrowserAccount } = await import(runtimeUrl);
+  const originalStorage = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
+  const storage = new Map();
+  Object.defineProperty(globalThis, 'localStorage', {
+    configurable: true,
+    value: {
+      getItem: (key) => storage.get(key) ?? null,
+      setItem: (key, value) => storage.set(key, value),
+    },
+  });
+  t.after(() => {
+    if (originalStorage) Object.defineProperty(globalThis, 'localStorage', originalStorage);
+    else delete globalThis.localStorage;
+  });
+
+  const course = { id: 'csc108', accessRole: 'enrolled', hasUpdate: true, contentVersion: 12 };
+  setBrowserAccount('learner-a');
+  const initial = await import(metaUrl);
+  initial.savePlatformCourseMeta([course]);
+  assert.equal(initial.readPlatformCourseMeta()[course.id].hasUpdate, true);
+  initial.clearPlatformCourseUpdate(course.id);
+
+  const reloaded = await import(metaUrl + '#reload');
+  reloaded.savePlatformCourseMeta([course]);
+  assert.equal(reloaded.readPlatformCourseMeta()[course.id].hasUpdate, false);
+  reloaded.savePlatformCourseMeta([{ ...course, contentVersion: 13 }]);
+  assert.equal(reloaded.readPlatformCourseMeta()[course.id].hasUpdate, true);
+
+  setBrowserAccount('learner-b');
+  reloaded.savePlatformCourseMeta([course]);
+  assert.equal(reloaded.readPlatformCourseMeta()[course.id].hasUpdate, true);
+});

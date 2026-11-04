@@ -436,21 +436,25 @@ export async function removeCourseEnrollmentForUser(
 /**
  * 打开机构课程时记下已看到的版本，用来熄灭「有更新」弹珠。
  * 之前看到的版本记进 newSinceVersion：比它新的公有内容继续挂「新」弹珠，直到下一版。
+ * 旧客户端不传版本号时沿用原行为，记下当前最新版本。
  */
 export async function markCourseEnrollmentSeen(
   db: DbClient,
   userId: string,
   courseId: string,
+  contentVersion?: number,
 ): Promise<void> {
-  await ensureCourseEnrollmentTable(db);
-  await db.$executeRaw`
+  await withCourseEnrollmentSchemaFallback(
+    db,
+    () => db.$executeRaw`
     UPDATE "CourseEnrollment" e
     SET "newSinceVersion" = e."seenContentVersion",
-      "seenContentVersion" = c."contentVersion"
+      "seenContentVersion" = LEAST(c."contentVersion", ${contentVersion ?? null}::integer)
     FROM "Course" c
     WHERE c."id" = e."courseId"
       AND e."userId" = ${userId}
       AND e."courseId" = ${courseId}
-      AND e."seenContentVersion" < c."contentVersion"
-  `;
+      AND e."seenContentVersion" < LEAST(c."contentVersion", ${contentVersion ?? null}::integer)
+  `,
+  );
 }

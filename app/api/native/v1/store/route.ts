@@ -254,7 +254,12 @@ const actionSchema = z.union([
   }),
   z.object({
     courseId: z.string().trim().min(1).max(200),
-    action: z.enum(['join', 'seen', 'release']),
+    action: z.literal('seen'),
+    contentVersion: z.number().int().min(1).max(2147483647).optional(),
+  }),
+  z.object({
+    courseId: z.string().trim().min(1).max(200),
+    action: z.enum(['join', 'release']),
     answers: z
       .record(z.string().max(60), z.string().max(500))
       .refine((value) => Object.keys(value).length <= 8)
@@ -392,10 +397,15 @@ async function postStore(request: NextRequest, requestId: string) {
     const release = await releaseCourseVersion(prisma, courseId, principal.userId);
     return publicApiSuccess(requestId, { ...release, text: formatCourseUpdateSummary(release) });
   }
-  if (action === 'seen') {
+  if (parsed.data.action === 'seen') {
     return publicApiSuccess(requestId, {
       courseId,
-      seen: await markNativeCourseSeen(prisma, principal.userId, courseId),
+      seen: await markNativeCourseSeen(
+        prisma,
+        principal.userId,
+        courseId,
+        parsed.data.contentVersion,
+      ),
     });
   }
   const joined = await joinNativeStoreCourse(

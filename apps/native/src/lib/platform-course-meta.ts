@@ -1,3 +1,4 @@
+import { browserAccountId } from '../data/browser-runtime';
 import type { NativePlatformCourse } from '../data/platform-api-contracts';
 
 /**
@@ -8,6 +9,8 @@ export type PlatformCourseMeta = {
   accessRole: NativePlatformCourse['accessRole'];
   visibility?: NativePlatformCourse['visibility'];
   organizationName: string | null;
+  contentVersion?: number;
+  seenContentVersion?: number;
   hasUpdate: boolean;
   /** 「+3 题，改了 1 篇笔记」；打开课程时在聊天上方亮一下。 */
   updateSummary?: string | null;
@@ -20,7 +23,7 @@ const listeners = new Set<() => void>();
 
 export function readPlatformCourseMeta(): Record<string, PlatformCourseMeta> {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(`${STORAGE_KEY}:${browserAccountId()}`);
     const parsed: unknown = raw ? JSON.parse(raw) : {};
     return parsed && typeof parsed === 'object'
       ? (parsed as Record<string, PlatformCourseMeta>)
@@ -32,7 +35,7 @@ export function readPlatformCourseMeta(): Record<string, PlatformCourseMeta> {
 
 function write(next: Record<string, PlatformCourseMeta>) {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    localStorage.setItem(`${STORAGE_KEY}:${browserAccountId()}`, JSON.stringify(next));
   } catch {
     /* 存不下时只是少了标记，课程照常可用。 */
   }
@@ -40,21 +43,30 @@ function write(next: Record<string, PlatformCourseMeta>) {
 }
 
 export function savePlatformCourseMeta(courses: NativePlatformCourse[]) {
+  const previous = readPlatformCourseMeta();
   write(
     Object.fromEntries(
-      courses.map((course) => [
-        course.id,
-        {
-          accessRole: course.accessRole,
-          visibility:
-            course.visibility ??
-            (course.accessRole === 'enrolled' || course.organizationName ? 'public' : undefined),
-          organizationName: course.organizationName ?? null,
-          hasUpdate: Boolean(course.hasUpdate),
-          updateSummary: course.updateSummary || null,
-          avatarUrl: course.avatarUrl || null,
-        },
-      ]),
+      courses.map((course) => {
+        const seenContentVersion = previous[course.id]?.seenContentVersion;
+        return [
+          course.id,
+          {
+            accessRole: course.accessRole,
+            visibility:
+              course.visibility ??
+              (course.accessRole === 'enrolled' || course.organizationName ? 'public' : undefined),
+            organizationName: course.organizationName ?? null,
+            contentVersion: course.contentVersion,
+            seenContentVersion,
+            hasUpdate:
+              Boolean(course.hasUpdate) &&
+              (course.contentVersion === undefined ||
+                course.contentVersion > (seenContentVersion ?? 0)),
+            updateSummary: course.updateSummary || null,
+            avatarUrl: course.avatarUrl || null,
+          },
+        ];
+      }),
     ),
   );
 }
@@ -62,8 +74,16 @@ export function savePlatformCourseMeta(courses: NativePlatformCourse[]) {
 /** 打开过这门课后先在本机熄灭更新弹珠，服务器那边由调用方告知。 */
 export function clearPlatformCourseUpdate(courseId: string) {
   const current = readPlatformCourseMeta();
-  if (!current[courseId]?.hasUpdate) return;
-  write({ ...current, [courseId]: { ...current[courseId], hasUpdate: false } });
+  const course = current[courseId];
+  if (!course?.hasUpdate) return;
+  write({
+    ...current,
+    [courseId]: {
+      ...course,
+      hasUpdate: false,
+      seenContentVersion: course.contentVersion ?? course.seenContentVersion,
+    },
+  });
 }
 
 export function subscribePlatformCourseMeta(listener: () => void) {
