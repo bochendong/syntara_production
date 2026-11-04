@@ -1,0 +1,48 @@
+{
+  "at": "2026-11-04T07:18:47.647Z",
+  "status": "deployed",
+  "branch": "codex/staging-next",
+  "baselineBranch": "codex/staging-baseline",
+  "deploymentId": "06c5d13b-81cc-4594-8023-3c6cca0639c1",
+  "origin": "https://native-api-staging-staging-95a1.up.railway.app",
+  "health": true,
+  "revision": "80f2aefeb775cc5259f1768dcd750148e88ef792",
+  "assets": [
+    {
+      "path": "/native-web/assets/index-BlZvLX-2.js",
+      "sha256": "36f5da425312d16b416fab739c784abfbf9bd177488ff10bcbbf797aab5ec9c4",
+      "matched": true
+    },
+    {
+      "path": "/native-web/assets/index-B45LZ_w7.css",
+      "sha256": "3eec026961ffaf0c01d2283645492fb44531668dceb63f3b9d61ae025f7f335f",
+      "matched": true
+    }
+  ],
+  "source": {
+    "branch": "codex/admin-console-local",
+    "head": "41d909cc",
+    "localPathsIntegrated": 36,
+    "integration": "Port the unique working-tree changes onto staging, retaining newer staging behavior."
+  },
+  "changes": [
+    "Teacher preparation, historical lesson imports, and live and ended classroom flows.",
+    "Student browsing and review of classroom sessions.",
+    "Session-scoped submission attribution, quota, and retry deduplication."
+  ],
+  "migrations": [
+    {
+      "id": "20261104120000_class_session_lifecycle",
+      "status": "applied",
+      "at": "2026-11-04T07:18:21.647Z"
+    }
+  ],
+  "verification": {
+    "formatLintAndTypes": true,
+    "productionBuild": true,
+    "isolatedPostgres": "Fresh migration, historic upgrade with overlapping sessions, permissions, concurrent starts, and session-scoped submission and retry.",
+    "fixtureBrowser": "Teacher opens a prepared lesson and starts class. Student opens a past lesson.",
+    "authenticatedApi": "Read teaching course list, classroom overview, and class sessions.",
+    "liveBrowser": "Opened an existing class from 我的班级 and verified the 备课 and 从往届导入 controls."
+  }
+}
