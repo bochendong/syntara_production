@@ -880,13 +880,18 @@ export function ProblemPracticePage({
           if (!(await isPlatformCourse(repository, currentProblem.courseId))) {
             throw new Error('这道代码题需要连接课程服务器才能提交和判分。');
           }
-          const attemptId = pendingCodeSubmission(currentProblem.id, submittedAnswer.code.trim());
+          const attemptId = pendingCodeSubmission(
+            currentProblem.id,
+            submittedAnswer.code.trim(),
+            launch.classSessionId,
+          );
           const reply = await gradeNativeCode({
             courseId: currentProblem.courseId,
             problemId: currentProblem.id,
             attemptId,
             code: submittedAnswer.code,
             language,
+            classSessionId: launch.classSessionId,
           });
           if (
             (!reply.saved && !reply.preview) ||
@@ -1001,10 +1006,16 @@ export function ProblemPracticePage({
                   aiGradingError,
                 },
               });
-        if (serverCodeId) clearPendingCodeSubmission(currentProblem.id, serverCodeId);
+        if (serverCodeId)
+          clearPendingCodeSubmission(currentProblem.id, serverCodeId, launch.classSessionId);
         // Persist/sync even if the learner changed questions while grading.
         if (!serverCodeId && !codePreview)
-          void queueProblemAttempt(repository, currentProblem.courseId, saved.attempt);
+          void queueProblemAttempt(
+            repository,
+            currentProblem.courseId,
+            saved.attempt,
+            launch.classSessionId,
+          );
         if (sequence !== snapshotSequence.current) return;
         setDocument(saved.document);
         setSubmissionNotice(submissionFeedback([grade]));
@@ -1041,6 +1052,7 @@ export function ProblemPracticePage({
       stem,
       publicContent,
       structuredRacket,
+      launch.classSessionId,
     ],
   );
 
@@ -1272,9 +1284,12 @@ export function ProblemPracticePage({
             parts: results,
           },
         });
-        void queueProblemAttempt(repository, currentProblem.courseId, saved.attempt).catch(
-          () => undefined,
-        );
+        void queueProblemAttempt(
+          repository,
+          currentProblem.courseId,
+          saved.attempt,
+          launch.classSessionId,
+        ).catch(() => undefined);
         if (sequence !== snapshotSequence.current) return;
         setDocument(saved.document);
         setSubmissionNotice(
@@ -1333,6 +1348,7 @@ export function ProblemPracticePage({
       statuses,
       submitting,
       snapshotBusy,
+      launch.classSessionId,
     ],
   );
 

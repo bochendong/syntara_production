@@ -6,19 +6,16 @@ import {
   type CSSProperties,
   type FormEvent,
 } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Bell,
+  Check,
   ChevronRight,
   Copy,
-  Eye,
-  Lock,
-  LockOpen,
+  Download,
   Plus,
   RefreshCw,
-  RotateCcw,
   Search,
-  Square,
-  Trash2,
   UserPlus,
   X,
 } from 'lucide-react';
@@ -29,31 +26,29 @@ import {
   getTeachClaimableCourses,
   releaseTeachCourse,
   type TeachClaimableCourse,
+  createTeachDraft,
   getTeachClass,
   getTeachHome,
-  getTeachProblemChoices,
-  getTeachSession,
+  getTeachImportSources,
   openTeachClass,
   startTeachSession,
   teachClassAction,
-  teachSessionAction,
-  type TeachAttemptStatus,
   type TeachClass,
   type TeachHome,
-  type TeachProblemChoice,
-  type TeachSession,
+  type TeachImportClass,
 } from '../data/platform-api-client';
-import { marbleImages } from '../lib/learning-action-marbles';
 import { readLoginIntent } from '../lib/login-intent';
 import { GlassSkeletonRows } from './GlassLoadMore';
 import { PhoneConfirm, PhoneEmpty, PhonePage } from './PhonePages';
 import './teach-page.css';
 import { TeachCourseView } from './TeachCourseView';
+import { TeachSessionView } from './TeachSessionView';
 import { CoursePublishDialog } from './CoursePublishDialog';
+import { clock, courseLabel, Legend, Marble, problemName, STATUS, usePolled } from './teach-shared';
 
 /**
  * 「教学」页（网页版、iPad、电脑 App；手机没有）：老师的班级和上课。
- * 一门课每学期一个班。上课时给出 6 位课堂码，发出的题只统计这节课在场的人。
+ * 一门课每学期一个班，一个班有很多节课：可以提前备课，也可以直接开始。
  */
 
 type View =
@@ -62,82 +57,6 @@ type View =
   | { kind: 'claim' }
   | { kind: 'class'; classId: string }
   | { kind: 'session'; sessionId: string; classId: string | null };
-
-const STATUS: Record<TeachAttemptStatus | 'none', { label: string; marble: string | null }> = {
-  passed: { label: '对了', marble: marbleImages.green },
-  partial: { label: '部分对', marble: marbleImages.amber },
-  failed: { label: '错了', marble: marbleImages.pink },
-  error: { label: '出错', marble: marbleImages.pink },
-  pending: { label: '待批改', marble: marbleImages.blue },
-  none: { label: '没交', marble: null },
-};
-
-function Marble({ status, size = 22 }: { status: TeachAttemptStatus | 'none'; size?: number }) {
-  const marble = STATUS[status].marble;
-  return marble ? (
-    <img className="tp-marble" src={marble} alt="" style={{ width: size, height: size }} />
-  ) : (
-    <span className="tp-marble is-empty" style={{ width: size, height: size }} aria-hidden />
-  );
-}
-
-function Legend() {
-  return (
-    <div className="tp-legend" aria-hidden>
-      {(['passed', 'partial', 'failed', 'pending', 'none'] as const).map((status) => (
-        <span key={status}>
-          <Marble status={status} size={14} />
-          {STATUS[status].label}
-        </span>
-      ))}
-    </div>
-  );
-}
-
-function problemName(problem: { number: number | null; title: string }) {
-  return problem.number ? `${problem.number}. ${problem.title}` : problem.title;
-}
-
-function courseLabel(course: { courseCode: string | null; name: string }) {
-  return course.name.trim() || course.courseCode?.trim() || '';
-}
-
-function clock(timestamp: number) {
-  return new Date(timestamp).toLocaleString('zh-CN', {
-    month: 'numeric',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
-
-/** 读一次，之后静默刷新（页面在后台时不刷）。 */
-function usePolled<T>(load: () => Promise<T>, intervalMs: number) {
-  const [data, setData] = useState<T | null>(null);
-  const [error, setError] = useState('');
-  // load 要是稳定的函数（模块函数或 useCallback），换了就重新读。
-  const reload = useCallback(async () => {
-    try {
-      setData(await load());
-      setError('');
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : '读取失败');
-    }
-  }, [load]);
-  useEffect(() => {
-    const first = window.setTimeout(() => void reload(), 0);
-    const timer = intervalMs
-      ? window.setInterval(() => {
-          if (document.visibilityState === 'visible') void reload();
-        }, intervalMs)
-      : 0;
-    return () => {
-      window.clearTimeout(first);
-      if (timer) window.clearInterval(timer);
-    };
-  }, [intervalMs, reload]);
-  return { data, setData, error, setError, reload };
-}
 
 export function TeachPage({
   onBack,
@@ -622,11 +541,9 @@ function TeachClassView({
 }) {
   const load = useCallback(() => getTeachClass(classId), [classId]);
   const { data, setData, error, setError } = usePolled<TeachClass>(load, 20_000);
-  const [email, setEmail] = useState('');
+  const [tab, setTab] = useState<'sessions' | 'students'>('sessions');
   const [busy, setBusy] = useState('');
-  const [chapterId, setChapterId] = useState('all');
-  const [showVisitors, setShowVisitors] = useState(false);
-  const [removing, setRemoving] = useState<{ userId: string; name: string } | null>(null);
+  const [importing, setImporting] = useState(false);
   const [copied, setCopied] = useState(false);
 
   const act = async (key: string, run: () => Promise<TeachClass>) => {
@@ -641,51 +558,22 @@ function TeachClassView({
     }
   };
 
-  const chapters = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const problem of data?.problems ?? []) {
-      if (problem.chapter) map.set(problem.chapter.id, problem.chapter.name);
-    }
-    return [...map.entries()];
-  }, [data?.problems]);
-  const problems = useMemo(
-    () =>
-      (data?.problems ?? []).filter(
-        (problem) => chapterId === 'all' || problem.chapter?.id === chapterId,
-      ),
-    [chapterId, data?.problems],
-  );
-  const progress = useMemo(
-    () => new Map((data?.progress ?? []).map((row) => [`${row.userId}:${row.problemId}`, row])),
-    [data?.progress],
-  );
-  const students = [
-    ...(data?.roster ?? []).map((person) => ({ ...person, visitor: false })),
-    ...(showVisitors ? (data?.visitors ?? []) : []).map((person) => ({ ...person, visitor: true })),
-  ];
-  const live = data?.sessions.find((session) => session.status === 'live');
-
-  const start = async () => {
-    if (live) return onOpenSession(live.id);
-    setBusy('start');
+  const open = async (key: string, run: () => Promise<{ sessionId: string }>) => {
+    setBusy(key);
+    setError('');
     try {
-      onOpenSession((await startTeachSession(classId)).sessionId);
+      onOpenSession((await run()).sessionId);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : '开课失败');
+      setError(cause instanceof Error ? cause.message : '操作失败');
       setBusy('');
     }
   };
 
-  const addMember = (event: FormEvent) => {
-    event.preventDefault();
-    const value = email.trim();
-    if (!value) return;
-    void act('add', async () => {
-      const next = await teachClassAction({ action: 'add-member', classId, email: value });
-      setEmail('');
-      return next;
-    });
-  };
+  const sessions = data?.sessions ?? [];
+  const live = sessions.find((session) => session.status === 'live');
+  const drafts = sessions.filter((session) => session.status === 'draft').reverse();
+  const past = sessions.filter((session) => session.status === 'ended');
+  const nextNumber = Math.max(0, ...sessions.map((session) => session.number)) + 1;
 
   return (
     <PhonePage
@@ -733,161 +621,309 @@ function TeachClassView({
                     <RefreshCw size={15} aria-hidden />
                   </button>
                 </span>
-                <p>学生输一次就进本学期的班</p>
               </div>
               <button
                 type="button"
                 className="tp-start"
                 disabled={busy === 'start'}
-                onClick={() => void start()}
+                onClick={() =>
+                  live
+                    ? onOpenSession(live.id)
+                    : void open('start', () => startTeachSession(classId))
+                }
               >
-                {live ? '回到课堂' : '开始上课'}
+                {live ? `回到第 ${live.number} 节` : `开始第 ${nextNumber} 节`}
               </button>
             </section>
 
-            <form className="phone-search tp-add" onSubmit={addMember}>
-              <UserPlus size={17} aria-hidden />
-              <input
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-                type="email"
-                placeholder="用邮箱把学生拉进班"
-                aria-label="学生邮箱"
-              />
-              {email ? (
-                <button type="submit" className="tp-add-submit" disabled={busy === 'add'}>
-                  添加
-                </button>
-              ) : null}
-            </form>
+            <div className="ts-tabs" role="group" aria-label="班级内容">
+              <button
+                type="button"
+                aria-pressed={tab === 'sessions'}
+                onClick={() => setTab('sessions')}
+              >
+                节课
+              </button>
+              <button
+                type="button"
+                aria-pressed={tab === 'students'}
+                onClick={() => setTab('students')}
+              >
+                学生 {data.roster.length}
+              </button>
+            </div>
 
-            <div className="tp-section-head">
-              <p className="phone-group-title">
-                答题 · {data.roster.length} 人 · {problems.length} 题
-              </p>
-              <div className="tp-filters">
-                {chapters.length ? (
-                  <select
-                    value={chapterId}
-                    onChange={(event) => setChapterId(event.target.value)}
-                    aria-label="章节"
-                  >
-                    <option value="all">全部章节</option>
-                    {chapters.map(([id, name]) => (
-                      <option key={id} value={id}>
-                        {name}
-                      </option>
-                    ))}
-                  </select>
-                ) : null}
-                {data.visitors.length ? (
+            {tab === 'sessions' ? (
+              <>
+                {live ? (
                   <button
                     type="button"
-                    aria-pressed={showVisitors}
-                    onClick={() => setShowVisitors((value) => !value)}
+                    className="tl-banner tp-live-row"
+                    onClick={() => onOpenSession(live.id)}
                   >
-                    旁听 {data.visitors.length}
+                    <span className="tl-dot" aria-hidden />
+                    正在上课 · 第 {live.number} 节 · {live.participantCount} 人在场
+                    <ChevronRight size={16} aria-hidden />
                   </button>
                 ) : null}
-              </div>
-            </div>
-            {students.length ? (
-              <div className="phone-group tp-grid-card">
-                <div className="tp-grid-scroll">
-                  <table className="tp-grid">
-                    <thead>
-                      <tr>
-                        <th className="tp-grid-name" />
-                        {problems.map((problem) => (
-                          <th key={problem.id} title={problemName(problem)}>
-                            {problem.number ?? '·'}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {students.map((student) => {
-                        const done = problems.filter((problem) =>
-                          progress.has(`${student.userId}:${problem.id}`),
-                        ).length;
-                        return (
-                          <tr key={student.userId}>
-                            <th className="tp-grid-name">
-                              <span>
-                                <strong>{student.name}</strong>
-                                <small>
-                                  {student.visitor ? '旁听 · ' : ''}
-                                  {done}/{problems.length}
-                                </small>
-                              </span>
-                              {!student.visitor ? (
-                                <button
-                                  type="button"
-                                  className="tp-remove"
-                                  aria-label={`把 ${student.name} 移出班级`}
-                                  onClick={() =>
-                                    setRemoving({ userId: student.userId, name: student.name })
-                                  }
-                                >
-                                  <X size={13} aria-hidden />
-                                </button>
-                              ) : null}
-                            </th>
-                            {problems.map((problem) => {
-                              const row = progress.get(`${student.userId}:${problem.id}`);
-                              return (
-                                <td
-                                  key={problem.id}
-                                  title={`${problemName(problem)} · ${STATUS[row?.status ?? 'none'].label}${
-                                    row ? ` · ${row.attemptedCount} 次` : ''
-                                  }`}
-                                >
-                                  <Marble status={row?.status ?? 'none'} size={20} />
-                                </td>
-                              );
-                            })}
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-                <Legend />
-              </div>
-            ) : (
-              <PhoneEmpty title="名单还是空的" hint="把班级码发给学生，或者用邮箱拉人。" />
-            )}
 
-            {data.sessions.length ? (
-              <>
-                <p className="phone-group-title">上过的课</p>
-                <div className="phone-group">
-                  {data.sessions.map((session) => (
-                    <button
-                      key={session.id}
-                      type="button"
-                      className="phone-row"
-                      onClick={() => onOpenSession(session.id)}
-                    >
-                      <span className="tp-course-copy">
-                        <strong>{clock(session.startedAt)}</strong>
-                        <small>
-                          {session.participantCount} 人 · {session.itemCount} 题
-                        </small>
-                      </span>
-                      {session.status === 'live' ? (
-                        <span className="tp-live-pill">上课中</span>
-                      ) : (
-                        <ChevronRight size={16} className="tp-chevron" aria-hidden />
-                      )}
+                <div className="tp-section-head">
+                  <p className="phone-group-title">备课</p>
+                  <div className="tp-session-tools">
+                    <button type="button" className="ts-pill" onClick={() => setImporting(true)}>
+                      <Download size={14} aria-hidden />
+                      从往届导入
                     </button>
-                  ))}
+                    <button
+                      type="button"
+                      className="ts-pill"
+                      disabled={busy === 'draft'}
+                      onClick={() => void open('draft', () => createTeachDraft(classId))}
+                    >
+                      <Plus size={15} aria-hidden />
+                      新建
+                    </button>
+                  </div>
                 </div>
+                {drafts.length ? (
+                  <div className="phone-group">
+                    {drafts.map((session) => (
+                      <div key={session.id} className="tp-session-row">
+                        <button
+                          type="button"
+                          className="phone-row"
+                          onClick={() => onOpenSession(session.id)}
+                        >
+                          <span className="tp-course-copy">
+                            <strong>第 {session.number} 节</strong>
+                            <small>{session.itemCount} 题</small>
+                          </span>
+                          <ChevronRight size={16} className="tp-chevron" aria-hidden />
+                        </button>
+                        {!live ? (
+                          <button
+                            type="button"
+                            className="ts-pill is-primary"
+                            disabled={busy === `start:${session.id}`}
+                            onClick={() =>
+                              void open(`start:${session.id}`, () =>
+                                startTeachSession(classId, session.id),
+                              )
+                            }
+                          >
+                            开始
+                          </button>
+                        ) : null}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="tp-quiet">还没有备课</p>
+                )}
+
+                {past.length ? (
+                  <>
+                    <p className="phone-group-title">上过的课</p>
+                    <div className="phone-group">
+                      {past.map((session) => (
+                        <button
+                          key={session.id}
+                          type="button"
+                          className="phone-row"
+                          onClick={() => onOpenSession(session.id)}
+                        >
+                          <span className="tp-course-copy">
+                            <strong>第 {session.number} 节</strong>
+                            <small>
+                              {session.startedAt ? `${clock(session.startedAt)} · ` : ''}
+                              {session.participantCount} 人 · {session.itemCount} 题
+                            </small>
+                          </span>
+                          <ChevronRight size={16} className="tp-chevron" aria-hidden />
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                ) : null}
               </>
-            ) : null}
+            ) : (
+              <ClassStudents classId={classId} data={data} busy={busy} act={act} />
+            )}
           </>
         ) : null}
       </div>
+      {importing ? (
+        <ImportSessionsDialog
+          classId={classId}
+          onClose={() => setImporting(false)}
+          onImported={(next) => {
+            setData(next);
+            setImporting(false);
+          }}
+        />
+      ) : null}
+    </PhonePage>
+  );
+}
+
+function ClassStudents({
+  classId,
+  data,
+  busy,
+  act,
+}: {
+  classId: string;
+  data: TeachClass;
+  busy: string;
+  act: (key: string, run: () => Promise<TeachClass>) => Promise<void>;
+}) {
+  const [email, setEmail] = useState('');
+  const [chapterId, setChapterId] = useState('all');
+  const [showVisitors, setShowVisitors] = useState(false);
+  const [removing, setRemoving] = useState<{ userId: string; name: string } | null>(null);
+  const chapters = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const problem of data.problems) {
+      if (problem.chapter) map.set(problem.chapter.id, problem.chapter.name);
+    }
+    return [...map.entries()];
+  }, [data.problems]);
+  const problems = useMemo(
+    () =>
+      data.problems.filter((problem) => chapterId === 'all' || problem.chapter?.id === chapterId),
+    [chapterId, data.problems],
+  );
+  const progress = useMemo(
+    () => new Map(data.progress.map((row) => [`${row.userId}:${row.problemId}`, row])),
+    [data.progress],
+  );
+  const students = [
+    ...data.roster.map((person) => ({ ...person, visitor: false })),
+    ...(showVisitors ? data.visitors : []).map((person) => ({ ...person, visitor: true })),
+  ];
+  const addMember = (event: FormEvent) => {
+    event.preventDefault();
+    const value = email.trim();
+    if (!value) return;
+    void act('add', async () => {
+      const next = await teachClassAction({ action: 'add-member', classId, email: value });
+      setEmail('');
+      return next;
+    });
+  };
+  return (
+    <>
+      <form className="phone-search tp-add" onSubmit={addMember}>
+        <UserPlus size={17} aria-hidden />
+        <input
+          value={email}
+          onChange={(event) => setEmail(event.target.value)}
+          type="email"
+          placeholder="用邮箱把学生拉进班"
+          aria-label="学生邮箱"
+        />
+        {email ? (
+          <button type="submit" className="tp-add-submit" disabled={busy === 'add'}>
+            添加
+          </button>
+        ) : null}
+      </form>
+      <div className="tp-section-head">
+        <p className="phone-group-title">
+          答题 · {data.roster.length} 人 · {problems.length} 题
+        </p>
+        <div className="tp-filters">
+          {chapters.length ? (
+            <select
+              value={chapterId}
+              onChange={(event) => setChapterId(event.target.value)}
+              aria-label="章节"
+            >
+              <option value="all">全部章节</option>
+              {chapters.map(([id, name]) => (
+                <option key={id} value={id}>
+                  {name}
+                </option>
+              ))}
+            </select>
+          ) : null}
+          {data.visitors.length ? (
+            <button
+              type="button"
+              aria-pressed={showVisitors}
+              onClick={() => setShowVisitors((value) => !value)}
+            >
+              旁听 {data.visitors.length}
+            </button>
+          ) : null}
+        </div>
+      </div>
+      {students.length ? (
+        <div className="phone-group tp-grid-card">
+          <div className="tp-grid-scroll">
+            <table className="tp-grid">
+              <thead>
+                <tr>
+                  <th className="tp-grid-name" />
+                  {problems.map((problem) => (
+                    <th key={problem.id} title={problemName(problem)}>
+                      {problem.number ?? '·'}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {students.map((student) => {
+                  const done = problems.filter((problem) =>
+                    progress.has(`${student.userId}:${problem.id}`),
+                  ).length;
+                  return (
+                    <tr key={student.userId}>
+                      <th className="tp-grid-name">
+                        <span>
+                          <strong>{student.name}</strong>
+                          <small>
+                            {student.visitor ? '旁听 · ' : ''}
+                            {done}/{problems.length}
+                          </small>
+                        </span>
+                        {!student.visitor ? (
+                          <button
+                            type="button"
+                            className="tp-remove"
+                            aria-label={`把 ${student.name} 移出班级`}
+                            onClick={() =>
+                              setRemoving({ userId: student.userId, name: student.name })
+                            }
+                          >
+                            <X size={13} aria-hidden />
+                          </button>
+                        ) : null}
+                      </th>
+                      {problems.map((problem) => {
+                        const row = progress.get(`${student.userId}:${problem.id}`);
+                        return (
+                          <td
+                            key={problem.id}
+                            title={`${problemName(problem)} · ${STATUS[row?.status ?? 'none'].label}${
+                              row ? ` · ${row.attemptedCount} 次` : ''
+                            }`}
+                          >
+                            <Marble status={row?.status ?? 'none'} size={20} />
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <Legend />
+        </div>
+      ) : (
+        <PhoneEmpty title="名单还是空的" hint="把班级码发给学生，或者用邮箱拉人。" />
+      )}
       {removing ? (
         <PhoneConfirm
           title={`把 ${removing.name} 移出班级？`}
@@ -909,408 +945,133 @@ function TeachClassView({
           }
         />
       ) : null}
-    </PhonePage>
+    </>
   );
 }
 
-function TeachSessionView({
-  sessionId,
-  onBack,
+/** 把往届同一门课的几节课复制成备课。 */
+function ImportSessionsDialog({
+  classId,
+  onClose,
+  onImported,
 }: {
-  sessionId: string;
-  onBack: (classId: string | null) => void;
+  classId: string;
+  onClose: () => void;
+  onImported: (next: TeachClass) => void;
 }) {
-  const load = useCallback(() => getTeachSession(sessionId), [sessionId]);
-  const { data, setData, error, setError } = usePolled<TeachSession>(load, 3_000);
-  const [busy, setBusy] = useState('');
-  const [focusId, setFocusId] = useState<string | null>(null);
-  const [picker, setPicker] = useState<TeachProblemChoice[] | null>(null);
+  const [sources, setSources] = useState<TeachImportClass[] | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
-  const [query, setQuery] = useState('');
-  const [ending, setEnding] = useState(false);
-
-  const live = data?.session.status === 'live';
-  const act = async (
-    key: string,
-    payload: Parameters<typeof teachSessionAction>[0],
-  ): Promise<boolean> => {
-    setBusy(key);
-    setError('');
-    try {
-      setData(await teachSessionAction(payload));
-      return true;
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : '操作失败');
-      return false;
-    } finally {
-      setBusy('');
-    }
-  };
-
-  const openPicker = async () => {
-    try {
-      setPicker(await getTeachProblemChoices(sessionId));
-      setSelected([]);
-      setQuery('');
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : '读取题目失败');
-    }
-  };
-
-  const focus =
-    data?.items.find((item) => item.id === focusId) ??
-    [...(data?.items ?? [])].reverse().find((item) => !item.closedAt) ??
-    data?.items.at(-1) ??
-    null;
-  const results = new Map(focus?.results.map((row) => [row.userId, row]) ?? []);
-  const present = data?.participants.length ?? 0;
-  const pushed = new Set(data?.items.map((item) => item.problemId) ?? []);
-  const choices = (picker ?? []).filter((problem) => {
-    const text = query.trim().toLowerCase();
-    return (
-      !text ||
-      problemName(problem).toLowerCase().includes(text) ||
-      Boolean(problem.chapter?.name.toLowerCase().includes(text))
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  useEffect(() => {
+    let alive = true;
+    getTeachImportSources(classId)
+      .then((rows) => {
+        if (alive) setSources(rows);
+      })
+      .catch((cause) => {
+        if (alive) setError(cause instanceof Error ? cause.message : '读取失败');
+      });
+    return () => {
+      alive = false;
+    };
+  }, [classId]);
+  const toggleAll = (source: TeachImportClass, on: boolean) => {
+    const ids = source.sessions.map((session) => session.id);
+    setSelected((current) =>
+      on ? [...new Set([...current, ...ids])] : current.filter((id) => !ids.includes(id)),
     );
-  });
-
-  return (
-    <PhonePage
-      title={data ? courseLabel(data.session.course) : '上课'}
-      overlay
-      wide
-      largeTitle
-      onBack={() => onBack(data?.session.class.id ?? null)}
-    >
-      <div className="tp-page">
-        <header className="phone-large-head tp-head">
-          <h1>{live ? '上课中' : '课堂回看'}</h1>
-          {data ? <span className="tp-term">{courseLabel(data.session.course)}</span> : null}
-        </header>
-        {error ? <p className="phone-page-error">{error}</p> : null}
-        {!data && !error ? <GlassSkeletonRows rows={4} height={54} /> : null}
-        {data ? (
-          <>
-            <section className="tp-stage">
-              <div className="tp-stage-code">
-                {live ? (
-                  <>
-                    <small>课堂码</small>
-                    <strong>{data.session.code}</strong>
-                    <p>
-                      {data.session.locked
-                        ? '已锁门，只有本班的人还能进'
-                        : '本班的人点一下就进，其他人输这 6 位数字'}
-                    </p>
-                  </>
-                ) : (
-                  <>
-                    <small>已下课</small>
-                    <strong className="is-ended">{clock(data.session.startedAt)}</strong>
-                  </>
-                )}
-              </div>
-              <div className="tp-stage-count">
-                <strong>{present}</strong>
-                <small>在场 · 名单 {data.session.class.rosterCount}</small>
-              </div>
-              {live ? (
-                <div className="tp-stage-actions">
-                  <button
-                    type="button"
-                    disabled={busy === 'lock'}
-                    onClick={() =>
-                      void act('lock', { action: 'lock', sessionId, locked: !data.session.locked })
-                    }
-                  >
-                    {data.session.locked ? (
-                      <LockOpen size={15} aria-hidden />
-                    ) : (
-                      <Lock size={15} aria-hidden />
-                    )}
-                    {data.session.locked ? '开门' : '锁门'}
-                  </button>
-                  <button type="button" className="is-end" onClick={() => setEnding(true)}>
-                    <Square size={14} aria-hidden />
-                    下课
+  };
+  return createPortal(
+    <div className="phone-confirm-layer tp-sheet-layer" role="presentation">
+      <button
+        type="button"
+        className="phone-confirm-backdrop"
+        aria-label="关闭"
+        onClick={onClose}
+      />
+      <section className="tp-sheet" role="dialog" aria-modal="true" aria-label="从往届导入">
+        <header className="tp-sheet-title">从往届导入</header>
+        <div className="tp-sheet-list">
+          {error ? <p className="phone-page-error">{error}</p> : null}
+          {!sources && !error ? <GlassSkeletonRows rows={4} height={44} /> : null}
+          {sources && !sources.length ? <PhoneEmpty title="没有往届的课" hint="" /> : null}
+          {sources?.map((source) => {
+            const allOn = source.sessions.every((session) => selected.includes(session.id));
+            return (
+              <section key={source.classId} className="tp-import-term">
+                <div className="tp-import-head">
+                  <strong>{source.label}</strong>
+                  <button type="button" onClick={() => toggleAll(source, !allOn)}>
+                    {allOn ? '全不选' : '全选'}
                   </button>
                 </div>
-              ) : null}
-            </section>
-
-            <div className="tp-board">
-              <section>
-                <div className="tp-section-head">
-                  <p className="phone-group-title">发出的题</p>
-                  {live ? (
-                    <button type="button" className="tp-get-pill" onClick={() => void openPicker()}>
-                      <Plus size={14} aria-hidden />
-                      发题
+                {source.sessions.map((session) => {
+                  const checked = selected.includes(session.id);
+                  return (
+                    <button
+                      key={session.id}
+                      type="button"
+                      className="phone-row tp-choice"
+                      aria-pressed={checked}
+                      onClick={() =>
+                        setSelected((current) =>
+                          checked
+                            ? current.filter((id) => id !== session.id)
+                            : [...current, session.id],
+                        )
+                      }
+                    >
+                      <span className="tp-check" aria-hidden />
+                      <span className="tp-course-copy">
+                        <strong>
+                          第 {session.number} 节 · {session.itemCount} 题
+                        </strong>
+                        <small>{session.titles.join('、')}</small>
+                      </span>
                     </button>
-                  ) : null}
-                </div>
-                {data.items.length ? (
-                  <div className="phone-group">
-                    {data.items.map((item) => (
-                      <button
-                        key={item.id}
-                        type="button"
-                        className="phone-row tp-item"
-                        aria-pressed={focus?.id === item.id}
-                        onClick={() => setFocusId(item.id)}
-                      >
-                        <span className="tp-course-copy">
-                          <strong>{problemName(item)}</strong>
-                          <small>
-                            {item.closedAt ? '已收卷' : '作答中'} · 交了 {item.submittedCount}/
-                            {present}
-                          </small>
-                        </span>
-                        <span className="tp-meter" aria-hidden>
-                          <i
-                            className="is-passed"
-                            style={{ width: `${(item.passedCount / Math.max(present, 1)) * 100}%` }}
-                          />
-                          <i
-                            className="is-other"
-                            style={{
-                              width: `${((item.submittedCount - item.passedCount) / Math.max(present, 1)) * 100}%`,
-                            }}
-                          />
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                ) : (
-                  <PhoneEmpty
-                    title={live ? '还没发题' : '这节课没有发题'}
-                    hint={
-                      live
-                        ? '点「发题」，从题库里挑题发给在场的人。'
-                        : '下次上课时可以从题库里发题。'
-                    }
-                  />
-                )}
+                  );
+                })}
               </section>
-
-              <section className="tp-focus">
-                {focus ? (
-                  <>
-                    <div className="tp-section-head">
-                      <p className="phone-group-title">{problemName(focus)}</p>
-                      <div className="tp-focus-actions">
-                        {live ? (
-                          focus.closedAt ? (
-                            <button
-                              type="button"
-                              onClick={() =>
-                                void act('reopen', {
-                                  action: 'reopen',
-                                  sessionId,
-                                  itemId: focus.id,
-                                })
-                              }
-                            >
-                              <RotateCcw size={14} aria-hidden />
-                              继续作答
-                            </button>
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={() =>
-                                void act('close', { action: 'close', sessionId, itemId: focus.id })
-                              }
-                            >
-                              <Square size={13} aria-hidden />
-                              收卷
-                            </button>
-                          )
-                        ) : null}
-                        {focus.answerRevealedAt ? (
-                          <span className="tp-revealed">已公布答案</span>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() =>
-                              void act('reveal', { action: 'reveal', sessionId, itemId: focus.id })
-                            }
-                          >
-                            <Eye size={14} aria-hidden />
-                            公布答案
-                          </button>
-                        )}
-                        {live && !focus.submittedCount ? (
-                          <button
-                            type="button"
-                            aria-label="撤回这道题"
-                            onClick={() =>
-                              void act('remove', { action: 'remove', sessionId, itemId: focus.id })
-                            }
-                          >
-                            <Trash2 size={14} aria-hidden />
-                          </button>
-                        ) : null}
-                      </div>
-                    </div>
-                    <div className="tp-stats">
-                      <div>
-                        <strong>
-                          {focus.submittedCount}
-                          <small>/{present}</small>
-                        </strong>
-                        <span>已交</span>
-                      </div>
-                      <div>
-                        <strong>
-                          {focus.submittedCount
-                            ? `${Math.round((focus.passedCount / focus.submittedCount) * 100)}%`
-                            : '—'}
-                        </strong>
-                        <span>正确率</span>
-                      </div>
-                      <div>
-                        <strong>{Math.max(0, present - focus.submittedCount)}</strong>
-                        <span>没交</span>
-                      </div>
-                    </div>
-                    <div className="tp-people">
-                      {data.participants.map((person) => {
-                        const row = results.get(person.userId);
-                        const status = row?.status ?? 'none';
-                        return (
-                          <div key={person.userId} className="tp-person" data-status={status}>
-                            <Marble status={status} size={26} />
-                            <span>
-                              <strong>{person.name}</strong>
-                              <small>
-                                {STATUS[status].label}
-                                {row && row.attempts > 1 ? ` · ${row.attempts} 次` : ''}
-                              </small>
-                            </span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                    <Legend />
-                  </>
-                ) : (
-                  <>
-                    <p className="phone-group-title">在场的人</p>
-                    {data.participants.length ? (
-                      <div className="tp-people">
-                        {data.participants.map((person) => (
-                          <div key={person.userId} className="tp-person">
-                            <Marble status="none" size={26} />
-                            <span>
-                              <strong>{person.name}</strong>
-                              <small>{person.via === 'code' ? '旁听' : '本班'}</small>
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <PhoneEmpty
-                        title="还没有人进来"
-                        hint="让学生在网页版、iPad 或电脑 App 里点「上课」，输课堂码。"
-                      />
-                    )}
-                  </>
-                )}
-              </section>
-            </div>
-          </>
-        ) : null}
-      </div>
-
-      {picker ? (
-        <div className="phone-confirm-layer tp-sheet-layer" role="presentation">
+            );
+          })}
+        </div>
+        <footer className="tp-sheet-foot">
+          <button type="button" className="phone-confirm-button" onClick={onClose}>
+            取消
+          </button>
           <button
             type="button"
-            className="phone-confirm-backdrop"
-            aria-label="关闭"
-            onClick={() => setPicker(null)}
-          />
-          <section className="tp-sheet" role="dialog" aria-modal="true" aria-label="发题">
-            <label className="phone-search tp-sheet-search">
-              <Search size={17} aria-hidden />
-              <input
-                autoFocus
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="搜题号、题目或章节"
-                type="search"
-              />
-            </label>
-            <div className="tp-sheet-list">
-              {choices.map((problem) => {
-                const checked = selected.includes(problem.id);
-                return (
-                  <button
-                    key={problem.id}
-                    type="button"
-                    className="phone-row tp-choice"
-                    aria-pressed={checked}
-                    onClick={() =>
-                      setSelected((current) =>
-                        checked
-                          ? current.filter((id) => id !== problem.id)
-                          : [...current, problem.id],
-                      )
-                    }
-                  >
-                    <span className="tp-check" aria-hidden />
-                    <span className="tp-course-copy">
-                      <strong>{problemName(problem)}</strong>
-                      <small>
-                        {problem.chapter?.name ?? '未分章节'}
-                        {pushed.has(problem.id) ? ' · 发过，再发会重新计时' : ''}
-                      </small>
-                    </span>
-                  </button>
+            className="phone-confirm-button is-primary"
+            disabled={!selected.length || busy}
+            onClick={async () => {
+              setBusy(true);
+              setError('');
+              try {
+                onImported(
+                  await teachClassAction({
+                    action: 'import-sessions',
+                    classId,
+                    sessionIds: selected,
+                  }),
                 );
-              })}
-              {!choices.length ? <PhoneEmpty title="没有找到题目" hint="换个关键词试试。" /> : null}
-            </div>
-            <footer className="tp-sheet-foot">
-              <button
-                type="button"
-                className="phone-confirm-button"
-                onClick={() => setPicker(null)}
-              >
-                取消
-              </button>
-              <button
-                type="button"
-                className="phone-confirm-button is-primary"
-                disabled={!selected.length || busy === 'push'}
-                onClick={async () => {
-                  if (await act('push', { action: 'push', sessionId, problemIds: selected })) {
-                    setPicker(null);
-                    setFocusId(null);
-                  }
-                }}
-              >
-                {selected.length ? `发出 ${selected.length} 题` : '发题'}
-              </button>
-            </footer>
-          </section>
-        </div>
-      ) : null}
-
-      {ending ? (
-        <PhoneConfirm
-          title="下课？"
-          message="课堂码会失效，还没收的题会自动收卷。"
-          confirmLabel="下课"
-          destructive
-          busy={busy === 'end'}
-          onCancel={() => setEnding(false)}
-          onConfirm={async () => {
-            await act('end', { action: 'end', sessionId });
-            setEnding(false);
-          }}
-        />
-      ) : null}
-    </PhonePage>
+              } catch (cause) {
+                setError(cause instanceof Error ? cause.message : '导入失败');
+                setBusy(false);
+              }
+            }}
+          >
+            {selected.length ? (
+              <>
+                <Check size={15} aria-hidden /> 导入 {selected.length} 节
+              </>
+            ) : (
+              '导入'
+            )}
+          </button>
+        </footer>
+      </section>
+    </div>,
+    document.body,
   );
 }

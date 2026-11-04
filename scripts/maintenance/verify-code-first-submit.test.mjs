@@ -117,6 +117,7 @@ function harness({ description = '', secretExpected = 3, memoryFails = false } =
   };
   const route = loadSource('app/api/native/v1/problem-code/route.ts', {
     zod: require('zod'),
+    '@/lib/server/class-session-attempts': { classSessionForAttempt: async () => null },
     'next/server': { NextResponse },
     '@/features/problems/server/judge': {
       judgeNotebookCodeProblem: async (args) => {

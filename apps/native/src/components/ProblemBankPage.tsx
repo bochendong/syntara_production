@@ -43,6 +43,7 @@ import {
   removeCourseContent,
   useCourseLayers,
 } from '../lib/course-layers';
+import { TeachLiveBanner, TeachSessionToggle, useTeachLiveCourse } from './TeachLiveBar';
 import './course-pages.css';
 import { localizeProblem, type ProblemContentLanguage } from '../lib/problem-language';
 
@@ -54,6 +55,8 @@ export type ProblemBankLaunch = {
   numbers?: Record<string, number>;
   /** 这一组题的名字（章节名 / 错题重练）。 */
   title?: string;
+  /** 从课堂入口进来：这组题的提交记到这节课上。 */
+  classSessionId?: string;
 };
 
 type ProblemBankPageProps = {
@@ -298,6 +301,17 @@ export function ProblemBankPage({
   const layers = useCourseLayers(courseId);
   const [menuTarget, setMenuTarget] = useState<LayerMenuTarget | null>(null);
   const lastAttemptAt = useLastAttemptTimes(courseId, workspace.problems);
+  const teachLive = useTeachLiveCourse(courseId);
+  /** 上课时每道已发布的公有题多一个「加入这节课」。 */
+  const sessionToggleFor = (problem: LocalProblem) =>
+    teachLive.live && problem.status === 'published' && !isPrivateProblem(layers, problem.id) ? (
+      <TeachSessionToggle
+        added={teachLive.live.problemIds.includes(problem.id)}
+        busy={teachLive.busy === problem.id}
+        onToggle={() => void teachLive.toggle(problem.id)}
+      />
+    ) : null;
+  const liveBanner = <TeachLiveBanner live={teachLive.live} error={teachLive.error} />;
   useEffect(() => {
     if (layered) void refreshCourseLayers(courseId).catch(() => undefined);
   }, [courseId, layered]);
@@ -739,6 +753,7 @@ export function ProblemBankPage({
         <BankHeader title={openChapter.title} subtitle={courseLabel} onBack={onBack} />
         <div className="pb-scroll">
           <div className="pb-column">
+            {liveBanner}
             <div className="pb-chapter-head" style={accentVars(openChapter.color)}>
               {chapters.length > 1 || openChapter.key === ALL_CHAPTERS ? (
                 <button
@@ -753,7 +768,12 @@ export function ProblemBankPage({
               <ChapterMarble chapter={openChapter} />
               <strong>{openChapter.title}</strong>
               <ChapterTube chapter={openChapter} />
-              <div className="pb-view-toggle" role="group" aria-label="显示方式">
+              <div
+                className="pb-view-toggle"
+                role="group"
+                aria-label="显示方式"
+                hidden={Boolean(teachLive.live)}
+              >
                 <button
                   type="button"
                   className={view === 'grid' ? 'is-active' : ''}
@@ -804,7 +824,7 @@ export function ProblemBankPage({
               <div className="pb-chapter-main">
                 {sheetProblems.length === 0 ? (
                   <LearningEmptyState title="没有找到题目" />
-                ) : view === 'grid' ? (
+                ) : view === 'grid' && !teachLive.live ? (
                   <>
                     <div className="pb-sheet" role="list">
                       {sheetProblems.map((problem, index) => (
@@ -849,6 +869,7 @@ export function ProblemBankPage({
                       {sheetProblems.slice(0, listCount).map((problem, index) => (
                         <li
                           key={problem.id}
+                          className={sessionToggleFor(problem) ? 'tl-has-action' : undefined}
                           style={{ animationDelay: `${Math.min(index, 12) * 24}ms` }}
                         >
                           <LayerItem label={problem.title} onMore={moreFor(problem)}>
@@ -860,6 +881,7 @@ export function ProblemBankPage({
                               onClick={() => practice(problem)}
                             />
                           </LayerItem>
+                          {sessionToggleFor(problem)}
                         </li>
                       ))}
                     </ol>
@@ -916,6 +938,7 @@ export function ProblemBankPage({
       <BankHeader title="题库" subtitle={courseLabel} onBack={onBack} />
       <div className="pb-scroll">
         <div className="pb-column">
+          {liveBanner}
           {filterBar}
           {hasFilters ? (
             <div className="pb-filter-result" role="status">
@@ -957,6 +980,7 @@ export function ProblemBankPage({
                       {searchResults.slice(0, searchCount).map((problem, index) => (
                         <li
                           key={problem.id}
+                          className={sessionToggleFor(problem) ? 'tl-has-action' : undefined}
                           style={{ animationDelay: `${Math.min(index, 12) * 24}ms` }}
                         >
                           <LayerItem label={problem.title} onMore={moreFor(problem)}>
@@ -970,6 +994,7 @@ export function ProblemBankPage({
                               }}
                             />
                           </LayerItem>
+                          {sessionToggleFor(problem)}
                         </li>
                       ))}
                     </ol>

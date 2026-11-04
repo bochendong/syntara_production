@@ -127,6 +127,7 @@ type ProblemAttemptRow = {
   resultJson: unknown;
   activeDurationMs: number | null;
   timingSource: string | null;
+  classSessionId?: string | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -391,6 +392,7 @@ function mapAttemptRow(row: ProblemAttemptRow): NotebookProblemAttemptRecord {
     result: row.resultJson ?? undefined,
     activeDurationMs: row.activeDurationMs,
     timingSource: row.timingSource,
+    classSessionId: row.classSessionId ?? null,
     createdAt: row.createdAt.getTime(),
     updatedAt: row.updatedAt.getTime(),
   });
@@ -3586,6 +3588,8 @@ export async function createNotebookProblemAttempt(args: {
   timingSource?: string | null;
   /** Ungraded learning snapshots retain the learner's assessed progress and counts. */
   preserveProgress?: boolean;
+  /** Set only for a verified submission from a classroom entry. */
+  classSessionId?: string | null;
 }): Promise<NotebookProblemAttemptRecord> {
   // mapAttemptRow validates again after commit. Reject invalid payloads before
   // persistence so a response failure cannot leave a saved, counted submission.
@@ -3604,6 +3608,7 @@ export async function createNotebookProblemAttempt(args: {
         resultJson: args.result ? toPrismaJson(args.result) : undefined,
         activeDurationMs: args.activeDurationMs ?? null,
         timingSource: args.timingSource ?? null,
+        classSessionId: args.classSessionId ?? null,
       },
     });
 
@@ -3696,6 +3701,7 @@ export async function hasPassedPublicCodeRun(args: {
   return run?.status === 'passed';
 }
 
+/** 平时提交的次数。课堂入口的提交（带 classSessionId）不占这个名额。 */
 export async function countNotebookProblemSubmissions(args: {
   userId: string;
   problemId: string;
@@ -3705,6 +3711,7 @@ export async function countNotebookProblemSubmissions(args: {
       userId: args.userId,
       problemId: args.problemId,
       kind: { in: ['submit', 'answer'] },
+      classSessionId: null,
     },
     select: { resultJson: true },
   });
@@ -3726,6 +3733,7 @@ export async function getLatestNotebookProblemSubmission(args: {
       userId: args.userId,
       problemId: args.problemId,
       kind: { in: ['submit', 'answer'] },
+      classSessionId: null,
     },
     orderBy: { createdAt: 'desc' },
     take: 200,

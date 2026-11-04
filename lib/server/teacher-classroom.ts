@@ -16,9 +16,11 @@ export { currentAcademicPeriod } from './teacher-classroom-period';
  * 老师端班级与课堂练习。
  *
  * - 一门课每学期一个班（CourseClass），班有名单（CourseClassMember）。
- * - 一节课 = ClassSession，上课时有 6 位数字课堂码。本班名单里的人点一下进，其他人输码进。
- * - 老师发题 = ClassSessionItem。统计只算在场的人在 pushedAt ~ closedAt（或下课）之间的提交，
- *   所以各端的提交接口不用改，学生在家做过同一道题也不会混进来。
+ * - 一个班有很多节课（ClassSession，第 N 节），可以提前备课（draft），同时最多一节在上（live）。
+ *   上课时有 6 位数字课堂码。本班名单里的人点一下进，其他人输码进。
+ * - 这节课的题 = ClassSessionItem，加进来学生立刻看得到。
+ * - 从课堂入口提交的作答带 classSessionId，统计只看这个标记：下课后从课堂入口再交也算这节课，
+ *   学生平时在题库做同一道题不会混进来。
  * - 「老师」不是账号属性：谁是某个班的 teacherId，谁就是这个班的老师。
  *   老师只看得到本班名单和进过本班课堂的人的个人答题。
  */
@@ -334,10 +336,11 @@ export async function getClassOverview(viewer: ClassroomViewer, classId: string)
     }),
     prisma.classSession.findMany({
       where: { classId },
-      orderBy: { startedAt: 'desc' },
-      take: 50,
+      orderBy: { number: 'desc' },
+      take: 100,
       select: {
         id: true,
+        number: true,
         status: true,
         code: true,
         startedAt: true,
@@ -418,9 +421,10 @@ export async function getClassOverview(viewer: ClassroomViewer, classId: string)
     visitors: visitors.map(person),
     sessions: sessions.map((session) => ({
       id: session.id,
+      number: session.number,
       status: session.status,
       code: session.code,
-      startedAt: session.startedAt.getTime(),
+      startedAt: session.startedAt?.getTime() ?? null,
       endedAt: session.endedAt?.getTime() ?? null,
       participantCount: session._count.participants,
       itemCount: session._count.items,
@@ -481,24 +485,198 @@ export async function resetClassJoinCode(viewer: ClassroomViewer, classId: strin
 }
 
 /* ------------------------------------------------------------------ */
-/* 老师：上课                                                           */
+/* 老师：备课和上课                                                     */
 /* ------------------------------------------------------------------ */
 
-/** 开始上课。本班已经有一节在上的课就直接回到那节。 */
-export async function startClassSession(viewer: ClassroomViewer, classId: string) {
-  await loadClassForTeacher(viewer, classId);
-  const live = await prisma.classSession.findFirst({
-    where: { classId, status: 'live' },
-    select: { id: true },
+async function nextSessionNumber(classId: string) {
+  const last = await prisma.classSession.aggregate({
+    where: { classId },
+    _max: { number: true },
   });
-  if (live) return live.id;
-  const created = await withUniqueRetry(() =>
+  return (last._max.number ?? 0) + 1;
+}
+
+/**
+ * 开始上课：不用先选题。传 sessionId 就让那节备好的课开始，否则新开一节。
+ * 每个班最多一节在上的课：同一节再点回到那节，换一节要先下课。
+ */
+export async function startClassSession(
+  viewer: ClassroomViewer,
+  classId: string,
+  draftSessionId?: string,
+) {
+  await loadClassForTeacher(viewer, classId);
+  const findLive = () =>
+    prisma.classSession.findFirst({
+      where: { classId, status: 'live' },
+      select: { id: true },
+    });
+  const live = await findLive();
+  if (live) {
+    if (draftSessionId && draftSessionId !== live.id) {
+      throw new ClassroomError(409, '还有一节课没下课。');
+    }
+    return live.id;
+  }
+  try {
+    return await withUniqueRetry(async () => {
+      if (draftSessionId) {
+        const updated = await prisma.classSession.updateMany({
+          where: { id: draftSessionId, classId, status: 'draft' },
+          data: {
+            status: 'live',
+            code: generateSessionCode(),
+            startedAt: new Date(),
+            teacherId: viewer.userId,
+          },
+        });
+        if (!updated.count) {
+          const current = await findLive();
+          if (current?.id === draftSessionId) return draftSessionId;
+          if (current) throw new ClassroomError(409, '还有一节课没下课。');
+          throw new ClassroomError(404, '没有找到这节课。');
+        }
+        return draftSessionId;
+      }
+      const created = await prisma.classSession.create({
+        data: {
+          classId,
+          teacherId: viewer.userId,
+          number: await nextSessionNumber(classId),
+          status: 'live',
+          code: generateSessionCode(),
+          startedAt: new Date(),
+        },
+        select: { id: true },
+      });
+      return created.id;
+    });
+  } catch (error) {
+    // 同时点了两次「开始」：回到已经开始的那节。
+    if (!isUniqueConstraintError(error)) throw error;
+    const raced = await findLive();
+    if (!raced) throw error;
+    if (draftSessionId && draftSessionId !== raced.id) {
+      throw new ClassroomError(409, '还有一节课没下课。');
+    }
+    return raced.id;
+  }
+}
+
+/** 提前备一节课：有序的题单，上课时再开始。 */
+export async function createDraftSession(viewer: ClassroomViewer, classId: string) {
+  await loadClassForTeacher(viewer, classId);
+  const created = await withUniqueRetry(async () =>
     prisma.classSession.create({
-      data: { classId, teacherId: viewer.userId, code: generateSessionCode() },
+      data: {
+        classId,
+        teacherId: viewer.userId,
+        number: await nextSessionNumber(classId),
+        status: 'draft',
+      },
       select: { id: true },
     }),
   );
   return created.id;
+}
+
+/** 同一门课之前学期、我带的班（管理员看全部）里有题的课，可以导入成这学期的备课。 */
+export async function listImportableSessions(viewer: ClassroomViewer, classId: string) {
+  const cls = await loadClassForTeacher(viewer, classId);
+  const classes = await prisma.courseClass.findMany({
+    where: {
+      courseId: cls.courseId,
+      id: { not: classId },
+      ...(isAdmin(viewer) ? {} : { teacherId: viewer.userId }),
+    },
+    orderBy: [{ academicYear: 'desc' }, { academicTerm: 'desc' }],
+    select: {
+      id: true,
+      academicYear: true,
+      academicTerm: true,
+      sessions: {
+        where: { items: { some: {} } },
+        orderBy: { number: 'asc' },
+        select: {
+          id: true,
+          number: true,
+          items: {
+            orderBy: { position: 'asc' },
+            select: { problem: { select: { title: true } } },
+          },
+        },
+      },
+    },
+  });
+  return classes
+    .filter((source) => source.sessions.length)
+    .map((source) => ({
+      classId: source.id,
+      label: academicTermLabel(source.academicYear, source.academicTerm as AcademicTerm),
+      sessions: source.sessions.map((session) => ({
+        id: session.id,
+        number: session.number,
+        itemCount: session.items.length,
+        titles: session.items.slice(0, 3).map((item) => item.problem.title),
+      })),
+    }));
+}
+
+/** 把往届的几节课照着题单复制成这学期的备课，之后可以再增删题。已下架的题不带过来。 */
+export async function importSessionsAsDrafts(
+  viewer: ClassroomViewer,
+  classId: string,
+  sessionIds: string[],
+) {
+  const cls = await loadClassForTeacher(viewer, classId);
+  const sources = await prisma.classSession.findMany({
+    where: {
+      id: { in: sessionIds },
+      class: {
+        courseId: cls.courseId,
+        id: { not: classId },
+        ...(isAdmin(viewer) ? {} : { teacherId: viewer.userId }),
+      },
+    },
+    orderBy: [{ class: { academicYear: 'asc' } }, { number: 'asc' }],
+    select: {
+      items: {
+        where: { problem: { status: 'published', ownerId: null } },
+        orderBy: { position: 'asc' },
+        select: { problemId: true },
+      },
+    },
+  });
+  if (!sources.length) throw new ClassroomError(404, '没有找到可以导入的课。');
+  return withUniqueRetry(() =>
+    prisma.$transaction(async (tx) => {
+      const last = await tx.classSession.aggregate({
+        where: { classId },
+        _max: { number: true },
+      });
+      let number = (last._max.number ?? 0) + 1;
+      const created: string[] = [];
+      for (const source of sources) {
+        const session = await tx.classSession.create({
+          data: {
+            classId,
+            teacherId: viewer.userId,
+            number: number++,
+            status: 'draft',
+            items: {
+              create: source.items.map((item, index) => ({
+                problemId: item.problemId,
+                position: index + 1,
+              })),
+            },
+          },
+          select: { id: true },
+        });
+        created.push(session.id);
+      }
+      return created;
+    }),
+  );
 }
 
 async function loadSessionForTeacher(viewer: ClassroomViewer, sessionId: string) {
@@ -523,11 +701,9 @@ async function loadSessionForTeacher(viewer: ClassroomViewer, sessionId: string)
 }
 
 export type ClassSessionAction =
-  | { action: 'push'; problemIds: string[] }
-  | { action: 'close'; itemId: string }
-  | { action: 'reopen'; itemId: string }
-  | { action: 'reveal'; itemId: string }
-  | { action: 'remove'; itemId: string }
+  | { action: 'add'; problemIds: string[] }
+  | { action: 'remove'; problemId: string }
+  | { action: 'reorder'; problemIds: string[] }
   | { action: 'lock'; locked: boolean }
   | { action: 'end' };
 
@@ -537,12 +713,12 @@ export async function applyClassSessionAction(
   input: ClassSessionAction,
 ) {
   const session = await loadSessionForTeacher(viewer, sessionId);
-  if (session.status !== 'live' && input.action !== 'reveal') {
-    throw new ClassroomError(409, '这节课已经下课了。');
+  if (session.status === 'ended') throw new ClassroomError(409, '这节课已经下课了。');
+  if ((input.action === 'lock' || input.action === 'end') && session.status !== 'live') {
+    throw new ClassroomError(409, '这节课还没开始。');
   }
-  const now = new Date();
   switch (input.action) {
-    case 'push': {
+    case 'add': {
       const problems = await prisma.notebookProblem.findMany({
         where: {
           id: { in: input.problemIds },
@@ -552,50 +728,39 @@ export async function applyClassSessionAction(
         },
         select: { id: true },
       });
-      if (!problems.length) throw new ClassroomError(400, '只能发这门课里已发布的题。');
+      if (!problems.length) throw new ClassroomError(400, '只能加这门课里已发布的题。');
       const last = await prisma.classSessionItem.findFirst({
         where: { sessionId },
         orderBy: { position: 'desc' },
         select: { position: true },
       });
-      let position = (last?.position ?? 0) + 1;
-      const order = new Map(input.problemIds.map((id, index) => [id, index]));
-      for (const problem of problems.sort(
-        (a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0),
-      )) {
-        // 同一道题再发一次 = 重新开始计时
-        await prisma.classSessionItem.upsert({
-          where: { sessionId_problemId: { sessionId, problemId: problem.id } },
-          update: { pushedAt: now, closedAt: null, answerRevealedAt: null },
-          create: { sessionId, problemId: problem.id, position: position++, pushedAt: now },
-        });
-      }
-      return;
-    }
-    case 'close':
-    case 'reopen':
-    case 'reveal':
-    case 'remove': {
-      const item = await prisma.classSessionItem.findFirst({
-        where: { id: input.itemId, sessionId },
-        select: { id: true, closedAt: true },
+      const allowed = new Set(problems.map((problem) => problem.id));
+      const start = (last?.position ?? 0) + 1;
+      // 按老师点的顺序排在最后；已经在这节课里的题不动。
+      await prisma.classSessionItem.createMany({
+        data: input.problemIds
+          .filter((id, index, ids) => allowed.has(id) && ids.indexOf(id) === index)
+          .map((problemId, index) => ({ sessionId, problemId, position: start + index })),
+        skipDuplicates: true,
       });
-      if (!item) throw new ClassroomError(404, '没有找到这道题。');
-      if (input.action === 'remove') {
-        await prisma.classSessionItem.delete({ where: { id: item.id } });
-      } else {
-        await prisma.classSessionItem.update({
-          where: { id: item.id },
-          data:
-            input.action === 'close'
-              ? { closedAt: item.closedAt ?? now }
-              : input.action === 'reopen'
-                ? { closedAt: null }
-                : { answerRevealedAt: now, closedAt: item.closedAt ?? now },
-        });
-      }
       return;
     }
+    case 'remove':
+      // 提交还留着这节课的标记，题加回来统计也回来。
+      await prisma.classSessionItem.deleteMany({
+        where: { sessionId, problemId: input.problemId },
+      });
+      return;
+    case 'reorder':
+      await prisma.$transaction(
+        input.problemIds.map((problemId, index) =>
+          prisma.classSessionItem.updateMany({
+            where: { sessionId, problemId },
+            data: { position: index + 1 },
+          }),
+        ),
+      );
+      return;
     case 'lock':
       await prisma.classSession.update({
         where: { id: sessionId },
@@ -603,65 +768,22 @@ export async function applyClassSessionAction(
       });
       return;
     case 'end':
-      await prisma.$transaction([
-        prisma.classSessionItem.updateMany({
-          where: { sessionId, closedAt: null },
-          data: { closedAt: now },
-        }),
-        prisma.classSession.update({
-          where: { id: sessionId },
-          data: { status: 'ended', endedAt: now, code: null },
-        }),
-      ]);
+      await prisma.classSession.update({
+        where: { id: sessionId },
+        data: { status: 'ended', endedAt: new Date(), code: null },
+      });
       return;
   }
 }
 
-type WindowItem = { id: string; problemId: string; pushedAt: Date; closedAt: Date | null };
-
-/** 每个人每道课上题在时间窗里的最后一次提交（不算「运行」）。 */
-async function latestAttemptsInWindows(
-  items: WindowItem[],
-  userIds: string[],
-  sessionEnd: Date | null,
-) {
-  if (!items.length || !userIds.length) return new Map<string, AttemptSummary>();
-  const earliest = new Date(Math.min(...items.map((item) => item.pushedAt.getTime())));
-  const attempts = await prisma.notebookProblemAttempt.findMany({
-    where: {
-      problemId: { in: items.map((item) => item.problemId) },
-      userId: { in: userIds },
-      kind: { in: ['submit', 'answer'] },
-      createdAt: { gte: earliest },
-    },
-    orderBy: { createdAt: 'asc' },
-    select: {
-      problemId: true,
-      userId: true,
-      status: true,
-      score: true,
-      createdAt: true,
-      activeDurationMs: true,
-    },
+/** 备课可以删；上过的课不能删。 */
+export async function deleteDraftSession(viewer: ClassroomViewer, sessionId: string) {
+  const session = await loadSessionForTeacher(viewer, sessionId);
+  const deleted = await prisma.classSession.deleteMany({
+    where: { id: sessionId, status: 'draft' },
   });
-  const itemByProblem = new Map(items.map((item) => [item.problemId, item]));
-  const latest = new Map<string, AttemptSummary>();
-  for (const attempt of attempts) {
-    const item = itemByProblem.get(attempt.problemId);
-    if (!item) continue;
-    const end = item.closedAt ?? sessionEnd;
-    if (attempt.createdAt < item.pushedAt || (end && attempt.createdAt > end)) continue;
-    const key = `${item.id}:${attempt.userId}`;
-    const previous = latest.get(key);
-    latest.set(key, {
-      status: attempt.status as AttemptStatus,
-      score: attempt.score,
-      submittedAt: attempt.createdAt.getTime(),
-      attempts: (previous?.attempts ?? 0) + 1,
-      durationMs: attempt.activeDurationMs,
-    });
-  }
-  return latest;
+  if (!deleted.count) throw new ClassroomError(409, '只能删除还没开始的课。');
+  return session.classId;
 }
 
 type AttemptSummary = {
@@ -669,22 +791,85 @@ type AttemptSummary = {
   score: number | null;
   submittedAt: number;
   attempts: number;
-  durationMs: number | null;
+  attemptId: string;
 };
+
+/** 这节课里每个人每道题最后一次提交（只看带这节课标记的，不算「运行」和学习快照）。 */
+async function latestSessionAttempts(sessionId: string, userIds: string[], problemIds: string[]) {
+  const latest = new Map<string, AttemptSummary>();
+  if (!userIds.length || !problemIds.length) return latest;
+  const attempts = await prisma.notebookProblemAttempt.findMany({
+    where: {
+      classSessionId: sessionId,
+      problemId: { in: problemIds },
+      userId: { in: userIds },
+      kind: { in: ['submit', 'answer'] },
+    },
+    orderBy: { createdAt: 'asc' },
+    select: { id: true, problemId: true, userId: true, status: true, score: true, createdAt: true },
+  });
+  for (const attempt of attempts) {
+    const key = `${attempt.problemId}:${attempt.userId}`;
+    latest.set(key, {
+      status: attempt.status as AttemptStatus,
+      score: attempt.score,
+      submittedAt: attempt.createdAt.getTime(),
+      attempts: (latest.get(key)?.attempts ?? 0) + 1,
+      attemptId: attempt.id,
+    });
+  }
+  return latest;
+}
+
+function jsonRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function stringList(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((entry): entry is string => typeof entry === 'string')
+    : [];
+}
+
+/** 选择题：每个选项按每人最后一次提交统计，标出正确选项。 */
+function choiceDistribution(
+  problem: { publicContentJson: unknown; gradingJson: unknown },
+  selections: string[][],
+) {
+  const options = jsonRecord(problem.publicContentJson).options;
+  const correct = new Set(stringList(jsonRecord(problem.gradingJson).correctOptionIds));
+  return (Array.isArray(options) ? options : []).map((raw) => {
+    const option = jsonRecord(raw);
+    const id = String(option.id ?? '');
+    return {
+      id,
+      label: String(option.label ?? id),
+      count: selections.filter((selected) => selected.includes(id)).length,
+      correct: correct.has(id),
+    };
+  });
+}
+
+function personName(user: { name: string | null; email: string | null }) {
+  return user.name?.trim() || user.email?.split('@')[0] || '未命名学生';
+}
 
 export async function getClassSessionDashboard(viewer: ClassroomViewer, sessionId: string) {
   const session = await loadSessionForTeacher(viewer, sessionId);
-  const [participants, rosterCount, items] = await Promise.all([
+  const userSelect = { id: true, name: true, email: true, image: true } as const;
+  const [participants, roster, items] = await Promise.all([
     prisma.classSessionParticipant.findMany({
       where: { sessionId },
       orderBy: { joinedAt: 'asc' },
-      select: {
-        via: true,
-        joinedAt: true,
-        user: { select: { id: true, name: true, email: true, image: true } },
-      },
+      select: { via: true, joinedAt: true, user: { select: userSelect } },
     }),
-    prisma.courseClassMember.count({ where: { classId: session.classId } }),
+    prisma.courseClassMember.findMany({
+      where: { classId: session.classId },
+      orderBy: { joinedAt: 'asc' },
+      select: { user: { select: userSelect } },
+    }),
     prisma.classSessionItem.findMany({
       where: { sessionId },
       orderBy: { position: 'asc' },
@@ -693,56 +878,201 @@ export async function getClassSessionDashboard(viewer: ClassroomViewer, sessionI
         problemId: true,
         position: true,
         pushedAt: true,
-        closedAt: true,
-        answerRevealedAt: true,
-        problem: { select: { title: true, type: true, problemNumber: true, points: true } },
+        problem: {
+          select: {
+            title: true,
+            type: true,
+            problemNumber: true,
+            publicContentJson: true,
+            gradingJson: true,
+          },
+        },
       },
     }),
   ]);
-  const userIds = participants.map((participant) => participant.user.id);
-  const latest = await latestAttemptsInWindows(items, userIds, session.endedAt);
+
+  // 一行一个学生：在场的人在前，没进来的名单学生在后。
+  const present = new Set(participants.map((row) => row.user.id));
+  const students = [
+    ...participants.map((row) => ({
+      userId: row.user.id,
+      name: personName(row.user),
+      avatarUrl: row.user.image,
+      present: true,
+      via: row.via,
+      joinedAt: row.joinedAt.getTime(),
+    })),
+    ...roster
+      .filter((row) => !present.has(row.user.id))
+      .map((row) => ({
+        userId: row.user.id,
+        name: personName(row.user),
+        avatarUrl: row.user.image,
+        present: false,
+        via: 'roster',
+        joinedAt: null,
+      })),
+  ];
+  const userIds = students.map((student) => student.userId);
+  const latest = await latestSessionAttempts(
+    sessionId,
+    userIds,
+    items.map((item) => item.problemId),
+  );
+  // 选择题才读作答内容；别的题的 answerJson 可能很大（代码、照片）。
+  const choiceProblemIds = new Set(
+    items.filter((item) => item.problem.type === 'choice').map((item) => item.problemId),
+  );
+  const choiceAttemptIds = [...latest.entries()]
+    .filter(([key]) => choiceProblemIds.has(key.split(':')[0]))
+    .map(([, row]) => row.attemptId);
+  const choiceAnswers = choiceAttemptIds.length
+    ? await prisma.notebookProblemAttempt.findMany({
+        where: { id: { in: choiceAttemptIds } },
+        select: { problemId: true, answerJson: true },
+      })
+    : [];
 
   return {
     session: {
       id: session.id,
+      number: session.number,
       status: session.status,
       code: session.code,
       locked: session.locked,
-      startedAt: session.startedAt.getTime(),
+      startedAt: session.startedAt?.getTime() ?? null,
       endedAt: session.endedAt?.getTime() ?? null,
-      class: { id: session.class.id, name: session.class.name, rosterCount },
+      presentCount: participants.length,
+      class: { id: session.class.id, name: session.class.name, rosterCount: roster.length },
       course: session.class.course,
     },
-    participants: participants.map((participant) => ({
-      userId: participant.user.id,
-      name: participant.user.name?.trim() || participant.user.email?.split('@')[0] || '未命名学生',
-      avatarUrl: participant.user.image,
-      via: participant.via,
-      joinedAt: participant.joinedAt.getTime(),
-    })),
+    students,
     items: items.map((item) => {
-      const results = userIds
-        .map((userId) => ({ userId, ...latest.get(`${item.id}:${userId}`) }))
-        .filter((row): row is { userId: string } & AttemptSummary => Boolean(row.status));
+      const results = userIds.flatMap((userId) => {
+        const row = latest.get(`${item.problemId}:${userId}`);
+        return row
+          ? [
+              {
+                userId,
+                status: row.status,
+                score: row.score,
+                submittedAt: row.submittedAt,
+                attempts: row.attempts,
+              },
+            ]
+          : [];
+      });
+      const count = (...statuses: AttemptStatus[]) =>
+        results.filter((row) => statuses.includes(row.status)).length;
       return {
         id: item.id,
         problemId: item.problemId,
+        position: item.position,
         title: item.problem.title,
         type: item.problem.type,
         number: item.problem.problemNumber,
-        points: item.problem.points,
-        pushedAt: item.pushedAt.getTime(),
-        closedAt: item.closedAt?.getTime() ?? null,
-        answerRevealedAt: item.answerRevealedAt?.getTime() ?? null,
+        addedAt: item.pushedAt.getTime(),
         submittedCount: results.length,
-        passedCount: results.filter((row) => row.status === 'passed').length,
+        passedCount: count('passed'),
+        partialCount: count('partial', 'pending'),
+        failedCount: count('failed', 'error'),
+        options: choiceProblemIds.has(item.problemId)
+          ? choiceDistribution(
+              item.problem,
+              choiceAnswers
+                .filter((row) => row.problemId === item.problemId)
+                .map((row) => stringList(jsonRecord(row.answerJson).selectedOptionIds)),
+            )
+          : null,
         results,
       };
     }),
   };
 }
 
-/** 发题时挑题用：这门课已发布的公有题。 */
+/** 点弹珠看到的内容：这个学生这道题在这节课里提交过的全部答案，最新的在前。 */
+export async function getSessionStudentAnswers(
+  viewer: ClassroomViewer,
+  sessionId: string,
+  problemId: string,
+  userId: string,
+) {
+  const session = await loadSessionForTeacher(viewer, sessionId);
+  const [item, participant, member] = await Promise.all([
+    prisma.classSessionItem.findUnique({
+      where: { sessionId_problemId: { sessionId, problemId } },
+      select: { problem: { select: { points: true, publicContentJson: true } } },
+    }),
+    prisma.classSessionParticipant.findUnique({
+      where: { sessionId_userId: { sessionId, userId } },
+      select: { userId: true },
+    }),
+    prisma.courseClassMember.findUnique({
+      where: { classId_userId: { classId: session.classId, userId } },
+      select: { userId: true },
+    }),
+  ]);
+  // 老师只看得到本班名单和进过这节课的人。
+  if (!item || (!participant && !member)) throw new ClassroomError(404, '没有找到这份作答。');
+  const attempts = await prisma.notebookProblemAttempt.findMany({
+    where: { classSessionId: sessionId, problemId, userId, kind: { in: ['submit', 'answer'] } },
+    orderBy: { createdAt: 'desc' },
+    take: 50,
+    select: {
+      id: true,
+      kind: true,
+      status: true,
+      score: true,
+      answerJson: true,
+      resultJson: true,
+      createdAt: true,
+    },
+  });
+  const language = jsonRecord(item.problem.publicContentJson).language;
+  return {
+    language: typeof language === 'string' ? language : null,
+    attempts: attempts.map((attempt) => {
+      // 代码题按百分制存分，App 作答按题目分值存。
+      const scale = attempt.kind === 'submit' ? 100 : item.problem.points || 100;
+      return {
+        id: attempt.id,
+        kind: attempt.kind,
+        status: attempt.status as AttemptStatus,
+        score: attempt.score === null ? null : Math.min(1, Math.max(0, attempt.score / scale)),
+        answer: jsonRecord(attempt.answerJson),
+        result: jsonRecord(attempt.resultJson),
+        createdAt: attempt.createdAt.getTime(),
+      };
+    }),
+  };
+}
+
+/** 题库页用：这门课我正在上的那节。没有就是 null（学生也是 null）。 */
+export async function getLiveSessionForCourse(viewer: ClassroomViewer, courseId: string) {
+  const session = await prisma.classSession.findFirst({
+    where: {
+      status: 'live',
+      class: { courseId, ...(isAdmin(viewer) ? {} : { teacherId: viewer.userId }) },
+    },
+    orderBy: { startedAt: 'desc' },
+    select: {
+      id: true,
+      number: true,
+      _count: { select: { participants: true } },
+      items: { select: { problemId: true } },
+    },
+  });
+  return session
+    ? {
+        sessionId: session.id,
+        number: session.number,
+        presentCount: session._count.participants,
+        problemIds: session.items.map((item) => item.problemId),
+      }
+    : null;
+}
+
+/** 加题时挑题用：这门课已发布的公有题。 */
 export async function listSessionProblemChoices(viewer: ClassroomViewer, sessionId: string) {
   const session = await loadSessionForTeacher(viewer, sessionId);
   const problems = await prisma.notebookProblem.findMany({
@@ -838,80 +1168,111 @@ export async function joinClassroomSession(userId: string, sessionId: string) {
   return { sessionId, courseId: session.class.courseId };
 }
 
+/** 学生端最多带这么多节上过的课：下课后还能从课堂入口回去接着交。 */
+const STUDENT_PAST_SESSION_LIMIT = 12;
+
 /**
- * 学生端看到的课堂：自己进了的、正在上的课，以及本班正在上但还没点进去的课。
+ * 学生端看到的课堂：
+ * - sessions：自己进了的、正在上的课，以及本班正在上但还没点进去的课；
+ * - past：自己进过、已经下课的课。
  * 只返回自己的答题状态。
  */
 export async function getStudentClassroomState(userId: string) {
-  const sessions = await prisma.classSession.findMany({
-    where: {
-      status: 'live',
-      OR: [{ participants: { some: { userId } } }, { class: { members: { some: { userId } } } }],
-    },
-    orderBy: { startedAt: 'desc' },
-    take: 5,
-    select: {
-      id: true,
-      startedAt: true,
-      endedAt: true,
-      class: {
-        select: {
-          name: true,
-          courseId: true,
-          course: { select: { name: true, courseCode: true } },
-          teacher: { select: { name: true } },
-        },
-      },
-      participants: { where: { userId }, select: { joinedAt: true } },
-      items: {
-        orderBy: { position: 'asc' },
-        select: {
-          id: true,
-          problemId: true,
-          position: true,
-          pushedAt: true,
-          closedAt: true,
-          answerRevealedAt: true,
-          problem: { select: { title: true, type: true, problemNumber: true } },
-        },
+  const select = {
+    id: true,
+    number: true,
+    status: true,
+    startedAt: true,
+    endedAt: true,
+    class: {
+      select: {
+        name: true,
+        courseId: true,
+        course: { select: { name: true, courseCode: true } },
+        teacher: { select: { name: true } },
       },
     },
-  });
-
-  return {
-    sessions: await Promise.all(
-      sessions.map(async (session) => {
-        const joined = session.participants.length > 0;
-        const latest = joined
-          ? await latestAttemptsInWindows(session.items, [userId], session.endedAt)
-          : new Map<string, AttemptSummary>();
-        return {
-          id: session.id,
-          joined,
-          startedAt: session.startedAt.getTime(),
-          className: session.class.name,
-          courseId: session.class.courseId,
-          courseName: session.class.course.courseCode?.trim() || session.class.course.name,
-          teacherName: session.class.teacher.name?.trim() || '老师',
-          // 没进课堂之前看不到题目
-          items: joined
-            ? session.items.map((item) => {
-                const mine = latest.get(`${item.id}:${userId}`);
-                return {
-                  id: item.id,
-                  problemId: item.problemId,
-                  title: item.problem.title,
-                  type: item.problem.type,
-                  number: item.problem.problemNumber,
-                  open: !item.closedAt,
-                  answerRevealed: Boolean(item.answerRevealedAt),
-                  pushedAt: item.pushedAt.getTime(),
-                  myStatus: mine?.status ?? null,
-                };
-              })
-            : [],
-        };
-      }),
-    ),
+    participants: { where: { userId }, select: { joinedAt: true } },
+    items: {
+      orderBy: { position: 'asc' as const },
+      select: {
+        id: true,
+        problemId: true,
+        position: true,
+        pushedAt: true,
+        problem: { select: { title: true, type: true, problemNumber: true } },
+      },
+    },
   };
+  const [live, past] = await Promise.all([
+    prisma.classSession.findMany({
+      where: {
+        status: 'live',
+        OR: [{ participants: { some: { userId } } }, { class: { members: { some: { userId } } } }],
+      },
+      orderBy: { startedAt: 'desc' },
+      take: 5,
+      select,
+    }),
+    prisma.classSession.findMany({
+      where: { status: 'ended', participants: { some: { userId } } },
+      orderBy: { startedAt: 'desc' },
+      take: STUDENT_PAST_SESSION_LIMIT,
+      select,
+    }),
+  ]);
+  const joinedIds = [...live, ...past]
+    .filter((session) => session.participants.length)
+    .map((session) => session.id);
+  const attempts = joinedIds.length
+    ? await prisma.notebookProblemAttempt.findMany({
+        where: {
+          classSessionId: { in: joinedIds },
+          userId,
+          kind: { in: ['submit', 'answer'] },
+        },
+        orderBy: { createdAt: 'asc' },
+        select: { classSessionId: true, problemId: true, status: true },
+      })
+    : [];
+  const mine = new Map<string, { status: AttemptStatus; attempts: number }>();
+  for (const attempt of attempts) {
+    const key = `${attempt.classSessionId}:${attempt.problemId}`;
+    mine.set(key, {
+      status: attempt.status as AttemptStatus,
+      attempts: (mine.get(key)?.attempts ?? 0) + 1,
+    });
+  }
+  const present = (session: (typeof live)[number]) => {
+    const joined = session.participants.length > 0;
+    return {
+      id: session.id,
+      number: session.number,
+      status: session.status,
+      joined,
+      startedAt: session.startedAt?.getTime() ?? 0,
+      endedAt: session.endedAt?.getTime() ?? null,
+      className: session.class.name,
+      courseId: session.class.courseId,
+      courseName: session.class.course.courseCode?.trim() || session.class.course.name,
+      teacherName: session.class.teacher.name?.trim() || '老师',
+      // 没进课堂之前看不到题目
+      items: joined
+        ? session.items.map((item) => {
+            const row = mine.get(`${session.id}:${item.problemId}`);
+            return {
+              id: item.id,
+              problemId: item.problemId,
+              title: item.problem.title,
+              type: item.problem.type,
+              number: item.problem.problemNumber,
+              addedAt: item.pushedAt.getTime(),
+              myStatus: row?.status ?? null,
+              myAttempts: row?.attempts ?? 0,
+            };
+          })
+        : [],
+    };
+  };
+  return { sessions: live.map(present), past: past.map(present) };
 }

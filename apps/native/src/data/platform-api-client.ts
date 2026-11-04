@@ -486,6 +486,8 @@ export function gradeNativeCode(input: {
   mode?: 'submit' | 'run';
   /** mode=run：public 跑公开测试，code 直接运行整段代码 */
   target?: 'public' | 'code';
+  /** 从课堂入口提交：这节课的 id */
+  classSessionId?: string;
 }): Promise<{
   saved: boolean;
   preview?: boolean;
@@ -569,16 +571,18 @@ export type NativeClassroomItem = {
   title: string;
   type: string;
   number: number | null;
-  open: boolean;
-  answerRevealed: boolean;
-  pushedAt: number;
+  addedAt: number;
   myStatus: 'pending' | 'passed' | 'failed' | 'partial' | 'error' | null;
+  myAttempts: number;
 };
 
 export type NativeClassroomSession = {
   id: string;
+  number: number;
+  status: string;
   joined: boolean;
   startedAt: number;
+  endedAt: number | null;
   className: string;
   courseId: string;
   courseName: string;
@@ -586,12 +590,17 @@ export type NativeClassroomSession = {
   items: NativeClassroomItem[];
 };
 
-export type NativeClassroomState = { sessions: NativeClassroomSession[] };
+export type NativeClassroomState = {
+  /** 正在上的课（自己进了的，或者本班正在上的）。 */
+  sessions: NativeClassroomSession[];
+  /** 自己进过、已经下课的课；从这里回去提交还算那节课。 */
+  past: NativeClassroomSession[];
+};
 
-/** 正在上的课（自己进了的，或者本班正在上的）和老师发的题。手机端不调用。 */
+/** 手机端不调用。 */
 export async function getNativeClassroom(): Promise<NativeClassroomState> {
   const result = await invokeQuery<NativeClassroomState>('native_get_classroom', {});
-  return { sessions: result.sessions ?? [] };
+  return { sessions: result.sessions ?? [], past: result.past ?? [] };
 }
 
 /** join-code：输 6 位课堂码或班级码；join-session：本班的人点「进入课堂」。 */
@@ -647,9 +656,11 @@ export type TeachClass = {
   visitors: TeachPerson[];
   sessions: Array<{
     id: string;
+    number: number;
+    /** draft 备课 | live 上课中 | ended 已下课 */
     status: string;
     code: string | null;
-    startedAt: number;
+    startedAt: number | null;
     endedAt: number | null;
     participantCount: number;
     itemCount: number;
@@ -673,39 +684,79 @@ export type TeachClass = {
 export type TeachSession = {
   session: {
     id: string;
+    number: number;
+    /** draft 备课 | live 上课中 | ended 已下课 */
     status: string;
     code: string | null;
     locked: boolean;
-    startedAt: number;
+    startedAt: number | null;
     endedAt: number | null;
+    presentCount: number;
     class: { id: string; name: string; rosterCount: number };
     course: { id: string; name: string; courseCode: string | null };
   };
-  participants: Array<{
+  /** 表格的行：在场的人在前，没进来的名单学生在后。 */
+  students: Array<{
     userId: string;
     name: string;
     avatarUrl: string | null;
+    present: boolean;
     via: string;
-    joinedAt: number;
+    joinedAt: number | null;
   }>;
-  items: Array<{
+  /** 表格的列：这节课的题，按顺序。 */
+  items: TeachSessionItem[];
+};
+
+export type TeachSessionItem = {
+  id: string;
+  problemId: string;
+  position: number;
+  title: string;
+  type: string;
+  number: number | null;
+  addedAt: number;
+  submittedCount: number;
+  passedCount: number;
+  /** 部分对 + 待批改 */
+  partialCount: number;
+  failedCount: number;
+  /** 选择题的选项分布；别的题是 null。 */
+  options: Array<{ id: string; label: string; count: number; correct: boolean }> | null;
+  results: Array<{
+    userId: string;
+    status: TeachAttemptStatus;
+    score: number | null;
+    submittedAt: number;
+    attempts: number;
+  }>;
+};
+
+export type TeachStudentAnswers = {
+  language: string | null;
+  attempts: Array<{
     id: string;
-    problemId: string;
-    title: string;
-    type: string;
-    number: number | null;
-    pushedAt: number;
-    closedAt: number | null;
-    answerRevealedAt: number | null;
-    submittedCount: number;
-    passedCount: number;
-    results: Array<{
-      userId: string;
-      status: TeachAttemptStatus;
-      submittedAt: number;
-      attempts: number;
-    }>;
+    kind: string;
+    status: TeachAttemptStatus;
+    /** 0~1 */
+    score: number | null;
+    answer: Record<string, unknown>;
+    result: Record<string, unknown>;
+    createdAt: number;
   }>;
+};
+
+export type TeachImportClass = {
+  classId: string;
+  label: string;
+  sessions: Array<{ id: string; number: number; itemCount: number; titles: string[] }>;
+};
+
+export type TeachLiveCourse = {
+  sessionId: string;
+  number: number;
+  presentCount: number;
+  problemIds: string[];
 };
 
 export type TeachProblemChoice = {
@@ -736,14 +787,41 @@ export async function getTeachProblemChoices(sessionId: string): Promise<TeachPr
   return result.problems ?? [];
 }
 
+/** 点弹珠：这个学生这道题在这节课里提交过的全部答案，最新的在前。 */
+export function getTeachStudentAnswers(
+  sessionId: string,
+  problemId: string,
+  userId: string,
+): Promise<TeachStudentAnswers> {
+  return invokeQuery('native_get_teach', { answers: sessionId, problemId, userId });
+}
+
+/** 同一门课往届可以导入的课。 */
+export async function getTeachImportSources(classId: string): Promise<TeachImportClass[]> {
+  const result = await invokeQuery<{ classes: TeachImportClass[] }>('native_get_teach', {
+    importFor: classId,
+  });
+  return result.classes ?? [];
+}
+
+/** 题库页：这门课我正在上的那节。 */
+export async function getTeachLiveCourse(courseId: string): Promise<TeachLiveCourse | null> {
+  const result = await invokeQuery<{ live: TeachLiveCourse | null }>('native_get_teach', {
+    liveCourse: courseId,
+  });
+  return result.live ?? null;
+}
+
 type TeachClassAction =
   | { action: 'add-member'; classId: string; email: string }
   | { action: 'remove-member'; classId: string; userId: string }
-  | { action: 'reset-code'; classId: string };
+  | { action: 'reset-code'; classId: string }
+  | { action: 'import-sessions'; classId: string; sessionIds: string[] };
 
 type TeachSessionAction =
-  | { action: 'push'; sessionId: string; problemIds: string[] }
-  | { action: 'close' | 'reopen' | 'reveal' | 'remove'; sessionId: string; itemId: string }
+  | { action: 'add'; sessionId: string; problemIds: string[] }
+  | { action: 'remove'; sessionId: string; problemId: string }
+  | { action: 'reorder'; sessionId: string; problemIds: string[] }
   | { action: 'lock'; sessionId: string; locked: boolean }
   | { action: 'end'; sessionId: string };
 
@@ -782,8 +860,20 @@ export function openTeachClass(courseId: string): Promise<{ classId: string }> {
   return teachAction({ action: 'open-class', courseId });
 }
 
-export function startTeachSession(classId: string): Promise<{ sessionId: string }> {
-  return teachAction({ action: 'start-session', classId });
+/** 开始上课：不用先选题。传 sessionId 让那节备好的课开始。 */
+export function startTeachSession(
+  classId: string,
+  sessionId?: string,
+): Promise<{ sessionId: string }> {
+  return teachAction({ action: 'start-session', classId, ...(sessionId ? { sessionId } : {}) });
+}
+
+export function createTeachDraft(classId: string): Promise<{ sessionId: string }> {
+  return teachAction({ action: 'create-draft', classId });
+}
+
+export function deleteTeachDraft(sessionId: string): Promise<{ classId: string }> {
+  return teachAction({ action: 'delete-draft', sessionId });
 }
 
 export function teachClassAction(payload: TeachClassAction): Promise<TeachClass> {

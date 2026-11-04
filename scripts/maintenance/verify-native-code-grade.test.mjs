@@ -14,10 +14,16 @@ function harness({
   count = 0,
   preview = false,
   multipartProblem = null,
+  classSession = null,
 } = {}) {
   const rows = new Map(),
-    calls = [];
+    calls = [],
+    counted = [];
   const mocks = {
+    '@/lib/server/class-session-attempts': {
+      classSessionForAttempt: async ({ classSessionId }) =>
+        classSessionId && classSessionId === classSession ? classSession : null,
+    },
     '@/lib/problem-bank/multipart': multipart,
     '@/lib/problem-bank': {
       isNotebookMultipartProblemRecord: (problem) =>
@@ -52,7 +58,10 @@ function harness({
           },
         };
       },
-      countNotebookProblemSubmissions: async () => count,
+      countNotebookProblemSubmissions: async () => {
+        counted.push(true);
+        return count;
+      },
       createNotebookProblemAttempt: async (entry) => {
         rows.set(entry.id, { ...entry, answerJson: entry.answer, resultJson: entry.result });
       },
@@ -60,7 +69,10 @@ function harness({
     '@/lib/problem-bank/scoring-policy': {
       LIMITED_SUBMISSION_COUNT: 3,
       STANDARD_PROBLEM_POINTS: 100,
-      applySubmissionScorePolicy: ({ score, result }) => ({ score, result }),
+      applySubmissionScorePolicy: ({ score, result, attemptNumber }) => ({
+        score: score / attemptNumber,
+        result: { ...result, policyApplied: true },
+      }),
     },
     '@/lib/server/notebook-problems/course-identity': {
       resolveNotebookProblemCourseIdentity: async () => ({}),
@@ -105,7 +117,7 @@ function harness({
     );
     return { status: response.status, body: await response.json() };
   };
-  return { send, rows, calls };
+  return { send, rows, calls, counted };
 }
 test('requires authentication before grading', async () => {
   const h = harness({ authenticated: false });
@@ -138,6 +150,29 @@ test('submission limit and preview do not write attempts', async () => {
   assert.equal((await p.send()).body.data.preview, true);
   assert.equal(p.rows.size, 0);
 });
+test('a verified classroom submission skips the home limit and the attempt-based score cap', async () => {
+  const h = harness({ count: 3, classSession: 'session-1' });
+  const r = await h.send({ classSessionId: 'session-1' });
+  assert.equal(r.status, 200);
+  assert.equal(r.body.data.saved, true);
+  assert.equal(h.counted.length, 0, 'classroom submissions do not read the home quota');
+  const [row] = h.rows.values();
+  assert.equal(row.classSessionId, 'session-1');
+  assert.equal(row.score, 100);
+  assert.equal(row.result.earnedPoints, 100);
+  assert.equal(row.result.policyApplied, undefined);
+});
+test('a session that fails verification is an ordinary submission and stays limited', async () => {
+  const limited = harness({ count: 3 });
+  assert.equal((await limited.send({ classSessionId: 'other-session' })).status, 409);
+  assert.equal(limited.rows.size, 0);
+  const home = harness({ count: 1 });
+  await home.send({ classSessionId: 'other-session' });
+  const [row] = home.rows.values();
+  assert.equal(row.classSessionId, null);
+  assert.equal(row.result.policyApplied, true);
+  assert.equal(row.score, 50, 'second home attempt keeps the score cap');
+});
 
 test('pending submission identifier persists across retry and changes with code', async () => {
   const data = new Map();
@@ -162,6 +197,10 @@ test('pending submission identifier persists across retry and changes with code'
       mod.exports,
     );
     const a = mod.exports.pendingCodeSubmission('p', 'one');
+    assert.equal(mod.exports.pendingCodeSubmission('p', 'one'), a);
+    const inClass = mod.exports.pendingCodeSubmission('p', 'one', 'class');
+    assert.notEqual(inClass, a);
+    assert.equal(mod.exports.pendingCodeSubmission('p', 'one', 'class'), inClass);
     assert.equal(mod.exports.pendingCodeSubmission('p', 'one'), a);
     const b = mod.exports.pendingCodeSubmission('p', 'two');
     assert.notEqual(a, b);

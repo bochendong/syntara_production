@@ -34,12 +34,12 @@ import { PhoneConfirm, PhoneProfilePage } from './components/PhonePages';
 import { StorePage } from './components/StorePage';
 import {
   ClassroomLiveBadge,
-  ClassroomPanel,
   classroomAvailable,
   useClassroomState,
   type ClassroomOpenProblem,
 } from './components/ClassroomPanel';
 import { syncCourseData } from './data/course-sync';
+import { StudentClassroomPage } from './components/StudentClassroomPage';
 import { TeachPage } from './components/TeachPage';
 import { AdminPage } from './components/AdminPage';
 import { OnboardingCoach } from './components/OnboardingCoach';
@@ -118,8 +118,6 @@ function AuthenticatedApp() {
   const phoneLayout = usePhoneLayout();
   // 老师上课的课堂码入口：网页版、iPad、电脑 App 有，手机没有（手机不做题）。
   const classroomEnabled = classroomAvailable(phoneLayout);
-  const [classroomOpen, setClassroomOpen] = useState(false);
-  const classroom = useClassroomState(classroomEnabled, classroomOpen);
   // 「教学」入口只给能开班的账号（认领了课的老师、课程所属机构的成员等），手机上没有。
   // 从「老师登录」进来的账号即使还没认领课也有入口，好去认领。
   const teacherLogin = readLoginIntent() === 'teacher';
@@ -150,8 +148,12 @@ function AuthenticatedApp() {
   }, []);
   const compactLayout = useCompactLayout();
   const [globalPage, setGlobalPage] = useState<
-    'calendar' | 'profile' | 'store' | 'teach' | 'classroom' | 'admin' | null
+    'calendar' | 'profile' | 'store' | 'teach' | 'classroom' | 'student-classroom' | 'admin' | null
   >(() => (teacherLogin && classroomEnabled ? 'teach' : null));
+  const classroom = useClassroomState(classroomEnabled, globalPage === 'student-classroom');
+  const refreshClassroom = classroom.refresh;
+  // 从「上课中」胶囊进来时直接打开那节课。
+  const [classroomTarget, setClassroomTarget] = useState<string | null>(null);
   const [globalEvents, setGlobalEvents] = useState<LocalCourseEvent[]>([]);
   const [calendarLoading, setCalendarLoading] = useState(false);
   const [calendarError, setCalendarError] = useState<string | null>(null);
@@ -448,7 +450,7 @@ function AuthenticatedApp() {
 
   // 老师在课上发的题：先把这门课和题同步到本机，再打开平常的做题弹窗。
   const openClassroomProblem = useCallback<ClassroomOpenProblem>(
-    async ({ courseId, problemIds, problemId, title }) => {
+    async ({ courseId, problemIds, problemId, title, classSessionId }) => {
       const repository = await getLocalRepository();
       if (!courses.some((course) => course.id === courseId)) await loadCourses();
       await syncCourseData(repository, courseId);
@@ -462,9 +464,14 @@ function AuthenticatedApp() {
       }
       if (selectedCourseId !== courseId || surface === 'launch' || surface === 'general') {
         openCourse(courseId);
+        // 做题弹窗盖在课堂页上，关掉要回到课堂页。
+        setGlobalPage('student-classroom');
       }
       setWorkspace(loaded);
-      startPractice({ problemIds: available, initialProblemId: problemId, title }, loaded.problems);
+      startPractice(
+        { problemIds: available, initialProblemId: problemId, title, classSessionId },
+        loaded.problems,
+      );
     },
     [courses, loadCourses, openCourse, selectedCourseId, startPractice, surface],
   );
@@ -472,10 +479,11 @@ function AuthenticatedApp() {
   const minimizePractice = () => {
     setPracticeMinimized(true);
     practiceSession?.onReturn?.();
+    if (globalPage === 'student-classroom') void refreshClassroom();
   };
   const practiceExpanded = practiceSession !== null && !practiceMinimized;
 
-  // 做题页「问 AI」：做题收成右下角弹珠，题目卡片挂到这门课的主聊天里。
+  // 做题页「问 AI」：做题收成右下角弹珠，题目上下文交给课程聊天。
   const askAiInCourseChat = (attachment: ProblemChatAttachment, move: ProblemCoachMove) => {
     minimizePractice();
     setProblemChatRequest((previous) => ({ id: (previous?.id ?? 0) + 1, attachment, move }));
@@ -667,7 +675,7 @@ function AuthenticatedApp() {
             ? 'store'
             : globalPage === 'teach'
               ? 'teach'
-              : globalPage === 'classroom'
+              : globalPage === 'classroom' || globalPage === 'student-classroom'
                 ? 'classroom'
                 : globalPage === 'admin'
                   ? 'admin'
@@ -677,7 +685,10 @@ function AuthenticatedApp() {
     onOpenStore: () => setGlobalPage('store'),
     onOpenSettings: () => setGlobalPage('profile'),
     onOpenClassroom: classroomEnabled
-      ? () => (canTeach ? setGlobalPage('classroom') : setClassroomOpen(true))
+      ? () => {
+          setClassroomTarget(null);
+          setGlobalPage(canTeach ? 'classroom' : 'student-classroom');
+        }
       : undefined,
     onOpenTeach: classroomEnabled && canTeach ? () => setGlobalPage('teach') : undefined,
     onOpenAdmin: canAdmin ? () => setGlobalPage('admin') : undefined,
@@ -852,7 +863,21 @@ function AuthenticatedApp() {
                 key="classroom"
                 mode="classroom"
                 onBack={() => setGlobalPage(null)}
-                onJoinClass={() => setClassroomOpen(true)}
+                onJoinClass={() => {
+                  setClassroomTarget(null);
+                  setGlobalPage('student-classroom');
+                }}
+              />
+            ) : globalPage === 'student-classroom' ? (
+              <StudentClassroomPage
+                state={classroom.state}
+                onState={classroom.setState}
+                initialSessionId={classroomTarget}
+                onBack={() => setGlobalPage(null)}
+                onJoinedCourse={async (courseId) => {
+                  if (!courses.some((course) => course.id === courseId)) await loadCourses();
+                }}
+                onOpenProblem={openClassroomProblem}
               />
             ) : globalPage === 'admin' ? (
               <AdminPage onBack={() => setGlobalPage(null)} />
@@ -894,18 +919,13 @@ function AuthenticatedApp() {
           </div>
         ) : null}
 
-        {classroomEnabled && !classroomOpen && !practiceExpanded ? (
-          <ClassroomLiveBadge sessions={classroom.sessions} onOpen={() => setClassroomOpen(true)} />
-        ) : null}
-        {classroomOpen ? (
-          <ClassroomPanel
-            sessions={classroom.sessions}
-            onSessions={classroom.setSessions}
-            onClose={() => setClassroomOpen(false)}
-            onJoinedCourse={async (courseId) => {
-              if (!courses.some((course) => course.id === courseId)) await loadCourses();
+        {classroomEnabled && globalPage !== 'student-classroom' && !practiceExpanded ? (
+          <ClassroomLiveBadge
+            sessions={classroom.state.sessions}
+            onOpen={() => {
+              setClassroomTarget(classroom.state.sessions[0]?.id ?? null);
+              setGlobalPage('student-classroom');
             }}
-            onOpenProblem={openClassroomProblem}
           />
         ) : null}
 

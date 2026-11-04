@@ -629,9 +629,11 @@
 }
 
 .tp-marble.is-empty {
-  border: 1.5px dashed rgb(15 23 42 / 14%);
   border-radius: 999px;
+  background: radial-gradient(circle at 34% 28%, #fff 0, #e5e7eb 34%, #c5c9d1 78%, #b4b9c2 100%);
+  box-shadow: inset 0 -1px 2px rgb(15 23 42 / 12%);
   filter: none;
+  opacity: 0.75;
 }
 
 .tp-legend {
@@ -649,256 +651,54 @@
   gap: 5px;
 }
 
-/* 上课大屏：夜空剧场，和课堂播放器一个调子 */
-.tp-stage {
-  position: relative;
+/* 节课列表 */
+.tp-session-tools {
   display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  gap: 20px 32px;
-  overflow: hidden;
-  margin-bottom: 20px;
-  border-radius: var(--radius-lg);
-  padding: 24px 26px;
-  background:
-    radial-gradient(circle at 15% 10%, rgb(var(--marble-purple-rgb) / 35%), transparent 45%),
-    radial-gradient(circle at 85% 90%, rgb(var(--marble-blue-rgb) / 30%), transparent 45%),
-    linear-gradient(160deg, #0b1026, #151a3a 60%, #0b1026);
-  color: #fff;
-  box-shadow: 0 18px 50px rgb(11 16 38 / 30%);
-}
-
-.tp-stage::after {
-  position: absolute;
-  inset: 0;
-  background-image:
-    radial-gradient(1px 1px at 20% 30%, rgb(255 255 255 / 70%), transparent),
-    radial-gradient(1px 1px at 70% 20%, rgb(255 255 255 / 55%), transparent),
-    radial-gradient(1.5px 1.5px at 45% 75%, rgb(255 255 255 / 45%), transparent),
-    radial-gradient(1px 1px at 90% 55%, rgb(255 255 255 / 60%), transparent);
-  content: '';
-  pointer-events: none;
-}
-
-.tp-stage-code {
-  flex: 1 1 320px;
-}
-
-.tp-stage-code small {
-  color: rgb(255 255 255 / 55%);
-}
-
-.tp-stage-code strong {
-  display: block;
-  font:
-    700 clamp(48px, 8vw, 84px) / 1.05 ui-monospace,
-    'SF Mono',
-    Menlo,
-    monospace;
-  letter-spacing: 0.24em;
-}
-
-.tp-stage-code strong.is-ended {
-  font-family: inherit;
-  font-size: 30px;
-  letter-spacing: 0;
-}
-
-.tp-stage-code p {
-  margin: 6px 0 0;
-  color: rgb(255 255 255 / 65%);
-  font-size: 13px;
-}
-
-.tp-stage-count strong {
-  display: block;
-  font-size: 52px;
-  font-weight: 750;
-  line-height: 1;
-}
-
-.tp-stage-count small {
-  color: rgb(255 255 255 / 60%);
-  font-size: 12px;
-}
-
-.tp-stage-actions {
-  position: relative;
-  z-index: 1;
-  display: flex;
-  flex-direction: column;
   gap: 8px;
 }
 
-.tp-stage-actions button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  min-height: 36px;
-  border: 1px solid rgb(255 255 255 / 18%);
-  border-radius: 999px;
-  padding: 0 16px;
-  background: rgb(255 255 255 / 10%);
-  color: #fff;
-  font: inherit;
-  font-size: 14px;
-  cursor: pointer;
-  backdrop-filter: blur(var(--glass-blur-sm));
-  -webkit-backdrop-filter: blur(var(--glass-blur-sm));
-}
-
-.tp-stage-actions button.is-end {
-  border-color: transparent;
-  background: var(--marble-pink-deep);
-}
-
-.tp-board {
-  display: grid;
-  gap: 20px;
-}
-
-@media (min-width: 900px) {
-  .tp-board {
-    grid-template-columns: minmax(260px, 340px) minmax(0, 1fr);
-    align-items: start;
-  }
-}
-
-.tp-item[aria-pressed='true'] {
-  background: rgb(10 132 255 / 8%);
-}
-
-.tp-meter {
+.tp-session-row {
   display: flex;
-  flex: none;
-  overflow: hidden;
-  width: 64px;
-  height: 6px;
-  border-radius: 999px;
-  background: rgb(118 118 128 / 14%);
-}
-
-.tp-meter .is-passed {
-  background: var(--marble-green-mid);
-}
-
-.tp-meter .is-other {
-  background: var(--marble-amber-mid);
-}
-
-.tp-focus-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.tp-focus-actions button {
-  display: inline-flex;
   align-items: center;
-  gap: 4px;
-  min-height: 30px;
-  border: 0;
-  border-radius: 999px;
-  padding: 0 12px;
-  background: rgb(118 118 128 / 11%);
-  color: var(--tp-ink);
-  font: inherit;
-  font-size: 13px;
-  cursor: pointer;
-}
-
-.tp-revealed {
-  align-self: center;
-  color: var(--marble-green-deep);
-  font-size: 13px;
-}
-
-.tp-stats {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
-  margin-bottom: 14px;
-}
-
-.tp-stats > div {
-  border-radius: var(--radius-md);
-  padding: 14px 10px;
-  background: #fff;
-  text-align: center;
-  box-shadow: 0 1px 2px rgb(15 23 42 / 4%);
-}
-
-.tp-stats strong {
-  display: block;
-  font-size: 26px;
-  font-weight: 750;
-}
-
-.tp-stats strong small {
-  color: var(--tp-muted);
-  font-size: 15px;
-  font-weight: 500;
-}
-
-.tp-stats span {
-  color: var(--tp-muted);
-  font-size: 12px;
-}
-
-.tp-people {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
   gap: 8px;
+  padding-right: 12px;
 }
 
-.tp-person {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  border-radius: var(--radius-sm);
-  padding: 10px 12px;
-  background: #fff;
-  box-shadow: 0 1px 2px rgb(15 23 42 / 4%);
+.tp-session-row + .tp-session-row {
+  border-top: 1px solid rgb(15 23 42 / 5%);
 }
 
-.tp-person[data-status='passed'] {
-  background: var(--marble-green-light);
-}
-
-.tp-person[data-status='partial'] {
-  background: var(--marble-amber-light);
-}
-
-.tp-person[data-status='failed'],
-.tp-person[data-status='error'] {
-  background: var(--marble-pink-light);
-}
-
-.tp-person[data-status='pending'] {
-  background: var(--marble-blue-light);
-}
-
-.tp-person span {
-  display: flex;
+.tp-session-row .phone-row {
   min-width: 0;
-  flex-direction: column;
+  flex: 1;
 }
 
-.tp-person strong {
-  overflow: hidden;
+.tp-session-row .ts-pill {
+  min-height: 32px;
+  padding: 0 14px;
+  font-size: 13px;
+}
+
+.tp-quiet {
+  margin: 0 0 16px;
+  padding: 0 4px;
+  color: var(--tp-muted);
+  font-size: 13px;
+}
+
+.tp-live-row {
+  width: 100%;
+  font: inherit;
   font-size: 14px;
   font-weight: 600;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  cursor: pointer;
 }
 
-.tp-person small {
-  color: var(--tp-muted);
-  font-size: 12px;
+.tp-live-row svg {
+  margin-left: auto;
 }
 
-/* 发题面板 */
+/* 选题和导入面板 */
 .tp-sheet-layer {
   align-items: center;
 }
@@ -920,6 +720,42 @@
 
 .tp-sheet-search {
   margin: 14px 14px 8px;
+}
+
+.tp-sheet-title {
+  padding: 16px 18px 10px;
+  font-size: 16px;
+  font-weight: 650;
+}
+
+.tp-import-term + .tp-import-term {
+  margin-top: 10px;
+}
+
+.tp-import-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 10px;
+  color: var(--tp-muted, #64748b);
+  font-size: 13px;
+}
+
+.tp-import-head strong {
+  font-weight: 600;
+}
+
+.tp-import-head button {
+  border: 0;
+  background: transparent;
+  color: var(--tp-blue, #0a84ff);
+  font: inherit;
+  cursor: pointer;
+}
+
+.tp-choice:disabled {
+  cursor: default;
+  opacity: 0.55;
 }
 
 .tp-sheet-list {

@@ -11,6 +11,7 @@ import {
   LIMITED_SUBMISSION_COUNT,
   STANDARD_PROBLEM_POINTS,
 } from '@/lib/problem-bank/scoring-policy';
+import { classSessionForAttempt } from '@/lib/server/class-session-attempts';
 import { resolveNotebookProblemCourseIdentity } from '@/lib/server/notebook-problems/course-identity';
 import { getOptionalPrisma } from '@/lib/server/prisma-safe';
 import { buildPartProblem, partSecretJudge } from '@/lib/problem-bank/multipart';
@@ -35,6 +36,8 @@ const requestSchema = z.object({
   mode: z.enum(['submit', 'run']).default('submit'),
   /// mode=run：public 跑公开测试；code 直接运行整段代码（Racket 题的「运行」和自己试）
   target: z.enum(['public', 'code']).default('public'),
+  /// 从课堂入口提交：这节课的 id
+  classSessionId: z.string().trim().min(1).max(200).optional(),
 });
 
 export async function POST(request: NextRequest) {
@@ -44,7 +47,8 @@ export async function POST(request: NextRequest) {
   const parsed = requestSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success)
     return publicApiError(requestId, 400, 'invalid_request', 'Invalid code submission.');
-  const { courseId, problemId, code, language, attemptId, part, mode, target } = parsed.data;
+  const { courseId, problemId, code, language, attemptId, part, mode, target, classSessionId } =
+    parsed.data;
   const prisma = getOptionalPrisma();
   if (!prisma)
     return publicApiError(requestId, 503, 'auth_not_configured', 'Problem storage is unavailable.');
@@ -158,9 +162,18 @@ export async function POST(request: NextRequest) {
         result: replay.resultJson,
       });
     }
-    const count = loaded.isTeacherPreview
-      ? 0
-      : await countNotebookProblemSubmissions({ userId: principal.userId, problemId });
+    // 课堂提交不占平时 3 次的名额，也不按次数降分；核对不上这节课就按平时提交算。
+    const verifiedClassSessionId = loaded.isTeacherPreview
+      ? null
+      : await classSessionForAttempt({
+          userId: principal.userId,
+          problemId,
+          classSessionId,
+        });
+    const count =
+      loaded.isTeacherPreview || verifiedClassSessionId
+        ? 0
+        : await countNotebookProblemSubmissions({ userId: principal.userId, problemId });
     if (count >= LIMITED_SUBMISSION_COUNT)
       return publicApiError(requestId, 409, 'invalid_request', '这道题最多只能提交 3 次。');
     const problem = { ...loaded.problem, points: STANDARD_PROBLEM_POINTS };
@@ -205,13 +218,18 @@ export async function POST(request: NextRequest) {
         score: null,
         result: judged.result,
       });
-    const scored = applySubmissionScorePolicy({
-      type: 'code',
-      attemptNumber: count + 1,
-      score: judged.score,
-      result: judged.result,
-      language,
-    });
+    const scored = verifiedClassSessionId
+      ? {
+          score: judged.score,
+          result: { ...judged.result, earnedPoints: judged.score },
+        }
+      : applySubmissionScorePolicy({
+          type: 'code',
+          attemptNumber: count + 1,
+          score: judged.score,
+          result: judged.result,
+          language,
+        });
     if (loaded.isTeacherPreview)
       return publicApiSuccess(requestId, {
         saved: false,
@@ -229,6 +247,7 @@ export async function POST(request: NextRequest) {
       score: scored.score,
       answer: { code },
       result: scored.result,
+      classSessionId: verifiedClassSessionId,
     });
     return publicApiSuccess(requestId, {
       saved: true,

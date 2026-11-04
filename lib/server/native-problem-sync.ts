@@ -5,6 +5,7 @@ import {
 import { isValidPhotoAnswerUpload } from '@/lib/problem-bank/photo-answer';
 import { z } from 'zod';
 
+import { classSessionForAttempt } from '@/lib/server/class-session-attempts';
 import { createNotebookProblemAttempt } from '@/lib/server/notebook-problems/service';
 import type { PrismaClient } from '@/lib/server/generated-prisma';
 import { resolveCourseNotebookAccess } from '@/lib/server/repositories/course-enrollment-repository';
@@ -214,6 +215,8 @@ export const nativeProblemAttemptUploadSchema = z.object({
         event: z.enum(['solution_viewed', 'hidden_tests_viewed', 'answer_reset']).optional(),
         /// 在 App 里跑了一次测试（不算提交，不改进度），只给学习记忆当证据。
         run: z.enum(['public', 'secret']).optional(),
+        /// 从课堂入口提交：这节课的 id。
+        classSessionId: z.string().trim().min(1).max(200).optional(),
         progressSnapshot: notebookProblemProgressSnapshotSchema.nullable().optional(),
         parts: z
           .array(
@@ -313,6 +316,12 @@ export async function saveNativeProblemAttempts(
       createdAt,
       userId,
       problemId: attempt.problemId,
+      classSessionId: attempt.event
+        ? null
+        : await classSessionForAttempt(
+            { userId, problemId: attempt.problemId, classSessionId: attempt.classSessionId },
+            prisma,
+          ),
       kind: 'answer',
       status: attempt.event ? 'pending' : attempt.status,
       score: attempt.event ? null : score,

@@ -1,0 +1,700 @@
+/* 一节课：玻璃顶条、学生 × 题目弹珠表、每题统计、看答案弹窗。 */
+.ts-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px 28px;
+  margin-bottom: 14px;
+  border: 1px solid rgb(255 255 255 / 90%);
+  border-radius: var(--radius-lg);
+  padding: 16px 20px;
+  background:
+    radial-gradient(circle at 8% 0%, rgb(var(--marble-blue-rgb) / 24%), transparent 55%),
+    radial-gradient(circle at 100% 100%, rgb(var(--marble-purple-rgb) / 18%), transparent 50%),
+    rgb(255 255 255 / 78%);
+  box-shadow:
+    inset 0 1px 0 #fff,
+    0 10px 30px rgb(15 23 42 / 6%);
+  backdrop-filter: blur(var(--glass-blur-sm)) saturate(1.4);
+  -webkit-backdrop-filter: blur(var(--glass-blur-sm)) saturate(1.4);
+}
+
+.ts-bar small {
+  display: block;
+  color: var(--tp-muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.ts-bar-code strong {
+  font:
+    700 clamp(30px, 4vw, 44px) / 1.1 ui-monospace,
+    'SF Mono',
+    Menlo,
+    monospace;
+  letter-spacing: 0.18em;
+}
+
+.ts-bar-ended strong {
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.ts-bar-count {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+}
+
+.ts-bar-count strong {
+  font-size: 30px;
+  font-weight: 750;
+  line-height: 1;
+}
+
+.ts-bar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.ts-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 38px;
+  border: 1px solid rgb(15 23 42 / 8%);
+  border-radius: 999px;
+  padding: 0 16px;
+  background: rgb(255 255 255 / 72%);
+  color: var(--tp-ink);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 550;
+  cursor: pointer;
+}
+
+.ts-pill:hover:not(:disabled) {
+  background: #fff;
+}
+
+.ts-pill:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.ts-pill.is-icon {
+  width: 38px;
+  padding: 0;
+}
+
+.ts-pill.is-primary {
+  border-color: transparent;
+  background: var(--tp-blue);
+  color: #fff;
+}
+
+.ts-pill.is-primary:hover:not(:disabled) {
+  background: #0077ed;
+}
+
+.ts-pill.is-end {
+  border-color: rgb(var(--marble-pink-rgb) / 35%);
+  background: rgb(var(--marble-pink-rgb) / 14%);
+  color: var(--marble-pink-deep);
+}
+
+.ts-pill.is-end:hover:not(:disabled) {
+  background: rgb(var(--marble-pink-rgb) / 24%);
+}
+
+.ts-tabs {
+  display: inline-flex;
+  gap: 2px;
+  margin-bottom: 12px;
+  border-radius: 999px;
+  padding: 3px;
+  background: rgb(118 118 128 / 12%);
+}
+
+.ts-tabs button {
+  min-height: 30px;
+  border: 0;
+  border-radius: 999px;
+  padding: 0 16px;
+  background: transparent;
+  color: var(--tp-muted);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 550;
+  cursor: pointer;
+}
+
+.ts-tabs button[aria-pressed='true'] {
+  background: #fff;
+  color: var(--tp-ink);
+  box-shadow: 0 1px 3px rgb(15 23 42 / 12%);
+}
+
+/* 弹珠表 */
+.ts-grid-card {
+  overflow: hidden;
+  border: 1px solid rgb(255 255 255 / 90%);
+  border-radius: var(--radius-lg);
+  padding-bottom: 14px;
+  background: #fff;
+  box-shadow:
+    inset 0 1px 0 #fff,
+    0 10px 30px rgb(15 23 42 / 5%);
+}
+
+.ts-grid-scroll {
+  overflow-x: auto;
+}
+
+.ts-grid {
+  min-width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.ts-grid thead th {
+  position: relative;
+  min-width: 58px;
+  padding: 8px 4px 6px;
+  border-bottom: 1px solid rgb(15 23 42 / 6%);
+  font-weight: 500;
+}
+
+.ts-grid tbody td {
+  padding: 2px 4px;
+  border-top: 1px solid rgb(15 23 42 / 4%);
+  text-align: center;
+}
+
+.ts-grid .ts-grid-name {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  width: 168px;
+  min-width: 132px;
+  max-width: 180px;
+  padding: 7px 10px 7px 16px;
+  background: #fff;
+  text-align: left;
+}
+
+.ts-grid thead .ts-grid-name {
+  z-index: 3;
+}
+
+.ts-grid-name strong {
+  display: block;
+  overflow: hidden;
+  font-size: 14px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ts-grid-name small {
+  color: var(--tp-muted);
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.ts-grid tr.is-absent .ts-grid-name strong {
+  color: var(--tp-muted);
+  font-weight: 500;
+}
+
+.ts-column {
+  display: inline-flex;
+  width: 100%;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  border: 0;
+  border-radius: 10px;
+  padding: 4px 2px;
+  background: transparent;
+  color: var(--tp-ink);
+  font: inherit;
+  cursor: pointer;
+}
+
+.ts-column:hover {
+  background: rgb(118 118 128 / 10%);
+}
+
+.ts-column b {
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.ts-column .ts-tube {
+  width: 38px;
+  height: 5px;
+}
+
+.ts-column-remove {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border: 0;
+  border-radius: 999px;
+  background: rgb(var(--marble-pink-rgb) / 18%);
+  color: var(--marble-pink-deep);
+  opacity: 0;
+  cursor: pointer;
+}
+
+.ts-grid th:hover .ts-column-remove,
+.ts-column-remove:focus-visible {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .ts-column-remove {
+    opacity: 1;
+  }
+}
+
+.ts-cell {
+  display: inline-grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  cursor: pointer;
+  transition: transform 140ms ease;
+}
+
+.ts-cell:hover {
+  background: rgb(118 118 128 / 10%);
+  transform: scale(1.12);
+}
+
+.ts-grid-hint {
+  margin: 12px 16px 0;
+  color: var(--tp-muted);
+  font-size: 13px;
+}
+
+.ts-tube {
+  display: flex;
+  overflow: hidden;
+  width: 100%;
+  height: 8px;
+  border-radius: 999px;
+  background: rgb(15 23 42 / 7%);
+  box-shadow: inset 0 1px 1px rgb(15 23 42 / 10%);
+}
+
+.ts-tube i {
+  height: 100%;
+  transition: width 420ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.ts-tube .is-passed {
+  background: linear-gradient(90deg, var(--marble-green-mid), #16a34a);
+}
+
+.ts-tube .is-partial {
+  background: var(--marble-amber-mid);
+}
+
+.ts-tube .is-failed {
+  background: var(--marble-pink-mid);
+}
+
+/* 每题统计 */
+.ts-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr));
+  align-items: start;
+  gap: 12px;
+}
+
+.ts-stat {
+  border: 1px solid rgb(255 255 255 / 90%);
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+  background: rgb(255 255 255 / 78%);
+  box-shadow:
+    inset 0 1px 0 #fff,
+    0 6px 20px rgb(15 23 42 / 5%);
+}
+
+.ts-stat header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.ts-stat-no {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: rgb(118 118 128 / 12%);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.ts-stat header strong {
+  overflow: hidden;
+  min-width: 0;
+  flex: 1;
+  font-size: 14px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ts-stat header small {
+  flex: none;
+  color: var(--tp-muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.ts-options {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ts-options li {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr) 24px;
+  align-items: center;
+  gap: 8px;
+}
+
+.ts-option-id {
+  color: var(--tp-muted);
+  font-size: 13px;
+  font-weight: 650;
+  text-align: center;
+}
+
+.ts-option-body {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.ts-option-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  overflow: hidden;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.ts-option-bar {
+  display: block;
+  overflow: hidden;
+  height: 8px;
+  border-radius: 999px;
+  background: rgb(15 23 42 / 6%);
+}
+
+.ts-option-bar i {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: rgb(var(--marble-pink-rgb) / 62%);
+  transition: width 420ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.ts-options li.is-correct .ts-option-bar i {
+  background: linear-gradient(90deg, var(--marble-green-mid), #16a34a);
+}
+
+.ts-options li.is-correct .ts-option-id,
+.ts-options li.is-correct .ts-option-label {
+  color: var(--marble-green-deep);
+  font-weight: 600;
+}
+
+.ts-options li.is-correct svg {
+  flex: none;
+}
+
+.ts-options b {
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.ts-ratio {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px 12px;
+}
+
+.ts-ratio b {
+  font-size: 22px;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+}
+
+.ts-ratio small {
+  grid-column: 1 / -1;
+  color: var(--tp-muted);
+  font-size: 12px;
+}
+
+/* 备课题单 */
+.ts-draft-list {
+  overflow: hidden;
+  margin: 0;
+  border: 1px solid rgb(255 255 255 / 90%);
+  border-radius: var(--radius-lg);
+  padding: 0;
+  background: rgb(255 255 255 / 76%);
+  list-style: none;
+}
+
+.ts-draft-list li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 52px;
+  padding: 6px 12px 6px 16px;
+}
+
+.ts-draft-list li + li {
+  border-top: 1px solid rgb(15 23 42 / 5%);
+}
+
+.ts-draft-no {
+  flex: none;
+  width: 26px;
+  color: var(--tp-muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.ts-draft-title {
+  overflow: hidden;
+  min-width: 0;
+  flex: 1;
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ts-draft-list button {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--tp-muted);
+  cursor: pointer;
+}
+
+.ts-draft-list button:hover:not(:disabled) {
+  background: rgb(118 118 128 / 12%);
+  color: var(--tp-ink);
+}
+
+.ts-draft-list button:disabled {
+  cursor: default;
+  opacity: 0.3;
+}
+
+/* 看答案 */
+.tp-sheet.ts-answer {
+  width: min(720px, calc(100vw - 32px));
+  height: min(760px, calc(100dvh - 48px));
+  max-height: none;
+}
+
+.ts-answer-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px 8px;
+}
+
+.ts-answer-who {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.ts-answer-who span {
+  min-width: 0;
+}
+
+.ts-answer-who strong {
+  display: block;
+  overflow: hidden;
+  font-size: 16px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ts-answer-who small {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.ts-nav {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 999px;
+  background: rgb(118 118 128 / 12%);
+  color: #0f172a;
+  cursor: pointer;
+}
+
+.ts-nav:disabled {
+  cursor: default;
+  opacity: 0.35;
+}
+
+.ts-close {
+  margin-left: 6px;
+  background: transparent;
+}
+
+.ts-answer-problem {
+  overflow: hidden;
+  margin: 0;
+  padding: 0 20px 10px;
+  border-bottom: 1px solid rgb(15 23 42 / 6%);
+  color: #64748b;
+  font-size: 13px;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ts-answer-body {
+  overflow-y: auto;
+  min-height: 0;
+  flex: 1;
+  padding: 10px 14px 18px;
+}
+
+.ts-answer-body .local-attempt-history.ah article:first-of-type {
+  border-top: 0;
+}
+
+.ts-answer-empty {
+  margin: 48px 0;
+  color: #94a3b8;
+  font-size: 15px;
+  text-align: center;
+}
+
+/* 题库页：正在上课的玻璃条和「加入这节课」 */
+.tl-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 12px;
+  border: 1px solid rgb(var(--marble-pink-rgb) / 30%);
+  border-radius: 999px;
+  padding: 9px 16px;
+  background: rgb(255 255 255 / 72%);
+  color: var(--marble-pink-ink);
+  font-size: 14px;
+  font-weight: 600;
+  box-shadow: 0 8px 24px rgb(var(--marble-pink-rgb) / 16%);
+  backdrop-filter: blur(var(--glass-blur-sm)) saturate(1.4);
+  -webkit-backdrop-filter: blur(var(--glass-blur-sm)) saturate(1.4);
+}
+
+.tl-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--marble-pink-deep);
+  animation: tl-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes tl-pulse {
+  50% {
+    opacity: 0.3;
+  }
+}
+
+.pb-view-toggle[hidden] {
+  display: none;
+}
+
+.pb-list li.tl-has-action {
+  position: relative;
+}
+
+.pb-list li.tl-has-action .pb-row {
+  padding-right: 148px;
+}
+
+.tl-add {
+  position: absolute;
+  top: 50%;
+  right: 16px;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 32px;
+  transform: translateY(-50%);
+  border: 1px solid rgb(10 132 255 / 26%);
+  border-radius: 999px;
+  padding: 0 12px;
+  background: rgb(255 255 255 / 88%);
+  color: #0a84ff;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.tl-add:hover:not(:disabled) {
+  background: #fff;
+}
+
+.tl-add.is-added {
+  border-color: transparent;
+  background: rgb(var(--marble-green-rgb) / 18%);
+  color: var(--marble-green-deep);
+}
+
+.tl-add:disabled {
+  opacity: 0.6;
+}

@@ -810,6 +810,7 @@ export const notebookProblemAttemptRecordSchema = z.object({
   result: notebookProblemAttemptResultSchema.optional(),
   activeDurationMs: z.number().int().min(0).max(14_400_000).nullable().optional(),
   timingSource: z.string().trim().min(1).max(32).nullable().optional(),
+  classSessionId: z.string().trim().min(1).nullable().optional(),
   createdAt: z.number(),
   updatedAt: z.number(),
 });

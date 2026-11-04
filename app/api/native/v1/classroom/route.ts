@@ -29,7 +29,7 @@ function classroomError(requestId: string, error: unknown) {
   throw error;
 }
 
-/** 学生端（网页 / iPad / 本地版）：正在上的课和老师发的题。手机不调用。 */
+/** 学生端（网页 / iPad / 本地版）：正在上的课、上过的课和里面的题。手机不调用。 */
 export async function GET(request: NextRequest) {
   const requestId = publicApiRequestId(request);
   const principal = await requireNativePlatformApi(request, requestId);

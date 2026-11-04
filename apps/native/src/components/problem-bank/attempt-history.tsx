@@ -331,16 +331,21 @@ export function AttemptDetail({
 export function AttemptHistory({
   attempts,
   language,
+  title = '本机作答记录',
+  answerLabel = '我的提交',
 }: {
   attempts: LocalProblemAttempt[];
   /** 代码的语言（python / racket） */
   language?: string;
+  /** 老师看学生答案时不要标题，传空字符串。 */
+  title?: string;
+  answerLabel?: string;
 }) {
   const [openId, setOpenId] = useState<string | null>(attempts[0]?.id ?? null);
   const submissions = attempts.filter((item) => !item.result?.event);
   return (
     <section className="local-attempt-history ah">
-      <h3>本机作答记录</h3>
+      {title ? <h3>{title}</h3> : null}
       {attempts.slice(0, 20).map((attempt) => {
         const event = typeof attempt.result?.event === 'string' ? attempt.result.event : null;
         const number = event ? null : submissions.length - submissions.indexOf(attempt);
@@ -366,7 +371,9 @@ export function AttemptHistory({
               {event ? null : <em>{percent(attempt.score)}</em>}
               {event ? null : <ChevronDown className="ah-chevron" size={16} />}
             </button>
-            {open ? <AttemptDetail attempt={attempt} language={language} /> : null}
+            {open ? (
+              <AttemptDetail attempt={attempt} language={language} answerLabel={answerLabel} />
+            ) : null}
           </article>
         );
       })}

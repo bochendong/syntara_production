@@ -1033,9 +1033,12 @@ model NotebookProblemAttempt {
   status           NotebookProblemAttemptStatus @default(pending)
   activeDurationMs Int?
   timingSource     String?                      @db.VarChar(32)
+  /// 从课堂入口提交时记下这节课；下课后从课堂入口再交也算这节课。平时做题为空。
+  classSessionId   String?
 
-  problem NotebookProblem @relation(fields: [problemId], references: [id], onDelete: Cascade)
-  user    User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  problem      NotebookProblem @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  user         User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  classSession ClassSession?   @relation(fields: [classSessionId], references: [id], onDelete: SetNull)
 
   latestProgress NotebookProblemProgress? @relation("LatestNotebookProblemAttempt")
 
@@ -1045,6 +1048,7 @@ model NotebookProblemAttempt {
   @@index([problemId, createdAt(sort: Desc)])
   @@index([problemId, userId, createdAt(sort: Desc)])
   @@index([userId, createdAt(sort: Desc)])
+  @@index([classSessionId, problemId, userId, createdAt(sort: Desc)])
 }
 
 model NotebookProblemProgress {
@@ -2158,24 +2162,28 @@ model CourseClassMember {
   @@index([userId, joinedAt(sort: Desc)])
 }
 
-/// 一节课。上课期间 code 是 6 位数字，下课后清空，号码可以复用。
+/// 一节课：第 number 节。可以提前备课（draft，没有课堂码和开始时间）。
+/// 上课期间 code 是 6 位数字，下课后清空，号码可以复用。每个班最多一节 live（迁移里的部分唯一索引保证）。
 model ClassSession {
   id        String    @id @default(cuid())
   classId   String
   teacherId String
+  number    Int
   code      String?   @unique @db.VarChar(6)
-  /// live | ended
+  /// draft | live | ended
   status    String    @default("live") @db.VarChar(12)
   /// 锁门后新的人不能再输码进来（本班名单里的人仍然可以点进来）
   locked    Boolean   @default(false)
-  startedAt DateTime  @default(now())
+  startedAt DateTime?
   endedAt   DateTime?
 
   class        CourseClass               @relation(fields: [classId], references: [id], onDelete: Cascade)
   teacher      User                      @relation("ClassSessionTeacher", fields: [teacherId], references: [id], onDelete: Cascade)
   participants ClassSessionParticipant[]
   items        ClassSessionItem[]
+  attempts     NotebookProblemAttempt[]
 
+  @@unique([classId, number])
   @@index([classId, startedAt(sort: Desc)])
   @@index([status, startedAt(sort: Desc)])
 }
@@ -2194,8 +2202,8 @@ model ClassSessionParticipant {
   @@index([userId, joinedAt(sort: Desc)])
 }
 
-/// 老师在课上发出的一道题。统计只算「在场的人」在 pushedAt 到 closedAt（或下课）之间的提交，
-/// 所以学生之前在家做过同一道题不会混进来，也不用改各端的提交接口。
+/// 这节课里的一道题。加进来学生立刻看得到；统计只算带这节课 classSessionId 的提交。
+/// pushedAt 是加入时间；closedAt、answerRevealedAt 是旧版收卷 / 公布答案留下的历史字段。
 model ClassSessionItem {
   id               String    @id @default(cuid())
   sessionId        String

@@ -1,11 +1,19 @@
 import { accountStorageKey } from './browser-runtime';
 
 type PendingCode = { id: string; code: string };
-function key(problemId: string) {
-  return accountStorageKey(`syntara.code-submission.v1:${problemId}`);
+function key(problemId: string, classSessionId?: string) {
+  return accountStorageKey(
+    classSessionId
+      ? `syntara.classroom-code-submission.v1:${encodeURIComponent(classSessionId)}:${problemId}`
+      : `syntara.code-submission.v1:${problemId}`,
+  );
 }
-export function pendingCodeSubmission(problemId: string, code: string): string {
-  const storageKey = key(problemId);
+export function pendingCodeSubmission(
+  problemId: string,
+  code: string,
+  classSessionId?: string,
+): string {
+  const storageKey = key(problemId, classSessionId);
   try {
     const raw = window.localStorage.getItem(storageKey);
     const existing = raw ? (JSON.parse(raw) as PendingCode) : null;
@@ -17,9 +25,9 @@ export function pendingCodeSubmission(problemId: string, code: string): string {
     throw new Error('无法安全保存提交状态，请检查设备存储后重试。');
   }
 }
-export function clearPendingCodeSubmission(problemId: string, id: string) {
+export function clearPendingCodeSubmission(problemId: string, id: string, classSessionId?: string) {
   try {
-    const storageKey = key(problemId);
+    const storageKey = key(problemId, classSessionId);
     const raw = window.localStorage.getItem(storageKey);
     if (raw && (JSON.parse(raw) as PendingCode).id === id)
       window.localStorage.removeItem(storageKey);

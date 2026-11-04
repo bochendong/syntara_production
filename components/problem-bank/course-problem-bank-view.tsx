@@ -1749,8 +1749,10 @@ export function CourseProblemBankView({
     handledAskRequestRef.current = aiAskRequest.id;
     askAiRef.current(aiAskRequest.move);
   }, [aiAskRequest]);
+  // 课堂入口的提交不占平时的提交名额。
   const selectedProblemSubmissionCount = selectedProblemAttempts.filter(
-    (attempt) => attempt.kind === 'submit' || attempt.kind === 'answer',
+    (attempt) =>
+      (attempt.kind === 'submit' || attempt.kind === 'answer') && !attempt.classSessionId,
   ).length;
   const selectedProblemHasLimitedSubmissions =
     selectedProblem && !canEditProblems ? hasLimitedSubmissions(selectedProblem.type) : false;

@@ -12,9 +12,15 @@ import {
   ClassroomError,
   addClassMemberByEmail,
   applyClassSessionAction,
+  createDraftSession,
+  deleteDraftSession,
   ensureCurrentTermClass,
   getClassOverview,
   getClassSessionDashboard,
+  getLiveSessionForCourse,
+  getSessionStudentAnswers,
+  importSessionsAsDrafts,
+  listImportableSessions,
   listSessionProblemChoices,
   listTeachableCourses,
   removeClassMember,
@@ -62,7 +68,9 @@ function classroomError(requestId: string, error: unknown) {
 }
 
 /**
- * ?classId= 班级；?sessionId= 上课大屏；?choices=<sessionId> 可以发的题；
+ * ?classId= 班级；?sessionId= 一节课；?choices=<sessionId> 可以加的题；
+ * ?answers=<sessionId>&problemId=&userId= 一个学生一道题的提交；
+ * ?importFor=<classId> 可以导入的往届课；?liveCourse=<courseId> 这门课正在上的那节；
  * ?claim=1&q= 可以认领的课；都没有 = 课程列表。
  */
 export async function GET(request: NextRequest) {
@@ -80,6 +88,30 @@ export async function GET(request: NextRequest) {
         await listClaimableCourses(viewer, (query.get('q') || '').slice(0, 80)),
       );
     }
+    const answers = query.get('answers');
+    const importFor = query.get('importFor');
+    const liveCourse = query.get('liveCourse');
+    if (answers) {
+      const problemId = query.get('problemId');
+      const userId = query.get('userId');
+      if (!problemId || !userId) {
+        return publicApiError(requestId, 400, 'invalid_request', '请求无效。');
+      }
+      return publicApiSuccess(
+        requestId,
+        await getSessionStudentAnswers(viewer, answers, problemId, userId),
+      );
+    }
+    if (importFor) {
+      return publicApiSuccess(requestId, {
+        classes: await listImportableSessions(viewer, importFor),
+      });
+    }
+    if (liveCourse) {
+      return publicApiSuccess(requestId, {
+        live: await getLiveSessionForCourse(viewer, liveCourse),
+      });
+    }
     if (choices) {
       return publicApiSuccess(requestId, {
         problems: await listSessionProblemChoices(viewer, choices),
@@ -96,9 +128,6 @@ export async function GET(request: NextRequest) {
 }
 
 const id = z.string().trim().min(1).max(200);
-const itemAction = (action: 'close' | 'reopen' | 'reveal' | 'remove') =>
-  z.object({ action: z.literal(action), sessionId: id, itemId: id });
-
 const actionSchema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('open-class'), courseId: id }),
   z.object({ action: z.literal('claim'), courseId: id }),
@@ -106,16 +135,21 @@ const actionSchema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('add-member'), classId: id, email: z.string().trim().email() }),
   z.object({ action: z.literal('remove-member'), classId: id, userId: id }),
   z.object({ action: z.literal('reset-code'), classId: id }),
-  z.object({ action: z.literal('start-session'), classId: id }),
+  z.object({ action: z.literal('start-session'), classId: id, sessionId: id.optional() }),
+  z.object({ action: z.literal('create-draft'), classId: id }),
+  z.object({ action: z.literal('delete-draft'), sessionId: id }),
   z.object({
-    action: z.literal('push'),
-    sessionId: id,
-    problemIds: z.array(id).min(1).max(30),
+    action: z.literal('import-sessions'),
+    classId: id,
+    sessionIds: z.array(id).min(1).max(40),
   }),
-  itemAction('close'),
-  itemAction('reopen'),
-  itemAction('reveal'),
-  itemAction('remove'),
+  z.object({ action: z.literal('add'), sessionId: id, problemIds: z.array(id).min(1).max(30) }),
+  z.object({ action: z.literal('remove'), sessionId: id, problemId: id }),
+  z.object({
+    action: z.literal('reorder'),
+    sessionId: id,
+    problemIds: z.array(id).min(1).max(200),
+  }),
   z.object({ action: z.literal('lock'), sessionId: id, locked: z.boolean() }),
   z.object({ action: z.literal('end'), sessionId: id }),
 ]);
@@ -150,8 +184,19 @@ export async function POST(request: NextRequest) {
         return publicApiSuccess(requestId, await getClassOverview(viewer, input.classId));
       case 'start-session':
         return publicApiSuccess(requestId, {
-          sessionId: await startClassSession(viewer, input.classId),
+          sessionId: await startClassSession(viewer, input.classId, input.sessionId),
         });
+      case 'create-draft':
+        return publicApiSuccess(requestId, {
+          sessionId: await createDraftSession(viewer, input.classId),
+        });
+      case 'delete-draft':
+        return publicApiSuccess(requestId, {
+          classId: await deleteDraftSession(viewer, input.sessionId),
+        });
+      case 'import-sessions':
+        await importSessionsAsDrafts(viewer, input.classId, input.sessionIds);
+        return publicApiSuccess(requestId, await getClassOverview(viewer, input.classId));
       default: {
         const { sessionId, ...rest } = input;
         await applyClassSessionAction(viewer, sessionId, rest);

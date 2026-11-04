@@ -169,10 +169,15 @@ export async function queueProblemAttempt(
   repository: LocalRepository,
   courseId: string,
   attempt: LocalProblemAttempt,
+  /** 从课堂入口提交时带上这节课；离线排队也不会丢。 */
+  classSessionId?: string,
 ): Promise<void> {
   if (!(await isPlatformCourse(repository, courseId))) return;
-  const upload = uploadOf(attempt);
-  if (!upload || upload.id.length < 8) return;
+  const baseUpload = uploadOf(attempt);
+  if (!baseUpload || baseUpload.id.length < 8) return;
+  const upload: NativeProblemAttemptUpload = classSessionId
+    ? { ...baseUpload, classSessionId }
+    : baseUpload;
   const outbox = readJson<Outbox>(OUTBOX_KEY, {});
   // Images already live in the attempt repository; queue only their reference.
   const queued: QueuedAttempt =
@@ -245,7 +250,9 @@ async function flushProblemAttempts(repository: LocalRepository, courseId: strin
           )
         )
           throw new Error('本机图片作答尚未读取成功，将稍后重试同步。');
-        upload = hydrated;
+        upload = queued.classSessionId
+          ? { ...hydrated, classSessionId: queued.classSessionId }
+          : hydrated;
       }
       const size = new TextEncoder().encode(JSON.stringify(upload)).length;
       if (batch.length && bytes + size > 3_500_000) break;

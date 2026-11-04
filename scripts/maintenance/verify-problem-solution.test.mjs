@@ -443,6 +443,7 @@ test('native upload preserves event identity, never grades a reveal, and safely 
   const { db, state } = database();
   const captured = [];
   const native = load('lib/server/native-problem-sync.ts', {
+    '@/lib/server/class-session-attempts': { classSessionForAttempt: async () => null },
     '@/lib/problem-bank/schema': schemas,
     '@/lib/problem-bank/photo-answer': { isValidPhotoAnswerUpload: () => true },
     '@/lib/server/notebook-problems/service': {

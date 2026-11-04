@@ -570,6 +570,8 @@ export interface NativeProblemAttemptUpload {
   event?: 'solution_viewed' | 'hidden_tests_viewed' | 'answer_reset';
   /** 在本机跑了一次测试（不是提交）：public 公开测试，secret 隐藏测试 */
   run?: 'public' | 'secret';
+  /** 从课堂入口提交：这节课的 id，服务器核对后记到这节课上 */
+  classSessionId?: string;
   progressSnapshot?: { status: string; score: number | null; attemptedCount: number } | null;
   id: string;
   problemId: string;
