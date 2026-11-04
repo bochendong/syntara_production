@@ -135,7 +135,7 @@ import {
   createNativeMiniLecture,
   getNativePlatformCapabilities,
   getNativeMiniLecture,
-  nativeStoreAction,
+  markNativeCourseUpdateSeen,
   uploadNativeMaterial,
   type NativePlatformCapabilities,
 } from '../data/platform-api-client';
@@ -3282,12 +3282,13 @@ export function CourseWorkspace({
       if (synced?.events || synced?.lectures || synced?.progress) {
         setCourseDataRevision((value) => value + 1);
       }
+      if (cancelled) return;
       // 机构发了新版：打开看过就熄灭课程旁的更新弹珠，别的设备下次同步也会熄灭。
       const courseMetaNow = readPlatformCourseMeta()[courseId];
       if (courseMetaNow?.hasUpdate) {
         setUpdateNote({ courseId, text: courseMetaNow.updateSummary || '机构发布了新版' });
         clearPlatformCourseUpdate(courseId);
-        void nativeStoreAction(courseId, 'seen').catch((cause) =>
+        void markNativeCourseUpdateSeen(courseId, courseMetaNow.contentVersion).catch((cause) =>
           console.warn('[store] mark seen failed', cause),
         );
       }

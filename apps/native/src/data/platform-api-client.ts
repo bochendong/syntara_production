@@ -1132,15 +1132,25 @@ export async function setAdminGlobalLimit(input: {
     .usage;
 }
 
-/** join：从商城加入课程；seen：打开过加入的课程，熄灭「有更新」。 */
+/** 从商城加入课程。 */
 export function nativeStoreAction(
   courseId: string,
-  action: 'join' | 'seen',
+  action: 'join',
   answers?: Record<string, string>,
-): Promise<{ courseId: string; created?: boolean; seen?: boolean; status?: 'joined' | 'pending' }> {
+): Promise<{ courseId: string; created?: boolean; status?: 'joined' | 'pending' }> {
   return invokeJson('native_store_action', {
     requestId: crypto.randomUUID(),
     payload: { courseId, action, answers },
+  });
+}
+
+export function markNativeCourseUpdateSeen(
+  courseId: string,
+  contentVersion?: number,
+): Promise<{ courseId: string; seen: boolean }> {
+  return invokeJson('native_store_action', {
+    requestId: crypto.randomUUID(),
+    payload: { courseId, action: 'seen', contentVersion },
   });
 }
 
