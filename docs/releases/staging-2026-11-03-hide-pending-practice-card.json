@@ -1,0 +1,29 @@
+{
+  "at": "2026-11-04T04:17:55.043Z",
+  "status": "deployed",
+  "branch": "codex/staging-next",
+  "deploymentId": "a4b07947-db16-43f1-9148-811a5e11ca7f",
+  "origin": "https://native-api-staging-staging-95a1.up.railway.app",
+  "health": true,
+  "revision": "5b38cec85f323810213af4330e315f0c79ac952c",
+  "assets": [
+    {
+      "path": "/native-web/assets/index-7dPIvsDn.js",
+      "sha256": "67ef66efa6005cf3bad7d2633baf5c114fb4bebda1d49f1492c7df38b79094c0",
+      "matched": true
+    },
+    {
+      "path": "/native-web/assets/index-XcLvQBZB.css",
+      "sha256": "9ca5c1f8c069c383e7a726dbde88bddfa9e673f4ece7b453e9962e8c0287e90c",
+      "matched": true
+    }
+  ],
+  "change": "Hide the pending practice card above the composer while retaining question context and the card on sent messages.",
+  "verification": {
+    "formatLintAndNativeTypes": true,
+    "nativeWebBuild": true,
+    "railwayBuild": true,
+    "liveBrowser": "Opened CPSC 110 2020W2 Final P5 find-increasing-path and selected Ask in chat. The composer rendered without a pending practice card."
+  },
+  "migrations": "None pending"
+}
