@@ -25,6 +25,13 @@ export function codeMultipartOriginalRevision(
   });
 }
 
+const historyCount = z
+  .object({
+    attempts: z.number().int().nonnegative(),
+    progress: z.number().int().nonnegative(),
+  })
+  .strict();
+
 const inputSchema = z
   .object({
     apply: z.boolean().default(false),
@@ -39,7 +46,11 @@ const inputSchema = z
             draft: notebookProblemImportDraftSchema,
             codePreflight: z.string().min(1).max(4096),
             absorbed: z
-              .array(z.object({ id, expectedRevision: digest }).strict())
+              .array(
+                z
+                  .object({ id, expectedRevision: digest, history: historyCount.optional() })
+                  .strict(),
+              )
               .max(8)
               .default([]),
           })
@@ -146,13 +157,27 @@ export async function updateCourseCodeMultipart(
             )
               throw new MultipartRepairConflict('An original changed after review.');
             if (
-              candidate._count.attempts ||
-              candidate._count.progress ||
               candidate._count.classSessionItems ||
               (candidate.id !== row.id && candidate._count.forumPosts)
             )
               throw new MultipartRepairConflict(
-                'An original has history that needs a separate migration.',
+                'An original is referenced by a classroom or forum.',
+              );
+            const { attempts, progress } = candidate._count;
+            if (candidate.id === row.id && (attempts || progress))
+              throw new MultipartRepairConflict(
+                'The updated original has history that needs a separate migration.',
+              );
+          }
+          for (const target of change.absorbed) {
+            const { attempts, progress } = original(target)._count;
+            // Archived records keep their original ID, content and historical answers.
+            if (
+              attempts !== (target.history?.attempts ?? 0) ||
+              progress !== (target.history?.progress ?? 0)
+            )
+              throw new MultipartRepairConflict(
+                'Review the history counts before archiving an absorbed original.',
               );
           }
         }
@@ -249,6 +274,11 @@ export async function updateCourseCodeMultipart(
           order: row.order,
           fingerprint: revision.fingerprint,
           absorbedIds: absorbed.map((item) => item.id),
+          archivedHistory: absorbed.map(({ id, _count: { attempts, progress } }) => ({
+            id,
+            attempts,
+            progress,
+          })),
           unchanged,
         })),
       };
