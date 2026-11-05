@@ -1,0 +1,213 @@
+{
+  "revision": "3dc5649501ba2ae22b62ccfbc309809f295a9e38",
+  "deploymentId": "8ce8759e-963d-4ac7-b23b-e7bcd4a0626a",
+  "origin": "https://native-api-staging-staging-95a1.up.railway.app",
+  "status": "deployed",
+  "pullRequest": "https://github.com/bochendong/syntara_production/pull/43",
+  "includedPullRequests": [40, 41, 42, 43],
+  "sourcePorts": [
+    {
+      "branch": "codex/classroom-chapter-picker",
+      "head": "b7cb70753d6acd7bc6f20e45ffaa210fdd8986f6",
+      "files": [
+        {
+          "path": "app/api/native/v1/teach/route.ts",
+          "sha256": "cb5ac0d392f3d1755f55489ddad86e6fc76f257404487f00b5b8b67911f7a308"
+        },
+        {
+          "path": "apps/native/src/components/TeachSessionView.tsx",
+          "sha256": "7a2451708f95cece6c54b311798ec8d54f405e83c92b1f375a7ec8d8f80aa95d"
+        },
+        {
+          "path": "apps/native/src/components/teach-session.css",
+          "sha256": "fb7319b5284e517ec7aa094e5144beb40590c4dc2aa2be01c8c5f6ebd69f688b"
+        }
+      ],
+      "sourcePreserved": true
+    },
+    {
+      "branch": "codex/student-answer-sync",
+      "head": "18dd80c2544a55dc75d15c470df4fa60bc6b3b73",
+      "files": [
+        {
+          "path": "app/api/native/v1/problems/route.ts",
+          "sha256": "8dff9a4830486cdd952e8962f46007b14757bd8ee12c9160541a8f22d812e30d"
+        },
+        {
+          "path": "apps/native/src/components/ProblemPracticePage.tsx",
+          "sha256": "0d62458746e59734fcf750be376278ac0d5908891d9f4bb3f3f41ff1ee5c691d"
+        },
+        {
+          "path": "apps/native/src/components/problem-bank/attempt-history.tsx",
+          "sha256": "ff0a90a0572cd82c386b776b9dafab9752549b13aece709be8612e4a4a22121f"
+        },
+        {
+          "path": "apps/native/src/data/platform-api-client.ts",
+          "sha256": "9b47a161115a3c5979202c4d5e21686b74475eb6bfdaea6f5c4be3638615995a"
+        },
+        {
+          "path": "apps/native/src/data/platform-api-contracts.ts",
+          "sha256": "0f9c3f49b720773be9d30fadaa94adb34d4ff8f8f559c2e2ef4262c76ed8fc17"
+        },
+        {
+          "path": "apps/native/src/data/problem-sync.ts",
+          "sha256": "0974c373d5638ba8a925e58140687c27871bb31ce5f540908c9277725fc74c85"
+        },
+        {
+          "path": "lib/server/native-problem-sync.ts",
+          "sha256": "96ed5a74b6db611219943a5eb0d34c9c9301a43e4b9b469f3ee64d37c7105f70"
+        },
+        {
+          "path": "lib/problem-bank/synced-attempt.ts",
+          "sha256": "13f5ece8c9b1fcea99fdad85ef6f72c169b8da1d8f4a5e7108ae364e77e8fd9e"
+        },
+        {
+          "path": "lib/server/native-problem-attempt-history.ts",
+          "sha256": "12ce307d46f3e4959e51d2e72aa4a2954423ab5f84a7e23fd889543ac9104990"
+        },
+        {
+          "path": "scripts/maintenance/verify-problem-attempt-sync.test.mjs",
+          "sha256": "13fdc883a34f02f50533f9e3591c73e572c3450f9afa71d6c7b47ed47cc662b6"
+        }
+      ],
+      "sourcePreserved": true
+    },
+    {
+      "branch": "codex/chat-ascii-sharks",
+      "head": "88de16913acd4f464ec523667dce71ab71fa0e02",
+      "files": [
+        {
+          "path": "apps/native/README.md",
+          "sha256": "8b860e905e4ac6ae6dc59bb65057cabced42f2472cbe9d20b6e60b55086cffec"
+        },
+        {
+          "path": "apps/native/src/components/CourseWorkspace.tsx",
+          "sha256": "75ff347c18d7d5fec7d4b32c33645dd8ac8b7b1127e3898d8111f97d0f0fecd1"
+        },
+        {
+          "path": "apps/native/src/components/GeneralChatWorkspace.tsx",
+          "sha256": "87ecbfee46008ca70764dc5fc8864a81b005cc08ecbb89f017aa0fe27682d6bc"
+        },
+        {
+          "path": "apps/native/src/components/ChatOcean.tsx",
+          "sha256": "11e4a6eba7b397a866d17bc1ed9f7110f819d30cc65607f0ae039243b829206f"
+        },
+        {
+          "path": "apps/native/src/components/chat-ocean.css",
+          "sha256": "6a565ea7b81948bb95c191a09dce16d37acd6f59990d01a5a641f7201eb70661"
+        },
+        {
+          "path": "apps/native/src/lib/use-chat-ocean.ts",
+          "sha256": "3579bba353cd5307dc22077bfe53209c9f89fee4936c9a97254eaae99edbaf38"
+        },
+        {
+          "path": "apps/native/src/vendor/ascii-sharks/LICENSE",
+          "sha256": "c5caff4e891468c982ad58d5491fd30631ab9543188407390fa4bfdb711b4718"
+        },
+        {
+          "path": "apps/native/src/vendor/ascii-sharks/math.ts",
+          "sha256": "609eec94943ce9ebbfc39ef4458fa7d447c557f461fc3ae7f7e849f7d32dd790"
+        },
+        {
+          "path": "apps/native/src/vendor/ascii-sharks/engine.ts",
+          "sha256": "21f7ac05912a0cb4b6c242b657517c0c2f346457e7ac131c565d2ee408c681ec"
+        },
+        {
+          "path": "apps/native/src/vendor/ascii-sharks/README.md",
+          "sha256": "b4f343724882d55408ff2a706e688bdeb1388ef024e3046d084a1e3b56eb8cc3"
+        },
+        {
+          "path": "apps/native/src/vendor/ascii-sharks/renderer.ts",
+          "sha256": "bd128bad737e28ecfa19fbc4ac93bd1aad8f829222884b67bcbc7e5daf5c02a6"
+        },
+        {
+          "path": "apps/native/src/vendor/ascii-sharks/species.ts",
+          "sha256": "d00f303f4e24abc095f9990283dedaf38361ddc5c83b534d4663c8a456d66546"
+        },
+        {
+          "path": "apps/native/src/vendor/ascii-sharks/world.ts",
+          "sha256": "02f75272a2105eec8a7be27863f5ab371b8cb7f0602cc175ef1f96304f41889f"
+        },
+        {
+          "path": "apps/native/public/licenses/ascii-sharks.txt",
+          "sha256": "c5caff4e891468c982ad58d5491fd30631ab9543188407390fa4bfdb711b4718"
+        }
+      ],
+      "sourcePreserved": true
+    }
+  ],
+  "validation": {
+    "changedFormatAndLint": true,
+    "rootAndNativeTypes": true,
+    "fullStagingBuild": true,
+    "classroomDisposablePostgres": "passed",
+    "answerSync": {
+      "passed": 5,
+      "skipped": 0,
+      "includesPostgres": true
+    },
+    "topicOrganization": {
+      "passed": 2,
+      "skipped": 0,
+      "includesPostgres": true
+    },
+    "bilingualChapterOrdering": {
+      "passed": 4,
+      "skipped": 0
+    },
+    "coachClassroomBoundary": {
+      "passed": 1,
+      "skipped": 0
+    },
+    "browserFixture": [
+      "whole chapter added: 4 to 6 questions",
+      "compact inline previews retained",
+      "shark background present only before a mock reply"
+    ],
+    "liveBrowser": [
+      "Authenticated teacher opened the existing CSC108 draft.",
+      "Name editor opened and cancelled without saving.",
+      "Chapter picker loaded 226 real questions; no selection was saved.",
+      "No browser console errors."
+    ],
+    "runtimeErrorEntries": 0,
+    "licenseServed": true
+  },
+  "migrations": [
+    {
+      "id": "20261105150000_class_session_name",
+      "status": "applied",
+      "evidence": "Railway pre-deploy: All migrations have been successfully applied."
+    }
+  ],
+  "assets": [
+    {
+      "path": "/native-web/assets/index-B74r_ZQI.js",
+      "sha256": "99c77452714d4867183b48728e26e170f6e9857185f0ea4d4d01f73db598b06a",
+      "matched": true
+    },
+    {
+      "path": "/native-web/assets/index-ZAYjmflx.css",
+      "sha256": "0893205dd2795e2436c6ab3d30e8619bc14bcbb0bb0c9827df6205d463c574e8",
+      "matched": true
+    }
+  ],
+  "at": "2026-11-05T16:08:06.660Z",
+  "branch": "codex/staging-next",
+  "baselineBranch": "codex/staging-baseline",
+  "health": true,
+  "limitations": [
+    "No real student submission, course content edit, or live classroom start was performed.",
+    "AI suggestion frequency was not measured with live provider calls.",
+    "Cross-device behavior was covered by isolated fixtures and PostgreSQL regression; no additional live two-device test in this release."
+  ],
+  "changes": [
+    "Persisted classroom names with numbered legacy fallback.",
+    "Compact question previews with inline details and reference answers.",
+    "Large chapter picker with whole-chapter selection and 400-item batches.",
+    "Submitted choice/text/code history and image grading sync, preserving local images.",
+    "Optional account-scoped shark background on empty chats, with MIT attribution.",
+    "More classroom explanation suggestions for full solutions and follow-ups, preserving hint boundaries.",
+    "Existing topic ordering and atomic organization updates (#40/#42) retained."
+  ]
+}
