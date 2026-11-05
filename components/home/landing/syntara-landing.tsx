@@ -26,7 +26,7 @@ import {
 
 type MarbleColor = keyof typeof MARBLE_PALETTE;
 
-const FEATURES: {
+export const FEATURES: {
   key: Exclude<LandingScene, 'hero' | 'closing'>;
   color: MarbleColor;
   label: string;
