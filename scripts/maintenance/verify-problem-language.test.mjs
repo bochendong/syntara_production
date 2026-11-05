@@ -65,6 +65,20 @@ test('both language views keep one problem ID, grading and option order', () => 
   assert.equal(JSON.stringify(problem), before);
 });
 
+test('a numbered course chapter survives stale per-question chapter translations', () => {
+  const reclassified = { ...problem, chapterName: '08 Abstract Functions 抽象函数' };
+  for (const language of ['zh-CN', 'en-US']) {
+    const localized = localizeProblem(reclassified, language);
+    assert.equal(localized.chapterId, reclassified.chapterId);
+    assert.equal(localized.chapterName, reclassified.chapterName);
+    assert.equal(localized.grading, reclassified.grading);
+  }
+  assert.equal(localizeProblem(reclassified, 'zh-CN').title, '集合选择题');
+  assert.equal(localizeProblem(reclassified, 'zh-CN').publicContent.stem, '哪一个是集合？');
+  // Unlinked personal questions keep their existing localized presentation.
+  assert.equal(localizeProblem({ ...reclassified, chapterId: null }, 'zh-CN').chapterName, '集合');
+});
+
 test('proof and code localization changes presentation without replacing grading or starter code', () => {
   for (const type of ['proof', 'code']) {
     const original = {

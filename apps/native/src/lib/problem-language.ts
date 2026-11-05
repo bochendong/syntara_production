@@ -5,6 +5,7 @@ import {
   type LocalizableProblemContent,
 } from '../../../../lib/problem-bank/i18n';
 import type { LocalProblem } from '../domain/models';
+import { splitNotebookName } from './notebook-reading';
 
 export type { ProblemContentLanguage } from '../../../../lib/problem-bank/i18n';
 
@@ -26,10 +27,16 @@ export function localizeProblem(
   );
   const translatedStem = 'stem' in publicContent ? publicContent.stem : undefined;
   const translation = publicContent.translations?.[language];
+  // 课程已按教学顺序编号时，以当前章节为准，旧题面中的译名不能覆盖重新归类的结果。
+  const numberedCourseChapter = Boolean(
+    problem.chapterId && problem.chapterName && splitNotebookName(problem.chapterName).number,
+  );
   return {
     ...problem,
     publicContent,
-    ...(translation?.chapterName ? { chapterName: translation.chapterName } : {}),
+    ...(translation?.chapterName && !numberedCourseChapter
+      ? { chapterName: translation.chapterName }
+      : {}),
     title:
       translation?.title ??
       (typeof translatedStem === 'string' && translatedStem !== problem.publicContent.stem

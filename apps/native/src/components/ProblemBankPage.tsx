@@ -395,19 +395,23 @@ export function ProblemBankPage({
         const notebook = index === undefined ? null : sortedNotebooks[index];
         const name = notebook ? splitNotebookName(notebook.name) : null;
         const courseChapter = key.startsWith(COURSE_CHAPTER_PREFIX);
+        const courseName = courseChapter
+          ? splitNotebookName(problem.chapterName?.trim() || '未命名章节')
+          : null;
         chapter = {
           key,
-          number: name?.number ?? null,
-          title: courseChapter
-            ? problem.chapterName?.trim() || '未命名章节'
-            : (name?.title ??
-              (key === UNSORTED_CHAPTER
-                ? '未分章节'
-                : key.startsWith('tag:')
-                  ? key.slice(4)
-                  : key)),
+          number: courseName?.number ?? name?.number ?? null,
+          title:
+            courseName?.title ??
+            name?.title ??
+            (key === UNSORTED_CHAPTER ? '未分章节' : key.startsWith('tag:') ? key.slice(4) : key),
           color: index === undefined ? null : notebookMarbleColor(index),
-          order: courseChapter ? Number.MAX_SAFE_INTEGER - 1 : (index ?? Number.MAX_SAFE_INTEGER),
+          // 编号章节跟着课程学习顺序，不能由最近更新的题目决定显示位置。
+          order: courseChapter
+            ? courseName?.number
+              ? Number(courseName.number) - 1
+              : Number.MAX_SAFE_INTEGER - 1
+            : (index ?? Number.MAX_SAFE_INTEGER),
           problems: [],
           passed: 0,
           failed: 0,
