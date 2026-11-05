@@ -195,11 +195,23 @@ function AnswerView({ answer, language }: { answer: Rec; language?: string }) {
   const code = str(answer.code);
   const text = str(answer.text);
   const images = imagesOf(answer);
-  if (!selected.length && !blanks.length && !cells.length && !code && !text && !images.length) {
+  const omittedImages = answer.hasImages === true && !images.length;
+  if (
+    !selected.length &&
+    !blanks.length &&
+    !cells.length &&
+    !code &&
+    !text &&
+    !images.length &&
+    !omittedImages
+  ) {
     return <p className="ah-muted">没有作答内容。</p>;
   }
   return (
     <div className="ah-answer">
+      {omittedImages ? (
+        <p className="ah-muted">本次提交包含图片，原图仅在提交设备上可见；批改结果已同步。</p>
+      ) : null}
       {selected.length ? (
         <div className="ah-chips">
           {selected.map((id) => (
@@ -331,8 +343,9 @@ export function AttemptDetail({
 export function AttemptHistory({
   attempts,
   language,
-  title = '本机作答记录',
+  title = '作答记录',
   answerLabel = '我的提交',
+  visibleCount = 20,
 }: {
   attempts: LocalProblemAttempt[];
   /** 代码的语言（python / racket） */
@@ -340,13 +353,14 @@ export function AttemptHistory({
   /** 老师看学生答案时不要标题，传空字符串。 */
   title?: string;
   answerLabel?: string;
+  visibleCount?: number;
 }) {
   const [openId, setOpenId] = useState<string | null>(attempts[0]?.id ?? null);
   const submissions = attempts.filter((item) => !item.result?.event);
   return (
     <section className="local-attempt-history ah">
       {title ? <h3>{title}</h3> : null}
-      {attempts.slice(0, 20).map((attempt) => {
+      {attempts.slice(0, visibleCount).map((attempt) => {
         const event = typeof attempt.result?.event === 'string' ? attempt.result.event : null;
         const number = event ? null : submissions.length - submissions.indexOf(attempt);
         const open = openId === attempt.id && !event;

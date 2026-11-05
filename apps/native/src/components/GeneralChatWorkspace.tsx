@@ -5,6 +5,8 @@ import { ArrowUp, MessageCircle, PanelLeft, SquarePen, X } from 'lucide-react';
 import { ChatScopePicker } from './ChatScopePicker';
 import { VoiceInputButton } from './VoiceInputButton';
 import { useChatWorkspaceShell, usePublishChatSidebar } from './ChatWorkspaceShell';
+import { ChatOceanBackground, ChatOceanToggle } from './ChatOcean';
+import { useChatOcean } from '../lib/use-chat-ocean';
 import { PhoneChatDrawer } from './CourseWorkspace';
 import { ChatRichText } from './chat-rich/ChatRichText';
 import {
@@ -48,6 +50,7 @@ export function GeneralChatWorkspace({
 }) {
   const phone = usePhoneLayout();
   const chatShell = useChatWorkspaceShell();
+  const [oceanEnabled, setOceanEnabled] = useChatOcean();
   const [sidebarOpen, setSidebarOpen] = useState(!phone);
   const sidebarVisible = chatShell ? !chatShell.collapsed : sidebarOpen;
   const [conversations, setConversations] = useState<GeneralConversation[]>([]);
@@ -332,6 +335,7 @@ export function GeneralChatWorkspace({
   );
   usePublishChatSidebar(drawer);
   const title = conversations.find((row) => row.id === selected)?.title || '新聊天';
+  const emptyChat = !loading && !busy && messages.length === 0 && !streaming;
 
   return (
     <section
@@ -340,19 +344,25 @@ export function GeneralChatWorkspace({
       aria-label="普通聊天工作台"
     >
       <main className="conversation-workspace">
+        {oceanEnabled && emptyChat && !(phone && sidebarVisible) ? <ChatOceanBackground /> : null}
         <header className="phone-chat-header">
-          <button
-            type="button"
-            className="phone-glass-button"
-            aria-label={sidebarVisible ? '隐藏侧边栏' : '显示侧边栏'}
-            aria-expanded={sidebarVisible}
-            data-onboarding={sidebarVisible ? undefined : 'drawer'}
-            onClick={() =>
-              chatShell ? chatShell.toggleSidebar() : setSidebarOpen((value) => !value)
-            }
-          >
-            <PanelLeft size={20} />
-          </button>
+          <div className="chat-header-start">
+            <button
+              type="button"
+              className="phone-glass-button"
+              aria-label={sidebarVisible ? '隐藏侧边栏' : '显示侧边栏'}
+              aria-expanded={sidebarVisible}
+              data-onboarding={sidebarVisible ? undefined : 'drawer'}
+              onClick={() =>
+                chatShell ? chatShell.toggleSidebar() : setSidebarOpen((value) => !value)
+              }
+            >
+              <PanelLeft size={20} />
+            </button>
+            {emptyChat ? (
+              <ChatOceanToggle enabled={oceanEnabled} onChange={setOceanEnabled} />
+            ) : null}
+          </div>
           <div className="phone-chat-title">
             <span>
               <strong>Syntara</strong>

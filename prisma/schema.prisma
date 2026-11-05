@@ -2169,6 +2169,7 @@ model ClassSession {
   classId   String
   teacherId String
   number    Int
+  name      String?   @db.VarChar(80)
   code      String?   @unique @db.VarChar(6)
   /// draft | live | ended
   status    String    @default("live") @db.VarChar(12)

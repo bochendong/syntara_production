@@ -11,6 +11,7 @@ import type { ClassroomOpenProblem } from './ClassroomPanel';
 import { PhoneEmpty, PhonePage } from './PhonePages';
 import { ProblemTitleText } from './problem-bank/problem-rich-text';
 import { clock, Marble, problemName, STATUS } from './teach-shared';
+import { classSessionLabel } from '../lib/class-session-label';
 import './teach-page.css';
 import './student-classroom.css';
 
@@ -157,7 +158,7 @@ function ClassroomHome({
                 <span className="tl-dot" aria-hidden />
                 <span className="tp-course-copy">
                   <strong>
-                    {session.courseName} · 第 {session.number} 节
+                    {session.courseName} · {classSessionLabel(session)}
                   </strong>
                   <small>{session.teacherName}</small>
                 </span>
@@ -185,7 +186,7 @@ function ClassroomHome({
                 >
                   <span className="tp-course-copy">
                     <strong>
-                      {session.courseName} · 第 {session.number} 节
+                      {session.courseName} · {classSessionLabel(session)}
                     </strong>
                     <small>
                       {clock(session.startedAt)} · {done}/{session.items.length}
@@ -248,7 +249,7 @@ function ClassroomSession({
         courseId: session.courseId,
         problemIds: session.items.map((entry) => entry.problemId),
         problemId: item.problemId,
-        title: `第 ${session.number} 节`,
+        title: classSessionLabel(session),
         classSessionId: session.id,
       });
     } catch (cause) {
@@ -260,10 +261,10 @@ function ClassroomSession({
 
   const done = session.items.filter((item) => item.myStatus).length;
   return (
-    <PhonePage title={`第 ${session.number} 节`} overlay largeTitle onBack={onBack}>
+    <PhonePage title={classSessionLabel(session)} overlay largeTitle onBack={onBack}>
       <div className="tp-page tc-page">
         <header className="phone-large-head tp-head">
-          <h1>第 {session.number} 节</h1>
+          <h1>{classSessionLabel(session)}</h1>
           <span className="tp-term">{session.courseName}</span>
         </header>
         <div className="tc-status">

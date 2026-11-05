@@ -78,6 +78,8 @@ import {
 import { ChatScopePicker } from './ChatScopePicker';
 import { useChatWorkspaceShell, usePublishChatSidebar } from './ChatWorkspaceShell';
 import { CourseToolsMenu, GlassMenu } from './CourseToolsMenu';
+import { ChatOceanBackground, ChatOceanToggle } from './ChatOcean';
+import { useChatOcean } from '../lib/use-chat-ocean';
 import { CourseMaterialsPage, type CourseMaterialKind } from './CourseMaterialsPage';
 import { VoiceInputButton } from './VoiceInputButton';
 import { LearningWorkspaceTabs } from './LearningWorkspaceTabs';
@@ -2730,6 +2732,7 @@ export function CourseWorkspace({
   onNewChat,
 }: CourseWorkspaceProps) {
   const chatShell = useChatWorkspaceShell();
+  const [oceanEnabled, setOceanEnabled] = useChatOcean();
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(() =>
     workspace.conversations.some((conversation) => conversation.id === initialConversationId)
       ? initialConversationId
@@ -5263,6 +5266,7 @@ export function CourseWorkspace({
   };
 
   const hasMessages = messages.length > 0;
+  const emptyChat = scopeReady && !busy && !hasMessages;
   useEffect(() => {
     const content = conversationContentRef.current;
     const stream = content?.firstElementChild;
@@ -5650,6 +5654,9 @@ export function CourseWorkspace({
         ref={chatDropTargetRef}
         className={`conversation-workspace${!hasMessages ? ' is-empty-chat' : ''}`}
       >
+        {oceanEnabled && emptyChat && !phonePage && mobilePanel !== 'sessions' ? (
+          <ChatOceanBackground />
+        ) : null}
         {updateNoteText ? (
           <CourseUpdateCard text={updateNoteText} onClose={() => setUpdateNote(null)} />
         ) : null}
@@ -5677,31 +5684,36 @@ export function CourseWorkspace({
             document.documentElement.classList.contains('platform-macos') ? 'deep' : undefined
           }
         >
-          {phoneLayout ? (
-            <button
-              type="button"
-              className="phone-glass-button"
-              onClick={() => setMobilePanel('sessions')}
-              aria-label="打开菜单"
-              data-onboarding="drawer"
-            >
-              <Menu size={20} strokeWidth={1.8} />
-            </button>
-          ) : (
-            <button
-              type="button"
-              className="phone-glass-button"
-              onClick={() =>
-                chatShell
-                  ? chatShell.toggleSidebar()
-                  : setLocalSidebarCollapsed((collapsed) => !collapsed)
-              }
-              aria-label={splitSidebarCollapsed ? '显示侧边栏' : '隐藏侧边栏'}
-              data-onboarding={splitSidebarCollapsed ? 'drawer' : undefined}
-            >
-              <PanelLeft size={20} strokeWidth={1.8} />
-            </button>
-          )}
+          <div className="chat-header-start">
+            {phoneLayout ? (
+              <button
+                type="button"
+                className="phone-glass-button"
+                onClick={() => setMobilePanel('sessions')}
+                aria-label="打开菜单"
+                data-onboarding="drawer"
+              >
+                <Menu size={20} strokeWidth={1.8} />
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="phone-glass-button"
+                onClick={() =>
+                  chatShell
+                    ? chatShell.toggleSidebar()
+                    : setLocalSidebarCollapsed((collapsed) => !collapsed)
+                }
+                aria-label={splitSidebarCollapsed ? '显示侧边栏' : '隐藏侧边栏'}
+                data-onboarding={splitSidebarCollapsed ? 'drawer' : undefined}
+              >
+                <PanelLeft size={20} strokeWidth={1.8} />
+              </button>
+            )}
+            {emptyChat ? (
+              <ChatOceanToggle enabled={oceanEnabled} onChange={setOceanEnabled} />
+            ) : null}
+          </div>
           <div className="phone-chat-title">
             {compactLayout ? (
               <button

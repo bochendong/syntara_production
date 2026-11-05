@@ -5,7 +5,11 @@ import type { LocalProblem, LocalProblemAttempt, LocalProblemProgress } from '..
 import { SYNTARA_ARCHIVE_FORMAT, SYNTARA_ARCHIVE_VERSION, type SyntaraArchiveV1 } from './archive';
 import { isPlatformCourse } from './chat-sync';
 import type { NativeProblemAttemptUpload } from './platform-api-contracts';
-import { getNativeProblems, uploadNativeProblemAttempts } from './platform-api-client';
+import {
+  getNativeProblems,
+  getNativeProblemAttempts,
+  uploadNativeProblemAttempts,
+} from './platform-api-client';
 import { saveProblemLayers } from '../lib/course-layers';
 import type { LocalRepository } from './repository';
 import { singleFlight } from '../lib/single-flight';
@@ -159,6 +163,47 @@ function uploadOf(attempt: LocalProblemAttempt): NativeProblemAttemptUpload | nu
     autoGraded: result.autoGraded === true,
     createdAt: attempt.createdAt,
   };
+}
+
+/** Merge downloads by their original submission identity, preserving this device's images/details. */
+export function mergeSyncedProblemAttempts(
+  local: LocalProblemAttempt[],
+  remote: LocalProblemAttempt[],
+): LocalProblemAttempt[] {
+  return remote.map((attempt) => {
+    const clientId = attempt.id.startsWith('native_') ? attempt.id.slice(7) : attempt.id;
+    const existing = local.find(
+      (item) =>
+        item.id === clientId || item.id === attempt.id || item.result?.serverCodeId === attempt.id,
+    );
+    if (!existing) return { ...attempt, id: clientId };
+    if (existing.updatedAt > attempt.updatedAt) return existing;
+    // Downloads never erase richer local answers, photos, handwriting, or code test details.
+    return {
+      ...attempt,
+      id: existing.id,
+      answer: existing.answer,
+      result: { ...existing.result, ...attempt.result },
+      createdAt: existing.createdAt,
+    };
+  });
+}
+
+/** Fetch one bounded page only when a problem is opened or its history is requested. */
+export async function syncProblemAttempts(
+  repository: LocalRepository,
+  courseId: string,
+  problemId: string,
+  before?: string | null,
+): Promise<string | null> {
+  if (!(await isPlatformCourse(repository, courseId))) return null;
+  const page = await getNativeProblemAttempts(courseId, problemId, before);
+  // Read after the request, so a submission saved while downloading is preserved.
+  const local = await repository.loadProblemDocument(problemId);
+  if (!local) return page.nextCursor;
+  const attempts = mergeSyncedProblemAttempts(local.attempts, page.attempts);
+  if (attempts.length) await repository.importArchive(archiveOf({ problemAttempts: attempts }));
+  return page.nextCursor;
 }
 
 /**

@@ -7,6 +7,7 @@ import { useClassroomState } from '../src/components/ClassroomPanel';
 import { ProblemBankPage } from '../src/components/ProblemBankPage';
 import { StudentClassroomPage } from '../src/components/StudentClassroomPage';
 import { TeachPage } from '../src/components/TeachPage';
+import { TeachSessionView } from '../src/components/TeachSessionView';
 import { setBrowserAccount } from '../src/data/browser-runtime';
 import type { LocalProblem } from '../src/domain/models';
 import '../src/tailwind.css';
@@ -250,6 +251,7 @@ type MockAttempt = {
   createdAt: number;
 };
 type MockSession = {
+  name?: string | null;
   id: string;
   classId: string;
   number: number;
@@ -430,6 +432,7 @@ const classOverview = (classId: string) => ({
     .map((entry) => ({
       id: entry.id,
       number: entry.number,
+      name: entry.name,
       status: entry.status,
       code: entry.code,
       startedAt: entry.startedAt,
@@ -465,6 +468,7 @@ const dashboard = (sessionId: string) => {
     session: {
       id: entry.id,
       number: entry.number,
+      name: entry.name,
       status: entry.status,
       code: entry.code,
       locked: entry.locked,
@@ -537,6 +541,9 @@ const dashboard = (sessionId: string) => {
   };
 };
 function teachGet(query: URLSearchParams) {
+  if (query.has('preview')) {
+    return { problem: problemRecord(Number(query.get('problemId')!.split('-')[1])) };
+  }
   const classId = query.get('classId');
   const sessionId = query.get('sessionId');
   const answers = query.get('answers');
@@ -570,6 +577,7 @@ function teachGet(query: URLSearchParams) {
             .map((entry) => ({
               id: entry.id,
               number: entry.number,
+              name: entry.name,
               itemCount: entry.problemIds.length,
               titles: entry.problemIds
                 .slice(0, 3)
@@ -586,6 +594,7 @@ function teachGet(query: URLSearchParams) {
         ? {
             sessionId: live.id,
             number: live.number,
+            name: live.name,
             presentCount: live.present.length,
             problemIds: live.problemIds,
           }
@@ -603,6 +612,7 @@ function nextNumber(classId: string) {
   );
 }
 type TeachBody = {
+  name: string;
   action?: string;
   classId: string;
   sessionId?: string;
@@ -614,6 +624,9 @@ type TeachBody = {
 function teachPost(body: TeachBody) {
   const entry = mockSessions.find((row) => row.id === body.sessionId);
   switch (body.action) {
+    case 'rename':
+      entry!.name = body.name.trim();
+      return dashboard(entry!.id);
     case 'open-class':
       return { classId: 'class-now' };
     case 'create-draft': {
@@ -637,6 +650,7 @@ function teachPost(body: TeachBody) {
         mockSessions.push({
           ...session(`i${id}`, body.classId, nextNumber(body.classId), 'draft', [], 0),
           problemIds: [...source.problemIds],
+          name: source.name,
         });
       }
       return classOverview(body.classId);
@@ -675,7 +689,7 @@ function teachPost(body: TeachBody) {
   }
 }
 
-if (screen === 'bank') {
+if (screen === 'bank' || screen === 'live') {
   teachPost({ action: 'start-session', classId: 'class-now', sessionId: 'now-3' } as TeachBody);
 }
 
@@ -1024,10 +1038,12 @@ createRoot(document.getElementById('root')!).render(
         <AppNavigationRail
           {...navigation}
           onOpenChat={noop}
-          active={screen === 'student' ? 'classroom' : 'teach'}
+          active={screen === 'student' || screen === 'live' ? 'classroom' : 'teach'}
         />
         <div className="native-global-page">
-          {screen === 'student' ? (
+          {screen === 'live' ? (
+            <TeachSessionView sessionId="now-3" onBack={noop} />
+          ) : screen === 'student' ? (
             <StudentFixture />
           ) : screen === 'bank' ? (
             <BankFixture />

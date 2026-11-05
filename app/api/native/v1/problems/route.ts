@@ -9,6 +9,10 @@ import {
 } from '@/lib/server/native-problem-sync';
 import { getOptionalPrisma } from '@/lib/server/prisma-safe';
 import {
+  parseAttemptCursor,
+  readNativeProblemAttempts,
+} from '@/lib/server/native-problem-attempt-history';
+import {
   publicApiError,
   publicApiRequestId,
   publicApiSuccess,
@@ -31,6 +35,27 @@ async function getContent(request: NextRequest, requestId: string) {
   const courseId = request.nextUrl.searchParams.get('courseId')?.trim();
   if (!courseId || courseId.length > 200) {
     return publicApiError(requestId, 400, 'invalid_request', 'courseId is required.');
+  }
+  if (request.nextUrl.searchParams.get('attempts') === '1') {
+    const problemId = request.nextUrl.searchParams.get('problemId')?.trim();
+    if (!problemId || problemId.length > 200)
+      return publicApiError(requestId, 400, 'invalid_request', 'problemId is required.');
+    let before;
+    try {
+      before = parseAttemptCursor(request.nextUrl.searchParams.get('before'));
+    } catch {
+      return publicApiError(requestId, 400, 'invalid_request', 'Invalid attempt cursor.');
+    }
+    const data = await readNativeProblemAttempts(
+      prisma,
+      principal.userId,
+      courseId,
+      problemId,
+      before,
+    );
+    return data
+      ? publicApiSuccess(requestId, data, NO_STORE)
+      : publicApiError(requestId, 404, 'not_found', 'Problem not found.');
   }
   const sinceParam = Number(request.nextUrl.searchParams.get('since'));
   const since = Number.isFinite(sinceParam) && sinceParam > 0 ? sinceParam : null;

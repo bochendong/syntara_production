@@ -7,6 +7,7 @@ import {
   type TeachLiveCourse,
 } from '../data/platform-api-client';
 import { useAppNavigation } from './app-navigation-context';
+import { classSessionLabel } from '../lib/class-session-label';
 import './teach-session.css';
 
 /**
@@ -73,7 +74,7 @@ export function TeachLiveBanner({ live, error }: { live: TeachLiveCourse | null;
     <>
       <div className="tl-banner" role="status">
         <span className="tl-dot" aria-hidden />
-        正在上课 · 第 {live.number} 节 · {live.presentCount} 人在场
+        正在上课 · {classSessionLabel(live)} · {live.presentCount} 人在场
       </div>
       {error ? <p className="phone-page-error">{error}</p> : null}
     </>

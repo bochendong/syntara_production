@@ -84,7 +84,12 @@ import {
 import { isPlatformCourse } from '../data/chat-sync';
 import { pendingCodeSubmission, clearPendingCodeSubmission } from '../data/code-submission-id';
 import { problemAiGradeRequest } from '../data/problem-ai-grading';
-import { queueProblemAttempt, queueProblemTestRun } from '../data/problem-sync';
+import {
+  queueProblemAttempt,
+  queueProblemTestRun,
+  syncProblemAttempts,
+} from '../data/problem-sync';
+import { subscribeVisibleRefresh } from '../lib/visible-refresh';
 import { getLocalRepository } from '../data/repository';
 import { accountStorageKey } from '../data/browser-runtime';
 import {
@@ -358,6 +363,11 @@ export function ProblemPracticePage({
     orderedIds.includes(launch.initialProblemId) ? launch.initialProblemId : orderedIds[0],
   );
   const [document, setDocument] = useState<LocalProblemDocument | null>(null);
+  const [historyCursor, setHistoryCursor] = useState<string | null>(null);
+  const [historySyncError, setHistorySyncError] = useState<string | null>(null);
+  const [historySyncing, setHistorySyncing] = useState(false);
+  const [historyVisibleCount, setHistoryVisibleCount] = useState(20);
+  const historyCursorInitialized = useRef(false);
   const textAnswerRef = useRef<HTMLTextAreaElement>(null);
   const partFormulaRef = useRef<PartFormulaHandle>(null);
   const [partNavigationTarget, setPartNavigationTarget] = useState<HTMLDivElement | null>(null);
@@ -727,13 +737,20 @@ export function ProblemPracticePage({
   useEffect(() => {
     if (!currentProblem) return;
     let alive = true;
+    setHistoryCursor(null);
+    historyCursorInitialized.current = false;
+    setHistorySyncError(null);
+    setHistoryVisibleCount(20);
     draftRef.current = null;
     const draftKey = problemCodeDraftKey(
       accountStorageKey('syntara.problem-code-draft.v1'),
       currentProblem.courseId,
       currentProblem.id,
     );
-    const restoreAnswer = (nextDocument: LocalProblemDocument | null) => {
+    const restoreAnswer = (
+      nextDocument: LocalProblemDocument | null,
+      expectedAnswer?: LocalProblemAnswer,
+    ) => {
       let next = restoreAnswerFromAttempt(currentProblem, nextDocument);
       if (next.kind === 'code') {
         try {
@@ -743,9 +760,10 @@ export function ProblemPracticePage({
         } catch {
           setDraftError('无法读取代码草稿，请检查本机存储是否可用。');
         }
-        draftRef.current = { key: draftKey, code: next.code, dirty: false };
+        if (!expectedAnswer) draftRef.current = { key: draftKey, code: next.code, dirty: false };
       }
-      setAnswer(next);
+      setAnswer((current) => (expectedAnswer && current !== expectedAnswer ? current : next));
+      return next;
     };
     snapshotSequence.current += 1;
     setSnapshotBusy(false);
@@ -769,10 +787,29 @@ export function ProblemPracticePage({
     void (async () => {
       try {
         const repository = await getLocalRepository();
-        const nextDocument = await repository.loadProblemDocument(currentProblem.id);
+        const localDocument = await repository.loadProblemDocument(currentProblem.id);
         if (!alive) return;
-        setDocument(nextDocument);
-        restoreAnswer(nextDocument);
+        setDocument(localDocument);
+        const originalAnswer = restoreAnswer(localDocument);
+        setLoading(false);
+        try {
+          const cursor = await syncProblemAttempts(
+            repository,
+            currentProblem.courseId,
+            currentProblem.id,
+          );
+          if (!alive) return;
+          setHistoryCursor(cursor);
+          historyCursorInitialized.current = true;
+          const nextDocument = await repository.loadProblemDocument(currentProblem.id);
+          if (!alive) return;
+          setDocument(nextDocument);
+          // A slow connection must not replace text/options edited since the local page opened.
+          restoreAnswer(nextDocument, originalAnswer);
+        } catch {
+          if (!alive) return;
+          setHistorySyncError('作答记录同步失败，暂时显示本机记录。');
+        }
       } catch (cause) {
         if (!alive) return;
         setError(cause instanceof Error ? cause.message : String(cause));
@@ -788,6 +825,66 @@ export function ProblemPracticePage({
       saveDraft();
     };
   }, [currentProblem, saveDraft]);
+
+  // Refresh history without replacing the learner's current answer or unsent draft.
+  useEffect(() => {
+    if (!currentProblem || rightTab !== 'history' || loading || submitting || snapshotBusy) return;
+    let alive = true;
+    const stop = subscribeVisibleRefresh(async () => {
+      try {
+        const repository = await getLocalRepository();
+        const cursor = await syncProblemAttempts(
+          repository,
+          currentProblem.courseId,
+          currentProblem.id,
+        );
+        const next = await repository.loadProblemDocument(currentProblem.id);
+        if (!alive) return;
+        if (!historyCursorInitialized.current) {
+          setHistoryCursor(cursor);
+          historyCursorInitialized.current = true;
+        }
+        setDocument(next);
+        setHistorySyncError(null);
+      } catch {
+        if (alive) setHistorySyncError('作答记录同步失败，暂时显示本机记录。');
+      }
+    });
+    return () => {
+      alive = false;
+      stop();
+    };
+  }, [currentProblem, rightTab, loading, submitting, snapshotBusy]);
+
+  const loadMoreHistory = async () => {
+    if (!currentProblem || historySyncing) return;
+    const problemId = currentProblem.id;
+    if (!historyCursor && !historySyncError) {
+      setHistoryVisibleCount((count) => count + 20);
+      return;
+    }
+    const sequence = snapshotSequence.current;
+    setHistorySyncing(true);
+    try {
+      const repository = await getLocalRepository();
+      const cursor = await syncProblemAttempts(
+        repository,
+        currentProblem.courseId,
+        problemId,
+        historyCursor,
+      );
+      const next = await repository.loadProblemDocument(problemId);
+      if (sequence !== snapshotSequence.current) return;
+      setDocument(next);
+      setHistoryCursor(cursor);
+      setHistorySyncError(null);
+      setHistoryVisibleCount((count) => count + 20);
+    } catch {
+      if (sequence === snapshotSequence.current) setHistorySyncError('作答记录同步失败，请重试。');
+    } finally {
+      setHistorySyncing(false);
+    }
+  };
 
   const goRelative = useCallback(
     (delta: -1 | 1) => {
@@ -2621,15 +2718,39 @@ export function ProblemPracticePage({
               ) : null}
 
               {rightTab === 'history' ? (
-                document?.attempts.length ? (
-                  <AttemptHistory
-                    key={currentProblem?.id}
-                    attempts={document.attempts}
-                    language={historyCodeLanguage}
-                  />
-                ) : (
-                  <LearningEmptyState title="还没有本机作答记录" compact />
-                )
+                <>
+                  {historySyncError ? (
+                    <p role="status">
+                      {historySyncError}{' '}
+                      <button
+                        type="button"
+                        disabled={historySyncing}
+                        onClick={() => void loadMoreHistory()}
+                      >
+                        重试
+                      </button>
+                    </p>
+                  ) : null}
+                  {document?.attempts.length ? (
+                    <AttemptHistory
+                      key={currentProblem?.id}
+                      attempts={document.attempts}
+                      language={historyCodeLanguage}
+                      visibleCount={historyVisibleCount}
+                    />
+                  ) : (
+                    <LearningEmptyState title="还没有作答记录" compact />
+                  )}
+                  {historyCursor || (document?.attempts.length ?? 0) > historyVisibleCount ? (
+                    <button
+                      type="button"
+                      disabled={historySyncing}
+                      onClick={() => void loadMoreHistory()}
+                    >
+                      {historySyncing ? '正在同步…' : '加载更早记录'}
+                    </button>
+                  ) : null}
+                </>
               ) : null}
             </div>
           </section>

@@ -8,6 +8,7 @@ import type {
   LocalNotebookPage,
   LocalPageAsset,
   LocalProblem,
+  LocalProblemAttempt,
   LocalProblemProgress,
   LocalStudyMemory,
 } from '../domain/models';
@@ -564,6 +565,11 @@ export interface NativeProblemSnapshot {
   newSinceVersion?: number | null;
   problems: Array<LocalProblem & NativeProblemLayerFields>;
   progress: Array<Omit<LocalProblemProgress, 'id'>>;
+}
+
+export interface NativeProblemAttemptPage {
+  attempts: LocalProblemAttempt[];
+  nextCursor: string | null;
 }
 
 /** 一条 App 作答，传到网页题库；id 固定，重复上传只记一次。 */

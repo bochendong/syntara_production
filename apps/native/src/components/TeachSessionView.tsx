@@ -1,13 +1,16 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   ArrowDown,
   ArrowUp,
   Check,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
+  ChevronUp,
   Lock,
   LockOpen,
+  Pencil,
   Play,
   Plus,
   Search,
@@ -19,6 +22,7 @@ import {
 import {
   deleteTeachDraft,
   getTeachProblemChoices,
+  getTeachProblemPreview,
   getTeachSession,
   getTeachStudentAnswers,
   startTeachSession,
@@ -28,13 +32,17 @@ import {
   type TeachSessionItem,
   type TeachStudentAnswers,
 } from '../data/platform-api-client';
-import type { LocalProblemAttempt } from '../domain/models';
+import type { LocalProblem, LocalProblemAttempt } from '../domain/models';
+import { difficultyLabel, problemStem, problemTypeLabel } from '../data/local-problem-grading';
+import { classSessionLabel } from '../lib/class-session-label';
 import { GlassSkeletonRows } from './GlassLoadMore';
+import { ProblemPreview } from './CourseContentPreview';
 import { PhoneConfirm, PhoneEmpty, PhonePage } from './PhonePages';
 import { AttemptHistory } from './problem-bank/attempt-history';
-import { ProblemTitleText } from './problem-bank/problem-rich-text';
+import { ProblemRichText, ProblemTitleText } from './problem-bank/problem-rich-text';
 import { clock, courseLabel, Legend, Marble, problemName, STATUS, usePolled } from './teach-shared';
 import './teach-session.css';
+import './course-content-manager.css';
 
 /**
  * 一节课：备课（draft）时排题单；上课（live）和回看（ended）时是学生 × 题目的弹珠表和每题统计。
@@ -106,15 +114,24 @@ export function TeachSessionView({
 
   return (
     <PhonePage
-      title={data ? `第 ${data.session.number} 节` : '上课'}
+      title={data ? classSessionLabel(data.session) : '上课'}
       overlay
       wide
       largeTitle
       onBack={() => onBack(data?.session.class.id ?? null)}
     >
       <div className="tp-page ts-page">
-        <header className="phone-large-head tp-head">
-          <h1>{data ? `第 ${data.session.number} 节` : '上课'}</h1>
+        <header className="phone-large-head tp-head ts-session-head">
+          {data ? (
+            <SessionNameEditor
+              key={sessionId}
+              session={data.session}
+              busy={Boolean(busy)}
+              onSave={(name) => act('rename', { action: 'rename', sessionId, name })}
+            />
+          ) : (
+            <h1>上课</h1>
+          )}
           {data ? <span className="tp-term">{courseLabel(data.session.course)}</span> : null}
         </header>
         {error ? <p className="phone-page-error">{error}</p> : null}
@@ -232,6 +249,7 @@ export function TeachSessionView({
           sessionId={sessionId}
           existing={data.items.map((item) => item.problemId)}
           busy={busy === 'add'}
+          submissionError={error}
           onClose={() => setPicking(false)}
           onAdd={async (problemIds) => {
             if (await act('add', { action: 'add', sessionId, problemIds })) setPicking(false);
@@ -268,7 +286,7 @@ export function TeachSessionView({
 
       {deleting && data ? (
         <PhoneConfirm
-          title={`删除第 ${data.session.number} 节？`}
+          title={`删除「${classSessionLabel(data.session)}」？`}
           message="只删除这份备课，题库里的题不受影响。"
           confirmLabel="删除"
           destructive
@@ -287,6 +305,175 @@ export function TeachSessionView({
         />
       ) : null}
     </PhonePage>
+  );
+}
+
+function SessionNameEditor({
+  session,
+  busy,
+  onSave,
+}: {
+  session: TeachSession['session'];
+  busy: boolean;
+  onSave: (name: string) => Promise<boolean>;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState('');
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const hasEdited = useRef(false);
+  const label = classSessionLabel(session);
+  useEffect(() => {
+    if (editing) inputRef.current?.select();
+    else if (hasEdited.current) buttonRef.current?.focus();
+  }, [editing]);
+
+  return editing ? (
+    <form
+      className="ts-name-form"
+      aria-label="修改课堂名称"
+      onSubmit={async (event) => {
+        event.preventDefault();
+        if (busy || !name.trim()) return;
+        if (name.trim() === label || (await onSave(name.trim()))) setEditing(false);
+      }}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' && event.nativeEvent.isComposing) event.preventDefault();
+        if (event.key === 'Escape' && !busy) {
+          event.preventDefault();
+          setEditing(false);
+        }
+      }}
+    >
+      <input
+        ref={inputRef}
+        aria-label="课堂名称"
+        value={name}
+        maxLength={80}
+        required
+        disabled={busy}
+        onChange={(event) => setName(event.target.value)}
+      />
+      <button type="submit" className="ts-pill is-primary" disabled={busy || !name.trim()}>
+        {busy ? '保存中…' : '保存'}
+      </button>
+      <button type="button" className="ts-pill" disabled={busy} onClick={() => setEditing(false)}>
+        取消
+      </button>
+    </form>
+  ) : (
+    <h1 className="ts-session-title">
+      <button
+        ref={buttonRef}
+        type="button"
+        className="ts-name-button"
+        aria-label={`修改课堂名称：${label}`}
+        title="修改课堂名称"
+        disabled={busy}
+        onClick={() => {
+          hasEdited.current = true;
+          setName(label);
+          setEditing(true);
+        }}
+      >
+        <span>{label}</span>
+        <Pencil size={18} aria-hidden />
+      </button>
+    </h1>
+  );
+}
+
+function SessionProblemPreview({ sessionId, item }: { sessionId: string; item: TeachSessionItem }) {
+  const detailsId = useId();
+  const [expanded, setExpanded] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const [visible, setVisible] = useState(false);
+  const [problem, setProblem] = useState<LocalProblem | null>(null);
+  const [error, setError] = useState('');
+  const [revision, setRevision] = useState(0);
+  useEffect(() => {
+    const node = ref.current;
+    if (!node) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          setVisible(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: '300px' },
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
+  useEffect(() => {
+    if (!visible) return;
+    let active = true;
+    getTeachProblemPreview(sessionId, item.problemId)
+      .then((result) => active && setProblem(result))
+      .catch((cause) => {
+        if (active) setError(cause instanceof Error ? cause.message : '读取题目失败');
+      });
+    return () => {
+      active = false;
+    };
+  }, [sessionId, item.problemId, revision, visible]);
+
+  return (
+    <div ref={ref} className="ts-problem-preview" role="region" aria-label={problemName(item)}>
+      {error ? (
+        <div role="alert">
+          <p className="phone-page-error">{error}</p>
+          <button
+            type="button"
+            className="ts-pill"
+            onClick={() => {
+              setError('');
+              setRevision((value) => value + 1);
+            }}
+          >
+            重试
+          </button>
+        </div>
+      ) : problem ? (
+        <>
+          <div id={detailsId}>
+            {expanded ? (
+              <ProblemPreview problem={problem} />
+            ) : (
+              <div className="ts-problem-summary">
+                <ProblemRichText content={problemStem(problem)} />
+              </div>
+            )}
+          </div>
+          <div className="ts-problem-preview-footer">
+            {!expanded ? (
+              <span>
+                {problemTypeLabel(problem.type)} · {difficultyLabel(problem.difficulty)}
+              </span>
+            ) : null}
+            <button
+              type="button"
+              className="ts-problem-details-toggle"
+              aria-expanded={expanded}
+              aria-controls={detailsId}
+              onClick={() => setExpanded((value) => !value)}
+            >
+              {expanded ? '收起详情' : '展开详情'}
+              {expanded ? (
+                <ChevronUp size={15} aria-hidden />
+              ) : (
+                <ChevronDown size={15} aria-hidden />
+              )}
+            </button>
+          </div>
+        </>
+      ) : (
+        <div role="status" aria-label="正在读取题目">
+          <GlassSkeletonRows rows={2} height={24} />
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -342,34 +529,37 @@ function DraftEditor({
         <ol className="ts-draft-list">
           {data.items.map((item, index) => (
             <li key={item.id}>
-              <span className="ts-draft-no">{index + 1}</span>
-              <span className="ts-draft-title">
-                <ProblemTitleText content={problemName(item)} />
-              </span>
-              <button
-                type="button"
-                aria-label="上移"
-                disabled={index === 0 || busy === 'reorder'}
-                onClick={() => onMove(index, -1)}
-              >
-                <ArrowUp size={15} aria-hidden />
-              </button>
-              <button
-                type="button"
-                aria-label="下移"
-                disabled={index === data.items.length - 1 || busy === 'reorder'}
-                onClick={() => onMove(index, 1)}
-              >
-                <ArrowDown size={15} aria-hidden />
-              </button>
-              <button
-                type="button"
-                aria-label="从这节课移除"
-                disabled={busy === `remove:${item.problemId}`}
-                onClick={() => onRemove(item.problemId)}
-              >
-                <X size={15} aria-hidden />
-              </button>
+              <div className="ts-draft-item-head">
+                <span className="ts-draft-no">{index + 1}</span>
+                <h2 className="ts-draft-title">
+                  <ProblemTitleText content={problemName(item)} />
+                </h2>
+                <button
+                  type="button"
+                  aria-label="上移"
+                  disabled={index === 0 || busy === 'reorder'}
+                  onClick={() => onMove(index, -1)}
+                >
+                  <ArrowUp size={15} aria-hidden />
+                </button>
+                <button
+                  type="button"
+                  aria-label="下移"
+                  disabled={index === data.items.length - 1 || busy === 'reorder'}
+                  onClick={() => onMove(index, 1)}
+                >
+                  <ArrowDown size={15} aria-hidden />
+                </button>
+                <button
+                  type="button"
+                  aria-label="从这节课移除"
+                  disabled={busy === `remove:${item.problemId}`}
+                  onClick={() => onRemove(item.problemId)}
+                >
+                  <X size={15} aria-hidden />
+                </button>
+              </div>
+              <SessionProblemPreview sessionId={data.session.id} item={item} />
             </li>
           ))}
         </ol>
@@ -703,19 +893,33 @@ function ProblemPicker({
   sessionId,
   existing,
   busy,
+  submissionError,
   onClose,
   onAdd,
 }: {
   sessionId: string;
   existing: string[];
   busy: boolean;
+  submissionError: string;
   onClose: () => void;
   onAdd: (problemIds: string[]) => void;
 }) {
   const [choices, setChoices] = useState<TeachProblemChoice[] | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
+  const [chapter, setChapter] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [error, setError] = useState('');
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    const previousFocus = document.activeElement;
+    dialog?.showModal();
+    dialog?.querySelector('input')?.focus();
+    return () => {
+      dialog?.close();
+      if (previousFocus instanceof HTMLElement) previousFocus.focus();
+    };
+  }, []);
   useEffect(() => {
     let alive = true;
     getTeachProblemChoices(sessionId)
@@ -730,80 +934,210 @@ function ProblemPicker({
     };
   }, [sessionId]);
   const added = new Set(existing);
+  const picked = new Set(selected.filter((id) => !added.has(id)));
+  const chapters = new Map<
+    string,
+    { name: string; total: number; added: number; selected: number }
+  >();
+  for (const problem of choices ?? []) {
+    const key = problem.chapter?.id ?? '';
+    const group = chapters.get(key) ?? {
+      name: problem.chapter?.name ?? '未分章节',
+      total: 0,
+      added: 0,
+      selected: 0,
+    };
+    group.total += 1;
+    if (added.has(problem.id)) group.added += 1;
+    if (picked.has(problem.id)) group.selected += 1;
+    chapters.set(key, group);
+  }
   const text = query.trim().toLowerCase();
   const visible = (choices ?? []).filter(
     (problem) =>
-      !text ||
-      problemName(problem).toLowerCase().includes(text) ||
-      Boolean(problem.chapter?.name.toLowerCase().includes(text)),
+      (chapter === null || (problem.chapter?.id ?? '') === chapter) &&
+      (!text ||
+        problemName(problem).toLowerCase().includes(text) ||
+        Boolean(problem.chapter?.name.toLowerCase().includes(text))),
   );
+  const available = visible.filter((problem) => !added.has(problem.id));
+  const allPicked = available.length > 0 && available.every((problem) => picked.has(problem.id));
+  const scopeLabel = text ? '搜索结果' : chapter === null ? '全部题目' : '本章';
   return createPortal(
-    <div className="phone-confirm-layer tp-sheet-layer" role="presentation">
-      <button
-        type="button"
-        className="phone-confirm-backdrop"
-        aria-label="关闭"
-        onClick={onClose}
-      />
-      <section className="tp-sheet" role="dialog" aria-modal="true" aria-label="加题">
-        <label className="phone-search tp-sheet-search">
-          <Search size={17} aria-hidden />
-          <input
-            autoFocus
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="搜题号、题目或章节"
-            type="search"
-          />
-        </label>
-        <div className="tp-sheet-list">
-          {error ? <p className="phone-page-error">{error}</p> : null}
-          {!choices && !error ? <GlassSkeletonRows rows={5} height={44} /> : null}
-          {visible.map((problem) => {
-            const inSession = added.has(problem.id);
-            const checked = inSession || selected.includes(problem.id);
-            return (
-              <button
-                key={problem.id}
-                type="button"
-                className="phone-row tp-choice"
-                aria-pressed={checked}
-                disabled={inSession}
-                onClick={() =>
-                  setSelected((current) =>
-                    current.includes(problem.id)
-                      ? current.filter((id) => id !== problem.id)
-                      : [...current, problem.id],
-                  )
-                }
-              >
-                <span className="tp-check" aria-hidden />
-                <span className="tp-course-copy">
-                  <strong>
-                    <ProblemTitleText content={problemName(problem)} />
-                  </strong>
-                  <small>{problem.chapter?.name ?? '未分章节'}</small>
-                </span>
-              </button>
-            );
-          })}
-          {choices && !visible.length ? <PhoneEmpty title="没有找到题目" hint="" /> : null}
+    <dialog
+      ref={dialogRef}
+      className="tp-sheet ts-picker"
+      aria-label="加题"
+      onCancel={(event) => {
+        event.preventDefault();
+        if (!busy) onClose();
+      }}
+      onClick={(event) => {
+        if (busy || event.target !== event.currentTarget) return;
+        const rect = event.currentTarget.getBoundingClientRect();
+        if (
+          event.clientX < rect.left ||
+          event.clientX > rect.right ||
+          event.clientY < rect.top ||
+          event.clientY > rect.bottom
+        )
+          onClose();
+      }}
+    >
+      <header className="ts-picker-head">
+        <div>
+          <h2>加题</h2>
+          <p>按章节选题，一次加入整章题目</p>
         </div>
-        <footer className="tp-sheet-foot">
-          <button type="button" className="phone-confirm-button" onClick={onClose}>
-            取消
-          </button>
+        <button
+          type="button"
+          className="ts-nav"
+          aria-label="关闭加题"
+          disabled={busy}
+          onClick={onClose}
+        >
+          <X size={20} aria-hidden />
+        </button>
+      </header>
+      <div className="ts-picker-body">
+        <nav className="ts-picker-chapters" aria-label="题目章节">
+          <span className="ts-picker-nav-title">章节</span>
           <button
             type="button"
-            className="phone-confirm-button is-primary"
-            disabled={!selected.length || busy}
-            onClick={() => onAdd(selected)}
+            aria-current={chapter === null ? 'true' : undefined}
+            onClick={() => {
+              setChapter(null);
+              setQuery('');
+            }}
           >
-            {selected.length ? `加入 ${selected.length} 题` : '加入'}
+            <span>全部题目</span>
+            <small>{choices?.length ?? 0} 题</small>
           </button>
-        </footer>
-      </section>
-    </div>,
+          {Array.from(chapters, ([id, group]) => (
+            <button
+              key={id}
+              type="button"
+              aria-current={chapter === id ? 'true' : undefined}
+              onClick={() => {
+                setChapter(id);
+                setQuery('');
+              }}
+            >
+              <span>{group.name}</span>
+              <small>
+                {group.total} 题{group.added ? ` · 已加入 ${group.added}` : ''}
+                {group.selected ? ` · 已选 ${group.selected}` : ''}
+              </small>
+            </button>
+          ))}
+        </nav>
+        <div className="ts-picker-main">
+          <label className="phone-search ts-picker-search">
+            <Search size={18} aria-hidden />
+            <input
+              autoFocus
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="搜题号、题目或章节"
+              aria-label="搜题号、题目或章节"
+              type="search"
+            />
+          </label>
+          <div className="ts-picker-tools">
+            <div>
+              <strong>{chapter === null ? '全部题目' : chapters.get(chapter)?.name}</strong>
+              <small>
+                {visible.length} 题 · 可加入 {available.length} 题
+              </small>
+            </div>
+            <button
+              type="button"
+              className="ts-pill"
+              disabled={!available.length || busy}
+              onClick={() => {
+                const ids = new Set(available.map((problem) => problem.id));
+                setSelected((current) =>
+                  allPicked
+                    ? current.filter((id) => !ids.has(id))
+                    : [...new Set([...current, ...ids])],
+                );
+              }}
+            >
+              {allPicked ? `取消全选${scopeLabel}` : `全选${scopeLabel}`}
+            </button>
+          </div>
+          <div className="tp-sheet-list ts-picker-list" aria-busy={!choices && !error}>
+            {error || submissionError ? (
+              <p className="phone-page-error" role="alert">
+                {error || submissionError}
+              </p>
+            ) : null}
+            {!choices && !error ? <GlassSkeletonRows rows={5} height={54} /> : null}
+            {visible.map((problem) => {
+              const inSession = added.has(problem.id);
+              const checked = inSession || picked.has(problem.id);
+              return (
+                <button
+                  key={problem.id}
+                  type="button"
+                  className="phone-row tp-choice"
+                  aria-pressed={checked}
+                  disabled={inSession || busy}
+                  onClick={() =>
+                    setSelected((current) =>
+                      current.includes(problem.id)
+                        ? current.filter((id) => id !== problem.id)
+                        : [...current, problem.id],
+                    )
+                  }
+                >
+                  <span className="tp-check" aria-hidden />
+                  <span className="tp-course-copy">
+                    <strong>
+                      <ProblemTitleText content={problemName(problem)} />
+                    </strong>
+                    <small>{problem.chapter?.name ?? '未分章节'}</small>
+                  </span>
+                  {inSession ? <small className="ts-picker-added">已加入</small> : null}
+                </button>
+              );
+            })}
+            {choices && !visible.length ? (
+              <PhoneEmpty title="没有找到题目" hint="试试其他章节或关键词" />
+            ) : null}
+          </div>
+        </div>
+      </div>
+      <footer className="ts-picker-foot">
+        <div className="ts-picker-summary" role="status">
+          <span>
+            已选 <strong>{picked.size}</strong> 题
+          </span>
+          {picked.size ? (
+            <button type="button" disabled={busy} onClick={() => setSelected([])}>
+              清空选择
+            </button>
+          ) : null}
+        </div>
+        <button type="button" className="phone-confirm-button" disabled={busy} onClick={onClose}>
+          取消
+        </button>
+        <button
+          type="button"
+          className="phone-confirm-button is-primary"
+          disabled={!picked.size || busy}
+          onClick={() =>
+            onAdd(
+              (choices ?? [])
+                .filter((problem) => picked.has(problem.id))
+                .map((problem) => problem.id),
+            )
+          }
+        >
+          {busy ? '加入中…' : picked.size ? `加入 ${picked.size} 题` : '加入'}
+        </button>
+      </footer>
+    </dialog>,
     document.body,
   );
 }

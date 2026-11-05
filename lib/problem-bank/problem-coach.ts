@@ -48,6 +48,11 @@ export function problemCoachRules(
 }
 
 /** 每一轮附在学生消息后面、告诉模型这次要做什么。 */
+/** 做题「问 AI」里哪些问法可以建议讲题课堂：课堂会讲出完整解法，提示类的不给。 */
+export function coachAllowsClassroom(move: ProblemCoachMove): boolean {
+  return move === 'solution' || move === 'ask';
+}
+
 export function problemCoachInstruction(move: ProblemCoachMove): string {
   switch (move) {
     case 'hint':
