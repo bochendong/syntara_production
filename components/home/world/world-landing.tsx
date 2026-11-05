@@ -6,40 +6,100 @@ import { Fragment, useCallback, useEffect, useRef, useState, type CSSProperties 
 import { SyntaraMark } from '@/components/brand/syntara-mark';
 import landing from '@/components/home/landing/landing.module.css';
 import { LANDING_MARBLE_STYLE } from '@/components/home/landing/marble-art';
-import { FEATURES } from '@/components/home/landing/syntara-landing';
 
 import type { WorldEngine, WorldFrame } from './world-engine';
 import {
+  AGENTS,
   CHAPTERS,
   CLOSING_START,
   COPY_WINDOWS,
   COURSE_NAME,
+  COURSES,
   featureStart,
-  MEMORY_FEATURE,
+  FEATURE_LEN,
   RAIL_STOPS,
   railIndexAt,
   TIMELINE_END,
+  type WorldColor,
 } from './world-timeline';
 import s from './world.module.css';
 
-const MEMORY_LABELS = [
-  { title: '递归的基本情况', kind: '错题' },
-  { title: 'trace table 怎么画', kind: '没弄懂' },
-  { title: '先看例子再讲定义', kind: '偏好' },
+/** Real App pages, built from apps/native (pnpm home:showcase). */
+const SHOWCASE_URL =
+  process.env.NEXT_PUBLIC_HOME_SHOWCASE_URL || '/home-showcase/home-showcase.html';
+
+type ShowcaseView = 'notes' | 'classroom' | 'problems' | 'memory' | 'calendar';
+
+const FEATURES: {
+  key: ShowcaseView;
+  color: WorldColor;
+  label: string;
+  windowTitle: string;
+  title: string;
+  body: string;
+  points: string[];
+}[] = [
+  {
+    key: 'notes',
+    color: 'blue',
+    label: '笔记',
+    windowTitle: 'CSC148 · 笔记',
+    title: '上传课件，\n按章节出笔记',
+    body: 'PPT、PDF、Word 和网页都能传。笔记按章节排好，每一段都能点回原文那一页。',
+    points: ['按章节分好', '点一下回到原文', '读到哪记到哪'],
+  },
+  {
+    key: 'classroom',
+    color: 'purple',
+    label: '课堂',
+    windowTitle: 'MAT136 · 课堂',
+    title: '一个知识点，\n讲五分钟',
+    body: '讲解助手把难点做成幻灯片，配上语音，边讲边圈出重点。听不懂就暂停，直接问。',
+    points: ['语音讲解', '重点跟着圈', '随时暂停提问'],
+  },
+  {
+    key: 'problems',
+    color: 'amber',
+    label: '题库',
+    windowTitle: 'CSC108 · 做题',
+    title: '代码直接跑，\n提交马上批改',
+    body: '真题按章节分好，分基础、进阶、挑战三档。代码在浏览器里就能运行，测试一条条对给你看；卡住了先给提示，不直接给答案。',
+    points: ['代码在线运行', '测试逐条对照', '先提示再给答案', '错题自动收集'],
+  },
+  {
+    key: 'memory',
+    color: 'pink',
+    label: '学习记忆',
+    windowTitle: 'CSC148 · 学习记忆',
+    title: '做错过什么，\n它都记着',
+    body: '错题、没弄懂的概念、你喜欢的讲法，各存成一颗弹珠，按章节连成星图。几天不复习，弹珠会起雾。',
+    points: ['按章节连成星图', '不复习会起雾', '问 AI 时先翻这些'],
+  },
+  {
+    key: 'calendar',
+    color: 'green',
+    label: '日历',
+    windowTitle: 'MAT136 · 日历',
+    title: '作业和考试，\n放在一张日历上',
+    body: '截止日期、考试和复习计划排在一起，打开就知道今天要做什么。',
+    points: ['截止前提醒', '复习计划自动排', '网页和手机同步'],
+  },
 ];
-const RAIL = [
+
+const RAIL: { label: string; color: WorldColor }[] = [
   { label: '首页', color: 'purple' },
-  { label: '学习星图', color: 'pink' },
+  { label: '很多门课', color: 'blue' },
+  { label: 'AI 助手', color: 'green' },
   ...FEATURES.map((f) => ({ label: f.label, color: f.color })),
   { label: '开始', color: 'purple' },
 ];
 
 /** One glyph per span so headlines can assemble letter by letter. */
-function Split({ text, offset = 0 }: { text: string; offset?: number }) {
+function Split({ text }: { text: string }) {
   return (
     <span aria-hidden>
       {[...text].map((ch, i) => (
-        <span key={i} className={s.ch} style={{ '--i': i + offset } as CSSProperties}>
+        <span key={i} className={s.ch} style={{ '--i': i } as CSSProperties}>
           {ch}
         </span>
       ))}
@@ -52,29 +112,92 @@ function Headline({
   text,
   as: Tag,
   className,
+  id,
 }: {
   text: string;
   as: 'h1' | 'h2';
   className: string;
+  id?: string;
 }) {
-  const [first, ...rest] = text.split('\n');
-  const second = rest.join('');
+  const lines = text.split('\n');
   return (
-    <Tag className={className} aria-label={text.replace('\n', '')}>
-      <Split text={first} />
-      {second ? (
-        <>
-          <br />
-          <span className={s.gradLine} aria-hidden>
-            {second}
-          </span>
-        </>
-      ) : null}
+    <Tag id={id} className={className} aria-label={lines.join('')}>
+      {lines.map((line, i) => (
+        <Fragment key={i}>
+          {i > 0 ? <br /> : null}
+          {i === 0 ? (
+            <Split text={line} />
+          ) : (
+            <span className={s.gradLine} aria-hidden>
+              {line}
+            </span>
+          )}
+        </Fragment>
+      ))}
     </Tag>
   );
 }
 
-type ChapterKey = 'hero' | 'map' | 'closing' | `feature-${number}`;
+/**
+ * A glass window holding a real App page. Scrolling over it still moves the
+ * story; a click lets the visitor use the page until the pointer leaves.
+ */
+function LiveWindow({
+  view,
+  title,
+  mounted,
+}: {
+  view: ShowcaseView;
+  title: string;
+  mounted: boolean;
+}) {
+  const [using, setUsing] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+  useEffect(() => {
+    // A window that leaves the page starts fresh next time.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset when unmounted from view
+    if (!mounted) setLoaded(false);
+  }, [mounted]);
+  return (
+    <div className={s.window} data-using={using} onPointerLeave={() => setUsing(false)}>
+      <div className={s.windowBar}>
+        <i />
+        <i />
+        <i />
+        <span className={s.windowTitle}>{title}</span>
+        {using ? (
+          <button type="button" className={s.windowBadge} onClick={() => setUsing(false)}>
+            用完了，继续往下看
+          </button>
+        ) : (
+          <span className={s.windowBadge} aria-hidden>
+            真实页面
+          </span>
+        )}
+      </div>
+      <div className={s.windowBody}>
+        {mounted ? (
+          <iframe
+            src={`${SHOWCASE_URL}?view=${view}`}
+            title={`${title}（示例数据）`}
+            className={s.frame}
+            data-loaded={loaded}
+            onLoad={() => setLoaded(true)}
+            tabIndex={using ? 0 : -1}
+          />
+        ) : null}
+        {!loaded ? <div className={s.frameLoading} aria-hidden /> : null}
+        {using ? null : (
+          <button type="button" className={s.shield} onClick={() => setUsing(true)}>
+            <span>点一下，直接在这里试</span>
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+type ChapterKey = 'hero' | 'map' | 'agents' | 'closing' | `feature-${number}`;
 
 export function SyntaraWorldLanding({
   googleTest = false,
@@ -94,15 +217,19 @@ export function SyntaraWorldLanding({
   const scrimRef = useRef<HTMLDivElement>(null);
   const tipRef = useRef<HTMLDivElement>(null);
   const cursorRef = useRef<HTMLDivElement>(null);
-  const tagRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const agentRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const courseRefs = useRef<(HTMLDivElement | null)[]>([]);
   const chapterRefs = useRef(new Map<ChapterKey, HTMLElement>());
-  const mockRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const tiltRefs = useRef<(HTMLDivElement | null)[]>([]);
   const engineRef = useRef<WorldEngine | null>(null);
   const navFrame = useRef(0);
   const [active, setActive] = useState(0);
   const [ready, setReady] = useState(false);
+  const [mounted, setMounted] = useState<number[]>([]);
   const fallbackRef = useRef(onFallback);
-  fallbackRef.current = onFallback;
+  useEffect(() => {
+    fallbackRef.current = onFallback;
+  }, [onFallback]);
 
   const setChapterRef = (key: ChapterKey) => (el: HTMLElement | null) => {
     if (el) chapterRefs.current.set(key, el);
@@ -114,6 +241,7 @@ export function SyntaraWorldLanding({
     if (!canvas) return;
     let disposed = false;
     let lastRail = -1;
+    let lastMounted = '';
     const vh = () => window.innerHeight;
     const shown = new Map<ChapterKey, boolean>();
 
@@ -125,26 +253,41 @@ export function SyntaraWorldLanding({
       if (!el) return;
       el.dataset.on = on ? 'true' : 'false';
       el.inert = !on;
-      if (key.startsWith('feature-')) {
-        const host = mockRefs.current[Number(key.slice(8))];
-        if (host) {
-          host.dataset.revealed = on ? 'true' : 'false';
-          host.dataset.active = on ? 'true' : 'false';
-        }
-      }
     };
 
     const cursor = { x: -100, y: -100, cx: -100, cy: -100 };
+    const showTip = (html: string) => {
+      const tip = tipRef.current;
+      if (!tip) return;
+      if (tip.dataset.text !== html) {
+        tip.dataset.text = html;
+        tip.innerHTML = html;
+      }
+      tip.style.transform = `translate(${cursor.x + 16}px, ${cursor.y - 14}px)`;
+      tip.dataset.on = 'true';
+    };
     const onFrame = (f: WorldFrame) => {
       const { u } = f;
       setOn('hero', inWindow(u, COPY_WINDOWS.hero));
       setOn('map', inWindow(u, COPY_WINDOWS.map));
+      setOn('agents', inWindow(u, COPY_WINDOWS.agents));
       FEATURES.forEach((_, i) => setOn(`feature-${i}`, inWindow(u, COPY_WINDOWS.feature(i))));
       setOn('closing', inWindow(u, COPY_WINDOWS.closing));
 
+      // Real pages load a little before their chapter and leave after it.
+      const near = FEATURES.flatMap((_, i) => {
+        const start = featureStart(i);
+        return u > start - 1.1 && u < start + FEATURE_LEN + 0.4 ? [i] : [];
+      });
+      const key = near.join(',');
+      if (key !== lastMounted) {
+        lastMounted = key;
+        setMounted(near);
+      }
+
       const scrim = scrimRef.current;
       if (scrim) {
-        const mode = u >= CLOSING_START + 0.3 ? 'bottom' : u > 0.6 ? 'side' : 'none';
+        const mode = u >= CLOSING_START + 0.4 ? 'bottom' : u > 0.6 ? 'side' : 'none';
         if (scrim.dataset.mode !== mode) scrim.dataset.mode = mode;
       }
 
@@ -154,31 +297,30 @@ export function SyntaraWorldLanding({
         setActive(rail);
       }
 
-      const tip = tipRef.current;
-      if (tip) {
-        const hc = f.hoverChapter;
-        if (hc >= 0) {
-          const text =
-            hc === 0
-              ? `<b>${COURSE_NAME}</b><i>整门课</i>`
-              : `<b>第 ${hc} 章 · ${CHAPTERS[hc - 1]}</b><i>${8 + ((hc * 7) % 13)} 颗记忆</i>`;
-          if (tip.dataset.text !== text) {
-            tip.dataset.text = text;
-            tip.innerHTML = text;
-          }
-          tip.style.transform = `translate(${cursor.x + 16}px, ${cursor.y - 14}px)`;
-          tip.dataset.on = 'true';
-        } else if (tip.dataset.on === 'true') tip.dataset.on = 'false';
-      }
+      if (f.hoverCourse >= 0) {
+        const c = COURSES[f.hoverCourse];
+        showTip(`<b>${c.code} · ${c.name}</b><i>${c.note}</i>`);
+      } else if (f.hoverChapter >= 0) {
+        showTip(
+          `<b>${COURSE_NAME} 第 ${f.hoverChapter + 1} 章 · ${CHAPTERS[f.hoverChapter]}</b><i>${8 + ((f.hoverChapter * 7) % 13)} 颗记忆</i>`,
+        );
+      } else if (tipRef.current?.dataset.on === 'true') tipRef.current.dataset.on = 'false';
 
-      const memStart = featureStart(MEMORY_FEATURE);
-      const showTags = u > memStart + 0.3 && u < memStart + 1.55;
-      f.labels.forEach((pos, i) => {
-        const el = tagRefs.current[i];
+      const coursesOn = inWindow(u, COPY_WINDOWS.map);
+      f.courses.forEach((pos, i) => {
+        const el = courseRefs.current[i];
         if (!el) return;
-        const on = showTags && !!pos && pos.x > 70 && pos.x < window.innerWidth - 70;
+        const on = coursesOn && !!pos && pos.x > 40 && pos.x < window.innerWidth - 60 && pos.y > 70;
         el.dataset.on = on ? 'true' : 'false';
-        if (pos) el.style.transform = `translate(calc(${pos.x}px - 50%), ${pos.y - 44}px)`;
+        if (pos) el.style.transform = `translate(calc(${pos.x}px - 50%), ${pos.y + 26}px)`;
+      });
+      const agentsOn = inWindow(u, COPY_WINDOWS.agents);
+      f.agents.forEach((pos, i) => {
+        const el = agentRefs.current[i];
+        if (!el) return;
+        const on = agentsOn && !!pos && pos.x > 60 && pos.x < window.innerWidth - 60 && pos.y > 70;
+        el.dataset.on = on ? 'true' : 'false';
+        if (pos) el.style.transform = `translate(calc(${pos.x}px - 50%), ${pos.y - 46}px)`;
       });
 
       const ring = cursorRef.current;
@@ -187,8 +329,8 @@ export function SyntaraWorldLanding({
         cursor.cy += (cursor.y - cursor.cy) * 0.22;
         ring.style.transform = `translate(${cursor.cx}px, ${cursor.cy}px)`;
         const big =
+          f.hoverCourse >= 0 ||
           f.hoverChapter >= 0 ||
-          f.hoverMemory >= 0 ||
           !!document.querySelector(`.${s.chapter} a:hover, .${s.chapter} button:hover`);
         ring.dataset.big = big ? 'true' : 'false';
       }
@@ -203,17 +345,13 @@ export function SyntaraWorldLanding({
       // Glass windows lean toward the pointer.
       const tx = (e.clientX / window.innerWidth - 0.5) * 2;
       const ty = (e.clientY / window.innerHeight - 0.5) * 2;
-      for (const host of mockRefs.current) {
-        host?.style.setProperty('--tx', tx.toFixed(3));
-        host?.style.setProperty('--ty', ty.toFixed(3));
+      for (const el of tiltRefs.current) {
+        el?.style.setProperty('--tx', tx.toFixed(3));
+        el?.style.setProperty('--ty', ty.toFixed(3));
       }
     };
     const onLeave = () => {
       if (cursorRef.current) cursorRef.current.dataset.on = 'false';
-    };
-    const onClick = (e: MouseEvent) => {
-      if ((e.target as HTMLElement).closest('a, button')) return;
-      engineRef.current?.tap(e.clientX, e.clientY);
     };
 
     import('./world-engine')
@@ -233,7 +371,6 @@ export function SyntaraWorldLanding({
     window.addEventListener('scroll', onScroll, { passive: true });
     window.addEventListener('pointermove', onPointer, { passive: true });
     document.documentElement.addEventListener('pointerleave', onLeave);
-    window.addEventListener('click', onClick);
     return () => {
       disposed = true;
       engineRef.current?.dispose();
@@ -242,7 +379,6 @@ export function SyntaraWorldLanding({
       window.removeEventListener('scroll', onScroll);
       window.removeEventListener('pointermove', onPointer);
       document.documentElement.removeEventListener('pointerleave', onLeave);
-      window.removeEventListener('click', onClick);
     };
   }, []);
 
@@ -268,12 +404,12 @@ export function SyntaraWorldLanding({
     const to = RAIL_STOPS[index] * window.innerHeight;
     const distance = Math.abs(to - from) / window.innerHeight;
     // Long jumps skip ahead instead of replaying every chapter in between.
-    if (distance > 4) {
+    if (distance > 6) {
       window.scrollTo({ top: to, behavior: 'instant' });
       engineRef.current?.setTarget(RAIL_STOPS[index], true);
       return;
     }
-    const duration = 900 + distance * 450;
+    const duration = 1400 + distance * 600;
     const started = performance.now();
     const step = (now: number) => {
       const p = Math.min(1, (now - started) / duration);
@@ -323,7 +459,12 @@ export function SyntaraWorldLanding({
               <i className={s.dotMarble} />
               课程 AI 学习助手
             </span>
-            <Headline as="h1" text={'没听懂的，\n回来再问。'} className={s.title} />
+            <Headline
+              as="h1"
+              id="world-title"
+              text={'没听懂的，\n回来再问。'}
+              className={s.title}
+            />
             <p className={s.lede}>
               上传课件或 PDF，Syntara 帮你整理成笔记、出练习题，还会记下你做错过什么。
             </p>
@@ -352,21 +493,40 @@ export function SyntaraWorldLanding({
           aria-labelledby="world-map"
         >
           <div className={s.copy}>
-            <span className={s.kicker} data-color="pink">
+            <span className={s.kicker} data-color="blue">
               <i className={s.dotMarble} />
-              学习星图
+              {COURSES.length} 门课 · 同一片星空
             </span>
-            <h2 id="world-map" className={s.h2} aria-label="一门课，一团星云">
-              <Split text="一门课，" />
-              <br />
-              <span className={s.gradLine} aria-hidden>
-                一团星云
-              </span>
-            </h2>
+            <Headline as="h2" id="world-map" text={'很多门课，\n一片星空'} className={s.h2} />
             <p className={s.lede}>
-              每个章节是一颗大弹珠。错题、没弄懂的概念、你喜欢的讲法，都绕着它转。
+              每门课是一团星云：章节是大弹珠，笔记、错题和没弄懂的概念绕着它转。CSC108、MAT136、CPSC
+              110……课越多，星空越亮。
             </p>
-            <p className={`${s.hint} ${s.hideNarrow}`}>把鼠标放到大弹珠上，看看是哪一章</p>
+            <p className={`${s.hint} ${s.hideNarrow}`}>把鼠标放到星云上，看看是哪门课</p>
+          </div>
+        </section>
+
+        <section
+          ref={setChapterRef('agents')}
+          className={`${s.chapter} ${s.bottomNarrow}`}
+          data-on="false"
+          aria-labelledby="world-agents"
+        >
+          <div className={s.copy}>
+            <span className={s.kicker} data-color="green">
+              <i className={s.dotMarble} />
+              AI 助手
+            </span>
+            <Headline as="h2" id="world-agents" text={'五个 AI，\n一起陪你学'} className={s.h2} />
+            <ul className={s.agentList}>
+              {AGENTS.map((a) => (
+                <li key={a.name} data-color={a.color}>
+                  <i className={s.dotMarble} />
+                  <b>{a.name}</b>
+                  <span>{a.job}</span>
+                </li>
+              ))}
+            </ul>
           </div>
         </section>
 
@@ -388,53 +548,25 @@ export function SyntaraWorldLanding({
                     {i + 1} / {FEATURES.length}
                   </span>
                 </span>
-                <h2
-                  id={`world-feature-${f.key}`}
-                  className={s.h2}
-                  aria-label={f.title.replace('\n', '')}
-                >
-                  {f.title.split('\n').map((line, li) => (
-                    <Fragment key={li}>
-                      {li > 0 ? <br /> : null}
-                      {li === 0 ? (
-                        <Split text={line} />
-                      ) : (
-                        <span className={s.gradLine} aria-hidden>
-                          {line}
-                        </span>
-                      )}
-                    </Fragment>
-                  ))}
-                </h2>
+                <Headline as="h2" id={`world-feature-${f.key}`} text={f.title} className={s.h2} />
                 <p className={s.lede}>{f.body}</p>
                 <ul className={s.points}>
                   {f.points.map((pt) => (
                     <li key={pt}>{pt}</li>
                   ))}
                 </ul>
-                {i === MEMORY_FEATURE ? (
-                  <p className={s.hint}>点一下起雾的弹珠，它会亮回来</p>
-                ) : null}
               </div>
             </div>
-            {/* The memory chapter's demo is the 3D marbles themselves. */}
-            {i === MEMORY_FEATURE ? null : (
+            <div className={s.windowHost}>
               <div
                 ref={(el) => {
-                  mockRefs.current[i] = el;
+                  tiltRefs.current[i] = el;
                 }}
-                className={`${landing.feature} ${s.mockHost}`}
-                data-color={f.color}
-                data-revealed="false"
-                data-active="false"
+                className={s.mockTilt}
               >
-                <div className={s.mockTilt}>
-                  <div className={landing.featureMock}>
-                    <f.Mock />
-                  </div>
-                </div>
+                <LiveWindow view={f.key} title={f.windowTitle} mounted={mounted.includes(i)} />
               </div>
-            )}
+            </div>
           </section>
         ))}
 
@@ -445,7 +577,12 @@ export function SyntaraWorldLanding({
           aria-labelledby="world-closing"
         >
           <div className={s.copy}>
-            <Headline as="h2" text={'考前复习，\n从错题开始。'} className={s.h2} />
+            <Headline
+              as="h2"
+              id="world-closing"
+              text={'考前复习，\n从错题开始。'}
+              className={s.h2}
+            />
             <p className={s.lede}>
               {googleTest
                 ? '不用下载，用 Google 账号登录就能在浏览器里用。'
@@ -467,18 +604,33 @@ export function SyntaraWorldLanding({
         </section>
       </div>
 
-      {MEMORY_LABELS.map((m, i) => (
+      {COURSES.map((c, i) => (
         <div
-          key={m.title}
+          key={c.code}
           ref={(el) => {
-            tagRefs.current[i] = el;
+            courseRefs.current[i] = el;
           }}
-          className={s.tag}
+          className={`${s.tag} ${s.courseTag}`}
           data-on="false"
           aria-hidden
         >
-          <b>{m.title}</b>
-          <i>{m.kind}</i>
+          <b>{c.code}</b>
+          <i>{c.name}</i>
+        </div>
+      ))}
+      {AGENTS.map((a, i) => (
+        <div
+          key={a.name}
+          ref={(el) => {
+            agentRefs.current[i] = el;
+          }}
+          className={s.tag}
+          data-color={a.color}
+          data-on="false"
+          aria-hidden
+        >
+          <i className={s.dotMarble} />
+          <b>{a.name}</b>
         </div>
       ))}
       <div ref={tipRef} className={s.tag} data-on="false" aria-hidden />

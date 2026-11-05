@@ -1,8 +1,12 @@
 import * as THREE from 'three';
 
 import {
+  AGENTS,
+  AGENTS_END,
+  AGENTS_START,
   CHAPTERS,
   CLOSING_START,
+  COURSES,
   DIVE_END,
   DIVE_MIX_START,
   DIVE_START,
@@ -12,8 +16,6 @@ import {
   FEATURE_START,
   featureStart,
   KIND_ORDER,
-  MAP_END,
-  MAP_START,
   MEMORY_FEATURE,
   win,
   type WorldColor,
@@ -34,8 +36,14 @@ import {
 export type WorldFrame = {
   /** Smoothed scroll position in u. */
   u: number;
-  /** Hovered chapter in the galaxy: 0 = whole course, 1.. = chapter, -1 = none. */
+  /** Hovered course orb in the sky, -1 = none. */
+  hoverCourse: number;
+  /** Hovered CSC108 chapter, -1 = none. */
   hoverChapter: number;
+  /** Screen positions of the course orbs. */
+  courses: ({ x: number; y: number } | null)[];
+  /** Screen positions of the helper comets. */
+  agents: ({ x: number; y: number } | null)[];
   /** Hovered memory marble inside the chapter, -1 = none. */
   hoverMemory: number;
   /** Screen positions of the labelled memories (null when behind the camera). */
@@ -270,9 +278,9 @@ export function createWorldEngine(
     return new THREE.Points(geo, mat);
   }
 
-  // ---------- scene A: the course galaxy ----------
+  // ---------- scene A: the course sky ----------
   const sceneA = new THREE.Scene();
-  const camA = new THREE.PerspectiveCamera(50, 1, 0.05, 200);
+  const camA = new THREE.PerspectiveCamera(50, 1, 0.05, 260);
   const galaxy = new THREE.Group();
   sceneA.add(galaxy);
   const uA = {
@@ -285,16 +293,29 @@ export function createWorldEngine(
     uFocusAmt: { value: 0 },
     uDim: { value: 0 },
   };
+  // CSC108 sits at the origin; the other courses spread out around it.
+  const coursePos = COURSES.map((_, i) => {
+    if (i === 0) return new THREE.Vector3();
+    const a = (i / (COURSES.length - 1)) * Math.PI * 2 + 0.6 + gauss() * 0.2;
+    const r = 17 + (i % 3) * 7 + rnd() * 4;
+    return new THREE.Vector3(Math.cos(a) * r * 1.25, gauss() * 3, Math.sin(a) * r - 6);
+  });
   const chapterPos = CHAPTERS.map((_, i) => {
     const a = (i / CHAPTERS.length) * Math.PI * 2 + 0.3;
     const r = 4.2 + (i % 2) * 2.6;
     return new THREE.Vector3(Math.cos(a) * r, gauss() * 0.3, Math.sin(a) * r);
   });
-  const itemsA: MarbleItem[] = [{ p: new THREE.Vector3(), s: 1.25, c: 'orb' }];
+  // Instance order: [course orbs..., CSC108 chapters..., everything else]
+  const itemsA: MarbleItem[] = COURSES.map((c, i) => ({
+    p: coursePos[i],
+    s: i === 0 ? 1.25 : 1.35 + rnd() * 0.5,
+    c: i === 0 ? 'orb' : c.color,
+  }));
+  const CHAPTER_BASE = COURSES.length;
   chapterPos.forEach((p, i) =>
     itemsA.push({ p, s: 0.48, c: i === DIVE_CHAPTER ? 'pink' : KIND_ORDER[(i + 2) % 5] }),
   );
-  const smallCount = compact ? 320 : 620;
+  const smallCount = compact ? 260 : 520;
   for (let i = 0; i < smallCount; i++) {
     const c = KIND_ORDER[(rnd() * 5) | 0];
     if (rnd() < 0.55) {
@@ -308,18 +329,51 @@ export function createWorldEngine(
       });
     } else {
       const arm = i % 3;
-      const r = Math.pow(rnd(), 0.7) * 13 + 1.2;
+      const r = Math.pow(rnd(), 0.7) * 11 + 1.2;
       const a = arm * 2.094 + r * 0.42 + gauss() * 0.35;
       itemsA.push({
-        p: new THREE.Vector3(Math.cos(a) * r, gauss() * 0.5 * (1 - r / 16), Math.sin(a) * r),
+        p: new THREE.Vector3(Math.cos(a) * r, gauss() * 0.5 * (1 - r / 14), Math.sin(a) * r),
         s: 0.03 + rnd() * 0.07,
         c,
       });
     }
   }
+  // Every other course: a ring of chapter marbles and a cloud of memories.
+  const perCourse = compact ? 34 : 70;
+  for (let ci = 1; ci < COURSES.length; ci++) {
+    const center = coursePos[ci];
+    const tilt = gauss() * 0.5;
+    const chapters = 5 + ((rnd() * 3) | 0);
+    for (let k = 0; k < chapters; k++) {
+      const a = (k / chapters) * Math.PI * 2 + rnd();
+      const r = 2.2 + rnd() * 1.6;
+      itemsA.push({
+        p: new THREE.Vector3(
+          center.x + Math.cos(a) * r,
+          center.y + Math.sin(a) * r * tilt,
+          center.z + Math.sin(a) * r,
+        ),
+        s: 0.26 + rnd() * 0.12,
+        c: KIND_ORDER[(ci + k) % 5],
+      });
+    }
+    for (let k = 0; k < perCourse; k++) {
+      const a = rnd() * Math.PI * 2;
+      const r = 1.2 + Math.pow(rnd(), 0.8) * 4.2;
+      itemsA.push({
+        p: new THREE.Vector3(
+          center.x + Math.cos(a) * r,
+          center.y + gauss() * 0.6 + Math.sin(a) * r * tilt,
+          center.z + Math.sin(a) * r,
+        ),
+        s: 0.03 + rnd() * 0.07,
+        c: rnd() < 0.5 ? COURSES[ci].color : KIND_ORDER[(rnd() * 5) | 0],
+      });
+    }
+  }
   const marblesA = makeMarbles(itemsA, uA);
   galaxy.add(marblesA.mesh);
-  sceneA.add(makeStars(compact ? 1500 : 3000, 60));
+  sceneA.add(makeStars(compact ? 2200 : 4500, 110));
   galaxy.add(makeStars(compact ? 400 : 800, 12));
   sceneA.add(
     backgroundQuad(
@@ -331,6 +385,89 @@ export function createWorldEngine(
       {},
     ),
   );
+
+  // A soft nebula glow behind each course so the sky reads as many galaxies.
+  const haloGeo = track(new THREE.BufferGeometry());
+  const haloPos = new Float32Array(COURSES.length * 3);
+  const haloCol = new Float32Array(COURSES.length * 3);
+  COURSES.forEach((c, i) => {
+    coursePos[i].toArray(haloPos, i * 3);
+    new THREE.Color(PAL[c.color][0]).toArray(haloCol, i * 3);
+  });
+  haloGeo.setAttribute('position', new THREE.BufferAttribute(haloPos, 3));
+  haloGeo.setAttribute('aColor', new THREE.BufferAttribute(haloCol, 3));
+  const haloPr = { value: 1 };
+  const halos = new THREE.Points(
+    haloGeo,
+    track(
+      new THREE.ShaderMaterial({
+        transparent: true,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+        uniforms: { uPr: haloPr, uTime: time },
+        vertexShader: /* glsl */ `attribute vec3 aColor; uniform float uPr, uTime; varying vec3 vC;
+          void main(){ vec4 mv = modelViewMatrix * vec4(position, 1.0); gl_Position = projectionMatrix * mv;
+            gl_PointSize = uPr * 900.0 / -mv.z * (1.0 + 0.06 * sin(uTime * 0.7 + position.x)); vC = aColor; }`,
+        fragmentShader: /* glsl */ `varying vec3 vC; void main(){ float r = length(gl_PointCoord - 0.5) * 2.0;
+          float a = pow(max(0.0, 1.0 - r), 2.2) * 0.32; gl_FragColor = vec4(vC * a, a); }`,
+      }),
+    ),
+  );
+  halos.frustumCulled = false;
+  halos.renderOrder = -0.5;
+  galaxy.add(halos);
+
+  // ---------- helper comets flying between courses ----------
+  const TRAIL = 56;
+  const agentCurves = AGENTS.map((_, ai) => {
+    const stops: THREE.Vector3[] = [];
+    const count = 4 + (ai % 2);
+    for (let k = 0; k < count; k++) {
+      const ci = (ai * 3 + k * (ai + 2)) % COURSES.length;
+      const p = coursePos[ci].clone();
+      p.y += 2.5 + rnd() * 2;
+      stops.push(p);
+    }
+    return new THREE.CatmullRomCurve3(stops, true, 'catmullrom', 0.5);
+  });
+  const agentSpeed = AGENTS.map((_, i) => 1 / (34 + i * 7));
+  const agentTrail = AGENTS.map(() => [] as THREE.Vector3[]);
+  const agentGeo = track(new THREE.BufferGeometry());
+  const agentPositions = new Float32Array(AGENTS.length * TRAIL * 3);
+  const agentAge = new Float32Array(AGENTS.length * TRAIL);
+  const agentColor = new Float32Array(AGENTS.length * TRAIL * 3);
+  AGENTS.forEach((a, ai) => {
+    const c = new THREE.Color(PAL[a.color][1]);
+    for (let k = 0; k < TRAIL; k++) {
+      c.toArray(agentColor, (ai * TRAIL + k) * 3);
+      agentAge[ai * TRAIL + k] = k / (TRAIL - 1);
+    }
+  });
+  agentGeo.setAttribute('position', new THREE.BufferAttribute(agentPositions, 3));
+  agentGeo.setAttribute('aAge', new THREE.BufferAttribute(agentAge, 1));
+  agentGeo.setAttribute('aColor', new THREE.BufferAttribute(agentColor, 3));
+  const agentBoost = { value: 0.4 };
+  const agentPr = { value: 1 };
+  const agentPoints = new THREE.Points(
+    agentGeo,
+    track(
+      new THREE.ShaderMaterial({
+        transparent: true,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+        uniforms: { uBoost: agentBoost, uPr: agentPr },
+        vertexShader: /* glsl */ `attribute float aAge; attribute vec3 aColor; uniform float uBoost, uPr; varying float vA; varying vec3 vC;
+          void main(){ vec4 mv = modelViewMatrix * vec4(position, 1.0); gl_Position = projectionMatrix * mv;
+            float head = 1.0 - smoothstep(0.0, 0.04, aAge);
+            gl_PointSize = uPr * (mix(10.0, 2.0, aAge) + head * 26.0 * (0.6 + uBoost)) * (50.0 / -mv.z);
+            vA = (1.0 - aAge) * (0.35 + uBoost) + head * 0.6; vC = aColor; }`,
+        fragmentShader: /* glsl */ `varying float vA; varying vec3 vC; void main(){ float r = length(gl_PointCoord - 0.5);
+          float a = smoothstep(0.5, 0.0, r); a = a * a * vA; gl_FragColor = vec4(mix(vC, vec3(1.0), a * 0.6) * a, a); }`,
+      }),
+    ),
+  );
+  agentPoints.frustumCulled = false;
+  galaxy.add(agentPoints);
 
   // ---------- scene B: inside the chapter marble ----------
   const sceneB = new THREE.Scene();
@@ -512,6 +649,8 @@ export function createWorldEngine(
     vh = window.innerHeight;
     renderer.setPixelRatio(pixelRatio);
     renderer.setSize(vw, vh, false);
+    agentPr.value = pixelRatio;
+    haloPr.value = pixelRatio;
     aspect.value = vw / vh;
     camA.aspect = camB.aspect = vw / vh;
     // Narrow screens: pull the cameras back so the galaxy still fits.
@@ -554,8 +693,23 @@ export function createWorldEngine(
   // ---------- helpers ----------
   const v3 = new THREE.Vector3();
   const v3b = new THREE.Vector3();
-  const heroPos = new THREE.Vector3(0, 7.5, 21);
-  const midPos = new THREE.Vector3(-9, 3.2, 9);
+  // Camera stops in scene A (u, position, look-at); eased between neighbours.
+  const KEYS: [number, THREE.Vector3, THREE.Vector3][] = [
+    [0, new THREE.Vector3(0, 20, 70), new THREE.Vector3(0, -2, -6)],
+    [0.6, new THREE.Vector3(0, 20, 70), new THREE.Vector3(0, -2, -6)],
+    [2.6, new THREE.Vector3(-26, 11, 38), new THREE.Vector3(6, 0, -10)],
+    [4.4, new THREE.Vector3(18, 9, 30), new THREE.Vector3(-2, 0, -4)],
+    [DIVE_START + 0.5, new THREE.Vector3(-9, 3.2, 9), new THREE.Vector3(0, 0, 0)],
+  ];
+  const keyframe = (x: number, pos: THREE.Vector3, look: THREE.Vector3) => {
+    let k = 0;
+    while (k < KEYS.length - 2 && x > KEYS[k + 1][0]) k++;
+    const [ua, pa, la] = KEYS[k];
+    const [ub, pb, lb] = KEYS[k + 1];
+    const e = ease(win(x, ua, ub));
+    pos.lerpVectors(pa, pb, e);
+    look.lerpVectors(la, lb, e);
+  };
   const camPos = new THREE.Vector3();
   const lookAt = new THREE.Vector3();
   const toward = new THREE.Vector3();
@@ -586,9 +740,10 @@ export function createWorldEngine(
     if (disposed) return;
     const dt = Math.min(0.05, (now - last) / 1000);
     last = now;
-    const t = (now - start) / 1000;
+    // rAF timestamps can sit slightly before `start`.
+    const t = Math.max(0, (now - start) / 1000);
     time.value = t;
-    u += (target - u) * (1 - Math.pow(0.0015, dt));
+    u += (target - u) * (1 - Math.pow(0.02, dt));
     if (Math.abs(target - u) < 0.0004) u = target;
 
     // Quality: if the first second and a half runs slowly, drop resolution, then glow.
@@ -625,35 +780,71 @@ export function createWorldEngine(
     renderer.render(trailScene, quadCam);
     trailIdx = 1 - trailIdx;
 
-    // ----- scene A camera: hero -> sweep across the map -> close to the chapter -----
-    galaxy.rotation.y = t * 0.03 + u * 0.25;
+    // ----- scene A camera: the whole sky -> drift across courses -> helpers -> CSC108 -> dive -----
+    galaxy.rotation.y = t * 0.006 + u * 0.03;
     galaxy.updateMatrixWorld();
-    const diveWorld = galaxy.localToWorld(v3.copy(itemsA[1 + DIVE_CHAPTER].p));
-    const k1 = ease(win(u, 0.15, MAP_END - 0.2));
-    const k2 = ease(win(u, DIVE_START - 0.15, DIVE_END - 0.35));
-    camPos.lerpVectors(heroPos, midPos, k1);
-    camPos.y += heroLift() * (1 - k1);
+    const diveWorld = galaxy.localToWorld(v3.copy(itemsA[CHAPTER_BASE + DIVE_CHAPTER].p));
+    keyframe(u, camPos, lookAt);
+    const k2 = ease(win(u, DIVE_START + 0.2, DIVE_END - 0.4));
+    camPos.y += heroLift() * (1 - win(u, AGENTS_END - 0.6, DIVE_START + 0.3));
     toward.subVectors(camPos, diveWorld).normalize().multiplyScalar(0.9).add(diveWorld);
     camPos.lerp(toward, k2);
-    lookAt.set(0, -heroLift() * 0.35 * (1 - k1), 0).lerp(diveWorld, Math.max(k2, k1 * 0.35));
-    camPos.x += (pointer.nx - 0.5) * 1.2 * (1 - k2);
-    camPos.y += (pointer.ny - 0.5) * 0.8 * (1 - k2);
+    lookAt.lerp(diveWorld, k2);
+    const sway = 1 - k2;
+    camPos.x += (pointer.nx - 0.5) * 2.2 * sway;
+    camPos.y += (pointer.ny - 0.5) * 1.4 * sway;
     camA.position.copy(camPos);
     camA.lookAt(lookAt);
 
+    // helper comets
+    agentBoost.value +=
+      ((u > AGENTS_START - 0.2 && u < AGENTS_END + 0.3 ? 1.4 : 0.45) - agentBoost.value) *
+      Math.min(1, dt * 2);
+    const agentLabels: ({ x: number; y: number } | null)[] = [];
+    AGENTS.forEach((_, ai) => {
+      const head = agentCurves[ai].getPointAt(
+        (((t * agentSpeed[ai] + ai / AGENTS.length) % 1) + 1) % 1,
+      );
+      const trailPts = agentTrail[ai];
+      if (!trailPts.length || trailPts[0].distanceToSquared(head) > 0.02) {
+        trailPts.unshift(head.clone());
+        if (trailPts.length > TRAIL) trailPts.pop();
+      } else trailPts[0].copy(head);
+      for (let k = 0; k < TRAIL; k++) {
+        const pt = trailPts[Math.min(k, trailPts.length - 1)];
+        pt.toArray(agentPositions, (ai * TRAIL + k) * 3);
+      }
+      const sp = project(galaxy.localToWorld(v3b.copy(head)), camA);
+      agentLabels.push(sp.z < 1 ? { x: sp.x, y: sp.y } : null);
+    });
+    agentGeo.attributes.position.needsUpdate = true;
+    const courseLabels = COURSES.map((_, ci) => {
+      const sp = project(galaxy.localToWorld(v3b.copy(coursePos[ci])), camA);
+      return sp.z < 1 ? { x: sp.x, y: sp.y } : null;
+    });
+
     let hoverChapter = -1;
-    if (pointer.active && u > MAP_START && u < DIVE_START + 0.1) {
-      let best = 40 * 40;
-      for (let i = 0; i <= CHAPTERS.length; i++) {
-        const s = project(galaxy.localToWorld(v3b.copy(itemsA[i].p)), camA);
-        const dd = (s.x - pointer.x) ** 2 + (s.y - pointer.y) ** 2;
-        if (s.z < 1 && dd < best) {
+    let hoverCourse = -1;
+    if (pointer.active && u < DIVE_START + 0.2) {
+      let best = 46 * 46;
+      const near = u > AGENTS_END - 0.5;
+      for (let i = 0; i < COURSES.length + (near ? CHAPTERS.length : 0); i++) {
+        const s2 = project(galaxy.localToWorld(v3b.copy(itemsA[i].p)), camA);
+        const dd = (s2.x - pointer.x) ** 2 + (s2.y - pointer.y) ** 2;
+        if (s2.z < 1 && dd < best) {
           best = dd;
-          hoverChapter = i;
+          if (i < COURSES.length) {
+            hoverCourse = i;
+            hoverChapter = -1;
+          } else {
+            hoverChapter = i - COURSES.length;
+            hoverCourse = -1;
+          }
         }
       }
     }
-    uA.uHover.value = hoverChapter;
+    uA.uHover.value =
+      hoverCourse >= 0 ? hoverCourse : hoverChapter >= 0 ? CHAPTER_BASE + hoverChapter : -1;
 
     // ----- lens dive -----
     const mix = ease(win(u, DIVE_MIX_START, DIVE_END));
@@ -668,7 +859,7 @@ export function createWorldEngine(
     let turn: number;
     if (f < 0) turn = f * 0.6;
     else if (f >= FEATURE_COUNT) turn = FEATURE_COUNT - 1 + (f - FEATURE_COUNT) * 0.3;
-    else turn = fi === 0 ? 0 : fi - 1 + ease(Math.min(1, (f - fi) / 0.4));
+    else turn = fi === 0 ? 0 : fi - 1 + ease(Math.min(1, (f - fi) / 0.55));
     const ang = turn * 1.15 + t * 0.03;
     const dist =
       11 -
@@ -730,10 +921,10 @@ export function createWorldEngine(
     let phase = 0;
     for (let i = 1; i <= FEATURE_COUNT; i++) {
       const b = featureStart(i);
-      const local = (u - b) / 0.35;
+      const local = (u - b) / 0.6;
       if (Math.abs(local) < 1.2) {
         kick = Math.max(kick, Math.exp(-local * local * 2.5));
-        phase = (u - b + 0.35) * 22;
+        phase = (u - b + 0.6) * 13;
       }
     }
     compMat.uniforms.uKick.value = kick;
@@ -753,7 +944,15 @@ export function createWorldEngine(
     renderer.setRenderTarget(null);
     renderer.render(compScene, quadCam);
 
-    opts.onFrame({ u, hoverChapter, hoverMemory, labels });
+    opts.onFrame({
+      u,
+      hoverCourse,
+      hoverChapter,
+      hoverMemory,
+      labels,
+      agents: agentLabels,
+      courses: courseLabels,
+    });
     raf = requestAnimationFrame(frame);
   };
 
