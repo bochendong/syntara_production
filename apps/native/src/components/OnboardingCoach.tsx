@@ -444,32 +444,24 @@ function GuidedCoach({ userId }: { userId: string }) {
                   {
                     selector: '[data-onboarding="materials-drop"]',
                     text: compact
-                      ? '点击「笔记」选择课程资料。上传并整理完成后，AI 就能结合这门课里的资料回答你的问题。之后随时从课程的「资料」回到这里。'
-                      : '把讲义、课件或课堂笔记拖进来，也可以点击选择文件。上传并整理完成后，AI 就能结合这门课里的资料回答你的问题。之后随时从顶部的「上传」回到这里。',
+                      ? '点击「笔记」选择课程资料。上传并整理完成后，AI 就能结合这门课里的资料回答你的问题。之后随时从课程菜单的「上传」回到这里。'
+                      : '把讲义、课件或课堂笔记拖进来，也可以点击选择文件。上传并整理完成后，AI 就能结合这门课里的资料回答你的问题。之后随时从课程菜单的「上传」回到这里。',
                   },
-                  ...(!compact
-                    ? [
-                        {
-                          selector: '[data-onboarding="learning-tab-materials"]',
-                          text: '点击顶部最后一个「上传」，导入这门课的讲义、笔记或题目。',
-                        },
-                      ]
-                    : []),
                   {
                     selector: '.learning-float-stack button[aria-label="上传资料"]',
                     text: '点击这里的「＋」，就能进入课程资料上传页。',
                   },
                   {
                     selector: '[data-onboarding="tool-materials"]',
-                    text: '点击「资料」，查看这门课的上传入口。',
+                    text: '点击「上传」，导入这门课的讲义、笔记或题目。',
                   },
                   {
                     selector: compact
                       ? COURSE_TITLE
                       : `${addedCourseHeading()} button[title="学习工具"]`,
                     text: compact
-                      ? '课程已创建。点击顶部的课程名，再选择「资料」，就能找到上传入口。'
-                      : '课程已创建。点击课程旁的「⋯」，再选择「资料」，就能找到上传入口。',
+                      ? '课程已创建。点击顶部的课程名，再选择「上传」，就能找到上传入口。'
+                      : '课程已创建。点击课程旁的「⋯」，再选择「上传」，就能找到上传入口。',
                   },
                   {
                     selector: '[data-onboarding="drawer"]',
@@ -512,16 +504,16 @@ function GuidedCoach({ userId }: { userId: string }) {
                           {
                             selector: '.course-tools-menu:has([data-onboarding="tool-materials"])',
                             text: compact
-                              ? '课程的资料、笔记、学习进度、记忆球和课堂都在这里。以后点顶部的课程名，就能打开这个菜单。'
-                              : '这里可以查看资料、笔记、学习进度和题库，最下面是删除课程。记忆、课堂和上传在顶部常驻标签中；删除课程会先要求确认。',
+                              ? '课程的上传、笔记、学习进度、记忆球和课堂都在这里。以后点顶部的课程名，就能打开这个菜单。'
+                              : '这里可以打开上传、笔记、学习进度、课堂和题库，最下面是删除课程。记忆在顶部标签中；删除课程会先要求确认。',
                           },
                           {
                             selector: compact
                               ? COURSE_TITLE
                               : `${addedCourseHeading()} button[title="学习工具"]`,
                             text: compact
-                              ? '点击顶部的课程名，看看资料和学习工具都在哪里。'
-                              : '最后认识一下课程菜单：点击课程旁的「⋯」，看看资料和学习工具都在哪里。',
+                              ? '点击顶部的课程名，看看上传和学习工具都在哪里。'
+                              : '最后认识一下课程菜单：点击课程旁的「⋯」，看看上传和学习工具都在哪里。',
                           },
                           {
                             selector: '[data-onboarding="drawer"]',

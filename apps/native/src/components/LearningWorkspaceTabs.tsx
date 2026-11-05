@@ -19,6 +19,7 @@ const tools = {
   classroom: { label: '课堂', tone: 'pink' },
   materials: { label: '上传', tone: 'blue' },
 };
+const tabbedPages: CourseLearningPage[] = ['problems', 'notes', 'progress', 'memory'];
 
 /**
  * 聊天是第一个标签，学习页是它后面的标签；同一时间只看一个，
@@ -49,7 +50,8 @@ export function LearningWorkspaceTabs({
   const tabRefs = useRef(new Map<CourseLearningPage | 'chat', HTMLButtonElement>());
   const tabListRef = useRef<HTMLDivElement>(null);
   const rollerRef = useRef<HTMLSpanElement>(null);
-  const visiblePages = compact ? pages : (Object.keys(tools) as CourseLearningPage[]);
+  const visiblePages = compact ? pages : tabbedPages;
+  const showPageHeader = compact || (activePage !== null && !tabbedPages.includes(activePage));
   const order: (CourseLearningPage | 'chat')[] = ['chat', ...visiblePages];
   const current = activePage ?? 'chat';
   useEffect(() => {
@@ -59,7 +61,7 @@ export function LearningWorkspaceTabs({
   useLayoutEffect(() => {
     const list = tabListRef.current;
     const roller = rollerRef.current;
-    if (compact || !list || !roller) return;
+    if (showPageHeader || !list || !roller) return;
     const place = () => {
       const tab = tabRefs.current.get(current);
       if (!tab) return;
@@ -113,7 +115,7 @@ export function LearningWorkspaceTabs({
       observer.disconnect();
       list.removeEventListener('scroll', place);
     };
-  }, [current, compact]);
+  }, [current, showPageHeader]);
 
   const select = (tab: CourseLearningPage | 'chat') => {
     if (tab === 'chat') onChat();
@@ -150,7 +152,7 @@ export function LearningWorkspaceTabs({
       className={activePage ? 'learning-workspace is-page' : 'learning-workspace is-chat'}
       aria-label="学习工作区"
     >
-      {compact ? (
+      {showPageHeader ? (
         activePage ? (
           <div className="learning-workspace-bar is-compact">
             <button
@@ -238,10 +240,12 @@ export function LearningWorkspaceTabs({
           <div
             key={page}
             className="learning-workspace-panel"
-            role={compact ? undefined : 'tabpanel'}
+            role={!compact && tabbedPages.includes(page) ? 'tabpanel' : undefined}
             id={id + '-panel-' + page}
-            aria-labelledby={compact ? undefined : id + '-tab-' + page}
-            aria-label={compact ? tools[page].label : undefined}
+            aria-labelledby={
+              !compact && tabbedPages.includes(page) ? id + '-tab-' + page : undefined
+            }
+            aria-label={compact || !tabbedPages.includes(page) ? tools[page].label : undefined}
             hidden={page !== activePage}
             inert={page !== activePage}
           >

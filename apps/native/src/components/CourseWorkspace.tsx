@@ -1900,18 +1900,6 @@ export function PhoneChatDrawer<
             navigation?.onManageCourse?.(courseMenu.course, 'delete');
           }}
           courseName={courseMenu.course.courseCode || courseMenu.course.name}
-          onPublish={
-            courseMeta[courseMenu.course.id]?.accessRole !== 'enrolled' &&
-            navigation?.onManageCourse
-              ? () => {
-                  setCourseMenu(null);
-                  navigation.onManageCourse?.(courseMenu.course, 'publish');
-                }
-              : undefined
-          }
-          publishLabel={
-            courseMeta[courseMenu.course.id]?.visibility === 'private' ? '发布到商城' : '发布设置'
-          }
           onClose={() => setCourseMenu(null)}
           onSelect={(page) => {
             setCourseMenu(null);
@@ -5347,7 +5335,7 @@ export function CourseWorkspace({
   const materialKinds: CourseMaterialKind[] = ['notes', 'problems'];
   const enrolledCourse = courseMeta[workspace.course.id]?.accessRole === 'enrolled';
   const courseToolActions: DrawerLearningAction[] = [
-    { id: 'materials', label: '资料', icon: FolderUp, open: () => setPhonePage('materials') },
+    { id: 'materials', label: '上传', icon: FolderUp, open: () => setPhonePage('materials') },
     {
       id: 'notes',
       label: '笔记',
