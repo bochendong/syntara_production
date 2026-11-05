@@ -80,6 +80,11 @@ ASCII 鲨鱼背景和顶栏鱼形开关只出现在没有聊天消息的空白�
 
 ## 开发
 
+调整测试服 UI 时，先按 [本地与测试服对照](../../docs/local-staging-preview.md) 从任务工作树
+运行 `pnpm staging:preview`，打开 `http://127.0.0.1:1422/test/app?as=teacher`。
+这会核对当前线上源码基线，运行完整 App 并只读加载测试服数据。
+`/qa/` 页面有独立的模拟数据标识，不作为日常测试服参照。
+
 ```bash
 pnpm install
 pnpm --filter @syntara/native dev

@@ -13,6 +13,7 @@
     "start": "node scripts/workers/start-with-worker.mjs",
     "staging:admin": "node scripts/staging-admin/start.mjs",
     "staging:course": "node scripts/staging-admin/cli.mjs",
+    "staging:preview": "node scripts/maintenance/start-staging-preview.mjs",
     "worker:ai": "node scripts/workers/ai-worker.mjs",
     "lint": "eslint",
     "lint:changed": "node scripts/maintenance/check-changed-lint.mjs",
