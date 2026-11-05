@@ -1,0 +1,457 @@
+/* 题库「和同班比」：细条、整张卡片、做完一组后的弹窗。 */
+
+.cs-strip {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) 20px;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  margin: 10px 0 4px;
+  padding: 12px 16px 18px;
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  border-radius: var(--radius-md, 20px);
+  background: rgba(255, 255, 255, 0.62);
+  backdrop-filter: blur(var(--glass-blur-md, 24px));
+  -webkit-backdrop-filter: blur(var(--glass-blur-md, 24px));
+  box-shadow:
+    0 8px 24px rgba(40, 40, 90, 0.06),
+    inset 0 1px 0 #fff;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.cs-strip-rank {
+  display: grid;
+  justify-items: center;
+  min-width: 44px;
+  line-height: 1.05;
+}
+
+.cs-strip-rank b {
+  font-size: 22px;
+}
+
+.cs-strip-rank small,
+.cs-strip-tube > small {
+  color: rgba(28, 27, 46, 0.55);
+  font-size: 11px;
+}
+
+.cs-strip-tube {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+
+.cs-strip-chevron {
+  color: rgba(28, 27, 46, 0.45);
+}
+
+/* ---------- 整张卡片 ---------- */
+.cs-card {
+  container-type: inline-size;
+  display: grid;
+  grid-template-columns: minmax(200px, 270px) minmax(0, 1fr);
+  overflow: hidden;
+  margin: 10px 0 6px;
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  border-radius: var(--radius-lg, 24px);
+  background: rgba(255, 255, 255, 0.66);
+  backdrop-filter: blur(var(--glass-blur-md, 24px));
+  -webkit-backdrop-filter: blur(var(--glass-blur-md, 24px));
+  box-shadow:
+    0 10px 30px rgba(40, 40, 90, 0.08),
+    inset 0 1px 0 #fff;
+  animation: cs-in 0.32s ease both;
+}
+
+@keyframes cs-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.99);
+  }
+}
+
+.cs-art {
+  position: relative;
+  min-height: 300px;
+  background: linear-gradient(170deg, #262b66, #4a3d8f 70%, #6a4a9a);
+}
+
+.cs-art-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.cs-art-drop {
+  animation: cs-drop 0.9s cubic-bezier(0.3, 1.4, 0.5, 1) 0.2s both;
+}
+
+@keyframes cs-drop {
+  from {
+    transform: translateY(-120px);
+    opacity: 0;
+  }
+}
+
+.cs-art-caption {
+  position: absolute;
+  right: 18px;
+  bottom: 16px;
+  left: 18px;
+  margin: 0;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 650;
+  line-height: 1.45;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
+}
+
+.cs-art-caption small {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  font-weight: 400;
+  opacity: 0.72;
+}
+
+.cs-body {
+  min-width: 0;
+  padding: 20px 22px;
+}
+
+.cs-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.cs-head > div:first-child {
+  flex: 1;
+  min-width: 0;
+}
+
+.cs-head strong {
+  margin-right: 6px;
+  font-size: 17px;
+}
+
+.cs-head span {
+  color: rgba(28, 27, 46, 0.55);
+  font-size: 13px;
+}
+
+.cs-seg {
+  display: flex;
+  gap: 4px;
+  padding: 3px;
+  border-radius: 999px;
+  background: rgba(28, 27, 46, 0.05);
+}
+
+.cs-seg button,
+.cs-close {
+  border: 0;
+  background: transparent;
+  color: rgba(28, 27, 46, 0.6);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.cs-seg button {
+  padding: 5px 11px;
+  border-radius: 999px;
+}
+
+.cs-seg button.is-on {
+  background: #1c1b2e;
+  color: #fff;
+}
+
+.cs-close {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+}
+
+.cs-close:hover {
+  background: rgba(28, 27, 46, 0.06);
+}
+
+.cs-row {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr) 88px;
+  align-items: center;
+  gap: 14px;
+  padding: 20px 0 16px;
+  border-top: 1px solid rgba(28, 27, 46, 0.06);
+}
+
+.cs-row:first-child {
+  border-top: 0;
+}
+
+.cs-label {
+  color: rgba(28, 27, 46, 0.55);
+  font-size: 12px;
+}
+
+.cs-label b {
+  display: block;
+  margin-bottom: 1px;
+  color: #1c1b2e;
+  font-size: 14px;
+}
+
+.cs-value {
+  color: rgba(28, 27, 46, 0.55);
+  font-size: 12px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.cs-value b {
+  color: #1c1b2e;
+  font-size: 18px;
+}
+
+/* ---------- 玻璃管 ---------- */
+.cs-tube {
+  --c-light: var(--marble-green-light);
+  --c-mid: var(--marble-green-mid);
+  position: relative;
+  height: 20px;
+  margin: 0 14px;
+  border: 1px solid rgba(28, 27, 46, 0.08);
+  border-radius: 999px;
+  background: linear-gradient(#fff, #eef0f7);
+  box-shadow: inset 0 2px 4px rgba(28, 27, 46, 0.06);
+}
+
+.cs-tube.is-compact {
+  height: 14px;
+}
+
+.cs-blue {
+  --c-light: var(--marble-blue-light);
+  --c-mid: var(--marble-blue-mid);
+}
+
+.cs-amber {
+  --c-light: var(--marble-amber-light);
+  --c-mid: var(--marble-amber-mid);
+}
+
+.cs-purple {
+  --c-light: var(--marble-purple-light);
+  --c-mid: var(--marble-purple-mid);
+}
+
+.cs-fill {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  left: 3px;
+  max-width: calc(100% - 6px);
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--c-light), var(--c-mid));
+  transition: width 0.8s cubic-bezier(0.3, 1.2, 0.5, 1);
+}
+
+.cs-avg {
+  position: absolute;
+  top: -6px;
+  bottom: -6px;
+  width: 2px;
+  border-radius: 2px;
+  background: rgba(28, 27, 46, 0.32);
+  transform: translateX(-1px);
+}
+
+.cs-avg small {
+  position: absolute;
+  top: -15px;
+  left: 50%;
+  color: rgba(28, 27, 46, 0.5);
+  font-size: 10px;
+  white-space: nowrap;
+  transform: translateX(-50%);
+}
+
+.cs-tube.is-compact .cs-avg small {
+  display: none;
+}
+
+.cs-marble {
+  position: absolute;
+  top: 50%;
+  width: 24px;
+  height: 24px;
+  border: 1.5px solid rgba(28, 27, 46, 0.55);
+  border-radius: 50%;
+  background: #fff3c4;
+  box-shadow:
+    inset -4px -5px 0 rgba(0, 0, 0, 0.12),
+    inset 4px 4px 0 rgba(255, 255, 255, 0.55);
+  transform: translate(-50%, -50%);
+  transition: left 0.8s cubic-bezier(0.3, 1.2, 0.5, 1);
+}
+
+.cs-marble::before {
+  position: absolute;
+  top: 4px;
+  left: 5px;
+  width: 7px;
+  height: 4px;
+  border-radius: 50%;
+  background: #fff;
+  content: '';
+  opacity: 0.9;
+  transform: rotate(-25deg);
+}
+
+.cs-marble.is-me {
+  z-index: 2;
+  width: 28px;
+  height: 28px;
+  background: var(--c-mid);
+}
+
+.cs-tube.is-compact .cs-marble {
+  width: 20px;
+  height: 20px;
+}
+
+.cs-tube.is-compact .cs-marble.is-me {
+  width: 22px;
+  height: 22px;
+}
+
+.cs-marble i {
+  position: absolute;
+  top: -17px;
+  left: 50%;
+  font-size: 12px;
+  font-style: normal;
+  transform: translateX(-50%);
+}
+
+.cs-marble small {
+  position: absolute;
+  top: calc(100% + 2px);
+  left: 50%;
+  color: rgba(28, 27, 46, 0.55);
+  font-size: 10px;
+  white-space: nowrap;
+  transform: translateX(-50%);
+}
+
+.cs-marble.is-me small {
+  color: #1c1b2e;
+  font-weight: 700;
+}
+
+.cs-foot {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 0.8fr);
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.cs-hint,
+.cs-chase {
+  min-width: 0;
+  padding: 11px 14px;
+  border-radius: var(--radius-sm, 16px);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.cs-hint {
+  border: 1px solid #fff;
+  background: rgba(255, 255, 255, 0.72);
+  color: rgba(28, 27, 46, 0.6);
+}
+
+.cs-hint b,
+.cs-chase b {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 2px;
+  color: #1c1b2e;
+  font-size: 14px;
+}
+
+.cs-chase {
+  border: 0;
+  background: #1c1b2e;
+  color: rgba(255, 255, 255, 0.72);
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.cs-chase b {
+  color: #fff;
+}
+
+/* 窄的时候插图放到上面，变成一条横幅。 */
+@container (max-width: 620px) {
+  .cs-row {
+    grid-template-columns: 58px minmax(0, 1fr) 70px;
+    gap: 8px;
+  }
+}
+
+@media (max-width: 720px) {
+  .cs-card {
+    grid-template-columns: 1fr;
+  }
+
+  .cs-art {
+    min-height: 190px;
+  }
+
+  .cs-foot {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ---------- 做完一组后的弹窗 ---------- */
+.cs-popup {
+  position: fixed;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(20, 18, 40, 0.32);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  animation: cs-fade 0.2s ease both;
+  inset: 0;
+}
+
+@keyframes cs-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+.cs-popup-inner {
+  width: min(880px, 100%);
+}
+
+.cs-popup .cs-card {
+  margin: 0;
+  background: rgba(255, 255, 255, 0.92);
+}

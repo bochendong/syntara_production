@@ -7,6 +7,7 @@ import {
   readNativeProblems,
   saveNativeProblemAttempts,
 } from '@/lib/server/native-problem-sync';
+import { readClassStanding } from '@/lib/server/native-class-standing';
 import { getOptionalPrisma } from '@/lib/server/prisma-safe';
 import {
   parseAttemptCursor,
@@ -35,6 +36,15 @@ async function getContent(request: NextRequest, requestId: string) {
   const courseId = request.nextUrl.searchParams.get('courseId')?.trim();
   if (!courseId || courseId.length > 200) {
     return publicApiError(requestId, 400, 'invalid_request', 'courseId is required.');
+  }
+  if (request.nextUrl.searchParams.get('standing') === '1') {
+    const period = request.nextUrl.searchParams.get('period') === 'all' ? 'all' : 'week';
+    const offset = Number(request.nextUrl.searchParams.get('tz'));
+    const tz = Number.isFinite(offset) && Math.abs(offset) <= 840 ? Math.round(offset) : 0;
+    const data = await readClassStanding(prisma, principal.userId, courseId, period, tz);
+    return data
+      ? publicApiSuccess(requestId, data, NO_STORE)
+      : publicApiError(requestId, 404, 'not_found', 'Course not found.');
   }
   if (request.nextUrl.searchParams.get('attempts') === '1') {
     const problemId = request.nextUrl.searchParams.get('problemId')?.trim();

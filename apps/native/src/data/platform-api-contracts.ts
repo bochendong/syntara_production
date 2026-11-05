@@ -641,3 +641,32 @@ export interface NativeOnboardingState {
   completed: NativeOnboardingStep[];
   next: NativeOnboardingStep | null;
 }
+
+/** 题库「和同班比」里的一项：我、平均、全班最高。 */
+export interface NativeClassStandingMetric {
+  me: number;
+  average: number;
+  top: number;
+  /** 题数、章节数的上限；比例和天数为空。 */
+  max: number | null;
+}
+
+/** GET /api/native/v1/problems?standing=1：只有聚合数字，没有同学的名字。 */
+export interface NativeClassStanding {
+  courseId: string;
+  period: 'week' | 'all';
+  /** class = 老师班级名单；course = 没进班，和这门课全部学员比。 */
+  scope: 'class' | 'course';
+  className: string | null;
+  size: number;
+  rank: number;
+  metrics: Record<'solved' | 'firstTry' | 'streak' | 'chapters', NativeClassStandingMetric>;
+  hint: {
+    chapterId: string | null;
+    notebookId: string | null;
+    chapterName: string | null;
+    ahead: number;
+    problemIds: string[];
+  } | null;
+  generatedAt: number;
+}

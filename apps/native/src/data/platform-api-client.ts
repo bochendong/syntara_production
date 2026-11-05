@@ -18,6 +18,7 @@ import type {
   NativePlatformCourse,
   NativeProblemAttemptUpload,
   NativeProblemAttemptPage,
+  NativeClassStanding,
   NativeProblemSnapshot,
   NativeSyncedConversationList,
   NativeSyncedConversationSnapshot,
@@ -552,6 +553,19 @@ export function getNativeProblemAttempts(
     problemId,
     attempts: 1,
     before: before ?? undefined,
+  });
+}
+
+/** 题库「和同班比」：本周或累计，我在同班里的位置。 */
+export function getNativeClassStanding(
+  courseId: string,
+  period: 'week' | 'all',
+): Promise<NativeClassStanding> {
+  return invokeQuery('native_get_problems', {
+    courseId,
+    standing: 1,
+    period,
+    tz: new Date().getTimezoneOffset(),
   });
 }
 
