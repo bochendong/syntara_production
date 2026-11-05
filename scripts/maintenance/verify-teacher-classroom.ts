@@ -145,8 +145,8 @@ async function main() {
         status,
         order,
         problemNumber: order,
-        publicContentJson: {},
-        gradingJson: {},
+        publicContentJson: { type: 'short_answer', stem: `第 ${order} 题的题干` },
+        gradingJson: { referenceAnswer: `第 ${order} 题的参考答案` },
       },
       select: { id: true },
     });
@@ -253,6 +253,7 @@ async function main() {
         classId: pastClass.id,
         teacherId: teacher.id,
         number: 1,
+        name: '函数与变量',
         status: 'ended',
         startedAt: new Date('2020-10-01'),
         endedAt: new Date('2020-10-01'),
@@ -271,11 +272,42 @@ async function main() {
       [[pastSession.id]],
     );
     await expectError(classroom.listImportableSessions(T2, classId), 404);
+    assert.equal(importable[0].sessions[0].name, '函数与变量');
     await expectError(classroom.importSessionsAsDrafts(T, pastClass.id, ['missing']), 404);
     const [importedId] = await classroom.importSessionsAsDrafts(T, classId, [pastSession.id]);
     let draftBoard = await classroom.getClassSessionDashboard(T, importedId);
     assert.equal(draftBoard.session.status, 'draft');
     assert.equal(draftBoard.session.number, 1, '第一节');
+    assert.equal(draftBoard.session.name, '函数与变量', '导入保留课堂名称');
+    await expectError(
+      classroom.applyClassSessionAction(T2, importedId, { action: 'rename', name: '越权改名' }),
+      404,
+    );
+    await expectError(
+      classroom.applyClassSessionAction({ userId: alice.id }, importedId, {
+        action: 'rename',
+        name: '学生不能改名',
+      }),
+      404,
+    );
+    for (const name of ['', '   ', '字'.repeat(81)]) {
+      await expectError(
+        classroom.applyClassSessionAction(T, importedId, { action: 'rename', name }),
+        400,
+      );
+    }
+    await classroom.applyClassSessionAction(T, importedId, {
+      action: 'rename',
+      name: '  循环与列表  ',
+    });
+    draftBoard = await classroom.getClassSessionDashboard(T, importedId);
+    assert.equal(draftBoard.session.name, '循环与列表', '名称去除首尾空白并持久化');
+    assert.equal(draftBoard.session.number, 1, '改名不修改节次');
+    assert.equal(
+      (await classroom.getClassOverview(T, classId)).sessions[0].name,
+      '循环与列表',
+      '课堂列表使用保存的名称',
+    );
     assert.equal(draftBoard.session.code, null);
     assert.deepEqual(
       draftBoard.items.map((item) => item.problemId),
@@ -304,6 +336,19 @@ async function main() {
     );
     await expectError(classroom.applyClassSessionAction(T, importedId, { action: 'end' }), 409);
     assert.equal((await classroom.getStudentClassroomState(alice.id)).sessions.length, 0);
+    const preview = await classroom.getClassSessionProblemPreview(T, importedId, p1.id);
+    assert.equal(preview.publicContent.stem, '第 1 题的题干');
+    assert.equal(preview.grading.referenceAnswer, '第 1 题的参考答案');
+    assert.equal(preview.id, p1.id);
+    assert.equal('secretJudge' in preview, false, '预览不包含私有判题配置');
+    await expectError(classroom.getClassSessionProblemPreview(T2, importedId, p1.id), 404);
+    await expectError(
+      classroom.getClassSessionProblemPreview({ userId: alice.id }, importedId, p1.id),
+      404,
+    );
+    await expectError(classroom.getClassSessionProblemPreview(T, importedId, draft.id), 404);
+    await expectError(classroom.getClassSessionProblemPreview(T, importedId, 'missing'), 404);
+    console.log('ok  老师可预览本节题干与参考答案，学生和无关老师无权读取');
     const scratchDraft = await classroom.createDraftSession(T, classId);
     assert.equal(
       (await classroom.getClassSessionDashboard(T, scratchDraft)).session.number,
@@ -337,6 +382,14 @@ async function main() {
     const session = await prisma.classSession.findUniqueOrThrow({ where: { id: sessionId } });
     assert.match(session.code ?? '', /^\d{6}$/);
     assert.ok(session.startedAt);
+    assert.equal(session.name, '循环与列表', '开课保留备课名称');
+    await classroom.applyClassSessionAction(T, sessionId, { action: 'rename', name: '循环练习' });
+    assert.equal((await classroom.getLiveSessionForCourse(T, course.id))?.name, '循环练习');
+    assert.equal(
+      (await classroom.getStudentClassroomState(alice.id)).sessions[0].name,
+      '循环练习',
+      '学生端读取相同名称',
+    );
     assert.deepEqual(
       await classroom.getLiveSessionForCourse({ userId: carol.id }, course.id),
       null,
@@ -547,6 +600,13 @@ async function main() {
     const ended = await prisma.classSession.findUniqueOrThrow({ where: { id: sessionId } });
     assert.equal(ended.status, 'ended');
     assert.equal(ended.code, null);
+    await classroom.applyClassSessionAction(T, sessionId, { action: 'rename', name: '循环复习' });
+    assert.equal(
+      (await classroom.getClassSessionDashboard(T, sessionId)).session.name,
+      '循环复习',
+      '下课后仍可修改课堂名称',
+    );
+    assert.equal((await classroom.getStudentClassroomState(alice.id)).past[0].name, '循环复习');
     await expectError(classroom.joinClassroomByCode(carol.id, session.code!), 404);
     aliceState = await classroom.getStudentClassroomState(alice.id);
     assert.equal(aliceState.sessions.length, 0);

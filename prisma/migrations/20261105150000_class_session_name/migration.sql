@@ -1,0 +1,1 @@
+ALTER TABLE "ClassSession" ADD COLUMN "name" VARCHAR(80);

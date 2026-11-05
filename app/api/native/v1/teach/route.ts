@@ -17,6 +17,7 @@ import {
   ensureCurrentTermClass,
   getClassOverview,
   getClassSessionDashboard,
+  getClassSessionProblemPreview,
   getLiveSessionForCourse,
   getSessionStudentAnswers,
   importSessionsAsDrafts,
@@ -82,6 +83,16 @@ export async function GET(request: NextRequest) {
     const classId = query.get('classId');
     const sessionId = query.get('sessionId');
     const choices = query.get('choices');
+    const preview = query.get('preview');
+    if (preview) {
+      const problemId = query.get('problemId');
+      if (!problemId || preview.length > 200 || problemId.length > 200) {
+        return publicApiError(requestId, 400, 'invalid_request', '请求无效。');
+      }
+      return publicApiSuccess(requestId, {
+        problem: await getClassSessionProblemPreview(viewer, preview, problemId),
+      });
+    }
     if (query.get('claim')) {
       return publicApiSuccess(
         requestId,
@@ -138,6 +149,7 @@ const actionSchema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('start-session'), classId: id, sessionId: id.optional() }),
   z.object({ action: z.literal('create-draft'), classId: id }),
   z.object({ action: z.literal('delete-draft'), sessionId: id }),
+  z.object({ action: z.literal('rename'), sessionId: id, name: z.string().trim().min(1).max(80) }),
   z.object({
     action: z.literal('import-sessions'),
     classId: id,

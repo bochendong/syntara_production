@@ -1,4 +1,11 @@
 /* 学生的「上课」页：一个输码框，一串自己的弹珠。 */
+.tc-page .phone-large-head h1 {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
 .tc-code {
   display: flex;
   gap: 10px;

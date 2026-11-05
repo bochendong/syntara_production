@@ -40,6 +40,7 @@ import {
 import { readLoginIntent } from '../lib/login-intent';
 import { GlassSkeletonRows } from './GlassLoadMore';
 import { PhoneConfirm, PhoneEmpty, PhonePage } from './PhonePages';
+import { classSessionLabel } from '../lib/class-session-label';
 import './teach-page.css';
 import { TeachCourseView } from './TeachCourseView';
 import { TeachSessionView } from './TeachSessionView';
@@ -632,7 +633,7 @@ function TeachClassView({
                     : void open('start', () => startTeachSession(classId))
                 }
               >
-                {live ? `回到第 ${live.number} 节` : `开始第 ${nextNumber} 节`}
+                {live ? `回到${classSessionLabel(live)}` : `开始第 ${nextNumber} 节`}
               </button>
             </section>
 
@@ -662,7 +663,7 @@ function TeachClassView({
                     onClick={() => onOpenSession(live.id)}
                   >
                     <span className="tl-dot" aria-hidden />
-                    正在上课 · 第 {live.number} 节 · {live.participantCount} 人在场
+                    正在上课 · {classSessionLabel(live)} · {live.participantCount} 人在场
                     <ChevronRight size={16} aria-hidden />
                   </button>
                 ) : null}
@@ -695,7 +696,7 @@ function TeachClassView({
                           onClick={() => onOpenSession(session.id)}
                         >
                           <span className="tp-course-copy">
-                            <strong>第 {session.number} 节</strong>
+                            <strong>{classSessionLabel(session)}</strong>
                             <small>{session.itemCount} 题</small>
                           </span>
                           <ChevronRight size={16} className="tp-chevron" aria-hidden />
@@ -733,7 +734,7 @@ function TeachClassView({
                           onClick={() => onOpenSession(session.id)}
                         >
                           <span className="tp-course-copy">
-                            <strong>第 {session.number} 节</strong>
+                            <strong>{classSessionLabel(session)}</strong>
                             <small>
                               {session.startedAt ? `${clock(session.startedAt)} · ` : ''}
                               {session.participantCount} 人 · {session.itemCount} 题
@@ -1025,7 +1026,7 @@ function ImportSessionsDialog({
                       <span className="tp-check" aria-hidden />
                       <span className="tp-course-copy">
                         <strong>
-                          第 {session.number} 节 · {session.itemCount} 题
+                          {classSessionLabel(session)} · {session.itemCount} 题
                         </strong>
                         <small>{session.titles.join('、')}</small>
                       </span>

@@ -7,6 +7,7 @@ import {
   type NativeClassroomState,
 } from '../data/platform-api-client';
 import { platformAvailable } from '../data/browser-runtime';
+import { classSessionLabel } from '../lib/class-session-label';
 import './classroom-panel.css';
 
 /**
@@ -68,7 +69,7 @@ export function ClassroomLiveBadge({
       <span>
         {live.joined
           ? openCount
-            ? `第 ${live.number} 节 · ${openCount} 道题没做`
+            ? `${classSessionLabel(live)} · ${openCount} 道题没做`
             : `${live.courseName} 上课中`
           : `${live.teacherName}开始上课了`}
       </span>

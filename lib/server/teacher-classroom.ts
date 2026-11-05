@@ -341,6 +341,7 @@ export async function getClassOverview(viewer: ClassroomViewer, classId: string)
       select: {
         id: true,
         number: true,
+        name: true,
         status: true,
         code: true,
         startedAt: true,
@@ -422,6 +423,7 @@ export async function getClassOverview(viewer: ClassroomViewer, classId: string)
     sessions: sessions.map((session) => ({
       id: session.id,
       number: session.number,
+      name: session.name,
       status: session.status,
       code: session.code,
       startedAt: session.startedAt?.getTime() ?? null,
@@ -600,6 +602,7 @@ export async function listImportableSessions(viewer: ClassroomViewer, classId: s
         select: {
           id: true,
           number: true,
+          name: true,
           items: {
             orderBy: { position: 'asc' },
             select: { problem: { select: { title: true } } },
@@ -616,6 +619,7 @@ export async function listImportableSessions(viewer: ClassroomViewer, classId: s
       sessions: source.sessions.map((session) => ({
         id: session.id,
         number: session.number,
+        name: session.name,
         itemCount: session.items.length,
         titles: session.items.slice(0, 3).map((item) => item.problem.title),
       })),
@@ -640,6 +644,7 @@ export async function importSessionsAsDrafts(
     },
     orderBy: [{ class: { academicYear: 'asc' } }, { number: 'asc' }],
     select: {
+      name: true,
       items: {
         where: { problem: { status: 'published', ownerId: null } },
         orderBy: { position: 'asc' },
@@ -662,6 +667,7 @@ export async function importSessionsAsDrafts(
             classId,
             teacherId: viewer.userId,
             number: number++,
+            name: source.name,
             status: 'draft',
             items: {
               create: source.items.map((item, index) => ({
@@ -701,6 +707,7 @@ async function loadSessionForTeacher(viewer: ClassroomViewer, sessionId: string)
 }
 
 export type ClassSessionAction =
+  | { action: 'rename'; name: string }
   | { action: 'add'; problemIds: string[] }
   | { action: 'remove'; problemId: string }
   | { action: 'reorder'; problemIds: string[] }
@@ -713,6 +720,12 @@ export async function applyClassSessionAction(
   input: ClassSessionAction,
 ) {
   const session = await loadSessionForTeacher(viewer, sessionId);
+  if (input.action === 'rename') {
+    const name = input.name.trim();
+    if (!name || name.length > 80) throw new ClassroomError(400, '课堂名称需为 1–80 个字。');
+    await prisma.classSession.update({ where: { id: sessionId }, data: { name } });
+    return;
+  }
   if (session.status === 'ended') throw new ClassroomError(409, '这节课已经下课了。');
   if ((input.action === 'lock' || input.action === 'end') && session.status !== 'live') {
     throw new ClassroomError(409, '这节课还没开始。');
@@ -937,6 +950,7 @@ export async function getClassSessionDashboard(viewer: ClassroomViewer, sessionI
     session: {
       id: session.id,
       number: session.number,
+      name: session.name,
       status: session.status,
       code: session.code,
       locked: session.locked,
@@ -987,6 +1001,52 @@ export async function getClassSessionDashboard(viewer: ClassroomViewer, sessionI
         results,
       };
     }),
+  };
+}
+
+/** 按需预览本节课的公有题；沿用本班老师权限，不读取私有判题测试。 */
+export async function getClassSessionProblemPreview(
+  viewer: ClassroomViewer,
+  sessionId: string,
+  problemId: string,
+) {
+  const session = await loadSessionForTeacher(viewer, sessionId);
+  const problem = await prisma.notebookProblem.findFirst({
+    where: {
+      id: problemId,
+      courseId: session.class.courseId,
+      ownerId: null,
+      classSessionItems: { some: { sessionId } },
+    },
+    select: {
+      id: true,
+      courseId: true,
+      notebookId: true,
+      title: true,
+      type: true,
+      status: true,
+      difficulty: true,
+      tags: true,
+      publicContentJson: true,
+      gradingJson: true,
+      createdAt: true,
+      updatedAt: true,
+    },
+  });
+  if (!problem) throw new ClassroomError(404, '没有找到这节课里的题目。');
+  return {
+    id: problem.id,
+    courseId: problem.courseId,
+    notebookId: problem.notebookId,
+    title: problem.title,
+    type: problem.type,
+    status: problem.status,
+    difficulty: problem.difficulty,
+    tags: problem.tags,
+    publicContent: jsonRecord(problem.publicContentJson),
+    grading: jsonRecord(problem.gradingJson),
+    createdAt: problem.createdAt.getTime(),
+    updatedAt: problem.updatedAt.getTime(),
   };
 }
 
@@ -1058,6 +1118,7 @@ export async function getLiveSessionForCourse(viewer: ClassroomViewer, courseId:
     select: {
       id: true,
       number: true,
+      name: true,
       _count: { select: { participants: true } },
       items: { select: { problemId: true } },
     },
@@ -1066,6 +1127,7 @@ export async function getLiveSessionForCourse(viewer: ClassroomViewer, courseId:
     ? {
         sessionId: session.id,
         number: session.number,
+        name: session.name,
         presentCount: session._count.participants,
         problemIds: session.items.map((item) => item.problemId),
       }
@@ -1181,6 +1243,7 @@ export async function getStudentClassroomState(userId: string) {
   const select = {
     id: true,
     number: true,
+    name: true,
     status: true,
     startedAt: true,
     endedAt: true,
@@ -1248,6 +1311,7 @@ export async function getStudentClassroomState(userId: string) {
     return {
       id: session.id,
       number: session.number,
+      name: session.name,
       status: session.status,
       joined,
       startedAt: session.startedAt?.getTime() ?? 0,

@@ -48,7 +48,7 @@ import type {
   PlatformCommandOptions,
   PlatformJsonCommandRequest,
 } from './platform-api-contracts';
-import type { LocalStudyMemory } from '../domain/models';
+import type { LocalProblem, LocalStudyMemory } from '../domain/models';
 import { resolveNativePlatformToken } from './platform-auth-token';
 
 function isTauriRuntime(): boolean {
@@ -579,6 +579,7 @@ export type NativeClassroomItem = {
 export type NativeClassroomSession = {
   id: string;
   number: number;
+  name?: string | null;
   status: string;
   joined: boolean;
   startedAt: number;
@@ -657,6 +658,7 @@ export type TeachClass = {
   sessions: Array<{
     id: string;
     number: number;
+    name?: string | null;
     /** draft 备课 | live 上课中 | ended 已下课 */
     status: string;
     code: string | null;
@@ -685,6 +687,7 @@ export type TeachSession = {
   session: {
     id: string;
     number: number;
+    name?: string | null;
     /** draft 备课 | live 上课中 | ended 已下课 */
     status: string;
     code: string | null;
@@ -749,12 +752,19 @@ export type TeachStudentAnswers = {
 export type TeachImportClass = {
   classId: string;
   label: string;
-  sessions: Array<{ id: string; number: number; itemCount: number; titles: string[] }>;
+  sessions: Array<{
+    id: string;
+    number: number;
+    name?: string | null;
+    itemCount: number;
+    titles: string[];
+  }>;
 };
 
 export type TeachLiveCourse = {
   sessionId: string;
   number: number;
+  name?: string | null;
   presentCount: number;
   problemIds: string[];
 };
@@ -785,6 +795,14 @@ export async function getTeachProblemChoices(sessionId: string): Promise<TeachPr
     choices: sessionId,
   });
   return result.problems ?? [];
+}
+
+export async function getTeachProblemPreview(sessionId: string, problemId: string) {
+  const result = await invokeQuery<{ problem: LocalProblem }>('native_get_teach', {
+    preview: sessionId,
+    problemId,
+  });
+  return result.problem;
 }
 
 /** 点弹珠：这个学生这道题在这节课里提交过的全部答案，最新的在前。 */
@@ -819,6 +837,7 @@ type TeachClassAction =
   | { action: 'import-sessions'; classId: string; sessionIds: string[] };
 
 type TeachSessionAction =
+  | { action: 'rename'; sessionId: string; name: string }
   | { action: 'add'; sessionId: string; problemIds: string[] }
   | { action: 'remove'; sessionId: string; problemId: string }
   | { action: 'reorder'; sessionId: string; problemIds: string[] }
