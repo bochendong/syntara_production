@@ -1,0 +1,181 @@
+{
+  "revision": "4b11d9318c2ba8bcbb50260492680dc503e9f18a",
+  "deploymentId": "f9f24d32-2078-46ab-88d9-9ff339fe9401",
+  "origin": "https://native-api-staging-staging-95a1.up.railway.app",
+  "status": "deployed",
+  "branch": "codex/staging-next",
+  "baselineBranch": "codex/staging-baseline",
+  "includedPullRequests": [44, 45, 46],
+  "previousRevision": "3dc5649501ba2ae22b62ccfbc309809f295a9e38",
+  "homepageSource": "f65d7a0e2f49c309eb637cace62a24b735d0cd7b",
+  "sourcePorts": [
+    {
+      "source": "/Users/dongbochen/.codex/worktrees/chat-ascii-sharks/syntara_production",
+      "branch": "codex/chat-ascii-sharks",
+      "head": "88de16913acd4f464ec523667dce71ab71fa0e02",
+      "uncommitted": true,
+      "thread": "01a1ac54-e763-73e0-89aa-a68d8ee15e11",
+      "scope": "Only the shared centering stylesheet, its two imports, and the general empty-chat class were ported. Current menu, default background and navigation behavior retained.",
+      "sourcePreserved": true,
+      "files": [
+        {
+          "path": "apps/native/src/components/empty-chat-layout.css",
+          "sha256": "0d6af93e79eebd6a5086ead22a7b3fd8e1c210af240dbfea9e13e6d930e16244"
+        },
+        {
+          "path": "apps/native/src/components/GeneralChatWorkspace.tsx",
+          "sha256": "b573f34df3019965d27697057e8596c34af6939ec09083639f4ab86938a8424e"
+        },
+        {
+          "path": "apps/native/src/components/CourseWorkspace.tsx",
+          "sha256": "44a65d9d965e6947380d0d254d192994c725a8a03105fa789ef83f7b5b666c20"
+        }
+      ]
+    }
+  ],
+  "changes": [
+    "Animated WebGL homepage with 11 course worlds and five assistant comets; interactive notes, classroom, problems, memory and calendar examples.",
+    "Public examples use an isolated local database; authenticated grading is disabled in the showcase.",
+    "Empty chats show the ocean background by default; removed the toggle. Background hides for existing conversations.",
+    "Course tools menu replaces materials with upload, adds classroom and removes publishing settings. Top tabs retain chat, problems, notes, progress and memory.",
+    "Global Home button continues opening chat. Only the Syntara wordmark navigates to the animated public homepage.",
+    "Browser session checking deduplicates in-flight requests, has a 12-second timeout and offers retry.",
+    "Read-only local staging preview verifies its source baseline and defaults to the deployed homepage.",
+    "General and course empty chats share centered layouts across viewport widths; removed conflicting desktop grid rules."
+  ],
+  "validation": {
+    "changedFormat": true,
+    "changedLint": true,
+    "rootNativeViteTypes": true,
+    "fullStagingBuild": true,
+    "pythonPackaging": true,
+    "offlineRegressionTests": 8,
+    "publicRoutes": 200,
+    "unauthenticatedBrowserAuth": 401,
+    "browserShowcaseViews": ["notes", "classroom", "problems", "memory", "calendar"],
+    "pythonPublicRunner": "ran both bundled tests; stub returned None, as expected",
+    "realCourseWrites": false,
+    "centeringFormatLintTypes": true,
+    "finalNativeAndShowcaseProductionBuild": true,
+    "localCentering": ["General chat: 1508, 897 and 390 pixels", "Course chat: 897 and 390 pixels"],
+    "liveBrowser": [
+      "Authenticated App restored existing course data without an auth hang.",
+      "Top learning tabs contained chat, problems, notes, progress and memory.",
+      "Course tools menu contained upload and classroom, with no publishing settings.",
+      "Global Home returned from the classroom list to chat.",
+      "Empty chat had one ocean canvas and no toggle; measured group and available center both 388px at 1280px width.",
+      "Clicking the wordmark opened the animated homepage at the staging root.",
+      "Public homepage notes example loaded eight notebooks."
+    ],
+    "consoleErrors": 0,
+    "consoleWarnings": 0,
+    "runtimeErrorsAfterDeploymentSuccess": 0,
+    "predeployStderr": "Prisma upgrade notice only; no pending migrations.",
+    "localPreview": {
+      "revision": "4b11d9318c2ba8bcbb50260492680dc503e9f18a",
+      "uiMatches": true,
+      "homeUrl": "https://native-api-staging-staging-95a1.up.railway.app/"
+    }
+  },
+  "migrations": [],
+  "health": true,
+  "assets": [
+    {
+      "path": "/native-web/assets/index-CnBMV84M.js",
+      "status": 200,
+      "sha256": "db009ca45aa04274cadcd62fffea20e4de616840e3cf56da259dcfd32bfe1676",
+      "matches": true
+    },
+    {
+      "path": "/native-web/assets/index-D3d3mZWX.css",
+      "status": 200,
+      "sha256": "78767460362402a86d9d08a459e99160c80573aa17f4a9c386d06ef39016ae77",
+      "matches": true
+    },
+    {
+      "path": "/home-showcase/assets/home-showcase-BBvAwaht.js",
+      "status": 200,
+      "sha256": "2c91ffebd0331eace237df12b99cdc6194628ca90c4d1def6f5544c1771bb823",
+      "matches": true
+    },
+    {
+      "path": "/home-showcase/assets/home-showcase-UWJ8Py1e.css",
+      "status": 200,
+      "sha256": "5f0fb5228b905ff72fcfb9a6d4ae2f206fc526e161173ba0830f0646d1ee0f37",
+      "matches": true
+    }
+  ],
+  "onlineChecks": [
+    {
+      "path": "/api/health",
+      "status": 200,
+      "body": {
+        "status": "ok",
+        "service": "syntara-native",
+        "environment": "staging"
+      }
+    },
+    {
+      "path": "/api/native/v1/version",
+      "status": 200,
+      "body": {
+        "version": "0.1.1",
+        "release": "2026.10.28-sync.1",
+        "syncProtocol": 2,
+        "revision": "4b11d9318c2ba8bcbb50260492680dc503e9f18a"
+      }
+    },
+    {
+      "path": "/",
+      "status": 200,
+      "newHomepage": true
+    },
+    {
+      "path": "/test/app",
+      "status": 200
+    },
+    {
+      "path": "/home-showcase/home-showcase.html?view=notes",
+      "status": 200
+    },
+    {
+      "path": "/native-web/licenses/ascii-sharks.txt",
+      "status": 200
+    },
+    {
+      "path": "/api/native/v1/auth/browser",
+      "status": 401
+    },
+    {
+      "path": "/native-web/assets/index-CnBMV84M.js",
+      "status": 200,
+      "sha256": "db009ca45aa04274cadcd62fffea20e4de616840e3cf56da259dcfd32bfe1676",
+      "matches": true
+    },
+    {
+      "path": "/native-web/assets/index-D3d3mZWX.css",
+      "status": 200,
+      "sha256": "78767460362402a86d9d08a459e99160c80573aa17f4a9c386d06ef39016ae77",
+      "matches": true
+    },
+    {
+      "path": "/home-showcase/assets/home-showcase-BBvAwaht.js",
+      "status": 200,
+      "sha256": "2c91ffebd0331eace237df12b99cdc6194628ca90c4d1def6f5544c1771bb823",
+      "matches": true
+    },
+    {
+      "path": "/home-showcase/assets/home-showcase-UWJ8Py1e.css",
+      "status": 200,
+      "sha256": "5f0fb5228b905ff72fcfb9a6d4ae2f206fc526e161173ba0830f0646d1ee0f37",
+      "matches": true
+    }
+  ],
+  "limitations": [
+    "No new real course edits, classroom starts, or student submissions were performed during this deployment acceptance.",
+    "Local network requests to Railway intermittently timed out earlier; the final source and authenticated read checks succeeded.",
+    "Homepage fallback and mobile layout were checked locally; final online acceptance used the desktop browser."
+  ],
+  "screenshot": "/tmp/syntara-ui-previews/staging-home-ui-deployed.png",
+  "at": "2026-11-05T18:21:46.039Z"
+}
