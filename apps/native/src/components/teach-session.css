@@ -838,3 +838,260 @@
 .tl-add:disabled {
   opacity: 0.6;
 }
+
+/* 备课选题：宽面板按章节浏览，保留跨章节选择。 */
+.tp-sheet.ts-picker {
+  inset: 0;
+  width: min(1080px, calc(100vw - 48px));
+  height: min(800px, calc(100dvh - 64px));
+  max-width: none;
+  max-height: none;
+  margin: auto;
+  padding: 0;
+  color: #0f172a;
+  text-align: left;
+}
+
+.ts-picker:not([open]) {
+  display: none;
+}
+
+.ts-picker::backdrop {
+  background: rgb(15 23 42 / 28%);
+  backdrop-filter: blur(5px);
+}
+
+.ts-picker-head {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 22px 26px 18px;
+  border-bottom: 1px solid rgb(15 23 42 / 8%);
+}
+
+.ts-picker-head h2 {
+  margin: 0;
+  font-size: 23px;
+  font-weight: 700;
+}
+
+.ts-picker-head p {
+  margin: 6px 0 0;
+  color: #64748b;
+  font-size: 14px;
+}
+
+.ts-picker-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.ts-picker-chapters {
+  display: flex;
+  flex: 0 0 238px;
+  flex-direction: column;
+  gap: 6px;
+  overflow-y: auto;
+  padding: 20px 14px;
+  border-right: 1px solid rgb(15 23 42 / 8%);
+  background: rgb(226 232 240 / 26%);
+}
+
+.ts-picker-nav-title {
+  padding: 0 12px 8px;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.ts-picker-chapters button {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: 6px;
+  border: 1px solid transparent;
+  border-radius: 14px;
+  padding: 14px 12px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 15px;
+  text-align: left;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+
+.ts-picker-chapters button[aria-current='true'] {
+  border-color: rgb(10 132 255 / 18%);
+  background: rgb(10 132 255 / 9%);
+  color: #0866c6;
+}
+
+.ts-picker-chapters small {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.ts-picker-main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+.ts-picker-search {
+  flex: none;
+  margin: 20px 22px 16px;
+}
+
+.ts-picker-tools {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 24px 14px;
+}
+
+.ts-picker-tools > div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ts-picker-tools strong {
+  font-size: 16px;
+  overflow-wrap: anywhere;
+}
+
+.ts-picker-tools small {
+  color: #64748b;
+  font-size: 13px;
+}
+
+.ts-picker-list {
+  min-height: 0;
+  padding: 0 14px 14px;
+  overscroll-behavior: contain;
+}
+
+.ts-picker-list .tp-choice {
+  min-height: 76px;
+  text-align: left;
+}
+
+.ts-picker-list .tp-course-copy strong {
+  white-space: normal;
+}
+
+.ts-picker-added {
+  flex: none;
+  margin-left: auto;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.ts-picker-foot {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 12px;
+  padding: 18px 24px;
+  border-top: 1px solid rgb(15 23 42 / 8%);
+  background: rgb(255 255 255 / 50%);
+}
+
+.ts-picker-summary {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  font-size: 14px;
+}
+
+.ts-picker-summary strong {
+  color: #0866c6;
+}
+
+.ts-picker-summary button {
+  border: 0;
+  padding: 8px 0;
+  background: transparent;
+  color: #0866c6;
+  font: inherit;
+  cursor: pointer;
+}
+
+.ts-picker-foot .phone-confirm-button {
+  width: auto;
+  min-width: 104px;
+  margin: 0;
+  padding-inline: 24px;
+}
+
+.ts-picker button:focus-visible,
+.ts-picker input:focus-visible {
+  outline: 2px solid #0a84ff;
+  outline-offset: 2px;
+}
+
+@media (max-width: 640px) {
+  .tp-sheet.ts-picker {
+    width: calc(100vw - 16px);
+    height: calc(100dvh - 24px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  }
+
+  .ts-picker-head {
+    padding: 16px;
+  }
+
+  .ts-picker-body {
+    flex-direction: column;
+  }
+
+  .ts-picker-chapters {
+    flex: none;
+    flex-direction: row;
+    overflow-x: auto;
+    padding: 12px;
+    border-right: 0;
+    border-bottom: 1px solid rgb(15 23 42 / 8%);
+  }
+
+  .ts-picker-nav-title {
+    display: none;
+  }
+
+  .ts-picker-chapters button {
+    max-width: 220px;
+    padding: 10px 12px;
+  }
+
+  .ts-picker-search {
+    margin: 14px 14px 12px;
+  }
+
+  .ts-picker-tools {
+    padding-inline: 16px;
+  }
+
+  .ts-picker-foot {
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 12px;
+  }
+
+  .ts-picker-summary {
+    flex-basis: 100%;
+  }
+
+  .ts-picker-foot .phone-confirm-button {
+    flex: 1;
+  }
+}

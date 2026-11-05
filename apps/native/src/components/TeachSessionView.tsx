@@ -249,6 +249,7 @@ export function TeachSessionView({
           sessionId={sessionId}
           existing={data.items.map((item) => item.problemId)}
           busy={busy === 'add'}
+          submissionError={error}
           onClose={() => setPicking(false)}
           onAdd={async (problemIds) => {
             if (await act('add', { action: 'add', sessionId, problemIds })) setPicking(false);
@@ -892,19 +893,33 @@ function ProblemPicker({
   sessionId,
   existing,
   busy,
+  submissionError,
   onClose,
   onAdd,
 }: {
   sessionId: string;
   existing: string[];
   busy: boolean;
+  submissionError: string;
   onClose: () => void;
   onAdd: (problemIds: string[]) => void;
 }) {
   const [choices, setChoices] = useState<TeachProblemChoice[] | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
+  const [chapter, setChapter] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [error, setError] = useState('');
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    const previousFocus = document.activeElement;
+    dialog?.showModal();
+    dialog?.querySelector('input')?.focus();
+    return () => {
+      dialog?.close();
+      if (previousFocus instanceof HTMLElement) previousFocus.focus();
+    };
+  }, []);
   useEffect(() => {
     let alive = true;
     getTeachProblemChoices(sessionId)
@@ -919,80 +934,210 @@ function ProblemPicker({
     };
   }, [sessionId]);
   const added = new Set(existing);
+  const picked = new Set(selected.filter((id) => !added.has(id)));
+  const chapters = new Map<
+    string,
+    { name: string; total: number; added: number; selected: number }
+  >();
+  for (const problem of choices ?? []) {
+    const key = problem.chapter?.id ?? '';
+    const group = chapters.get(key) ?? {
+      name: problem.chapter?.name ?? '未分章节',
+      total: 0,
+      added: 0,
+      selected: 0,
+    };
+    group.total += 1;
+    if (added.has(problem.id)) group.added += 1;
+    if (picked.has(problem.id)) group.selected += 1;
+    chapters.set(key, group);
+  }
   const text = query.trim().toLowerCase();
   const visible = (choices ?? []).filter(
     (problem) =>
-      !text ||
-      problemName(problem).toLowerCase().includes(text) ||
-      Boolean(problem.chapter?.name.toLowerCase().includes(text)),
+      (chapter === null || (problem.chapter?.id ?? '') === chapter) &&
+      (!text ||
+        problemName(problem).toLowerCase().includes(text) ||
+        Boolean(problem.chapter?.name.toLowerCase().includes(text))),
   );
+  const available = visible.filter((problem) => !added.has(problem.id));
+  const allPicked = available.length > 0 && available.every((problem) => picked.has(problem.id));
+  const scopeLabel = text ? '搜索结果' : chapter === null ? '全部题目' : '本章';
   return createPortal(
-    <div className="phone-confirm-layer tp-sheet-layer" role="presentation">
-      <button
-        type="button"
-        className="phone-confirm-backdrop"
-        aria-label="关闭"
-        onClick={onClose}
-      />
-      <section className="tp-sheet" role="dialog" aria-modal="true" aria-label="加题">
-        <label className="phone-search tp-sheet-search">
-          <Search size={17} aria-hidden />
-          <input
-            autoFocus
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="搜题号、题目或章节"
-            type="search"
-          />
-        </label>
-        <div className="tp-sheet-list">
-          {error ? <p className="phone-page-error">{error}</p> : null}
-          {!choices && !error ? <GlassSkeletonRows rows={5} height={44} /> : null}
-          {visible.map((problem) => {
-            const inSession = added.has(problem.id);
-            const checked = inSession || selected.includes(problem.id);
-            return (
-              <button
-                key={problem.id}
-                type="button"
-                className="phone-row tp-choice"
-                aria-pressed={checked}
-                disabled={inSession}
-                onClick={() =>
-                  setSelected((current) =>
-                    current.includes(problem.id)
-                      ? current.filter((id) => id !== problem.id)
-                      : [...current, problem.id],
-                  )
-                }
-              >
-                <span className="tp-check" aria-hidden />
-                <span className="tp-course-copy">
-                  <strong>
-                    <ProblemTitleText content={problemName(problem)} />
-                  </strong>
-                  <small>{problem.chapter?.name ?? '未分章节'}</small>
-                </span>
-              </button>
-            );
-          })}
-          {choices && !visible.length ? <PhoneEmpty title="没有找到题目" hint="" /> : null}
+    <dialog
+      ref={dialogRef}
+      className="tp-sheet ts-picker"
+      aria-label="加题"
+      onCancel={(event) => {
+        event.preventDefault();
+        if (!busy) onClose();
+      }}
+      onClick={(event) => {
+        if (busy || event.target !== event.currentTarget) return;
+        const rect = event.currentTarget.getBoundingClientRect();
+        if (
+          event.clientX < rect.left ||
+          event.clientX > rect.right ||
+          event.clientY < rect.top ||
+          event.clientY > rect.bottom
+        )
+          onClose();
+      }}
+    >
+      <header className="ts-picker-head">
+        <div>
+          <h2>加题</h2>
+          <p>按章节选题，一次加入整章题目</p>
         </div>
-        <footer className="tp-sheet-foot">
-          <button type="button" className="phone-confirm-button" onClick={onClose}>
-            取消
-          </button>
+        <button
+          type="button"
+          className="ts-nav"
+          aria-label="关闭加题"
+          disabled={busy}
+          onClick={onClose}
+        >
+          <X size={20} aria-hidden />
+        </button>
+      </header>
+      <div className="ts-picker-body">
+        <nav className="ts-picker-chapters" aria-label="题目章节">
+          <span className="ts-picker-nav-title">章节</span>
           <button
             type="button"
-            className="phone-confirm-button is-primary"
-            disabled={!selected.length || busy}
-            onClick={() => onAdd(selected)}
+            aria-current={chapter === null ? 'true' : undefined}
+            onClick={() => {
+              setChapter(null);
+              setQuery('');
+            }}
           >
-            {selected.length ? `加入 ${selected.length} 题` : '加入'}
+            <span>全部题目</span>
+            <small>{choices?.length ?? 0} 题</small>
           </button>
-        </footer>
-      </section>
-    </div>,
+          {Array.from(chapters, ([id, group]) => (
+            <button
+              key={id}
+              type="button"
+              aria-current={chapter === id ? 'true' : undefined}
+              onClick={() => {
+                setChapter(id);
+                setQuery('');
+              }}
+            >
+              <span>{group.name}</span>
+              <small>
+                {group.total} 题{group.added ? ` · 已加入 ${group.added}` : ''}
+                {group.selected ? ` · 已选 ${group.selected}` : ''}
+              </small>
+            </button>
+          ))}
+        </nav>
+        <div className="ts-picker-main">
+          <label className="phone-search ts-picker-search">
+            <Search size={18} aria-hidden />
+            <input
+              autoFocus
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="搜题号、题目或章节"
+              aria-label="搜题号、题目或章节"
+              type="search"
+            />
+          </label>
+          <div className="ts-picker-tools">
+            <div>
+              <strong>{chapter === null ? '全部题目' : chapters.get(chapter)?.name}</strong>
+              <small>
+                {visible.length} 题 · 可加入 {available.length} 题
+              </small>
+            </div>
+            <button
+              type="button"
+              className="ts-pill"
+              disabled={!available.length || busy}
+              onClick={() => {
+                const ids = new Set(available.map((problem) => problem.id));
+                setSelected((current) =>
+                  allPicked
+                    ? current.filter((id) => !ids.has(id))
+                    : [...new Set([...current, ...ids])],
+                );
+              }}
+            >
+              {allPicked ? `取消全选${scopeLabel}` : `全选${scopeLabel}`}
+            </button>
+          </div>
+          <div className="tp-sheet-list ts-picker-list" aria-busy={!choices && !error}>
+            {error || submissionError ? (
+              <p className="phone-page-error" role="alert">
+                {error || submissionError}
+              </p>
+            ) : null}
+            {!choices && !error ? <GlassSkeletonRows rows={5} height={54} /> : null}
+            {visible.map((problem) => {
+              const inSession = added.has(problem.id);
+              const checked = inSession || picked.has(problem.id);
+              return (
+                <button
+                  key={problem.id}
+                  type="button"
+                  className="phone-row tp-choice"
+                  aria-pressed={checked}
+                  disabled={inSession || busy}
+                  onClick={() =>
+                    setSelected((current) =>
+                      current.includes(problem.id)
+                        ? current.filter((id) => id !== problem.id)
+                        : [...current, problem.id],
+                    )
+                  }
+                >
+                  <span className="tp-check" aria-hidden />
+                  <span className="tp-course-copy">
+                    <strong>
+                      <ProblemTitleText content={problemName(problem)} />
+                    </strong>
+                    <small>{problem.chapter?.name ?? '未分章节'}</small>
+                  </span>
+                  {inSession ? <small className="ts-picker-added">已加入</small> : null}
+                </button>
+              );
+            })}
+            {choices && !visible.length ? (
+              <PhoneEmpty title="没有找到题目" hint="试试其他章节或关键词" />
+            ) : null}
+          </div>
+        </div>
+      </div>
+      <footer className="ts-picker-foot">
+        <div className="ts-picker-summary" role="status">
+          <span>
+            已选 <strong>{picked.size}</strong> 题
+          </span>
+          {picked.size ? (
+            <button type="button" disabled={busy} onClick={() => setSelected([])}>
+              清空选择
+            </button>
+          ) : null}
+        </div>
+        <button type="button" className="phone-confirm-button" disabled={busy} onClick={onClose}>
+          取消
+        </button>
+        <button
+          type="button"
+          className="phone-confirm-button is-primary"
+          disabled={!picked.size || busy}
+          onClick={() =>
+            onAdd(
+              (choices ?? [])
+                .filter((problem) => picked.has(problem.id))
+                .map((problem) => problem.id),
+            )
+          }
+        >
+          {busy ? '加入中…' : picked.size ? `加入 ${picked.size} 题` : '加入'}
+        </button>
+      </footer>
+    </dialog>,
     document.body,
   );
 }
