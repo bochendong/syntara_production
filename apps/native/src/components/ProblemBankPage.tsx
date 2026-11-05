@@ -44,6 +44,16 @@ import {
   useCourseLayers,
 } from '../lib/course-layers';
 import { TeachLiveBanner, TeachSessionToggle, useTeachLiveCourse } from './TeachLiveBar';
+import {
+  ClassStandingCard,
+  ClassStandingPopup,
+  ClassStandingStrip,
+  markStandingBeforePractice,
+  readStandingOpen,
+  useClassStanding,
+  writeStandingOpen,
+  type StandingPeriod,
+} from './problem-bank/class-standing';
 import './course-pages.css';
 import { localizeProblem, type ProblemContentLanguage } from '../lib/problem-language';
 
@@ -519,6 +529,8 @@ export function ProblemBankPage({
       chapterKey: string | null,
     ) => {
       if (!problems.length) return;
+      // 记下本周名次，做完回来比较要不要弹出「和同班比」。
+      markStandingBeforePractice(courseId);
       const start = initial ?? problems[0];
       if (chapterKey) {
         const next: LastSession = { chapterKey, problemId: start.id, at: Date.now() };
@@ -550,6 +562,42 @@ export function ProblemBankPage({
     () => chapters.reduce((sum, chapter) => sum + chapter.passed, 0),
     [chapters],
   );
+
+  // ---------- 和同班比 ----------
+  const [standingPeriod, setStandingPeriod] = useState<StandingPeriod>('week');
+  const { standing, previousRank, clearImprovement } = useClassStanding(
+    courseId,
+    standingPeriod,
+    passedTotal,
+  );
+  const [standingOpen, setStandingOpenState] = useState(readStandingOpen);
+  const setStandingOpen = (open: boolean) => {
+    setStandingOpenState(open);
+    writeStandingOpen(open);
+  };
+  const chase = useMemo(() => {
+    const ids = new Set(standing?.hint?.problemIds ?? []);
+    const list = bankProblems.filter((problem) => ids.has(problem.id));
+    if (!list.length) return null;
+    const key = chapterOf(list[0]);
+    return { list, key, title: chapterByKey.get(key)?.title ?? null };
+  }, [bankProblems, chapterByKey, chapterOf, standing]);
+  const startChase = chase
+    ? () => {
+        clearImprovement();
+        startPractice(chase.list, chase.list[0], chase.title ?? '追第一', chase.key);
+      }
+    : undefined;
+  const showStanding = Boolean(standing && standing.size >= 2);
+  const standingCardProps = standing
+    ? {
+        standing,
+        period: standingPeriod,
+        onPeriod: setStandingPeriod,
+        onChase: startChase,
+        chaseTitle: chase?.title,
+      }
+    : null;
 
   // ---------- 章节里：答题卡 ----------
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
@@ -944,6 +992,13 @@ export function ProblemBankPage({
         <div className="pb-column">
           {liveBanner}
           {filterBar}
+          {showStanding && standingCardProps && previousRank != null ? (
+            <ClassStandingPopup
+              {...standingCardProps}
+              previousRank={previousRank}
+              onClose={clearImprovement}
+            />
+          ) : null}
           {hasFilters ? (
             <div className="pb-filter-result" role="status">
               <button type="button" onClick={clearFilters}>
@@ -1077,6 +1132,20 @@ export function ProblemBankPage({
                         </button>
                       ) : null}
                     </div>
+                  ) : null}
+
+                  {showStanding && standingCardProps ? (
+                    standingOpen ? (
+                      <ClassStandingCard
+                        {...standingCardProps}
+                        onCollapse={() => setStandingOpen(false)}
+                      />
+                    ) : (
+                      <ClassStandingStrip
+                        standing={standingCardProps.standing}
+                        onOpen={() => setStandingOpen(true)}
+                      />
+                    )
                   ) : null}
 
                   <p className="phone-group-title pb-wall-title">
