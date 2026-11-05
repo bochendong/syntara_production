@@ -5,6 +5,7 @@ import type { NextRequest } from 'next/server';
 import { getCourseProblemForUser } from '@/features/problems/server/service';
 import { streamLLM } from '@/lib/ai/llm';
 import { formatGradingForPrompt } from '@/lib/chat/problem-explain-prompt';
+import { coachAllowsClassroom } from '@/lib/problem-bank/problem-coach';
 import { loadCourseAiRulesForChat } from '@/lib/server/course-ai-rules';
 import { getOptionalPrisma } from '@/lib/server/prisma-safe';
 import { getRequestContext } from '@/lib/server/request-context';
@@ -55,13 +56,19 @@ async function loadProblemReference(input: NativeChatRequest): Promise<string> {
   }
 }
 
-/** 做题「问 AI」时只留记忆和日程提议，不弹课堂、选题卡片。 */
+/**
+ * 做题「问 AI」时不弹选题卡片；讲题课堂只在「完整解答」和自由追问时给，
+ * 提示、下一步、帮我看看不给，免得课堂把答案讲穿。
+ */
 function chatTools(input: NativeChatRequest, proposals: NativeChatProposals) {
   if (input.scope === 'general') return undefined;
   const tools = createNativeChatTools(input, proposals);
-  if (!input.context.problemCoach) return tools;
-  const { remember, propose_calendar } = tools;
-  return { remember, propose_calendar };
+  const coach = input.context.problemCoach;
+  if (!coach) return tools;
+  const { remember, propose_calendar, suggest_classroom } = tools;
+  return coachAllowsClassroom(coach.move)
+    ? { remember, propose_calendar, suggest_classroom }
+    : { remember, propose_calendar };
 }
 
 async function chatMessages(input: NativeChatRequest): Promise<ModelMessage[]> {

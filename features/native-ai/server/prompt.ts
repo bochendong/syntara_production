@@ -1,4 +1,8 @@
-import { problemCoachInstruction, problemCoachRules } from '@/lib/problem-bank/problem-coach';
+import {
+  coachAllowsClassroom,
+  problemCoachInstruction,
+  problemCoachRules,
+} from '@/lib/problem-bank/problem-coach';
 import {
   coachMethodSection,
   detectExplainSubject,
@@ -55,6 +59,8 @@ export function buildNativeChatSystemPrompt(
   const english = course.language === 'en-US';
   const phone = surface === 'phone';
   const coach = context.problemCoach;
+  // 讲题课堂会把解法讲透，所以只在「完整解答」和自由追问时给，提示/下一步/帮我看看不给。
+  const coachClassroom = coach ? coachAllowsClassroom(coach.move) : false;
   const practiceEnabled = !phone && !coach && context.problems.length > 0;
   const subject = detectExplainSubject({
     courseCode: course.code,
@@ -91,16 +97,21 @@ export function buildNativeChatSystemPrompt(
   const tools = coach
     ? [
         '## 工具',
-        '工具只是“提议”，学生在卡片上确认后才会生效。这一段在讲学生正在做的题：不要建议课堂、不要另外选题。',
+        '工具只是“提议”，学生在卡片上确认后才会生效。这一段在讲学生正在做的题：不要另外选题。',
         '- remember：学生暴露了一个值得以后注意的错误或薄弱点，或明确说“记住”时用（explicit=true）。一轮最多一条。',
         '- propose_calendar：只有学生主动要求安排日程时才用。',
+        ...(coachClassroom
+          ? [
+              '- suggest_classroom：把这道题做成一节带图、带语音的分步讲题课堂。解法有多个步骤、要看执行过程（trace、递归展开、代换、循环变量变化）、要画图（树、图、表格、几何、函数图像），或学生说没懂、想再听一遍时就用；简单一步的题、只问一个小点时不用。卡片只是一个可选按钮，拿不准时偏向用。',
+            ]
+          : []),
       ].join('\n')
     : [
         '## 工具',
         '工具只是“提议”，学生在卡片上确认后才会生效。调用后照常用文字回答，不必复述卡片内容。',
         '- remember：学生暴露了一个值得以后注意的错误、薄弱点或学习偏好（拍照批改发现的错误步骤也算），或者明确说“记住”时用（explicit=true）。一轮最多一条，不要记显而易见的事。带上相关的笔记片段 id 和 1–3 个概念；同一个点以前记过就填 memoryId 合并。',
         '- propose_calendar：学生要求安排、修改或删除日程时用。日期用 YYYY-MM-DD，相对日期按“今天”换算。',
-        '- suggest_classroom：当一段带图的分步讲解（课堂）明显比文字更好时用，比如学生说看不懂、内容是空间/图形/多步骤过程，或学生直接要课堂、幻灯片、图解。普通问答不要用。',
+        '- suggest_classroom：课堂是一节带图、带语音的分步小讲解，学生点卡片才会生成。这些情况主动用：讲一个概念、原理、算法、证明或推导的来龙去脉；讲一道题怎么做（讲题、拍题问怎么解）；内容是多步骤过程或执行过程（trace、递归展开、代换、算法每一步）；内容和图形、空间、结构有关（树、图、矩阵、几何、函数图像、电路）；学生说没懂、还是不懂、能不能再讲一遍；或学生直接要课堂、幻灯片、图解。一句话就能答完的事实问题、闲聊、日程和记忆类请求不用。卡片只是一个可选按钮，拿不准时偏向用。',
         practiceEnabled
           ? '- select_practice：学生想练题时，只从下方题库列表里挑真实题号，不要编题。'
           : '- 这台设备不提供题库：学生想练题时，可以在回答里出一两道口头小题，或建议到 iPad/电脑上做题库。',
