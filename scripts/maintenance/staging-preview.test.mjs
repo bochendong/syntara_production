@@ -4,9 +4,60 @@ import { once } from 'node:events';
 import { test } from 'node:test';
 import {
   createPreviewGateway,
+  fetchPreviewRead,
   localPreviewRequest,
   stagingOrigin,
 } from '../../apps/native/staging-preview-plugin.mjs';
+
+test('read requests recover from a transient connection failure', async () => {
+  let calls = 0;
+  const response = await fetchPreviewRead('/api/native/v1/version', {
+    fetchImpl: async () => {
+      calls += 1;
+      if (calls === 1) throw new TypeError('connection timed out');
+      return Response.json({ revision: 'fixture' });
+    },
+  });
+  assert.equal(response.status, 200);
+  assert.equal(calls, 2);
+});
+
+test('read retries are bounded and do not retry auth rejections or canceled requests', async () => {
+  for (const status of [503, 401, 403]) {
+    let calls = 0;
+    const response = await fetchPreviewRead('/api/native/v1/teach', {
+      fetchImpl: async () => {
+        calls += 1;
+        return new Response(null, { status });
+      },
+    });
+    assert.equal(response.status, status);
+    assert.equal(calls, status === 503 ? 2 : 1);
+  }
+  let failedCalls = 0;
+  await assert.rejects(
+    fetchPreviewRead('/api/native/v1/teach', {
+      fetchImpl: async () => {
+        failedCalls += 1;
+        throw new TypeError('offline');
+      },
+    }),
+  );
+  assert.equal(failedCalls, 2);
+  const abort = new AbortController();
+  let canceledCalls = 0;
+  await assert.rejects(
+    fetchPreviewRead('/api/native/v1/teach', {
+      signal: abort.signal,
+      fetchImpl: async () => {
+        canceledCalls += 1;
+        abort.abort();
+        throw abort.signal.reason;
+      },
+    }),
+  );
+  assert.equal(canceledCalls, 1);
+});
 
 test('loopback preview rejects remote hosts, cross-site and mismatched origins', () => {
   const request = (headers = {}, address = '127.0.0.1') => ({
@@ -78,9 +129,14 @@ test('gateway only forwards read routes and strips device session and upstream c
 });
 
 test('upstream failures do not expose credential or transport error text', async (t) => {
+  let authFails = true;
   const gateway = createPreviewGateway({
     getToken: async () => {
-      throw new Error('secret-token');
+      if (authFails) throw new Error('secret-token');
+      return 'secret-token';
+    },
+    fetchImpl: async () => {
+      throw new Error('private transport details');
     },
   });
   const server = createServer((request, response) => void gateway(request, response));
@@ -95,7 +151,15 @@ test('upstream failures do not expose credential or transport error text', async
   );
   const response = await fetch(`http://127.0.0.1:${server.address().port}/api/native/v1/teach`);
   assert.equal(response.status, 502);
-  assert.doesNotMatch(await response.text(), /secret-token/);
+  const authBody = await response.text();
+  assert.doesNotMatch(authBody, /secret-token/);
+  assert.equal(JSON.parse(authBody).error.code, 'preview_auth_unavailable');
+  authFails = false;
+  const offline = await fetch(`http://127.0.0.1:${server.address().port}/api/native/v1/teach`);
+  assert.equal(offline.status, 502);
+  const networkBody = await offline.text();
+  assert.doesNotMatch(networkBody, /secret-token|private transport details|登录凭据/);
+  assert.equal(JSON.parse(networkBody).error.code, 'preview_connection_failed');
 });
 
 test('opening an existing class resolves GET data without forwarding a write', async (t) => {

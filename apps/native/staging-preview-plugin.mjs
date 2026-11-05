@@ -73,6 +73,33 @@ function json(response, status, body) {
   response.end(JSON.stringify(body));
 }
 
+/** Retry only reads, never device-token refresh or other writes. */
+export async function fetchPreviewRead(
+  path,
+  { fetchImpl = fetch, signal, headers, timeoutMs = 15_000 } = {},
+) {
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    signal?.throwIfAborted();
+    try {
+      const response = await fetchImpl(stagingOrigin + path, {
+        method: 'GET',
+        redirect: 'error',
+        headers,
+        signal: signal
+          ? AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)])
+          : AbortSignal.timeout(timeoutMs),
+      });
+      if (attempt === 0 && [502, 503, 504].includes(response.status)) {
+        await response.body?.cancel();
+        continue;
+      }
+      return response;
+    } catch (error) {
+      if (signal?.aborted || attempt === 1) throw error;
+    }
+  }
+}
+
 async function existingClassNavigation(request) {
   if (
     request.url !== '/api/native/v1/teach' ||
@@ -126,12 +153,14 @@ export function createPreviewGateway({ getToken, fetchImpl = fetch }) {
         : url.pathname + url.search;
     const disconnect = new AbortController();
     response.once('close', () => disconnect.abort());
+    let authenticating = true;
     try {
-      const upstream = await fetchImpl(stagingOrigin + path, {
-        method: 'GET',
-        redirect: 'error',
-        headers: { Authorization: `Bearer ${await getToken()}` },
-        signal: AbortSignal.any([disconnect.signal, AbortSignal.timeout(30_000)]),
+      const token = await getToken();
+      authenticating = false;
+      const upstream = await fetchPreviewRead(path, {
+        fetchImpl,
+        headers: { Authorization: `Bearer ${token}` },
+        signal: disconnect.signal,
       });
       if (courseId && upstream.ok) {
         const body = await upstream.json();
@@ -156,7 +185,12 @@ export function createPreviewGateway({ getToken, fetchImpl = fetch }) {
     } catch {
       if (!response.headersSent && !response.destroyed) {
         json(response, 502, {
-          error: { message: '无法连接测试服，请检查网络及本机设备登录凭据。' },
+          error: {
+            code: authenticating ? 'preview_auth_unavailable' : 'preview_connection_failed',
+            message: authenticating
+              ? '测试服设备登录验证暂时失败，请稍后重试。'
+              : '本机暂时无法连接测试服，请稍后重试。',
+          },
         });
       } else if (!response.destroyed) response.destroy();
     }
@@ -214,9 +248,7 @@ export function stagingPreviewPlugin() {
         if (request.url !== '/__syntara_preview/status') return next();
         if (!versionCheck || Date.now() - checkedAt > 30_000) {
           checkedAt = Date.now();
-          versionCheck = fetch(`${stagingOrigin}/api/native/v1/version`, {
-            signal: AbortSignal.timeout(10_000),
-          })
+          versionCheck = fetchPreviewRead('/api/native/v1/version', { timeoutMs: 5000 })
             .then((result) => {
               if (!result.ok) throw new Error();
               return result.json();
