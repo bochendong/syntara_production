@@ -5661,9 +5661,14 @@ select,
 }
 
 .phone-drawer-home {
+  padding: 0;
+  border: 0;
+  background: transparent;
   color: inherit;
+  font: inherit;
   text-decoration: none;
   border-radius: 6px;
+  cursor: pointer;
 }
 
 .phone-drawer-beta {
