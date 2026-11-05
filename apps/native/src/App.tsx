@@ -684,11 +684,6 @@ function AuthenticatedApp() {
                   ? 'admin'
                   : 'chat',
     avatarUrl: avatarTheme.avatarUrl,
-    onOpenHome: () => {
-      if (browserApp) window.location.assign(appHomeHref);
-      else if (surface === 'general' || surface === 'launch') setGlobalPage(null);
-      else openChat();
-    },
     onOpenCalendar: () => setGlobalPage('calendar'),
     onOpenStore: () => setGlobalPage('store'),
     onOpenSettings: () => setGlobalPage('profile'),
@@ -734,7 +729,13 @@ function AuthenticatedApp() {
         style={avatarTheme.style}
       >
         {compactLayout ? null : (
-          <AppNavigationRail {...navigation} onOpenChat={navigation.onOpenHome!} />
+          <AppNavigationRail
+            {...navigation}
+            onOpenChat={() => {
+              if (surface === 'general' || surface === 'launch') setGlobalPage(null);
+              else openChat();
+            }}
+          />
         )}
         <div className="app-chat-surface" inert={globalPage !== null || practiceExpanded}>
           <ChatWorkspaceShell enabled={!phoneLayout} onLocalNavigation={cancelPendingNavigation}>

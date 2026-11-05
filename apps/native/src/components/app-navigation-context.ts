@@ -14,8 +14,6 @@ export type AppNavigationPage =
 export type AppNavigation = {
   active: AppNavigationPage;
   avatarUrl?: string;
-  /** 首页入口；网页版返回网站的动画展示页。 */
-  onOpenHome?: () => void;
   onOpenCalendar: () => void;
   onOpenStore: () => void;
   onOpenSettings: () => void;
