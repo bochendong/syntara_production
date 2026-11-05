@@ -1,0 +1,64 @@
+/* Empty chats keep the greeting, composer and suggestions together at every width. */
+.course-workspace .conversation-workspace.is-empty-chat {
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  padding: calc(var(--phone-header-height, 64px) + 24px) 16px
+    calc(24px + env(safe-area-inset-bottom) + var(--phone-keyboard-inset, 0px));
+}
+
+.course-workspace .conversation-workspace.is-empty-chat > .conversation-content {
+  flex: none;
+  width: 100%;
+  min-height: 0;
+  margin-top: auto;
+  padding: 0 0 24px;
+  overflow: visible;
+}
+
+.course-workspace
+  .conversation-workspace.is-empty-chat
+  .conversation-content
+  .conversation-empty-state {
+  min-height: 0;
+  padding: 0;
+}
+
+.course-workspace .conversation-workspace.is-empty-chat .conversation-empty-state h2 {
+  margin: 0;
+  line-height: 1.4;
+  text-align: center;
+}
+
+.course-workspace .conversation-workspace.is-empty-chat .general-chat-welcome {
+  min-height: 0;
+  padding: 0;
+}
+
+.course-workspace .conversation-workspace.is-empty-chat > footer.conversation-composer-footer {
+  position: static;
+  flex: none;
+  width: 100%;
+  max-width: 780px;
+  margin: 0 auto auto;
+  padding: 0;
+}
+
+.course-workspace .conversation-workspace.is-empty-chat .empty-chat-suggestions {
+  min-height: 0;
+  padding: 20px 0 0;
+}
+
+.course-workspace .conversation-workspace.is-empty-chat .empty-chat-suggestions .suggestion-row {
+  grid-template-columns: 1fr;
+  max-width: none;
+  gap: 4px;
+}
+
+.course-workspace
+  .conversation-workspace.is-empty-chat
+  .empty-chat-suggestions
+  .suggestion-row
+  button {
+  min-height: 42px;
+}

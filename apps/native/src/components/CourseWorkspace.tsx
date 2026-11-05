@@ -79,6 +79,7 @@ import { ChatScopePicker } from './ChatScopePicker';
 import { useChatWorkspaceShell, usePublishChatSidebar } from './ChatWorkspaceShell';
 import { CourseToolsMenu, GlassMenu } from './CourseToolsMenu';
 import { ChatOceanBackground } from './ChatOcean';
+import './empty-chat-layout.css';
 import { CourseMaterialsPage, type CourseMaterialKind } from './CourseMaterialsPage';
 import { VoiceInputButton } from './VoiceInputButton';
 import { LearningWorkspaceTabs } from './LearningWorkspaceTabs';

@@ -21,6 +21,7 @@ import { usePhoneLayout } from '../lib/use-phone-layout';
 import { useBackDismiss } from '../lib/use-back-dismiss';
 import { usePhoneKeyboardInset } from '../lib/use-phone-keyboard';
 import './general-chat.css';
+import './empty-chat-layout.css';
 
 export function GeneralChatWorkspace({
   homeHref,
@@ -341,7 +342,9 @@ export function GeneralChatWorkspace({
       className={`course-workspace is-split general-chat-workspace${chatShell ? ' has-persistent-sidebar' : ''}${sidebarVisible ? ' general-sidebar-open' : ' general-sidebar-collapsed'}`}
       aria-label="普通聊天工作台"
     >
-      <main className="conversation-workspace">
+      <main
+        className={`conversation-workspace${messages.length === 0 && !streaming ? ' is-empty-chat' : ''}`}
+      >
         {emptyChat && !(phone && sidebarVisible) ? <ChatOceanBackground /> : null}
         <header className="phone-chat-header">
           <div className="chat-header-start">
