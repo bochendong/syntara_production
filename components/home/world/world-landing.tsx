@@ -8,6 +8,7 @@ import landing from '@/components/home/landing/landing.module.css';
 import { LANDING_MARBLE_STYLE } from '@/components/home/landing/marble-art';
 
 import type { WorldEngine, WorldFrame } from './world-engine';
+import { createWheelGesture, swipeDirection } from './scroll-gesture';
 import {
   AGENTS,
   CHAPTERS,
@@ -223,6 +224,7 @@ export function SyntaraWorldLanding({
   const tiltRefs = useRef<(HTMLDivElement | null)[]>([]);
   const engineRef = useRef<WorldEngine | null>(null);
   const navFrame = useRef(0);
+  const navTarget = useRef<number | null>(null);
   const [active, setActive] = useState(0);
   const [ready, setReady] = useState(false);
   const [mounted, setMounted] = useState<number[]>([]);
@@ -382,29 +384,16 @@ export function SyntaraWorldLanding({
     };
   }, []);
 
-  // Rail buttons glide to a chapter; any manual input takes over.
-  useEffect(() => {
-    const cancel = () => {
-      cancelAnimationFrame(navFrame.current);
-      navFrame.current = 0;
-    };
-    window.addEventListener('wheel', cancel, { passive: true });
-    window.addEventListener('touchstart', cancel, { passive: true });
-    window.addEventListener('keydown', cancel);
-    return () => {
-      window.removeEventListener('wheel', cancel);
-      window.removeEventListener('touchstart', cancel);
-      window.removeEventListener('keydown', cancel);
-    };
-  }, []);
-
   const goTo = useCallback((index: number) => {
+    index = Math.max(0, Math.min(RAIL_STOPS.length - 1, index));
+    navTarget.current = index;
     cancelAnimationFrame(navFrame.current);
+    navFrame.current = 0;
     const from = window.scrollY;
     const to = RAIL_STOPS[index] * window.innerHeight;
     const distance = Math.abs(to - from) / window.innerHeight;
     // Long jumps skip ahead instead of replaying every chapter in between.
-    if (distance > 6) {
+    if (distance > 6 || Math.abs(to - from) < 1) {
       window.scrollTo({ top: to, behavior: 'instant' });
       engineRef.current?.setTarget(RAIL_STOPS[index], true);
       return;
@@ -416,9 +405,124 @@ export function SyntaraWorldLanding({
       const e = p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2;
       window.scrollTo({ top: from + (to - from) * e, behavior: 'instant' });
       navFrame.current = p < 1 ? requestAnimationFrame(step) : 0;
+      if (p === 1) engineRef.current?.setTarget(RAIL_STOPS[index], true);
     };
     navFrame.current = requestAnimationFrame(step);
   }, []);
+
+  // Wheel, swipe and keyboard navigation use the same resting points as the rail.
+  useEffect(() => {
+    const wheelStep = createWheelGesture();
+    let touch: { x: number; y: number; blocked: boolean } | null = null;
+    const editable = (target: EventTarget | null) =>
+      target instanceof Element && !!target.closest('input, textarea, select, [contenteditable]');
+    const advance = (direction: number) => {
+      if (!navFrame.current) goTo(railIndexAt(window.scrollY / window.innerHeight) + direction);
+    };
+    const onWheel = (event: WheelEvent) => {
+      if (event.ctrlKey || editable(event.target) || !event.deltaY) return;
+      event.preventDefault();
+      if (Math.abs(event.deltaY) < Math.abs(event.deltaX)) return;
+      const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? window.innerHeight : 1;
+      const direction = wheelStep(event.deltaY * unit, performance.now(), !!navFrame.current);
+      if (direction) advance(direction);
+    };
+    const onTouchStart = (event: TouchEvent) => {
+      const first = event.touches[0];
+      touch =
+        event.touches.length === 1 && first && !editable(event.target)
+          ? { x: first.clientX, y: first.clientY, blocked: !!navFrame.current }
+          : null;
+    };
+    const onTouchMove = (event: TouchEvent) => {
+      if (event.touches.length !== 1) {
+        touch = null;
+        return;
+      }
+      const first = event.touches[0];
+      if (touch && first && Math.abs(first.clientY - touch.y) > Math.abs(first.clientX - touch.x))
+        event.preventDefault();
+    };
+    const onTouchEnd = (event: TouchEvent) => {
+      const start = touch;
+      touch = null;
+      const end = event.changedTouches[0];
+      if (!start || start.blocked || !end) return;
+      const direction = swipeDirection(end.clientX - start.x, end.clientY - start.y);
+      if (direction) advance(direction);
+    };
+    const onTouchCancel = () => {
+      touch = null;
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (
+        event.defaultPrevented ||
+        event.ctrlKey ||
+        event.metaKey ||
+        event.altKey ||
+        editable(event.target)
+      )
+        return;
+      if (
+        event.key === ' ' &&
+        event.target instanceof Element &&
+        event.target.closest('button, a, [role="button"]')
+      )
+        return;
+      const direction =
+        event.key === 'ArrowDown' ||
+        event.key === 'PageDown' ||
+        (event.key === ' ' && !event.shiftKey)
+          ? 1
+          : event.key === 'ArrowUp' ||
+              event.key === 'PageUp' ||
+              (event.key === ' ' && event.shiftKey)
+            ? -1
+            : 0;
+      if (!direction && event.key !== 'Home' && event.key !== 'End') return;
+      event.preventDefault();
+      if (event.repeat || navFrame.current) return;
+      if (direction) advance(direction);
+      else goTo(event.key === 'Home' ? 0 : RAIL_STOPS.length - 1);
+    };
+    const onScrollEnd = () => {
+      if (navFrame.current) return;
+      const position = window.scrollY / window.innerHeight;
+      const nearest = RAIL_STOPS.reduce(
+        (best, stop, index) =>
+          Math.abs(stop - position) < Math.abs(RAIL_STOPS[best] - position) ? index : best,
+        0,
+      );
+      navTarget.current = nearest;
+      if (Math.abs(RAIL_STOPS[nearest] - position) * window.innerHeight >= 1) goTo(nearest);
+    };
+    const onResize = () => {
+      cancelAnimationFrame(navFrame.current);
+      navFrame.current = 0;
+      const stop =
+        RAIL_STOPS[navTarget.current ?? railIndexAt(window.scrollY / window.innerHeight)];
+      window.scrollTo({ top: stop * window.innerHeight, behavior: 'instant' });
+      engineRef.current?.setTarget(stop, true);
+    };
+    window.addEventListener('wheel', onWheel, { passive: false });
+    window.addEventListener('touchstart', onTouchStart, { passive: true });
+    window.addEventListener('touchmove', onTouchMove, { passive: false });
+    window.addEventListener('touchend', onTouchEnd);
+    window.addEventListener('touchcancel', onTouchCancel);
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('scrollend', onScrollEnd);
+    window.addEventListener('resize', onResize);
+    return () => {
+      window.removeEventListener('wheel', onWheel);
+      window.removeEventListener('touchstart', onTouchStart);
+      window.removeEventListener('touchmove', onTouchMove);
+      window.removeEventListener('touchend', onTouchEnd);
+      window.removeEventListener('touchcancel', onTouchCancel);
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('scrollend', onScrollEnd);
+      window.removeEventListener('resize', onResize);
+    };
+  }, [goTo]);
 
   return (
     <main className={`${landing.root} ${s.world}`} style={LANDING_MARBLE_STYLE}>
