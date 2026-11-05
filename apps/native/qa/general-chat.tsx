@@ -12,6 +12,7 @@ import type { LocalCourseEvent } from '../src/domain/learning-experiences';
 import type { ChatResponseStrength } from '../src/data/ai-client';
 import { CourseWorkspace } from '../src/components/CourseWorkspace';
 import { getLocalRepository } from '../src/data/repository';
+import { setBrowserAccount } from '../src/data/browser-runtime';
 import { GeneralChatWorkspace } from '../src/components/GeneralChatWorkspace';
 import { CreateCourseDialog } from '../src/components/CreateCourseDialog';
 import type {
@@ -30,6 +31,7 @@ if (
   !['127.0.0.1', 'localhost'].includes(location.hostname)
 )
   throw new Error('Loopback development fixture only.');
+setBrowserAccount('qa-general-chat');
 const key = 'syntara.qa.general-chat.v1';
 const read = (): {
   conversations: GeneralConversation[];
