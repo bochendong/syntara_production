@@ -21,6 +21,11 @@ For staging app and UI work, use the verified source baseline documented in
 `codex/staging-next` contains current development and release records. Do not
 assume `main`, an older task branch, or a dirty checkout matches the live server.
 
+For local staging UI work, use `pnpm staging:preview` and the full App at
+`http://127.0.0.1:1422/test/app?as=teacher`; see `docs/local-staging-preview.md`.
+This verifies the deployed baseline and uses read-only staging data. `/qa/`
+pages are explicitly labeled mock fixtures; never present them as the live staging UI.
+
 Use one worktree and one `codex/<task>` branch per task. Before editing, inspect
 `git worktree list`, `git branch --show-current`, and `git status --short` (or run
 `pnpm workspace:status` when available). Reuse this chat's suitable attached

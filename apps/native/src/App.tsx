@@ -67,6 +67,7 @@ import type { ProblemChatAttachment, ProblemChatRequest } from './lib/problem-ch
 import type { ProblemCoachMove } from '../../../lib/problem-bank/problem-coach';
 
 type AppSurface = 'general' | 'launch' | 'course' | 'problem-bank' | 'notebook-library';
+const appHomeHref = import.meta.env.VITE_SYNTARA_HOME_URL || '/';
 
 function updateWithPlatformTransition(update: () => void) {
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -591,6 +592,7 @@ function AuthenticatedApp() {
   } else if (surface === 'general') {
     content = (
       <GeneralChatWorkspace
+        homeHref={appHomeHref}
         initialConversationId={initialGeneralConversationId}
         onOpenRecentChat={openRecentChat}
         key={chatDraft.revision}
@@ -633,6 +635,7 @@ function AuthenticatedApp() {
   } else {
     content = (
       <CourseWorkspace
+        homeHref={appHomeHref}
         onOpenRecentChat={openRecentChat}
         key={`${workspace.course.id}:${launchRevision}`}
         initialDraft={chatDraft.text}

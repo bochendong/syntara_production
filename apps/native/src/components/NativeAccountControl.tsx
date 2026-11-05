@@ -44,6 +44,7 @@ function errorMessage(error: unknown): string {
 export function NativeAuthGate({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<NativeAuthSession | null>(null);
   const [sessionLoading, setSessionLoading] = useState(true);
+  const [sessionCheck, setSessionCheck] = useState(0);
   const [browserPreviewUnlocked, setBrowserPreviewUnlocked] = useState(false);
   const [loginState, setLoginState] = useState<LoginState>('idle');
   const [authorization, setAuthorization] = useState<NativeDeviceAuthorization | null>(null);
@@ -90,7 +91,7 @@ export function NativeAuthGate({ children }: { children: ReactNode }) {
       pollGenerationRef.current += 1;
       unsubscribe();
     };
-  }, [browserPreview]);
+  }, [browserPreview, sessionCheck]);
 
   const stopPolling = useCallback(() => {
     pollGenerationRef.current += 1;
@@ -201,6 +202,31 @@ export function NativeAuthGate({ children }: { children: ReactNode }) {
   }
 
   if (session || browserPreviewUnlocked) return children;
+
+  if (browserApp && error) {
+    return (
+      <main className="native-auth-gate is-loading">
+        <div className="native-auth-loading">
+          <span className="native-auth-mark">
+            <Sparkles size={23} />
+          </span>
+          <strong>Syntara</strong>
+          <p role="alert">{error}</p>
+          <button
+            type="button"
+            className="native-account-secondary"
+            onClick={() => {
+              setError(null);
+              setSessionLoading(true);
+              setSessionCheck((check) => check + 1);
+            }}
+          >
+            重试连接
+          </button>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="native-auth-gate">

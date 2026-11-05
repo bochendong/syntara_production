@@ -15,6 +15,9 @@ export async function browserRequest<T>(path: string, init: RequestInit = {}): P
 
 /** Standalone browser previews still use the authenticated, same-origin grader. */
 export async function browserGrade<T>(payload: unknown, headers: HeadersInit): Promise<T> {
+  if (import.meta.env.VITE_SYNTARA_SHOWCASE === '1') {
+    throw new Error('这是首页示例，请登录后使用提交批改。');
+  }
   const response = await fetch('/api/native/v1/grade', {
     method: 'POST',
     credentials: 'same-origin',

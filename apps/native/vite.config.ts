@@ -7,6 +7,7 @@ import tailwindcss from '@tailwindcss/vite';
 import { pythonRuntimePlugin } from './python-runtime-plugin';
 import { handwritingGradingPlugin } from './handwriting-grading-plugin.mjs';
 import { previewChatPlugin } from './preview-chat-plugin.mjs';
+import { stagingPreviewPlugin } from './staging-preview-plugin.mjs';
 
 const host = process.env.TAURI_DEV_HOST;
 
@@ -23,6 +24,7 @@ export default defineConfig({
     pythonRuntimePlugin(),
     handwritingGradingPlugin(),
     previewChatPlugin(),
+    stagingPreviewPlugin(),
   ],
   clearScreen: false,
   server: {

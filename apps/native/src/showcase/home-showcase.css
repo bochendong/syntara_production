@@ -1,0 +1,30 @@
+/* Real App pages inside the home page's glass windows. */
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+body {
+  overflow: hidden;
+}
+.home-showcase {
+  position: relative;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.home-showcase > * {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.home-showcase-loading {
+  height: 100%;
+}
+.home-showcase-error {
+  padding: 24px;
+  font:
+    14px system-ui,
+    sans-serif;
+}

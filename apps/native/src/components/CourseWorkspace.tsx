@@ -78,8 +78,7 @@ import {
 import { ChatScopePicker } from './ChatScopePicker';
 import { useChatWorkspaceShell, usePublishChatSidebar } from './ChatWorkspaceShell';
 import { CourseToolsMenu, GlassMenu } from './CourseToolsMenu';
-import { ChatOceanBackground, ChatOceanToggle } from './ChatOcean';
-import { useChatOcean } from '../lib/use-chat-ocean';
+import { ChatOceanBackground } from './ChatOcean';
 import { CourseMaterialsPage, type CourseMaterialKind } from './CourseMaterialsPage';
 import { VoiceInputButton } from './VoiceInputButton';
 import { LearningWorkspaceTabs } from './LearningWorkspaceTabs';
@@ -1470,7 +1469,10 @@ export function PhoneChatDrawer<
       >
         <h2>
           {'__TAURI_INTERNALS__' in window ? (
-            'Syntara'
+            <>
+              Syntara
+              <span className="phone-drawer-beta">{brandEdition}</span>
+            </>
           ) : (
             <a
               className="phone-drawer-home"
@@ -1478,9 +1480,9 @@ export function PhoneChatDrawer<
               aria-label={`Syntara ${brandEdition} 首页`}
             >
               Syntara
+              <span className="phone-drawer-beta">{brandEdition}</span>
             </a>
           )}
-          <span className="phone-drawer-beta">{brandEdition}</span>
         </h2>
         <button
           type="button"
@@ -1901,18 +1903,6 @@ export function PhoneChatDrawer<
             navigation?.onManageCourse?.(courseMenu.course, 'delete');
           }}
           courseName={courseMenu.course.courseCode || courseMenu.course.name}
-          onPublish={
-            courseMeta[courseMenu.course.id]?.accessRole !== 'enrolled' &&
-            navigation?.onManageCourse
-              ? () => {
-                  setCourseMenu(null);
-                  navigation.onManageCourse?.(courseMenu.course, 'publish');
-                }
-              : undefined
-          }
-          publishLabel={
-            courseMeta[courseMenu.course.id]?.visibility === 'private' ? '发布到商城' : '发布设置'
-          }
           onClose={() => setCourseMenu(null)}
           onSelect={(page) => {
             setCourseMenu(null);
@@ -2732,7 +2722,6 @@ export function CourseWorkspace({
   onNewChat,
 }: CourseWorkspaceProps) {
   const chatShell = useChatWorkspaceShell();
-  const [oceanEnabled, setOceanEnabled] = useChatOcean();
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(() =>
     workspace.conversations.some((conversation) => conversation.id === initialConversationId)
       ? initialConversationId
@@ -5349,7 +5338,7 @@ export function CourseWorkspace({
   const materialKinds: CourseMaterialKind[] = ['notes', 'problems'];
   const enrolledCourse = courseMeta[workspace.course.id]?.accessRole === 'enrolled';
   const courseToolActions: DrawerLearningAction[] = [
-    { id: 'materials', label: '资料', icon: FolderUp, open: () => setPhonePage('materials') },
+    { id: 'materials', label: '上传', icon: FolderUp, open: () => setPhonePage('materials') },
     {
       id: 'notes',
       label: '笔记',
@@ -5654,9 +5643,7 @@ export function CourseWorkspace({
         ref={chatDropTargetRef}
         className={`conversation-workspace${!hasMessages ? ' is-empty-chat' : ''}`}
       >
-        {oceanEnabled && emptyChat && !phonePage && mobilePanel !== 'sessions' ? (
-          <ChatOceanBackground />
-        ) : null}
+        {emptyChat && !phonePage && mobilePanel !== 'sessions' ? <ChatOceanBackground /> : null}
         {updateNoteText ? (
           <CourseUpdateCard text={updateNoteText} onClose={() => setUpdateNote(null)} />
         ) : null}
@@ -5710,9 +5697,6 @@ export function CourseWorkspace({
                 <PanelLeft size={20} strokeWidth={1.8} />
               </button>
             )}
-            {emptyChat ? (
-              <ChatOceanToggle enabled={oceanEnabled} onChange={setOceanEnabled} />
-            ) : null}
           </div>
           <div className="phone-chat-title">
             {compactLayout ? (

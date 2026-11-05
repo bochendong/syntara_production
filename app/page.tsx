@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 
-import { SyntaraLanding } from '@/components/home/landing/syntara-landing';
+import { HomeLanding } from '@/components/home/home-landing';
 
 export const metadata: Metadata = {
   title: 'Syntara · 课件变笔记，错题有人记',
@@ -8,5 +8,5 @@ export const metadata: Metadata = {
 };
 
 export default function HomePage() {
-  return <SyntaraLanding googleTest={process.env.SYNTARA_APP_ENV === 'staging'} />;
+  return <HomeLanding googleTest={process.env.SYNTARA_APP_ENV === 'staging'} />;
 }
