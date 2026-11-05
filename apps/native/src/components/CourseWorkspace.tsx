@@ -1468,17 +1468,7 @@ export function PhoneChatDrawer<
         }
       >
         <h2>
-          {navigation?.onOpenHome ? (
-            <button
-              type="button"
-              className="phone-drawer-home"
-              onClick={navigation.onOpenHome}
-              aria-label={`Syntara ${brandEdition} 首页`}
-            >
-              Syntara
-              <span className="phone-drawer-beta">{brandEdition}</span>
-            </button>
-          ) : '__TAURI_INTERNALS__' in window ? (
+          {'__TAURI_INTERNALS__' in window ? (
             <>
               Syntara
               <span className="phone-drawer-beta">{brandEdition}</span>

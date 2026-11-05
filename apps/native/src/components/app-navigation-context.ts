@@ -14,7 +14,7 @@ export type AppNavigationPage =
 export type AppNavigation = {
   active: AppNavigationPage;
   avatarUrl?: string;
-  /** 返回应用首页，退出当前课程或学习页。 */
+  /** 首页入口；网页版返回网站的动画展示页。 */
   onOpenHome?: () => void;
   onOpenCalendar: () => void;
   onOpenStore: () => void;

@@ -206,6 +206,16 @@ export function stagingPreviewPlugin() {
   return {
     name: 'syntara-preview-identity',
     apply: 'serve',
+    config() {
+      if (!enabled) return;
+      return {
+        define: {
+          'import.meta.env.VITE_SYNTARA_HOME_URL': JSON.stringify(
+            process.env.SYNTARA_STAGING_PREVIEW_HOME_URL || `${stagingOrigin}/`,
+          ),
+        },
+      };
+    },
     transformIndexHtml() {
       return [
         {

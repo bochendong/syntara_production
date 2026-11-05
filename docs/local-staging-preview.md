@@ -10,6 +10,15 @@ pnpm staging:preview
 `apps/native/src/App.tsx`，使用 `VITE_SYNTARA_WEB_APP=1` 和 staging channel；
 不安装演示课程，不替换课堂响应。前端改动可以通过 Vite 热更新查看。
 
+左上角 Syntara 标题返回网站的动画展示首页，普通聊天里的「新聊天」仍留在 App。
+本地默认链接到测试服的展示首页；与另一工作树的首页设计一起预览时，可以显式指定：
+
+```bash
+SYNTARA_STAGING_PREVIEW_HOME_URL=http://localhost:3044/ pnpm staging:preview
+```
+
+该设置只用于 Vite 开发预览；正式网页版的首页链接仍为站点根路径 `/`。
+
 启动前读取线上 `/api/native/v1/version`，确认当前工作树包含正在部署的提交。
 基线缺失或测试服不可访问时拒绝启动，不自动切回旧源码或模拟数据。
 如果工作树落后，先按 `docs/branch-state.md` 整合当前测试服基线，并保留本地改动。
