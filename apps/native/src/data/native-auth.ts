@@ -1,4 +1,5 @@
 import { browserApp, setBrowserAccount } from './browser-runtime';
+import { requestBrowserAuthUser } from './browser-auth-session';
 import { invoke } from '@tauri-apps/api/core';
 
 import {
@@ -92,22 +93,22 @@ export function getNativeDeviceIdentity(): { deviceId: string; deviceName: strin
 
 export async function loadNativeAuthSession(): Promise<NativeAuthSession | null> {
   if (cachedSession !== undefined) return cachedSession;
+  if (loadPromise) return loadPromise;
   if (browserApp) {
-    const response = await fetch('/api/native/v1/auth/browser', {
-      credentials: 'same-origin',
-      cache: 'no-store',
-    });
-    if (response.status === 401 || response.status === 403) return null;
-    if (!response.ok) throw new Error('暂时无法验证账号，请重试。');
-    const result = await response.json();
-    const user = result.data?.user;
-    if (!isValidUser(user)) throw new Error('账号数据无效。');
-    setBrowserAccount(user.id);
-    cachedSession = { browser: true, user, savedAt: new Date().toISOString() };
-    return cachedSession;
+    loadPromise = requestBrowserAuthUser()
+      .then((user) => {
+        if (user === null) return null;
+        if (!isValidUser(user)) throw new Error('账号数据无效。');
+        setBrowserAccount(user.id);
+        cachedSession = { browser: true, user, savedAt: new Date().toISOString() };
+        return cachedSession;
+      })
+      .finally(() => {
+        loadPromise = null;
+      });
+    return loadPromise;
   }
   if (!isTauriRuntime()) return null;
-  if (loadPromise) return loadPromise;
 
   loadPromise = invoke<string | null>('load_native_auth_session')
     .then(async (serialized) => {
