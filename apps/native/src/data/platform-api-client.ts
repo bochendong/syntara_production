@@ -17,6 +17,7 @@ import type {
   NativeNotebookArchive,
   NativePlatformCourse,
   NativeProblemAttemptUpload,
+  NativeProblemAttemptPage,
   NativeProblemSnapshot,
   NativeSyncedConversationList,
   NativeSyncedConversationSnapshot,
@@ -537,6 +538,20 @@ export function getNativeProblems(
     courseId,
     since: since ?? undefined,
     managed: managed ? 1 : undefined,
+  });
+}
+
+/** The signed-in learner's own text submissions and grading results; photos are omitted. */
+export function getNativeProblemAttempts(
+  courseId: string,
+  problemId: string,
+  before?: string | null,
+): Promise<NativeProblemAttemptPage> {
+  return invokeQuery('native_get_problems', {
+    courseId,
+    problemId,
+    attempts: 1,
+    before: before ?? undefined,
   });
 }
 

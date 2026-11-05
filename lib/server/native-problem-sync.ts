@@ -31,7 +31,7 @@ function jsonRecord(value: unknown): Record<string, unknown> {
 }
 
 /** 老师（课程拥有者）看得到草稿；学生只看已发布的，且只看已解锁笔记里的题。都只看「公有 + 自己的」，去掉自己隐藏的。 */
-async function visibleProblemWhere(prisma: PrismaClient, userId: string, courseId: string) {
+export async function visibleProblemWhere(prisma: PrismaClient, userId: string, courseId: string) {
   const access = await resolveCourseNotebookAccess(prisma, userId, courseId);
   if (!access) return null;
   const owner = access.role === 'owner';
