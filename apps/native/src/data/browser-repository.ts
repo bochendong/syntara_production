@@ -75,6 +75,7 @@ import {
   bundledMockMiniLectures,
   type NativeMiniLectureDeck,
 } from './mock-mini-lectures';
+import { withAppBase } from './app-base';
 import { NATIVE_MAT136_MOCK_EXAM } from './mock-review-plan';
 import { sparseMemoryPreviewCourses, sparseMemoryPreviewMemories } from './sparse-memory-preview';
 
@@ -119,9 +120,11 @@ class NativePreviewDatabase extends Dexie {
     super(
       browserApp
         ? `Syntara-Web-Staging-${browserAccountId()}`
-        : nativeChannel === 'staging'
-          ? 'Syntara-Native-Preview-Staging'
-          : 'Syntara-Native-Preview',
+        : import.meta.env?.VITE_SYNTARA_SHOWCASE === '1'
+          ? 'Syntara-Home-Showcase'
+          : nativeChannel === 'staging'
+            ? 'Syntara-Native-Preview-Staging'
+            : 'Syntara-Native-Preview',
     );
     this.version(1).stores({
       courses: 'id, updatedAt',
@@ -310,8 +313,8 @@ function persistBundledMiniLecture(
 function browserAssetUrl(asset: LocalAsset | undefined): string | null {
   if (!asset) return null;
   if (asset.dataBase64) return `data:${asset.mimeType};base64,${asset.dataBase64}`;
+  if (asset.path.startsWith('/')) return withAppBase(asset.path);
   if (
-    asset.path.startsWith('/') ||
     asset.path.startsWith('http://') ||
     asset.path.startsWith('https://') ||
     asset.path.startsWith('blob:')

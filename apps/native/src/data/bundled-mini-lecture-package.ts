@@ -10,6 +10,7 @@ import {
   bundledMockMiniLectures,
   type NativeMiniLectureSpeechAction,
 } from './mock-mini-lectures';
+import { withAppBase } from './app-base';
 
 const BUNDLED_LECTURE_PACKAGE_NAME = 'mat136-image2-openai-tts';
 const BUNDLED_LECTURE_PACKAGE_VERSION = 1;
@@ -146,7 +147,7 @@ export async function materializeBundledMiniLectureAssets(
 ): Promise<LocalAsset[]> {
   return Promise.all(
     descriptors.map(async (descriptor) => {
-      const response = await fetch(descriptor.url);
+      const response = await fetch(withAppBase(descriptor.url));
       if (!response.ok) {
         throw new Error(`无法读取内置课堂资源：${descriptor.url} (${response.status})`);
       }
