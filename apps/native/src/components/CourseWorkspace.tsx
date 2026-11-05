@@ -78,8 +78,7 @@ import {
 import { ChatScopePicker } from './ChatScopePicker';
 import { useChatWorkspaceShell, usePublishChatSidebar } from './ChatWorkspaceShell';
 import { CourseToolsMenu, GlassMenu } from './CourseToolsMenu';
-import { ChatOceanBackground, ChatOceanToggle } from './ChatOcean';
-import { useChatOcean } from '../lib/use-chat-ocean';
+import { ChatOceanBackground } from './ChatOcean';
 import { CourseMaterialsPage, type CourseMaterialKind } from './CourseMaterialsPage';
 import { VoiceInputButton } from './VoiceInputButton';
 import { LearningWorkspaceTabs } from './LearningWorkspaceTabs';
@@ -2732,7 +2731,6 @@ export function CourseWorkspace({
   onNewChat,
 }: CourseWorkspaceProps) {
   const chatShell = useChatWorkspaceShell();
-  const [oceanEnabled, setOceanEnabled] = useChatOcean();
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(() =>
     workspace.conversations.some((conversation) => conversation.id === initialConversationId)
       ? initialConversationId
@@ -5654,9 +5652,7 @@ export function CourseWorkspace({
         ref={chatDropTargetRef}
         className={`conversation-workspace${!hasMessages ? ' is-empty-chat' : ''}`}
       >
-        {oceanEnabled && emptyChat && !phonePage && mobilePanel !== 'sessions' ? (
-          <ChatOceanBackground />
-        ) : null}
+        {emptyChat && !phonePage && mobilePanel !== 'sessions' ? <ChatOceanBackground /> : null}
         {updateNoteText ? (
           <CourseUpdateCard text={updateNoteText} onClose={() => setUpdateNote(null)} />
         ) : null}
@@ -5710,9 +5706,6 @@ export function CourseWorkspace({
                 <PanelLeft size={20} strokeWidth={1.8} />
               </button>
             )}
-            {emptyChat ? (
-              <ChatOceanToggle enabled={oceanEnabled} onChange={setOceanEnabled} />
-            ) : null}
           </div>
           <div className="phone-chat-title">
             {compactLayout ? (

@@ -1,27 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { Fish } from 'lucide-react';
 import './chat-ocean.css';
-
-export function ChatOceanToggle({
-  enabled,
-  onChange,
-}: {
-  enabled: boolean;
-  onChange: (enabled: boolean) => void;
-}) {
-  return (
-    <button
-      type="button"
-      className="phone-glass-button chat-ocean-toggle"
-      aria-label="鲨鱼背景"
-      aria-pressed={enabled}
-      title={enabled ? '关闭鲨鱼背景' : '开启鲨鱼背景'}
-      onClick={() => onChange(!enabled)}
-    >
-      <Fish size={19} strokeWidth={1.8} aria-hidden />
-    </button>
-  );
-}
 
 export function ChatOceanBackground() {
   const canvasRef = useRef<HTMLCanvasElement>(null);

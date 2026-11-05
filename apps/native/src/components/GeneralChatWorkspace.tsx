@@ -5,8 +5,7 @@ import { ArrowUp, MessageCircle, PanelLeft, SquarePen, X } from 'lucide-react';
 import { ChatScopePicker } from './ChatScopePicker';
 import { VoiceInputButton } from './VoiceInputButton';
 import { useChatWorkspaceShell, usePublishChatSidebar } from './ChatWorkspaceShell';
-import { ChatOceanBackground, ChatOceanToggle } from './ChatOcean';
-import { useChatOcean } from '../lib/use-chat-ocean';
+import { ChatOceanBackground } from './ChatOcean';
 import { PhoneChatDrawer } from './CourseWorkspace';
 import { ChatRichText } from './chat-rich/ChatRichText';
 import {
@@ -50,7 +49,6 @@ export function GeneralChatWorkspace({
 }) {
   const phone = usePhoneLayout();
   const chatShell = useChatWorkspaceShell();
-  const [oceanEnabled, setOceanEnabled] = useChatOcean();
   const [sidebarOpen, setSidebarOpen] = useState(!phone);
   const sidebarVisible = chatShell ? !chatShell.collapsed : sidebarOpen;
   const [conversations, setConversations] = useState<GeneralConversation[]>([]);
@@ -344,7 +342,7 @@ export function GeneralChatWorkspace({
       aria-label="普通聊天工作台"
     >
       <main className="conversation-workspace">
-        {oceanEnabled && emptyChat && !(phone && sidebarVisible) ? <ChatOceanBackground /> : null}
+        {emptyChat && !(phone && sidebarVisible) ? <ChatOceanBackground /> : null}
         <header className="phone-chat-header">
           <div className="chat-header-start">
             <button
@@ -359,9 +357,6 @@ export function GeneralChatWorkspace({
             >
               <PanelLeft size={20} />
             </button>
-            {emptyChat ? (
-              <ChatOceanToggle enabled={oceanEnabled} onChange={setOceanEnabled} />
-            ) : null}
           </div>
           <div className="phone-chat-title">
             <span>
