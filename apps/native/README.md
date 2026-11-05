@@ -68,6 +68,16 @@ pnpm native:snapshot:export
 pnpm native:verify
 ```
 
+## 聊天鲨鱼背景
+
+ASCII 鲨鱼背景和顶栏鱼形开关只出现在没有聊天消息的空白页，默认关闭。
+开始发送消息或加载历史记录时隐藏背景；新建空白聊天后恢复已选择的状态。
+普通聊天和课程聊天都遵循这一规则，选择保存在当前设备，网页版按账号隔离。
+背景不拦截消息、滚动或输入操作。系统开启“减少动态效果”时显示静态画面，
+页面进入后台、背景离开可见区域或关闭开关时停止动画。
+源码和 MIT 授权来自 [ascii-sharks](https://github.com/stackedlol/ascii-sharks)，
+版本及适配说明见 `src/vendor/ascii-sharks/README.md`。
+
 ## 开发
 
 ```bash
