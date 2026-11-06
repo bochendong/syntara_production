@@ -1,3 +1,8 @@
+import { createPracticeMilestones } from '../lib/practice-milestones';
+import {
+  PracticeCelebration,
+  type PracticeCelebrationSnapshot,
+} from './problem-bank/PracticeCelebration';
 import { prepareHandwritingAnswers, prepareProblemHandwriting } from '../data/handwriting-answer';
 import { problemAttemptHasMistake } from '../data/problem-attempt-history';
 import { HandwritingAnswerInput } from './problem-bank/handwriting-answer-input';
@@ -435,6 +440,8 @@ export function ProblemPracticePage({
   const debugRunning = debugResult.phase === 'loading' || debugResult.phase === 'running';
   const [statuses, setStatuses, mistakes] = useProblemStatuses(problems[0]?.courseId ?? '', launch);
   const [justGraded, setJustGraded] = useState<ProblemStatus | null>(null);
+  const milestones = useRef(createPracticeMilestones());
+  const [celebration, setCelebration] = useState<PracticeCelebrationSnapshot | null>(null);
   const [finish, setFinish] = useState<'hidden' | 'shown' | 'dismissed'>('hidden');
   const [sheetOpen, setSheetOpen] = useState(false);
   const sheetId = useId();
@@ -483,6 +490,25 @@ export function ProblemPracticePage({
   );
   const chapterTitle = launch.title || displayedProblem?.chapterName || undefined;
   const total = orderedIds.length;
+  const celebrateSubmission = useCallback(
+    (problemId: string, status: ProblemStatus, nextStatuses: Map<string, ProblemStatus>) => {
+      const newlyPassed = milestones.current.record(problemId, statuses.get(problemId), status);
+      if (newlyPassed === null) return;
+      setCelebration({
+        newlyPassed,
+        passed: orderedIds.filter((id) => nextStatuses.get(id) === 'passed').length,
+        attempted: orderedIds.filter((id) => nextStatuses.has(id)).length,
+        total: orderedIds.length,
+        title: chapterTitle || '这一组题',
+      });
+    },
+    [chapterTitle, orderedIds, statuses],
+  );
+  const dismissCelebration = () => {
+    setCelebration(null);
+    if (finish === 'shown') setFinish('dismissed');
+  };
+
   const isCode = currentProblem ? problemIsCode(currentProblem) : false;
   const publicContent = useMemo(
     () => (displayedProblem ? problemPublicContent(displayedProblem) : {}),
@@ -1127,6 +1153,7 @@ export function ProblemPracticePage({
         setStatuses(nextStatuses);
         notifyProblemProgress();
         setJustGraded(status);
+        celebrateSubmission(currentProblem.id, status, nextStatuses);
         // 这一组每题都做过了：弹珠落进罐子。
         if (finish === 'hidden' && orderedIds.every((id) => nextStatuses.has(id))) {
           setFinish('shown');
@@ -1148,6 +1175,7 @@ export function ProblemPracticePage({
       saveDraft,
       setStatuses,
       statuses,
+      celebrateSubmission,
       submitting,
       language,
       stem,
@@ -1414,6 +1442,7 @@ export function ProblemPracticePage({
         setStatuses(nextStatuses);
         notifyProblemProgress();
         setJustGraded(status);
+        celebrateSubmission(currentProblem.id, status, nextStatuses);
         if (
           finish === 'hidden' &&
           results.every((part) => Boolean(part.gradedAt)) &&
@@ -1447,6 +1476,7 @@ export function ProblemPracticePage({
       savedParts,
       setStatuses,
       statuses,
+      celebrateSubmission,
       submitting,
       snapshotBusy,
       launch.classSessionId,
@@ -1720,7 +1750,11 @@ export function ProblemPracticePage({
   const ProgressIcon = progressPresentation?.icon ?? CircleDashed;
 
   return (
-    <section className="native-problem-practice" aria-label="本地做题器">
+    <section
+      className="native-problem-practice"
+      aria-label="本地做题器"
+      inert={celebration !== null}
+    >
       {submissionNotice ? (
         <NativeToast
           {...submissionNotice}
@@ -1921,7 +1955,20 @@ export function ProblemPracticePage({
         </button>
       </header>
 
-      {finish === 'shown' ? (
+      {celebration ? (
+        <PracticeCelebration
+          snapshot={celebration}
+          onClose={dismissCelebration}
+          onContinue={() => {
+            dismissCelebration();
+            const next = [
+              ...orderedIds.slice(currentIndex + 1),
+              ...orderedIds.slice(0, currentIndex),
+            ].find((id) => statuses.get(id) !== 'passed');
+            if (next) setCurrentId(next);
+          }}
+        />
+      ) : finish === 'shown' ? (
         <PracticeFinish
           title={chapterTitle}
           ids={orderedIds}

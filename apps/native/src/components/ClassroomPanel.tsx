@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Radio } from 'lucide-react';
+import { Radio, X } from 'lucide-react';
+import { PracticeMarble } from './PracticeMarble';
+import './course-pages.css';
 
 import {
   getNativeClassroom,
@@ -7,8 +9,8 @@ import {
   type NativeClassroomState,
 } from '../data/platform-api-client';
 import { platformAvailable } from '../data/browser-runtime';
-import { classSessionLabel } from '../lib/class-session-label';
 import './classroom-panel.css';
+import './marble-dismiss.css';
 
 /**
  * 学生端课堂状态和「上课中」胶囊（网页版、iPad、电脑 App；手机不显示）。
@@ -56,24 +58,39 @@ export function useClassroomState(enabled: boolean, open: boolean) {
 export function ClassroomLiveBadge({
   sessions,
   onOpen,
+  abovePractice = false,
+  onDismiss,
 }: {
   sessions: NativeClassroomSession[];
   onOpen: () => void;
+  abovePractice?: boolean;
+  onDismiss: () => void;
 }) {
-  const live = sessions[0];
-  if (!live) return null;
-  const openCount = live.items.filter((item) => !item.myStatus).length;
+  if (!sessions.length) return null;
   return (
-    <button type="button" className="classroom-live-badge" onClick={onOpen}>
-      <Radio size={16} strokeWidth={2} aria-hidden />
-      <span>
-        {live.joined
-          ? openCount
-            ? `${classSessionLabel(live)} · ${openCount} 道题没做`
-            : `${live.courseName} 上课中`
-          : `${live.teacherName}开始上课了`}
-      </span>
-    </button>
+    <div
+      className={`classroom-marble-dock marble-dismiss-dock${abovePractice ? ' is-above-practice' : ''}`}
+    >
+      <button
+        type="button"
+        className="classroom-live-marble"
+        onClick={onOpen}
+        aria-label="进入正在进行的课堂"
+      >
+        <PracticeMarble active />
+        <span className="classroom-marble-icon" aria-hidden="true">
+          <Radio size={14} strokeWidth={2} />
+        </span>
+      </button>
+      <button
+        type="button"
+        className="marble-dismiss-button"
+        aria-label="关闭上课球"
+        onClick={onDismiss}
+      >
+        <X size={13} />
+      </button>
+    </div>
   );
 }
 

@@ -7,6 +7,8 @@ import {
   type ReactNode,
 } from 'react';
 
+import { X } from 'lucide-react';
+import './marble-dismiss.css';
 import { PracticeMarble } from './PracticeMarble';
 import './course-pages.css';
 
@@ -15,11 +17,13 @@ export function PracticeOverlay({
   onClose,
   minimized,
   onRestore,
+  onDismiss,
   children,
 }: {
   onClose: () => void;
   minimized: boolean;
   onRestore: () => void;
+  onDismiss: () => void;
   children: ReactNode;
 }) {
   const [marblePosition, setMarblePosition] = useState<{ right: number; bottom: number }>();
@@ -147,27 +151,43 @@ export function PracticeOverlay({
         <div className="practice-overlay-backdrop" onClick={() => closeRef.current()} aria-hidden />
         <div className="practice-overlay-card">{children}</div>
       </div>
-      <button
-        ref={resumeRef}
-        type="button"
-        className="practice-resume-marble"
-        aria-label="继续做题"
-        title="继续做题"
-        aria-hidden={!minimized}
-        data-dragging={dragging || undefined}
-        disabled={!minimized}
+      <div
+        className={`practice-marble-dock marble-dismiss-dock${minimized ? '' : ' is-hidden'}`}
         style={marbleStyle}
-        onPointerDown={startDrag}
-        onPointerMove={moveDrag}
-        onPointerUp={endDrag}
-        onPointerCancel={endDrag}
-        onLostPointerCapture={endDrag}
-        onClick={(event) => {
-          if (!didDrag.current || event.detail === 0) onRestore();
-        }}
+        inert={!minimized}
+        data-dragging={dragging || undefined}
       >
-        <PracticeMarble active={minimized} />
-      </button>
+        <button
+          ref={resumeRef}
+          type="button"
+          className="practice-resume-marble"
+          aria-label="继续做题"
+          title="继续做题"
+          aria-hidden={!minimized}
+          data-dragging={dragging || undefined}
+          disabled={!minimized}
+          style={marbleStyle}
+          onPointerDown={startDrag}
+          onPointerMove={moveDrag}
+          onPointerUp={endDrag}
+          onPointerCancel={endDrag}
+          onLostPointerCapture={endDrag}
+          onClick={(event) => {
+            if (!didDrag.current || event.detail === 0) onRestore();
+          }}
+        >
+          <PracticeMarble active={minimized} />
+        </button>
+        <button
+          type="button"
+          className="marble-dismiss-button"
+          aria-label="关闭做题球"
+          onClick={onDismiss}
+          disabled={!minimized}
+        >
+          <X size={13} />
+        </button>
+      </div>
     </>
   );
 }

@@ -153,6 +153,7 @@ function AuthenticatedApp() {
   >(() => (teacherLogin && classroomEnabled ? 'teach' : null));
   const classroom = useClassroomState(classroomEnabled, globalPage === 'student-classroom');
   const refreshClassroom = classroom.refresh;
+  const [dismissedClassroomId, setDismissedClassroomId] = useState<string | null>(null);
   // 从「上课中」胶囊进来时直接打开那节课。
   const [classroomTarget, setClassroomTarget] = useState<string | null>(null);
   const [globalEvents, setGlobalEvents] = useState<LocalCourseEvent[]>([]);
@@ -750,6 +751,10 @@ function AuthenticatedApp() {
             onClose={minimizePractice}
             minimized={practiceMinimized}
             onRestore={() => setPracticeMinimized(false)}
+            onDismiss={() => {
+              setPracticeSession(null);
+              setPracticeMinimized(false);
+            }}
           >
             <ProblemPracticePage
               problems={practiceSession.problems}
@@ -925,9 +930,14 @@ function AuthenticatedApp() {
           </div>
         ) : null}
 
-        {classroomEnabled && globalPage !== 'student-classroom' && !practiceExpanded ? (
+        {classroomEnabled &&
+        globalPage !== 'student-classroom' &&
+        !practiceExpanded &&
+        classroom.state.sessions[0]?.id !== dismissedClassroomId ? (
           <ClassroomLiveBadge
             sessions={classroom.state.sessions}
+            abovePractice={Boolean(practiceSession && practiceMinimized)}
+            onDismiss={() => setDismissedClassroomId(classroom.state.sessions[0]?.id ?? null)}
             onOpen={() => {
               setClassroomTarget(classroom.state.sessions[0]?.id ?? null);
               setGlobalPage('student-classroom');
