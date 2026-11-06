@@ -7,6 +7,8 @@ export type LocalizableProblemContent = {
   stemTemplate?: string;
   explanation?: string;
   constraints?: string[];
+  starterCodeDescription?: string;
+  statementSections?: Array<{ id: string; title?: string; body?: string; items?: string[] }>;
   sampleIO?: Array<{ input: string; output: string; explanation?: string }>;
   assets?: { images?: Array<{ id: string; alt?: string; caption?: string }> };
   options?: Array<{ id: string; label: string }>;
@@ -23,6 +25,8 @@ export type LocalizableProblemContent = {
         stemTemplate?: string;
         explanation?: string;
         constraints?: string[];
+        starterCodeDescription?: string;
+        statementSections?: Array<{ id: string; title?: string; body?: string; items?: string[] }>;
         sampleExplanations?: Array<{ index: number; explanation: string }>;
         assetTexts?: Array<{ id: string; alt?: string; caption?: string }>;
         options?: Array<{ id: string; label: string }>;
@@ -96,6 +100,20 @@ export function getLocalizedProblemContent<T extends LocalizableProblemContent>(
     next.explanation = translation.explanation;
   }
   if (translation.constraints) next.constraints = translation.constraints;
+  if (translation.starterCodeDescription)
+    next.starterCodeDescription = translation.starterCodeDescription;
+  if (next.type === 'code' && translation.statementSections && next.statementSections) {
+    const texts = new Map(translation.statementSections.map((section) => [section.id, section]));
+    next.statementSections = next.statementSections.map((section) => {
+      const translated = texts.get(section.id);
+      return {
+        ...section,
+        ...(translated?.title ? { title: translated.title } : {}),
+        ...(translated?.body ? { body: translated.body } : {}),
+        ...(translated?.items ? { items: translated.items } : {}),
+      };
+    });
+  }
   if (translation.sampleExplanations && next.sampleIO) {
     const explanations = new Map(
       translation.sampleExplanations.map((item) => [item.index, item.explanation]),
