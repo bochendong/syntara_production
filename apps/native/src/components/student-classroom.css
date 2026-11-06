@@ -1,4 +1,4 @@
-/* 学生的「上课」页：一个输码框，一串自己的弹珠。 */
+/* 学生上课：课程卡片 → 课次 → 自己的答题弹珠。 */
 .tc-page .phone-large-head h1 {
   min-width: 0;
   max-width: 100%;
@@ -198,4 +198,28 @@
   box-shadow: 0 14px 36px rgb(15 23 42 / 16%);
   backdrop-filter: blur(var(--glass-blur-sm)) saturate(1.4);
   -webkit-backdrop-filter: blur(var(--glass-blur-sm)) saturate(1.4);
+}
+
+.tc-course-card {
+  position: relative;
+}
+
+.tc-course-stats {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.tc-course-open::after {
+  position: absolute;
+  inset: 0;
+  border-radius: 20px;
+  content: '';
+}
+
+.tc-course-card:has(.tc-course-open:focus-visible) {
+  outline: 2px solid var(--tp-blue);
+  outline-offset: 3px;
+}
+
+.tc-course-card:hover {
+  box-shadow: 0 8px 24px rgb(15 23 42 / 9%);
 }
