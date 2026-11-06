@@ -223,7 +223,6 @@ const actionSchema = z.union([
     courseId: z.string().trim().min(1).max(200),
     action: z.literal('update-managed-problem'),
     id: z.string().trim().min(1).max(200),
-    tags: z.array(z.string().trim().min(1).max(30)).max(16).optional(),
     title: z.string().trim().min(1).max(200).optional(),
     status: z.enum(['draft', 'published']).optional(),
     difficulty: z.enum(['easy', 'medium', 'hard']).optional(),
