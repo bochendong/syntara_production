@@ -3893,6 +3893,7 @@ span.pb-row-marble img {
 }
 
 .practice-overlay,
+.practice-marble-dock,
 .practice-resume-marble {
   --practice-marble-right: max(22px, env(safe-area-inset-right));
   --practice-marble-bottom: max(22px, env(safe-area-inset-bottom));
@@ -3909,6 +3910,28 @@ span.pb-row-marble img {
  * 玻璃珠接住时压扁回弹、荡开一圈水纹，里面的极光短暂亮起后恢复流动。
  * 展开：反过来，从玻璃珠的位置像泡泡一样撑开。
  */
+.practice-marble-dock {
+  position: fixed;
+  right: var(--practice-marble-right);
+  bottom: var(--practice-marble-bottom);
+  z-index: 121;
+  width: 56px;
+  height: 56px;
+}
+
+.practice-marble-dock.is-hidden {
+  visibility: hidden;
+  pointer-events: none;
+  transition: visibility 0s linear 420ms;
+}
+
+.practice-marble-dock .practice-resume-marble {
+  position: relative;
+  z-index: 0;
+  right: auto;
+  bottom: auto;
+}
+
 .practice-resume-marble {
   position: fixed;
   right: var(--practice-marble-right);

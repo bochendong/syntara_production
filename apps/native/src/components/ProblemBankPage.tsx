@@ -46,9 +46,7 @@ import {
 import { TeachLiveBanner, TeachSessionToggle, useTeachLiveCourse } from './TeachLiveBar';
 import {
   ClassStandingCard,
-  ClassStandingPopup,
   ClassStandingStrip,
-  markStandingBeforePractice,
   readStandingOpen,
   useClassStanding,
   writeStandingOpen,
@@ -529,8 +527,6 @@ export function ProblemBankPage({
       chapterKey: string | null,
     ) => {
       if (!problems.length) return;
-      // 记下本周名次，做完回来比较要不要弹出「和同班比」。
-      markStandingBeforePractice(courseId);
       const start = initial ?? problems[0];
       if (chapterKey) {
         const next: LastSession = { chapterKey, problemId: start.id, at: Date.now() };
@@ -565,11 +561,7 @@ export function ProblemBankPage({
 
   // ---------- 和同班比 ----------
   const [standingPeriod, setStandingPeriod] = useState<StandingPeriod>('week');
-  const { standing, previousRank, clearImprovement } = useClassStanding(
-    courseId,
-    standingPeriod,
-    passedTotal,
-  );
+  const { standing } = useClassStanding(courseId, standingPeriod, passedTotal);
   const [standingOpen, setStandingOpenState] = useState(readStandingOpen);
   const setStandingOpen = (open: boolean) => {
     setStandingOpenState(open);
@@ -584,7 +576,6 @@ export function ProblemBankPage({
   }, [bankProblems, chapterByKey, chapterOf, standing]);
   const startChase = chase
     ? () => {
-        clearImprovement();
         startPractice(chase.list, chase.list[0], chase.title ?? '追第一', chase.key);
       }
     : undefined;
@@ -992,13 +983,6 @@ export function ProblemBankPage({
         <div className="pb-column">
           {liveBanner}
           {filterBar}
-          {showStanding && standingCardProps && previousRank != null ? (
-            <ClassStandingPopup
-              {...standingCardProps}
-              previousRank={previousRank}
-              onClose={clearImprovement}
-            />
-          ) : null}
           {hasFilters ? (
             <div className="pb-filter-result" role="status">
               <button type="button" onClick={clearFilters}>
