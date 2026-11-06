@@ -942,6 +942,31 @@
   min-height: 0;
 }
 
+.ts-picker-series {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 22px 0;
+  color: #475569;
+  font-size: 14px;
+}
+
+.ts-picker-series select {
+  min-width: 0;
+  max-width: 100%;
+  padding: 6px 10px;
+  border: 1px solid rgb(15 23 42 / 16%);
+  border-radius: 8px;
+  color: inherit;
+  background: white;
+  font: inherit;
+}
+
+.ts-picker-series + .ts-picker-search {
+  margin-top: 10px;
+}
+
 .ts-picker-search {
   flex: none;
   margin: 20px 22px 16px;
@@ -1071,6 +1096,10 @@
   .ts-picker-chapters button {
     max-width: 220px;
     padding: 10px 12px;
+  }
+
+  .ts-picker-series {
+    padding: 12px 14px 0;
   }
 
   .ts-picker-search {

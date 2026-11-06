@@ -1175,11 +1175,11 @@ export async function listSessionProblemChoices(viewer: ClassroomViewer, session
   const problems = await prisma.notebookProblem.findMany({
     where: { courseId: session.class.courseId, ownerId: null, status: 'published' },
     orderBy: [{ problemNumber: 'asc' }, { order: 'asc' }],
-    take: 400,
     select: {
       id: true,
       title: true,
       type: true,
+      tags: true,
       difficulty: true,
       problemNumber: true,
       chapter: { select: { id: true, name: true } },
@@ -1189,6 +1189,7 @@ export async function listSessionProblemChoices(viewer: ClassroomViewer, session
     id: problem.id,
     title: problem.title,
     type: problem.type,
+    tags: problem.tags,
     difficulty: problem.difficulty,
     number: problem.problemNumber,
     chapter: problem.chapter,
