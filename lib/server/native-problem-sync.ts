@@ -301,7 +301,7 @@ export async function saveNativeProblemAttempts(
         answer: { code: attempt.answer.code },
         result: {
           correct: attempt.status === 'passed',
-          feedback: attempt.feedback ?? '',
+          feedback: attempt.feedback?.trim() || undefined,
           runTarget: attempt.run,
           publicCases: [],
         },
@@ -331,7 +331,7 @@ export async function saveNativeProblemAttempts(
         ...(attempt.event
           ? { event: attempt.event, progressSnapshot: attempt.progressSnapshot ?? null }
           : {}),
-        feedback: attempt.feedback ?? '',
+        feedback: attempt.feedback?.trim() || undefined,
         earnedPoints: attempt.event ? undefined : (score ?? undefined),
         publicCases: [],
         ...(attempt.cells ? { cells: attempt.cells } : {}),
@@ -343,7 +343,7 @@ export async function saveNativeProblemAttempts(
                 points: Math.round(part.share * points * 100) / 100,
                 score: Math.round(part.score * part.share * points * 100) / 100,
                 correct: part.status === 'passed',
-                ...(part.feedback ? { feedback: part.feedback } : {}),
+                ...(part.feedback?.trim() ? { feedback: part.feedback.trim() } : {}),
                 ...(part.cells ? { cells: part.cells } : {}),
                 ...(part.gradedAt ? { gradedAt: part.gradedAt } : {}),
                 ...(part.submissions !== undefined ? { submissions: part.submissions } : {}),
