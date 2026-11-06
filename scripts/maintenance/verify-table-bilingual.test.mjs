@@ -129,7 +129,7 @@ test('schema parsed service input survives mock persistence and real native seri
   const stored = JSON.parse(JSON.stringify(serviceInput)); // disposable in-memory persistence, not a database
   const now = new Date('2026-01-01T00:00:00Z');
   const mock = {
-    course: { findUnique: async () => ({ ownerId: 'owner', externalBinding: null }) },
+    course: { findUnique: async () => ({ ownerId: 'owner', externalBinding: null, managers: [] }) },
     notebook: { findMany: async () => [] },
     notebookProblem: {
       findMany: async ({ select }) =>

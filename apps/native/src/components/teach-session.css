@@ -161,6 +161,26 @@
   padding: 0;
 }
 
+.ts-refresh {
+  min-width: 104px;
+}
+
+.ts-refresh[aria-busy='true'] svg {
+  animation: ts-refresh-spin 1s linear infinite;
+}
+
+@keyframes ts-refresh-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ts-refresh[aria-busy='true'] svg {
+    animation: none;
+  }
+}
+
 .ts-pill.is-primary {
   border-color: transparent;
   background: var(--tp-blue);

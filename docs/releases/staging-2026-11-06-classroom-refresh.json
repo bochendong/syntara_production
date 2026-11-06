@@ -1,0 +1,74 @@
+{
+  "at": "2026-11-06T22:26:03.626Z",
+  "status": "deployed",
+  "branch": "codex/staging-next",
+  "baselineBranch": "codex/staging-baseline",
+  "revision": "70b37f91278b420aa4ad31356b63762b2d7e2100",
+  "previousRevision": "b1d09382871a460d352e426e5e95f2e4afea6bd7",
+  "deploymentId": "d5f2390f-3ee8-420e-9ae4-67536c7dba5a",
+  "origin": "https://native-api-staging-staging-95a1.up.railway.app",
+  "pullRequest": "https://github.com/bochendong/syntara_production/pull/55",
+  "changes": [
+    "Add manual refresh beside Add Questions for live and ended classroom dashboards.",
+    "Use existing uncached session reads to update attendance, answers and statistics; show pending state, prevent repeat clicks and preserve current data on failure."
+  ],
+  "verification": {
+    "localFormatLintRootNativeViteTypes": "PASS",
+    "nativeWebProductionBuild": "PASS",
+    "railwayProductionBuild": "PASS",
+    "railwayHealthcheck": "PASS",
+    "live": {
+      "at": "2026-11-06T22:26:03.626Z",
+      "version": {
+        "version": "0.1.1",
+        "release": "2026.10.28-sync.1",
+        "syncProtocol": 2,
+        "revision": "70b37f91278b420aa4ad31356b63762b2d7e2100"
+      },
+      "health": 200,
+      "app": 200,
+      "assets": [
+        {
+          "path": "/native-web/assets/index-4PuLwDZ4.js",
+          "sha256": "98f3c973598f8370a163ed5b030edae900f7f17eb113b3d36fb0d4847ee321d0",
+          "status": 200,
+          "matched": true
+        },
+        {
+          "path": "/native-web/assets/index-DUDJPkpX.css",
+          "sha256": "3e1601be08e47ca9fe1243688334b8815e7a6ba5ceff66ddf333240cd2fd7087",
+          "status": 200,
+          "matched": true
+        }
+      ]
+    },
+    "isolatedFixture": [
+      "Uncached manual GET",
+      "Loading and disabled state",
+      "Updated attendance and student data",
+      "Failure preserves data; retry clears error",
+      "Statistics tab remains selected",
+      "Ended-session refresh",
+      "Desktop/tablet/mobile layout"
+    ],
+    "fullAppReadOnlyStagingData": {
+      "sessionTitle": "TT2 复习",
+      "manualRequestStatus": 200,
+      "refreshEnabledAfterRequest": true
+    },
+    "authenticatedLiveBrowser": {
+      "buttonVisible": true,
+      "manualRefreshClicked": true,
+      "buttonRecovered": true,
+      "currentClassroomDisplayed": true,
+      "screenshot": "Local verification artifact /tmp/syntara-classroom-refresh-qa/refresh-online.jpg"
+    },
+    "limitations": [
+      "Failure and ended-session cases were checked with explicitly labeled mock fixtures.",
+      "No claim that unrelated endpoints or all runtime logs are error-free."
+    ]
+  },
+  "migrations": [],
+  "nativeInstallersRebuilt": false,
+  "realCourseOrStudentDataMutationPerformed": false
+}
