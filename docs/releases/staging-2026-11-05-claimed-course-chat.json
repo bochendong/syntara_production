@@ -1,0 +1,76 @@
+{
+  "at": "2026-11-06T03:02:11.913Z",
+  "status": "deployed",
+  "revision": "f3afe5dc2de9f3f4276ae5e24b4304a980051438",
+  "deploymentId": "340a8419-45e0-4993-b6ca-79dd9ea57aa2",
+  "origin": "https://native-api-staging-staging-95a1.up.railway.app",
+  "branch": "codex/staging-next",
+  "baselineBranch": "codex/staging-baseline",
+  "pullRequest": "https://github.com/bochendong/syntara_production/pull/50",
+  "previousRevision": "53abe6f71d5a0b3c0b35dee01d2f69b74264a507",
+  "changes": [
+    "Active self-claimed non-external courses are returned in the chat course list with management access, independent of store enrollment or listing.",
+    "Deduplicate claimed and enrolled courses; preserve independent enrollment after releasing a claim.",
+    "Refresh the existing App course list after claiming or releasing in Teaching."
+  ],
+  "verification": {
+    "formatLintRootNativeViteTypes": true,
+    "fullStagingProductionBuild": true,
+    "isolatedPostgres": {
+      "version": 17,
+      "completeMigrations": true,
+      "teacherClaimLifecycle": true,
+      "adminManagementRollback": true,
+      "cases": [
+        "No enrollment or purchase required",
+        "Unlisted already-claimed course remains accessible",
+        "Claim plus enrollment appears once with owner access",
+        "Release removes claim-only chat entry",
+        "Release retains independently enrolled entry",
+        "Reassignment and inactive claimant boundaries",
+        "External binding is not bypassed by a stale claim"
+      ]
+    },
+    "authenticatedStaging": {
+      "before": {
+        "claimedCount": 4,
+        "chatCount": 4,
+        "missingCount": 1,
+        "roles": ["owner", null, "enrolled", "enrolled"]
+      },
+      "after": {
+        "claimedCount": 4,
+        "chatCount": 5,
+        "missingCount": 0,
+        "roles": ["owner", "owner", "owner", "owner"],
+        "duplicates": 0
+      }
+    },
+    "browser": "Full App through the documented read-only local staging preview: all five chat courses are visible, including the formerly missing UTM CSC108; opened its course chat. Real course data, not a QA fixture.",
+    "screenshot": "docs/releases/staging-2026-11-05-claimed-course-chat.jpg",
+    "liveClaimMutation": false,
+    "limitation": "Actual claim/release writes were tested only in a disposable local database. The staging account was checked read-only."
+  },
+  "health": true,
+  "assets": [
+    {
+      "path": "/native-web/assets/index-BvNQ-w1S.css",
+      "status": 200,
+      "type": "text/css; charset=UTF-8",
+      "bytes": 523324,
+      "sha256": "f96b816f56f21c6de50939bd4cbd1c73d617695d631f4ad954cc4dcfd62cd85e",
+      "matched": true
+    },
+    {
+      "path": "/native-web/assets/index-DAdCOgPU.js",
+      "status": 200,
+      "type": "application/javascript; charset=UTF-8",
+      "bytes": 2211726,
+      "sha256": "367b19c12cda817c0e87efceb21ebc19ba09fdee17d781712ce9efe10879419b",
+      "matched": true
+    }
+  ],
+  "migrations": [],
+  "realCourseWrites": false,
+  "nativeInstallersRebuilt": false
+}
