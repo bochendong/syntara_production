@@ -53,6 +53,11 @@ async function main() {
   const admissions = await import('../../lib/server/course-admissions');
   const { findCourseAccessRole } =
     await import('../../lib/server/repositories/course-enrollment-repository');
+  const { listAccessibleCoursesForUser } =
+    await import('../../lib/server/repositories/course-repository');
+  const chatCourses = (userId: string) => listAccessibleCoursesForUser(prisma, userId);
+  const inChat = async (userId: string, courseId: string) =>
+    (await chatCourses(userId)).filter((course) => course.id === courseId);
   const { setAdminCourseManager } = await import('../../lib/server/admin-course-management');
   const run = `c${Date.now().toString(36)}`;
   const user = (name: string) =>
@@ -140,6 +145,21 @@ async function main() {
     home.courses.map((c) => [c.id, c.claimedByMe]),
     [[cpsc.id, true]],
   );
+  assert.equal((await inChat(teacherA.id, cpsc.id))[0]?.accessRole, 'owner');
+  assert.equal(await prisma.courseEnrollment.count({ where: { userId: teacherA.id } }), 0);
+  assert.equal(await prisma.coursePurchase.count({ where: { buyerId: teacherA.id } }), 0);
+  assert.equal((await inChat(teacherB.id, cpsc.id)).length, 0);
+  assert.equal((await inChat(student.id, cpsc.id)).length, 0);
+  await prisma.course.update({ where: { id: cpsc.id }, data: { listedInCourseStore: false } });
+  assert.equal((await inChat(teacherA.id, cpsc.id)).length, 1, '认领后下架仍有聊天入口');
+  await prisma.course.update({ where: { id: cpsc.id }, data: { listedInCourseStore: true } });
+  // 外部课程仍以外部成员身份为准，遗留认领字段不能扩权。
+  await prisma.course.update({
+    where: { id: external.id },
+    data: { claimedTeacherId: teacherA.id },
+  });
+  assert.equal((await inChat(teacherA.id, external.id)).length, 0);
+  await prisma.course.update({ where: { id: external.id }, data: { claimedTeacherId: null } });
   await expectError(claim.claimCourse(B, cpsc.id), 409);
   const seenByB = (await claim.listClaimableCourses(B, run)).courses;
   assert.ok(!seenByB.some((c) => c.id === cpsc.id), '其他老师认领的课程不出现在认领列表');
@@ -160,6 +180,7 @@ async function main() {
   assert.equal((await prisma.user.findUniqueOrThrow({ where: { id: teacherA.id } })).role, 'USER');
   await prisma.user.update({ where: { id: teacherA.id }, data: { isActive: false } });
   assert.notEqual(await findCourseAccessRole(prisma, teacherA.id, cpsc.id), 'owner');
+  assert.equal((await inChat(teacherA.id, cpsc.id)).length, 0, '停用认领者不能进入聊天');
   await prisma.user.update({ where: { id: teacherA.id }, data: { isActive: true } });
   // 认领的老师可以开班
   const classId = await classroom.ensureCurrentTermClass(A, cpsc.id);
@@ -183,6 +204,7 @@ async function main() {
   // 4. 退出认领：只有认领的老师能退；退出后别人可以认领
   await expectError(claim.releaseCourseClaim(B, cpsc.id), 404);
   await claim.releaseCourseClaim(A, cpsc.id);
+  assert.equal((await inChat(teacherA.id, cpsc.id)).length, 0, '仅认领的课退出后撤下聊天入口');
   assert.ok(
     (await claim.listClaimableCourses(B, run)).courses.some((c) => c.id === cpsc.id),
     '退出认领后重新出现在列表',
@@ -196,7 +218,22 @@ async function main() {
     '退出认领不删已开的班',
   );
   await expectError(classroom.ensureCurrentTermClass(B, cpsc.id), 409);
-  console.log('ok  退出认领；原班级不被新认领者接管');
+  assert.equal((await inChat(teacherA.id, cpsc.id)).length, 0);
+  assert.equal((await inChat(teacherB.id, cpsc.id))[0]?.accessRole, 'owner');
+  await prisma.courseEnrollment.create({ data: { userId: teacherB.id, courseId: cpsc.id } });
+  const joinedAndClaimed = await inChat(teacherB.id, cpsc.id);
+  assert.equal(joinedAndClaimed.length, 1, '已加入又认领只出现一次');
+  assert.equal(joinedAndClaimed[0].accessRole, 'owner');
+  await claim.releaseCourseClaim(B, cpsc.id);
+  assert.equal(
+    (await inChat(teacherB.id, cpsc.id))[0]?.accessRole,
+    'enrolled',
+    '退出保留独立加入权限',
+  );
+  await prisma.courseEnrollment.deleteMany({ where: { userId: teacherB.id, courseId: cpsc.id } });
+  assert.equal((await inChat(teacherB.id, cpsc.id)).length, 0);
+  await claim.claimCourse(B, cpsc.id);
+  console.log('ok  退出认领；原班级不被新认领者接管；聊天入口随权限同步且去重');
 
   await assign(mat.id, managerTeacher.id);
   await expectError(claim.claimCourse(A, mat.id), 409);

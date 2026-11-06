@@ -161,7 +161,17 @@ export function listAccessibleCoursesForUser(
         WHERE (
           (
             "ownerBinding"."id" IS NULL
-            AND "course"."ownerId" = (SELECT "id" FROM "ResolvedUser")
+            AND (
+              "course"."ownerId" = (SELECT "id" FROM "ResolvedUser")
+              OR (
+                "course"."claimedTeacherId" = (SELECT "id" FROM "ResolvedUser")
+                AND EXISTS (
+                  SELECT 1 FROM "User" AS "claimant"
+                  WHERE "claimant"."id" = "course"."claimedTeacherId"
+                    AND "claimant"."isActive" = true
+                )
+              )
+            )
           )
           OR EXISTS (
             SELECT 1 FROM "CourseManager" AS "manager"
@@ -221,7 +231,17 @@ export function listAccessibleCoursesForUser(
         WHERE NOT (
           (
             "joinedBinding"."id" IS NULL
-            AND "course"."ownerId" = (SELECT "id" FROM "ResolvedUser")
+            AND (
+              "course"."ownerId" = (SELECT "id" FROM "ResolvedUser")
+              OR (
+                "course"."claimedTeacherId" = (SELECT "id" FROM "ResolvedUser")
+                AND EXISTS (
+                  SELECT 1 FROM "User" AS "claimant"
+                  WHERE "claimant"."id" = "course"."claimedTeacherId"
+                    AND "claimant"."isActive" = true
+                )
+              )
+            )
           )
           OR EXISTS (
             SELECT 1 FROM "CourseManager" AS "manager"
