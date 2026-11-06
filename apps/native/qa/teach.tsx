@@ -29,6 +29,7 @@ setBrowserAccount('qa-teacher');
 const empty = new URLSearchParams(location.search).has('empty');
 const isPrivate = new URLSearchParams(location.search).has('private');
 const screen = new URLSearchParams(location.search).get('screen');
+const classroomVariant = new URLSearchParams(location.search).get('classroom');
 const now = Date.now();
 const day = 86_400_000;
 
@@ -45,16 +46,18 @@ const home = {
       learnerCount: empty ? 0 : 46,
       listed: !empty,
       canPublish: true,
+      claimedByMe: !empty,
       pendingApplications: empty ? 0 : 3,
-      currentClass: empty
-        ? null
-        : {
-            id: 'class-now',
-            name: 'CSC108 · 2026 秋季',
-            mine: true,
-            memberCount: 8,
-            liveSessionId: null,
-          },
+      currentClass:
+        empty || classroomVariant === 'new'
+          ? null
+          : {
+              id: 'class-now',
+              name: 'CSC108 · 2026 秋季',
+              mine: classroomVariant !== 'other',
+              memberCount: 8,
+              liveSessionId: null,
+            },
       pastClasses: empty
         ? []
         : [{ id: 'class-past', name: 'CSC108 · 2026 夏季', label: '2026 夏季', memberCount: 12 }],
@@ -981,8 +984,8 @@ const navigation = {
   onOpenCalendar: noop,
   onOpenStore: noop,
   onOpenSettings: noop,
-  onOpenClassroom: noop,
-  onOpenTeach: noop,
+  onOpenClassroom: screen === 'student' ? noop : undefined,
+  onOpenTeach: screen === 'student' ? undefined : noop,
 };
 
 function StudentFixture() {
@@ -1042,7 +1045,7 @@ createRoot(document.getElementById('root')!).render(
         <AppNavigationRail
           {...navigation}
           onOpenChat={noop}
-          active={screen === 'student' || screen === 'live' ? 'classroom' : 'teach'}
+          active={screen === 'student' ? 'classroom' : 'teach'}
         />
         <div className="native-global-page">
           {screen === 'live' ? (

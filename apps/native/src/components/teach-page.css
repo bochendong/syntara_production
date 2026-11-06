@@ -231,9 +231,26 @@
 
 .tp-course-card-actions {
   display: flex;
-  flex: none;
+  min-width: 0;
+  flex: 1;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.tp-course-primary-actions {
+  display: flex;
   align-items: center;
   gap: 6px;
+}
+
+.tp-course-card-open.tp-course-card-classroom {
+  background: var(--tp-blue);
+}
+
+.tp-course-card-classroom:not(:disabled):hover {
+  background: #0062cc;
 }
 
 .tp-course-card-publish {
@@ -247,6 +264,12 @@
   font-size: 12px;
   font-weight: 550;
   cursor: pointer;
+}
+
+.tp-course-card-menu {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .tp-course-card-publish:hover {

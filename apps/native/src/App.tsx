@@ -687,12 +687,14 @@ function AuthenticatedApp() {
     onOpenCalendar: () => setGlobalPage('calendar'),
     onOpenStore: () => setGlobalPage('store'),
     onOpenSettings: () => setGlobalPage('profile'),
-    onOpenClassroom: classroomEnabled
-      ? () => {
-          setClassroomTarget(null);
-          setGlobalPage(canTeach ? 'classroom' : 'student-classroom');
-        }
-      : undefined,
+    // 老师从「教学」卡片进入班级；学生保留独立的上课入口。
+    onOpenClassroom:
+      classroomEnabled && !teacherLogin
+        ? () => {
+            setClassroomTarget(null);
+            setGlobalPage('student-classroom');
+          }
+        : undefined,
     onOpenTeach: classroomEnabled && canTeach ? () => setGlobalPage('teach') : undefined,
     onOpenAdmin: canAdmin ? () => setGlobalPage('admin') : undefined,
     onManageCourse: platformAvailable()

@@ -10,12 +10,16 @@ import { createPortal } from 'react-dom';
 import {
   Bell,
   Check,
+  ChevronDown,
   ChevronRight,
   Copy,
   Download,
+  LogOut,
   Plus,
+  Radio,
   RefreshCw,
   Search,
+  Settings2,
   Trash2,
   UserPlus,
   X,
@@ -47,6 +51,7 @@ import './teach-page.css';
 import { TeachCourseView } from './TeachCourseView';
 import { TeachSessionView } from './TeachSessionView';
 import { CoursePublishDialog } from './CoursePublishDialog';
+import { GlassMenu } from './CourseToolsMenu';
 import {
   clock,
   courseLabel,
@@ -129,6 +134,7 @@ export function TeachPage({
       onBack={onBack}
       onOpenCourse={(courseId) => setView({ kind: 'course', courseId })}
       onOpenClaim={() => setView({ kind: 'claim' })}
+      onOpenClass={(classId) => setView({ kind: 'class', classId })}
       onCourseChanged={onCourseChanged}
     />
   );
@@ -141,11 +147,13 @@ function TeachHomeView({
   onBack,
   onOpenCourse,
   onOpenClaim,
+  onOpenClass,
   onCourseChanged,
 }: {
   onBack: () => void;
   onOpenCourse: (courseId: string) => void;
   onOpenClaim: () => void;
+  onOpenClass: (classId: string) => void;
   onCourseChanged?: () => Promise<void> | void;
 }) {
   const { data, error, reload } = usePolled<TeachHome>(getTeachHome, 30_000);
@@ -153,6 +161,13 @@ function TeachHomeView({
   const [releasing, setReleasing] = useState<TeachHome['courses'][number] | null>(null);
   const [releaseBusy, setReleaseBusy] = useState(false);
   const [releaseError, setReleaseError] = useState('');
+  const [openingClass, setOpeningClass] = useState<string | null>(null);
+  const [classError, setClassError] = useState('');
+  const [courseSettings, setCourseSettings] = useState<{
+    course: TeachHome['courses'][number];
+    anchor: HTMLButtonElement;
+  } | null>(null);
+  const closeCourseSettings = useCallback(() => setCourseSettings(null), []);
   const release = async () => {
     if (!releasing) return;
     setReleaseBusy(true);
@@ -166,6 +181,21 @@ function TeachHomeView({
       setReleaseError(cause instanceof Error ? cause.message : '退出失败');
     } finally {
       setReleaseBusy(false);
+    }
+  };
+  const enterClass = async (course: TeachHome['courses'][number]) => {
+    setClassError('');
+    if (course.currentClass?.mine) {
+      onOpenClass(course.currentClass.id);
+      return;
+    }
+    setOpeningClass(course.id);
+    try {
+      onOpenClass((await openTeachClass(course.id)).classId);
+    } catch (cause) {
+      setClassError(cause instanceof Error ? cause.message : '打开班级失败');
+    } finally {
+      setOpeningClass(null);
     }
   };
   useEffect(() => {
@@ -185,9 +215,9 @@ function TeachHomeView({
           </button>
         </header>
         {error ? <p className="phone-page-error">{error}</p> : null}
-        {releaseError ? (
+        {releaseError || classError ? (
           <p className="phone-page-error" role="alert">
-            {releaseError}
+            {releaseError || classError}
           </p>
         ) : null}
         {!data && !error ? <GlassSkeletonRows rows={4} height={54} /> : null}
@@ -213,6 +243,16 @@ function TeachHomeView({
                   course.avatarUrl,
                 );
                 const scene = profileThemeForAvatar(avatar)?.backgroundUrl;
+                const current = course.currentClass;
+                const canEnterClass = current ? current.mine : course.listed;
+                const classHint =
+                  current && !current.mine
+                    ? '本学期由其他老师带'
+                    : !current && !course.listed
+                      ? '发布课程后可上课'
+                      : current
+                        ? '打开本学期班级'
+                        : '开设本学期班级';
                 return (
                   <article
                     key={course.id}
@@ -276,38 +316,47 @@ function TeachHomeView({
                     </dl>
                     <div className="tp-course-card-footer">
                       <div className="tp-course-card-actions">
-                        {course.claimedByMe ? (
+                        {course.claimedByMe || course.canPublish ? (
                           <button
                             type="button"
-                            className="tp-course-card-publish"
-                            aria-label={`退出认领：${courseLabel(course)}`}
-                            onClick={() => {
-                              setReleaseError('');
-                              setReleasing(course);
-                            }}
+                            className="tp-course-card-publish tp-course-card-menu"
+                            aria-label={`课程设置：${courseLabel(course)}`}
+                            aria-haspopup="menu"
+                            aria-expanded={courseSettings?.course.id === course.id}
+                            onClick={(event) =>
+                              setCourseSettings(
+                                courseSettings?.course.id === course.id
+                                  ? null
+                                  : { course, anchor: event.currentTarget },
+                              )
+                            }
                           >
-                            退出认领
+                            设置
+                            <ChevronDown size={14} aria-hidden />
                           </button>
                         ) : null}
-                        {course.canPublish ? (
+                        <div className="tp-course-primary-actions">
                           <button
                             type="button"
-                            className="tp-course-card-publish"
-                            aria-label={`${course.listed ? '发布设置' : '发布'}：${courseLabel(course)}`}
-                            onClick={() => setPublishingCourseId(course.id)}
+                            className="tp-course-card-open"
+                            aria-label={`管理：${courseLabel(course)}`}
+                            onClick={() => onOpenCourse(course.id)}
                           >
-                            {course.listed ? '发布设置' : '发布'}
+                            管理
+                            <ChevronRight size={15} aria-hidden />
                           </button>
-                        ) : null}
-                        <button
-                          type="button"
-                          className="tp-course-card-open"
-                          aria-label={`查看课程：${courseLabel(course)}`}
-                          onClick={() => onOpenCourse(course.id)}
-                        >
-                          管理课程
-                          <ChevronRight size={15} aria-hidden />
-                        </button>
+                          <button
+                            type="button"
+                            className="tp-course-card-open tp-course-card-classroom"
+                            aria-label={`上课：${courseLabel(course)}`}
+                            title={classHint}
+                            disabled={!canEnterClass || Boolean(openingClass)}
+                            onClick={() => void enterClass(course)}
+                          >
+                            <Radio size={14} aria-hidden />
+                            {openingClass === course.id ? '正在打开…' : '上课'}
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </article>
@@ -317,6 +366,44 @@ function TeachHomeView({
           </>
         ) : null}
       </div>
+      {courseSettings ? (
+        <GlassMenu
+          anchor={courseSettings.anchor}
+          align="start"
+          label={`${courseLabel(courseSettings.course)}课程设置`}
+          onClose={closeCourseSettings}
+          items={[
+            ...(courseSettings.course.canPublish
+              ? [
+                  {
+                    key: 'publication',
+                    label: courseSettings.course.listed ? '发布设置' : '发布课程',
+                    icon: <Settings2 size={17} aria-hidden />,
+                    onSelect: () => {
+                      setPublishingCourseId(courseSettings.course.id);
+                      closeCourseSettings();
+                    },
+                  },
+                ]
+              : []),
+            ...(courseSettings.course.claimedByMe
+              ? [
+                  {
+                    key: 'release-claim',
+                    label: '退出认领',
+                    icon: <LogOut size={17} aria-hidden />,
+                    destructive: true,
+                    onSelect: () => {
+                      setReleaseError('');
+                      setReleasing(courseSettings.course);
+                      closeCourseSettings();
+                    },
+                  },
+                ]
+              : []),
+          ]}
+        />
+      ) : null}
       {releasing ? (
         <PhoneConfirm
           title="退出认领？"
