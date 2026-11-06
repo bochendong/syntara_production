@@ -13,6 +13,7 @@ import {
   Pencil,
   Play,
   Plus,
+  RefreshCw,
   Search,
   Square,
   Trash2,
@@ -70,6 +71,7 @@ export function TeachSessionView({
   const load = useCallback(() => getTeachSession(sessionId), [sessionId]);
   const { data, setData, error, setError, reload } = usePolled<TeachSession>(load, 3_000);
   const [busy, setBusy] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
   const [tab, setTab] = useState<Tab>('grid');
   const [picking, setPicking] = useState(false);
   const [ending, setEnding] = useState(false);
@@ -93,6 +95,16 @@ export function TeachSessionView({
 
   const status = data?.session.status;
   const editable = status === 'draft' || status === 'live';
+
+  const refresh = async () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    try {
+      await reload();
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   const start = async () => {
     if (!data) return;
@@ -181,37 +193,57 @@ export function TeachSessionView({
                 <strong>{data.session.presentCount}</strong>
                 <small>{status === 'live' ? '人在场' : '人来过'}</small>
               </div>
-              {status === 'live' ? (
-                <div className="ts-bar-actions">
-                  <button
-                    type="button"
-                    className="ts-pill is-primary"
-                    onClick={() => setPicking(true)}
-                  >
-                    <Plus size={15} aria-hidden />
-                    加题
-                  </button>
-                  <button
-                    type="button"
-                    className="ts-pill"
-                    disabled={busy === 'lock'}
-                    onClick={() =>
-                      void act('lock', { action: 'lock', sessionId, locked: !data.session.locked })
-                    }
-                  >
-                    {data.session.locked ? (
-                      <LockOpen size={15} aria-hidden />
-                    ) : (
-                      <Lock size={15} aria-hidden />
-                    )}
-                    {data.session.locked ? '开门' : '锁门'}
-                  </button>
-                  <button type="button" className="ts-pill is-end" onClick={() => setEnding(true)}>
-                    <Square size={13} aria-hidden />
-                    下课
-                  </button>
-                </div>
-              ) : null}
+              <div className="ts-bar-actions">
+                <button
+                  type="button"
+                  className="ts-pill ts-refresh"
+                  disabled={refreshing || Boolean(busy)}
+                  aria-busy={refreshing}
+                  onClick={() => void refresh()}
+                >
+                  <RefreshCw size={15} aria-hidden />
+                  <span aria-live="polite">{refreshing ? '刷新中…' : '刷新'}</span>
+                </button>
+                {status === 'live' ? (
+                  <>
+                    <button
+                      type="button"
+                      className="ts-pill is-primary"
+                      onClick={() => setPicking(true)}
+                    >
+                      <Plus size={15} aria-hidden />
+                      加题
+                    </button>
+                    <button
+                      type="button"
+                      className="ts-pill"
+                      disabled={busy === 'lock'}
+                      onClick={() =>
+                        void act('lock', {
+                          action: 'lock',
+                          sessionId,
+                          locked: !data.session.locked,
+                        })
+                      }
+                    >
+                      {data.session.locked ? (
+                        <LockOpen size={15} aria-hidden />
+                      ) : (
+                        <Lock size={15} aria-hidden />
+                      )}
+                      {data.session.locked ? '开门' : '锁门'}
+                    </button>
+                    <button
+                      type="button"
+                      className="ts-pill is-end"
+                      onClick={() => setEnding(true)}
+                    >
+                      <Square size={13} aria-hidden />
+                      下课
+                    </button>
+                  </>
+                ) : null}
+              </div>
             </section>
 
             <div className="ts-tabs" role="group" aria-label="显示方式">
