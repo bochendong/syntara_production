@@ -65,10 +65,14 @@ function deliveryContractValidationErrors(draft: NotebookProblemImportDraft): st
         errors.push(`小问 (${part.label}) 缺少与题型一致的评分数据`);
         continue;
       }
+      const rubricTotal =
+        partGrading.type === 'short_answer' || partGrading.type === 'proof'
+          ? partGrading.rubricCriteria?.reduce((sum, criterion) => sum + criterion.points, 0)
+          : undefined;
       for (const error of deliveryContractValidationErrors({
         ...draft,
-        // 小问的评分量表对的是这一问的分值，不是整道大题的分值
-        points: part.points,
+        // Structured imports use a 100-point rubric per part; retain legacy weighted rubrics.
+        points: rubricTotal === 100 ? 100 : part.points,
         type: part.content.type,
         publicContent: part.content,
         grading: partGrading,

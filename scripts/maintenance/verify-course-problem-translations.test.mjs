@@ -205,3 +205,50 @@ test('preview never writes, stale revisions reject, matching retries are no-ops'
   );
   assert.equal(writes.length, 1);
 });
+
+test('multipart accepts standard 100-point and legacy weighted rubrics without changing shares', async () => {
+  const { normalizeDraftMathFields } = await jiti.import(
+    '../../lib/server/notebook-problems/import.core.drafts.ts',
+  );
+  const draft = {
+    draftId: 'parts',
+    title: 'Two explanations',
+    type: 'multipart',
+    status: 'published',
+    source: 'manual',
+    points: 100,
+    tags: [],
+    difficulty: 'easy',
+    sourceMeta: {},
+    validationErrors: [],
+    publicContent: {
+      type: 'multipart',
+      stem: 'Explain the two Boolean expressions.',
+      parts: [
+        { label: 'a', points: 40, content: { type: 'short_answer', stem: 'Explain conjunction.' } },
+        { label: 'b', points: 60, content: { type: 'short_answer', stem: 'Explain disjunction.' } },
+      ],
+    },
+    grading: {
+      type: 'multipart',
+      parts: ['a', 'b'].map((label) => ({
+        label,
+        grading: {
+          type: 'short_answer',
+          referenceAnswer: 'An explanation.',
+          rubricCriteria: [{ id: 'correct', description: 'Correct explanation.', points: 100 }],
+        },
+      })),
+    },
+  };
+  assert.deepEqual(normalizeDraftMathFields(draft).validationErrors, []);
+  draft.grading.parts[0].grading.rubricCriteria[0].points = 40;
+  draft.grading.parts[1].grading.rubricCriteria[0].points = 60;
+  assert.deepEqual(normalizeDraftMathFields(draft).validationErrors, []);
+  draft.grading.parts[0].grading.rubricCriteria[0].points = 75;
+  assert.match(normalizeDraftMathFields(draft).validationErrors.join('\n'), /评分量表总分/);
+  assert.deepEqual(
+    draft.publicContent.parts.map((part) => part.points),
+    [40, 60],
+  );
+});
