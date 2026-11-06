@@ -255,7 +255,7 @@ type MockSession = {
   id: string;
   classId: string;
   number: number;
-  status: 'draft' | 'live' | 'ended';
+  status: 'draft' | 'live' | 'ended' | 'deleted';
   code: string | null;
   locked: boolean;
   startedAt: number | null;
@@ -426,8 +426,9 @@ const classOverview = (classId: string) => ({
     source: 'code',
   })),
   visitors: [],
+  nextSessionNumber: nextNumber(classId),
   sessions: mockSessions
-    .filter((entry) => entry.classId === classId)
+    .filter((entry) => entry.classId === classId && entry.status !== 'deleted')
     .sort((left, right) => right.number - left.number)
     .map((entry) => ({
       id: entry.id,
@@ -644,6 +645,9 @@ function teachPost(body: TeachBody) {
     case 'delete-draft':
       mockSessions.splice(mockSessions.indexOf(entry!), 1);
       return { classId: entry!.classId };
+    case 'delete-ended':
+      entry!.status = 'deleted';
+      return classOverview(entry!.classId);
     case 'import-sessions':
       for (const id of body.sessionIds) {
         const source = mockSessions.find((row) => row.id === id)!;

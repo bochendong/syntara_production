@@ -16,6 +16,7 @@ import {
   Plus,
   RefreshCw,
   Search,
+  Trash2,
   UserPlus,
   X,
 } from 'lucide-react';
@@ -27,6 +28,7 @@ import {
   releaseTeachCourse,
   type TeachClaimableCourse,
   createTeachDraft,
+  deleteTeachEndedSession,
   getTeachClass,
   getTeachHome,
   getTeachImportSources,
@@ -558,6 +560,7 @@ function TeachClassView({
   const [tab, setTab] = useState<'sessions' | 'students'>('sessions');
   const [busy, setBusy] = useState('');
   const [importing, setImporting] = useState(false);
+  const [deleting, setDeleting] = useState<TeachClass['sessions'][number] | null>(null);
   const [copied, setCopied] = useState(false);
 
   const act = async (key: string, run: () => Promise<TeachClass>) => {
@@ -587,7 +590,8 @@ function TeachClassView({
   const live = sessions.find((session) => session.status === 'live');
   const drafts = sessions.filter((session) => session.status === 'draft').reverse();
   const past = sessions.filter((session) => session.status === 'ended');
-  const nextNumber = Math.max(0, ...sessions.map((session) => session.number)) + 1;
+  const nextNumber =
+    data?.nextSessionNumber ?? Math.max(0, ...sessions.map((session) => session.number)) + 1;
 
   return (
     <PhonePage
@@ -740,21 +744,32 @@ function TeachClassView({
                     <p className="phone-group-title">上过的课</p>
                     <div className="phone-group">
                       {past.map((session) => (
-                        <button
-                          key={session.id}
-                          type="button"
-                          className="phone-row"
-                          onClick={() => onOpenSession(session.id)}
-                        >
-                          <span className="tp-course-copy">
-                            <strong>{classSessionLabel(session)}</strong>
-                            <small>
-                              {session.startedAt ? `${clock(session.startedAt)} · ` : ''}
-                              {session.participantCount} 人 · {session.itemCount} 题
-                            </small>
-                          </span>
-                          <ChevronRight size={16} className="tp-chevron" aria-hidden />
-                        </button>
+                        <div key={session.id} className="tp-session-row">
+                          <button
+                            type="button"
+                            className="phone-row"
+                            onClick={() => onOpenSession(session.id)}
+                          >
+                            <span className="tp-course-copy">
+                              <strong>{classSessionLabel(session)}</strong>
+                              <small>
+                                {session.startedAt ? `${clock(session.startedAt)} · ` : ''}
+                                {session.participantCount} 人 · {session.itemCount} 题
+                              </small>
+                            </span>
+                            <ChevronRight size={16} className="tp-chevron" aria-hidden />
+                          </button>
+                          <button
+                            type="button"
+                            className="ts-pill tp-session-delete"
+                            aria-label={`删除${classSessionLabel(session)}`}
+                            disabled={Boolean(busy)}
+                            onClick={() => setDeleting(session)}
+                          >
+                            <Trash2 size={14} aria-hidden />
+                            删除
+                          </button>
+                        </div>
                       ))}
                     </div>
                   </>
@@ -766,6 +781,31 @@ function TeachClassView({
           </>
         ) : null}
       </div>
+      {deleting ? (
+        <PhoneConfirm
+          title={`删除「${classSessionLabel(deleting)}」？`}
+          message="这节课将从老师和学生的课堂列表中移除，题库和已有作答记录保留。"
+          confirmLabel="删除"
+          destructive
+          busy={busy === `delete:${deleting.id}`}
+          onCancel={() => {
+            if (!busy) setDeleting(null);
+          }}
+          onConfirm={async () => {
+            setBusy(`delete:${deleting.id}`);
+            setError('');
+            try {
+              setData(await deleteTeachEndedSession(deleting.id));
+              setDeleting(null);
+            } catch (cause) {
+              setError(cause instanceof Error ? cause.message : '删除失败');
+              setDeleting(null);
+            } finally {
+              setBusy('');
+            }
+          }}
+        />
+      ) : null}
       {importing ? (
         <ImportSessionsDialog
           classId={classId}

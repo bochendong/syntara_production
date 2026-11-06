@@ -324,7 +324,7 @@ type AttemptStatus = 'pending' | 'passed' | 'failed' | 'partial' | 'error';
 
 export async function getClassOverview(viewer: ClassroomViewer, classId: string) {
   const cls = await loadClassForTeacher(viewer, classId);
-  const [members, sessions, problems] = await Promise.all([
+  const [members, sessions, problems, nextNumber] = await Promise.all([
     prisma.courseClassMember.findMany({
       where: { classId },
       orderBy: { joinedAt: 'asc' },
@@ -335,7 +335,7 @@ export async function getClassOverview(viewer: ClassroomViewer, classId: string)
       },
     }),
     prisma.classSession.findMany({
-      where: { classId },
+      where: { classId, status: { not: 'deleted' } },
       orderBy: { number: 'desc' },
       take: 100,
       select: {
@@ -362,6 +362,7 @@ export async function getClassOverview(viewer: ClassroomViewer, classId: string)
         chapter: { select: { id: true, name: true } },
       },
     }),
+    nextSessionNumber(classId),
   ]);
 
   // 能看个人数据的人 = 本班名单 + 进过本班课堂的人
@@ -420,6 +421,7 @@ export async function getClassOverview(viewer: ClassroomViewer, classId: string)
       source: member.source,
     })),
     visitors: visitors.map(person),
+    nextSessionNumber: nextNumber,
     sessions: sessions.map((session) => ({
       id: session.id,
       number: session.number,
@@ -597,7 +599,7 @@ export async function listImportableSessions(viewer: ClassroomViewer, classId: s
       academicYear: true,
       academicTerm: true,
       sessions: {
-        where: { items: { some: {} } },
+        where: { status: { not: 'deleted' }, items: { some: {} } },
         orderBy: { number: 'asc' },
         select: {
           id: true,
@@ -636,6 +638,7 @@ export async function importSessionsAsDrafts(
   const sources = await prisma.classSession.findMany({
     where: {
       id: { in: sessionIds },
+      status: { not: 'deleted' },
       class: {
         courseId: cls.courseId,
         id: { not: classId },
@@ -685,7 +688,11 @@ export async function importSessionsAsDrafts(
   );
 }
 
-async function loadSessionForTeacher(viewer: ClassroomViewer, sessionId: string) {
+async function loadSessionForTeacher(
+  viewer: ClassroomViewer,
+  sessionId: string,
+  includeDeleted = false,
+) {
   const session = await prisma.classSession.findUnique({
     where: { id: sessionId },
     include: {
@@ -700,7 +707,11 @@ async function loadSessionForTeacher(viewer: ClassroomViewer, sessionId: string)
       },
     },
   });
-  if (!session || (session.class.teacherId !== viewer.userId && !isAdmin(viewer))) {
+  if (
+    !session ||
+    (!includeDeleted && session.status === 'deleted') ||
+    (session.class.teacherId !== viewer.userId && !isAdmin(viewer))
+  ) {
     throw new ClassroomError(404, '没有找到这节课。');
   }
   return session;
@@ -780,22 +791,46 @@ export async function applyClassSessionAction(
         data: { locked: input.locked },
       });
       return;
-    case 'end':
-      await prisma.classSession.update({
-        where: { id: sessionId },
+    case 'end': {
+      const ended = await prisma.classSession.updateMany({
+        where: { id: sessionId, status: 'live' },
         data: { status: 'ended', endedAt: new Date(), code: null },
       });
+      if (!ended.count) throw new ClassroomError(409, '这节课已经下课了。');
       return;
+    }
   }
 }
 
-/** 备课可以删；上过的课不能删。 */
+/** 删除还没开始的备课。 */
 export async function deleteDraftSession(viewer: ClassroomViewer, sessionId: string) {
   const session = await loadSessionForTeacher(viewer, sessionId);
   const deleted = await prisma.classSession.deleteMany({
     where: { id: sessionId, status: 'draft' },
   });
   if (!deleted.count) throw new ClassroomError(409, '只能删除还没开始的课。');
+  return session.classId;
+}
+
+/** 已下课的课堂从列表移除；保留题单、到课和作答归属，节次不复用。 */
+export async function deleteEndedSession(viewer: ClassroomViewer, sessionId: string) {
+  const session = await loadSessionForTeacher(viewer, sessionId, true);
+  if (session.status === 'deleted') return session.classId;
+  if (session.status !== 'ended') throw new ClassroomError(409, '只能删除已经下课的课。');
+  const deleted = await prisma.classSession.updateMany({
+    where: {
+      id: sessionId,
+      status: 'ended',
+      ...(isAdmin(viewer) ? {} : { class: { teacherId: viewer.userId } }),
+    },
+    data: { status: 'deleted', code: null },
+  });
+  if (!deleted.count) {
+    // 同时删除或重试已完成的请求时，返回相同班级；权限仍按当前关系检查。
+    const current = await loadSessionForTeacher(viewer, sessionId, true);
+    if (current.status !== 'deleted')
+      throw new ClassroomError(409, '课堂状态已变化，请刷新后重试。');
+  }
   return session.classId;
 }
 
