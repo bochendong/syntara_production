@@ -89,6 +89,20 @@ export const notebookProblemLocalizedContentSchema = z.object({
   stemTemplate: z.string().trim().min(1).max(16000).optional(),
   explanation: z.string().trim().min(1).max(8000).optional(),
   constraints: z.array(z.string().trim().min(1).max(8000)).max(40).optional(),
+  starterCodeDescription: z.string().trim().min(1).max(8000).optional(),
+  statementSections: z
+    .array(
+      z
+        .object({
+          id: z.string().trim().min(1).max(120),
+          title: z.string().trim().min(1).max(200).optional(),
+          body: z.string().trim().min(1).max(16000).optional(),
+          items: z.array(z.string().trim().min(1).max(8000)).max(40).optional(),
+        })
+        .strict(),
+    )
+    .max(10)
+    .optional(),
   sampleExplanations: z
     .array(
       z.object({
