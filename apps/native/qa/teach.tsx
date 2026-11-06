@@ -992,6 +992,11 @@ function StudentFixture() {
   const classroom = useClassroomState(true, true);
   return (
     <StudentClassroomPage
+      courses={[
+        ...home.courses,
+        { id: 'course-mat102', name: '数学推理', courseCode: 'UTM-MAT102' },
+        { id: 'course-old', name: '往期课程', courseCode: 'UTSC-CSCA67' },
+      ]}
       state={classroom.state}
       onState={classroom.setState}
       initialSessionId={null}

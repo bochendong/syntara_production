@@ -776,9 +776,6 @@
 }
 
 @media (min-width: 900px) {
-  .st-head {
-    padding-left: 0;
-  }
   .st-feature {
     height: 380px;
   }

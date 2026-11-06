@@ -875,6 +875,7 @@ function AuthenticatedApp() {
               />
             ) : globalPage === 'student-classroom' ? (
               <StudentClassroomPage
+                courses={launchCourses}
                 state={classroom.state}
                 onState={classroom.setState}
                 initialSessionId={classroomTarget}
