@@ -93,7 +93,9 @@ export function TeachPage({
     );
   }
   if (view.kind === 'claim') {
-    return <TeachClaimView onBack={() => setView({ kind: 'home' })} />;
+    return (
+      <TeachClaimView onBack={() => setView({ kind: 'home' })} onCourseChanged={onCourseChanged} />
+    );
   }
   if (view.kind === 'session') {
     return (
@@ -117,6 +119,7 @@ export function TeachPage({
       onBack={onBack}
       onOpenCourse={(courseId) => setView({ kind: 'course', courseId })}
       onOpenClaim={() => setView({ kind: 'claim' })}
+      onCourseChanged={onCourseChanged}
     />
   );
 }
@@ -128,10 +131,12 @@ function TeachHomeView({
   onBack,
   onOpenCourse,
   onOpenClaim,
+  onCourseChanged,
 }: {
   onBack: () => void;
   onOpenCourse: (courseId: string) => void;
   onOpenClaim: () => void;
+  onCourseChanged?: () => Promise<void> | void;
 }) {
   const { data, error, reload } = usePolled<TeachHome>(getTeachHome, 30_000);
   const [publishingCourseId, setPublishingCourseId] = useState<string | null>(null);
@@ -144,6 +149,7 @@ function TeachHomeView({
     setReleaseError('');
     try {
       await releaseTeachCourse(releasing.id);
+      await onCourseChanged?.();
       setReleasing(null);
       await reload();
     } catch (cause) {
@@ -431,7 +437,13 @@ function ClassroomHomeView({
 }
 
 /** 认领列表只显示无人认领的课程；退出认领在「我管理的课程」里操作。 */
-function TeachClaimView({ onBack }: { onBack: () => void }) {
+function TeachClaimView({
+  onBack,
+  onCourseChanged,
+}: {
+  onBack: () => void;
+  onCourseChanged?: () => Promise<void> | void;
+}) {
   const [query, setQuery] = useState('');
   const [courses, setCourses] = useState<TeachClaimableCourse[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -458,6 +470,7 @@ function TeachClaimView({ onBack }: { onBack: () => void }) {
     setError(null);
     try {
       await claimTeachCourse(course.id);
+      await onCourseChanged?.();
       await load(query);
     } catch (cause) {
       await load(query);
