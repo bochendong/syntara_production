@@ -47,7 +47,15 @@ import './teach-page.css';
 import { TeachCourseView } from './TeachCourseView';
 import { TeachSessionView } from './TeachSessionView';
 import { CoursePublishDialog } from './CoursePublishDialog';
-import { clock, courseLabel, Legend, Marble, problemName, STATUS, usePolled } from './teach-shared';
+import {
+  clock,
+  courseLabel,
+  Legend,
+  Marble,
+  problemName,
+  teachResultStatus,
+  usePolled,
+} from './teach-shared';
 
 /**
  * 「教学」页（网页版、iPad、电脑 App；手机没有）：老师的班级和上课。
@@ -959,11 +967,15 @@ function ClassStudents({
                         return (
                           <td
                             key={problem.id}
-                            title={`${problemName(problem)} · ${STATUS[row?.status ?? 'none'].label}${
+                            title={`${problemName(problem)} · ${teachResultStatus(row?.status ?? 'none', row?.attemptedCount).label}${
                               row ? ` · ${row.attemptedCount} 次` : ''
                             }`}
                           >
-                            <Marble status={row?.status ?? 'none'} size={20} />
+                            <Marble
+                              status={row?.status ?? 'none'}
+                              attempts={row?.attemptedCount}
+                              size={20}
+                            />
                           </td>
                         );
                       })}

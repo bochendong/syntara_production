@@ -40,7 +40,15 @@ import { ProblemPreview } from './CourseContentPreview';
 import { PhoneConfirm, PhoneEmpty, PhonePage } from './PhonePages';
 import { AttemptHistory } from './problem-bank/attempt-history';
 import { ProblemRichText, ProblemTitleText } from './problem-bank/problem-rich-text';
-import { clock, courseLabel, Legend, Marble, problemName, STATUS, usePolled } from './teach-shared';
+import {
+  clock,
+  courseLabel,
+  Legend,
+  Marble,
+  problemName,
+  teachResultStatus,
+  usePolled,
+} from './teach-shared';
 import './teach-session.css';
 import './course-content-manager.css';
 
@@ -659,11 +667,11 @@ function SessionGrid({
                         <button
                           type="button"
                           className="ts-cell"
-                          aria-label={`${student.name} · ${item.title} · ${STATUS[status].label}`}
-                          title={`${STATUS[status].label}${row && row.attempts > 1 ? ` · ${row.attempts} 次` : ''}`}
+                          aria-label={`${student.name} · ${item.title} · ${teachResultStatus(status, row?.attempts).label}`}
+                          title={`${teachResultStatus(status, row?.attempts).label}${row && row.attempts > 1 ? ` · ${row.attempts} 次` : ''}`}
                           onClick={() => onOpenAnswer(student.userId, item.problemId)}
                         >
-                          <Marble status={status} size={24} />
+                          <Marble status={status} attempts={row?.attempts} size={24} />
                         </button>
                       </td>
                     );
@@ -845,7 +853,7 @@ function AnswerDialog({
             <ChevronLeft size={18} aria-hidden />
           </button>
           <div className="ts-answer-who">
-            <Marble status={status} size={26} />
+            <Marble status={status} attempts={attemptCount} size={26} />
             <span>
               <strong>{student?.name}</strong>
               <small>
