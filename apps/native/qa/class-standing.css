@@ -1,0 +1,72 @@
+:root {
+  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif;
+  color: #1c1b2e;
+  background: #f1f0fb;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+}
+.qa-standing {
+  max-width: 1160px;
+  margin: 0 auto;
+  padding: 28px 24px 48px;
+}
+.qa-standing h1 {
+  margin: 0 0 8px;
+  font-size: 23px;
+}
+.qa-standing header > p {
+  margin: 0;
+  color: #77758b;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.qa-standing-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 14px;
+  margin: 22px 0;
+}
+.qa-standing-controls label {
+  display: grid;
+  gap: 7px;
+  font-size: 12px;
+  color: #77758b;
+}
+.qa-standing-controls select,
+.qa-standing-controls > button {
+  max-width: 100%;
+  min-height: 38px;
+  padding: 8px 11px;
+  border: 1px solid #dcdbea;
+  border-radius: 10px;
+  background: #fff;
+  color: #1c1b2e;
+  font: inherit;
+  font-size: 13px;
+}
+.qa-standing-art-picker {
+  flex: 1;
+  min-width: 200px;
+}
+.qa-standing-art-picker select {
+  width: 100%;
+}
+.qa-standing-controls > button {
+  cursor: pointer;
+}
+@media (max-width: 720px) {
+  .qa-standing {
+    padding: 20px 12px 36px;
+  }
+  .qa-standing-controls {
+    gap: 10px;
+  }
+  .qa-standing-art-picker {
+    flex-basis: 100%;
+  }
+}
