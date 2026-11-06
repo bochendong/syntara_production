@@ -367,6 +367,8 @@ async function main() {
     assert.equal(await classroom.startClassSession(T, classId), sessionId, '再点回到同一节');
     await expectError(classroom.startClassSession(T, classId, scratchDraft), 409);
     await expectError(classroom.deleteDraftSession(T, sessionId), 409);
+    await expectError(classroom.deleteEndedSession(T, sessionId), 409);
+    await expectError(classroom.deleteEndedSession(T, scratchDraft), 409);
     assert.equal(await classroom.deleteDraftSession(T, scratchDraft), classId);
     await expectError(
       prisma.classSession
@@ -639,6 +641,99 @@ async function main() {
     );
     await classroom.applyClassSessionAction(T, nextId, { action: 'end' });
     console.log('ok  开始上课不用先选题');
+
+    // 14. 删除已下课：撤下两端入口和往届导入，历史作答／题单／到课保留，节次不复用。
+    await expectError(classroom.deleteEndedSession(T2, sessionId), 404);
+    await expectError(classroom.deleteEndedSession({ userId: alice.id }, sessionId), 404);
+    await expectError(classroom.deleteEndedSession(T, 'missing-session'), 404);
+    const attemptsBefore = await prisma.notebookProblemAttempt.findMany({
+      where: { classSessionId: sessionId },
+      orderBy: { id: 'asc' },
+    });
+    assert.ok(attemptsBefore.length > 0);
+    const itemCount = await prisma.classSessionItem.count({ where: { sessionId } });
+    const participantCount = await prisma.classSessionParticipant.count({ where: { sessionId } });
+    const problemsBefore = await prisma.notebookProblem.count({ where: { courseId: course.id } });
+    await prisma.notebookProblemProgress.create({
+      data: { userId: alice.id, problemId: p1.id, status: 'passed', score: 100, attemptedCount: 2 },
+    });
+    const progressBefore = await prisma.notebookProblemProgress.findMany({
+      where: { problem: { courseId: course.id } },
+      orderBy: [{ userId: 'asc' }, { problemId: 'asc' }],
+    });
+    assert.equal((await classroom.getClassOverview(T, classId)).nextSessionNumber, 3);
+    assert.deepEqual(
+      await Promise.all([
+        classroom.deleteEndedSession(T, sessionId),
+        classroom.deleteEndedSession(T, sessionId),
+      ]),
+      [classId, classId],
+      '重复和并发删除幂等',
+    );
+    assert.equal(
+      (await prisma.classSession.findUniqueOrThrow({ where: { id: sessionId } })).status,
+      'deleted',
+    );
+    assert.deepEqual(
+      await prisma.notebookProblemAttempt.findMany({
+        where: { classSessionId: sessionId },
+        orderBy: { id: 'asc' },
+      }),
+      attemptsBefore,
+      '作答及其课堂归属完整保留',
+    );
+    assert.equal(await prisma.classSessionItem.count({ where: { sessionId } }), itemCount);
+    assert.equal(
+      await prisma.classSessionParticipant.count({ where: { sessionId } }),
+      participantCount,
+    );
+    assert.equal(
+      await prisma.notebookProblem.count({ where: { courseId: course.id } }),
+      problemsBefore,
+    );
+    assert.deepEqual(
+      await prisma.notebookProblemProgress.findMany({
+        where: { problem: { courseId: course.id } },
+        orderBy: [{ userId: 'asc' }, { problemId: 'asc' }],
+      }),
+      progressBefore,
+    );
+    assert.ok(
+      !(await classroom.getClassOverview(T, classId)).sessions.some((row) => row.id === sessionId),
+    );
+    assert.ok(
+      !(await classroom.getStudentClassroomState(alice.id)).past.some(
+        (row) => row.id === sessionId,
+      ),
+    );
+    await expectError(classroom.getClassSessionDashboard(T, sessionId), 404);
+    await expectError(classroom.getClassSessionProblemPreview(T, sessionId, p1.id), 404);
+    await expectError(classroom.getSessionStudentAnswers(T, sessionId, p1.id, alice.id), 404);
+    await expectError(
+      classroom.applyClassSessionAction(T, sessionId, { action: 'rename', name: '不能恢复' }),
+      404,
+    );
+    assert.equal(
+      await classSessionForAttempt(
+        { userId: alice.id, problemId: p1.id, classSessionId: sessionId },
+        prisma,
+      ),
+      null,
+    );
+    await classroom.deleteEndedSession(T, pastSession.id);
+    assert.ok(
+      !(await classroom.listImportableSessions(T, classId)).some((source) =>
+        source.sessions.some((row) => row.id === pastSession.id),
+      ),
+    );
+    await expectError(classroom.importSessionsAsDrafts(T, classId, [pastSession.id]), 404);
+    await classroom.deleteEndedSession(T, nextId);
+    const deletedOverview = await classroom.getClassOverview(T, classId);
+    assert.equal(deletedOverview.sessions.length, 0);
+    assert.equal(deletedOverview.nextSessionNumber, 3, '删除末节仍展示真实下一节编号');
+    const afterDeleted = await classroom.createDraftSession(T, classId);
+    assert.equal((await classroom.getClassSessionDashboard(T, afterDeleted)).session.number, 3);
+    console.log('ok  删除已下课仅撤下课堂入口；权限、并发幂等、历史保留、导入隔离和节次不复用');
   } finally {
     await prisma.course.delete({ where: { id: course.id } }).catch(() => undefined);
     await prisma.organization.delete({ where: { id: org.id } }).catch(() => undefined);

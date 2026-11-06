@@ -679,6 +679,11 @@
   font-size: 13px;
 }
 
+.tp-session-row .tp-session-delete {
+  color: #c43f48;
+  border-color: rgb(196 63 72 / 16%);
+}
+
 .tp-quiet {
   margin: 0 0 16px;
   padding: 0 4px;

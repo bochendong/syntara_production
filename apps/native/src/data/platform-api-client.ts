@@ -675,6 +675,8 @@ export type TeachHome = {
 type TeachPerson = { userId: string; name: string; email: string | null; avatarUrl: string | null };
 
 export type TeachClass = {
+  /** 包含已移除课堂的节次，避免删除最后一节后复用编号。 */
+  nextSessionNumber?: number;
   class: {
     id: string;
     name: string;
@@ -922,6 +924,10 @@ export function createTeachDraft(classId: string): Promise<{ sessionId: string }
 
 export function deleteTeachDraft(sessionId: string): Promise<{ classId: string }> {
   return teachAction({ action: 'delete-draft', sessionId });
+}
+
+export function deleteTeachEndedSession(sessionId: string): Promise<TeachClass> {
+  return teachAction({ action: 'delete-ended', sessionId });
 }
 
 export function teachClassAction(payload: TeachClassAction): Promise<TeachClass> {

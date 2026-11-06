@@ -2171,7 +2171,7 @@ model ClassSession {
   number    Int
   name      String?   @db.VarChar(80)
   code      String?   @unique @db.VarChar(6)
-  /// draft | live | ended
+  /// draft | live | ended | deleted（仅已下课可移除，保留历史作答）
   status    String    @default("live") @db.VarChar(12)
   /// 锁门后新的人不能再输码进来（本班名单里的人仍然可以点进来）
   locked    Boolean   @default(false)

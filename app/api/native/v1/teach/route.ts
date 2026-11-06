@@ -14,6 +14,7 @@ import {
   applyClassSessionAction,
   createDraftSession,
   deleteDraftSession,
+  deleteEndedSession,
   ensureCurrentTermClass,
   getClassOverview,
   getClassSessionDashboard,
@@ -149,6 +150,7 @@ const actionSchema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('start-session'), classId: id, sessionId: id.optional() }),
   z.object({ action: z.literal('create-draft'), classId: id }),
   z.object({ action: z.literal('delete-draft'), sessionId: id }),
+  z.object({ action: z.literal('delete-ended'), sessionId: id }),
   z.object({ action: z.literal('rename'), sessionId: id, name: z.string().trim().min(1).max(80) }),
   z.object({
     action: z.literal('import-sessions'),
@@ -206,6 +208,11 @@ export async function POST(request: NextRequest) {
         return publicApiSuccess(requestId, {
           classId: await deleteDraftSession(viewer, input.sessionId),
         });
+      case 'delete-ended':
+        return publicApiSuccess(
+          requestId,
+          await getClassOverview(viewer, await deleteEndedSession(viewer, input.sessionId)),
+        );
       case 'import-sessions':
         await importSessionsAsDrafts(viewer, input.classId, input.sessionIds);
         return publicApiSuccess(requestId, await getClassOverview(viewer, input.classId));
