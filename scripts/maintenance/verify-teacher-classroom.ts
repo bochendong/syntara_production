@@ -275,6 +275,47 @@ async function main() {
     assert.equal(importable[0].sessions[0].name, '函数与变量');
     await expectError(classroom.importSessionsAsDrafts(T, pastClass.id, ['missing']), 404);
     const [importedId] = await classroom.importSessionsAsDrafts(T, classId, [pastSession.id]);
+    // A complete series may extend past the old 400-question candidate cap.
+    const pickerRows = Array.from({ length: 401 }, (_, index) => ({
+      id: `${run}-picker-${index}`,
+      courseId: course.id,
+      title: `题库候选 ${index}`,
+      type: 'short_answer' as const,
+      status: 'published' as const,
+      order: 10 + index,
+      problemNumber: 10 + index,
+      tags: index === 400 ? ['TT1模拟A卷', 'set-01'] : [],
+      publicContentJson: { type: 'short_answer', stem: 'test' },
+      gradingJson: { referenceAnswer: 'fixture answer' },
+    }));
+    const outside = await prisma.course.create({
+      data: { ownerId: owner.id, name: '题目隔离用的其他课程' },
+      select: { id: true },
+    });
+    try {
+      await prisma.notebookProblem.createMany({
+        data: [
+          ...pickerRows,
+          { ...pickerRows[0], id: `${run}-private`, ownerId: alice.id },
+          { ...pickerRows[0], id: `${run}-outside`, courseId: outside.id },
+        ],
+      });
+      const options = await classroom.listSessionProblemChoices(T, importedId);
+      assert.deepEqual(
+        options.map((option) => option.id),
+        [p1.id, p2.id, choiceProblem.id, ...pickerRows.map((row) => row.id)],
+        '选题返回全部依题号排序的公有已发布题，排除草稿、学员私有和其他课程的题',
+      );
+      assert.deepEqual(options.at(-1)?.tags, ['TT1模拟A卷', 'set-01']);
+      await expectError(classroom.listSessionProblemChoices(T2, importedId), 404);
+      await expectError(classroom.listSessionProblemChoices({ userId: alice.id }, importedId), 404);
+      console.log('ok  课堂选题超过 400 题仍完整，保留系列标签及课程、题目、教师权限边界');
+    } finally {
+      await prisma.notebookProblem.deleteMany({
+        where: { id: { in: [...pickerRows.map((row) => row.id), `${run}-private`] } },
+      });
+      await prisma.course.delete({ where: { id: outside.id } });
+    }
     let draftBoard = await classroom.getClassSessionDashboard(T, importedId);
     assert.equal(draftBoard.session.status, 'draft');
     assert.equal(draftBoard.session.number, 1, '第一节');

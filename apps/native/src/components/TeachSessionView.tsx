@@ -32,6 +32,7 @@ import {
   type TeachSessionItem,
   type TeachStudentAnswers,
 } from '../data/platform-api-client';
+import { paperLabels, problemPaperSeries } from '../data/problem-bank-filters';
 import type { LocalProblem, LocalProblemAttempt } from '../domain/models';
 import { difficultyLabel, problemStem, problemTypeLabel } from '../data/local-problem-grading';
 import { classSessionLabel } from '../lib/class-session-label';
@@ -915,6 +916,7 @@ function ProblemPicker({
   const [choices, setChoices] = useState<TeachProblemChoice[] | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
   const [chapter, setChapter] = useState<string | null>(null);
+  const [series, setSeries] = useState('');
   const [query, setQuery] = useState('');
   const [error, setError] = useState('');
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -941,6 +943,12 @@ function ProblemPicker({
       alive = false;
     };
   }, [sessionId]);
+  const seriesOptions = useMemo(() => problemPaperSeries(choices ?? []), [choices]);
+  const seriesChoices = useMemo(
+    () =>
+      (choices ?? []).filter((problem) => !series || paperLabels(problem.tags).includes(series)),
+    [choices, series],
+  );
   const added = new Set(existing);
   const picked = new Set(selected.filter((id) => !added.has(id)));
   const chapters = new Map<
@@ -955,22 +963,40 @@ function ProblemPicker({
       added: 0,
       selected: 0,
     };
-    group.total += 1;
-    if (added.has(problem.id)) group.added += 1;
-    if (picked.has(problem.id)) group.selected += 1;
+    if (!series || paperLabels(problem.tags).includes(series)) {
+      group.total += 1;
+      if (added.has(problem.id)) group.added += 1;
+      if (picked.has(problem.id)) group.selected += 1;
+    }
     chapters.set(key, group);
   }
-  const text = query.trim().toLowerCase();
-  const visible = (choices ?? []).filter(
-    (problem) =>
-      (chapter === null || (problem.chapter?.id ?? '') === chapter) &&
-      (!text ||
-        problemName(problem).toLowerCase().includes(text) ||
-        Boolean(problem.chapter?.name.toLowerCase().includes(text))),
-  );
+  const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const visible = seriesChoices.filter((problem) => {
+    if (chapter !== null && (problem.chapter?.id ?? '') !== chapter) return false;
+    if (!words.length) return true;
+    const haystack = [
+      problemName(problem),
+      problem.chapter?.name,
+      ...(problem.tags ?? []),
+      ...paperLabels(problem.tags),
+    ]
+      .join(' ')
+      .toLowerCase();
+    return words.every((word) => haystack.includes(word));
+  });
   const available = visible.filter((problem) => !added.has(problem.id));
   const allPicked = available.length > 0 && available.every((problem) => picked.has(problem.id));
-  const scopeLabel = text ? '搜索结果' : chapter === null ? '全部题目' : '本章';
+  const scopeLabel = words.length
+    ? '搜索结果'
+    : chapter !== null && series
+      ? '筛选结果'
+      : chapter !== null
+        ? '本章'
+        : series
+          ? '本系列'
+          : '全部题目';
+  // Match the add-action request limit, without hiding choices beyond the first 400.
+  const exceedsAddLimit = picked.size > 400;
   return createPortal(
     <dialog
       ref={dialogRef}
@@ -995,7 +1021,11 @@ function ProblemPicker({
       <header className="ts-picker-head">
         <div>
           <h2>加题</h2>
-          <p>按章节选题，一次加入整章题目</p>
+          <p>
+            {seriesOptions.length
+              ? '按章节或试卷系列选题，也可以组合筛选。'
+              : '按章节选择要加入的题目。'}
+          </p>
         </div>
         <button
           type="button"
@@ -1013,23 +1043,17 @@ function ProblemPicker({
           <button
             type="button"
             aria-current={chapter === null ? 'true' : undefined}
-            onClick={() => {
-              setChapter(null);
-              setQuery('');
-            }}
+            onClick={() => setChapter(null)}
           >
-            <span>全部题目</span>
-            <small>{choices?.length ?? 0} 题</small>
+            <span>全部章节</span>
+            <small>{seriesChoices.length} 题</small>
           </button>
           {Array.from(chapters, ([id, group]) => (
             <button
               key={id}
               type="button"
               aria-current={chapter === id ? 'true' : undefined}
-              onClick={() => {
-                setChapter(id);
-                setQuery('');
-              }}
+              onClick={() => setChapter(id)}
             >
               <span>{group.name}</span>
               <small>
@@ -1040,20 +1064,41 @@ function ProblemPicker({
           ))}
         </nav>
         <div className="ts-picker-main">
+          {seriesOptions.length > 0 ? (
+            <label className="ts-picker-series">
+              <span>试卷系列</span>
+              <select
+                aria-label="试卷系列"
+                value={series}
+                onChange={(event) => setSeries(event.target.value)}
+              >
+                <option value="">全部系列</option>
+                {seriesOptions.map(([label, count]) => (
+                  <option key={label} value={label}>
+                    {label}（{count} 题）
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
           <label className="phone-search ts-picker-search">
             <Search size={18} aria-hidden />
             <input
               autoFocus
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="搜题号、题目或章节"
-              aria-label="搜题号、题目或章节"
+              placeholder="搜题号、题目、章节或系列"
+              aria-label="搜题号、题目、章节或系列"
               type="search"
             />
           </label>
           <div className="ts-picker-tools">
             <div>
-              <strong>{chapter === null ? '全部题目' : chapters.get(chapter)?.name}</strong>
+              <strong>
+                {[chapter !== null ? chapters.get(chapter)?.name : '', series]
+                  .filter(Boolean)
+                  .join(' · ') || '全部题目'}
+              </strong>
               <small>
                 {visible.length} 题 · 可加入 {available.length} 题
               </small>
@@ -1111,7 +1156,10 @@ function ProblemPicker({
               );
             })}
             {choices && !visible.length ? (
-              <PhoneEmpty title="没有找到题目" hint="试试其他章节或关键词" />
+              <PhoneEmpty
+                title="没有找到题目"
+                hint={seriesOptions.length ? '试试其他章节、系列或关键词' : '试试其他章节或关键词'}
+              />
             ) : null}
           </div>
         </div>
@@ -1119,7 +1167,7 @@ function ProblemPicker({
       <footer className="ts-picker-foot">
         <div className="ts-picker-summary" role="status">
           <span>
-            已选 <strong>{picked.size}</strong> 题
+            已选 <strong>{picked.size}</strong> 题{exceedsAddLimit ? '（每次最多加入 400 题）' : ''}
           </span>
           {picked.size ? (
             <button type="button" disabled={busy} onClick={() => setSelected([])}>
@@ -1133,7 +1181,7 @@ function ProblemPicker({
         <button
           type="button"
           className="phone-confirm-button is-primary"
-          disabled={!picked.size || busy}
+          disabled={!picked.size || exceedsAddLimit || busy}
           onClick={() =>
             onAdd(
               (choices ?? [])

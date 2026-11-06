@@ -805,6 +805,7 @@ export type TeachProblemChoice = {
   title: string;
   type: string;
   number: number | null;
+  tags?: string[];
   chapter: { id: string; name: string } | null;
 };
 

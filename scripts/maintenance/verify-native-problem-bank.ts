@@ -69,6 +69,39 @@ assert.equal(
   4,
 );
 assert.deepEqual(problemPaperSeries([problem]), []);
+
+// The teacher choices API carries only public metadata, not full problems.
+// Legacy CSC108 papers use two explicit tags and do not always have a Set prefix in their titles.
+const oldPaper = { ...problem, tags: ['CSC108', 'set-05', 'midterm', 'set-05'] };
+const wrongScope = { ...problem, tags: ['set-05', '函数'] };
+assert.deepEqual(
+  problemPaperSeries([
+    oldPaper,
+    wrongScope,
+    { tags: ['midterm'] },
+    {},
+    { tags: ['TT1原版模拟A卷'] },
+  ]),
+  [
+    ['Midterm Set 05', 1],
+    ['TT1原版模拟A卷', 1],
+  ],
+);
+assert.equal(
+  matchesProblemFilters(oldPaper, {
+    ...base,
+    series: 'Midterm Set 05',
+    chapter: 'functions',
+    query: 'injectivity',
+  }),
+  true,
+);
+assert.equal(
+  matchesProblemFilters(oldPaper, { ...base, series: 'Midterm Set 05', chapter: 'strings' }),
+  false,
+);
+assert.equal(matchesProblemFilters(wrongScope, { ...base, series: 'Midterm Set 05' }), false);
+
 assert.equal(
   matchesProblemFilters(shared, { ...base, chapter: 'functions', series: 'TT2模拟A卷' }),
   true,
