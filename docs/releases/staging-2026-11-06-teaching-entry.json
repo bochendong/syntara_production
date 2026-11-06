@@ -1,0 +1,429 @@
+{
+  "at": "2026-11-06T18:59:16.115Z",
+  "status": "deployed",
+  "branch": "codex/staging-next",
+  "baselineBranch": "codex/staging-baseline",
+  "revision": "786801a7ab8ef9f3bf9b1dc91f95b1403630c4a7",
+  "previousRevision": "f3afe5dc2de9f3f4276ae5e24b4304a980051438",
+  "deploymentId": "caa8ccf6-6873-4245-8f68-33572ec02efd",
+  "origin": "https://native-api-staging-staging-95a1.up.railway.app",
+  "pullRequests": [
+    "https://github.com/bochendong/syntara_production/pull/51",
+    "https://github.com/bochendong/syntara_production/pull/52"
+  ],
+  "changes": [
+    "Teaching course cards provide Settings, Manage and Classroom actions. Existing own classes open directly; published courses without a class use the existing class-opening flow. Unlisted courses without a class and classes belonging to other teachers remain disabled.",
+    "Settings combines permission-aware publication and release-claim actions. Original dialogs and confirmations are retained.",
+    "Teacher login removes the duplicate global Classroom navigation; student login retains student Classroom navigation even when the same account can teach.",
+    "Teachers or administrators may confirm deletion of ended classroom sessions. Classroom lists, detail access and imports exclude deleted sessions; attempts, progress, participants, items and original numbering remain stored.",
+    "Passed classroom results use green for one submission and purple for multiple submissions, including the grid, student table, answer header, legend and accessible descriptions."
+  ],
+  "verification": {
+    "formatLintRootNativeViteTypes": true,
+    "qaTypes": true,
+    "prismaSchemaValidate": true,
+    "fullStagingBuild": true,
+    "releaseNativeWebBuild": true,
+    "isolatedPostgres": {
+      "version": 17,
+      "fullMigrations": true,
+      "teacherClassroomLifecycle": true,
+      "coachRegression": true,
+      "deletionCases": [
+        "Teacher/student permissions; reject live and draft sessions",
+        "Concurrent and repeated requests are idempotent",
+        "Complete attempts with classSessionId and nonempty learning progress preserved",
+        "Participants and items retained; teacher/student list, detail and import isolation",
+        "Next session number does not reuse deleted session numbers"
+      ]
+    },
+    "browser": {
+      "localReadOnly": "Full App loaded actual staging data: settings and publication dialogs, cancellation of withdrawal and deletion, existing class entry, teacher navigation removal, student navigation retained, keyboard Escape and focus, no footer overflow.",
+      "mockFixtures": "Explicitly labeled local fixtures: unopened and other-teacher classes; deleting lesson 2 preserves lesson 1 and next number 4; six first passes green and four retry passes purple with no mismatches; retry answer header and failed-to-pass history.",
+      "online": {
+        "at": "2026-11-06T18:59:26.586Z",
+        "teacherNavigation": true,
+        "courseMenu": true,
+        "existingClassEntry": true,
+        "deleteButton": true,
+        "deleteConfirmationOpenedThenCancelled": true,
+        "studentNavigationRetained": true,
+        "studentClassroomShowsCodeEntry": true,
+        "teacherModeRestored": true,
+        "source": "Actual staging App in authenticated Chrome; no mock data or local preview",
+        "screenshot": "docs/releases/staging-2026-11-06-teaching-online.jpg",
+        "realClassroomDeleted": false
+      },
+      "screenshots": [
+        "docs/releases/staging-2026-11-06-teaching-online.jpg",
+        "docs/releases/staging-2026-11-06-teaching-navigation.jpg",
+        "docs/releases/staging-2026-11-06-teaching-menu.jpg",
+        "docs/releases/staging-2026-11-06-classroom-retry-marbles.jpg",
+        "docs/releases/staging-2026-11-06-delete-session-confirm.jpg",
+        "docs/releases/staging-2026-11-06-delete-session-after.jpg"
+      ]
+    },
+    "liveApi": {
+      "at": "2026-11-06T18:57:56.961Z",
+      "nextSessionNumber": 2,
+      "realSessionStillEnded": true,
+      "realSessionStillListed": true,
+      "missingSessionActionStatus": 404,
+      "realSessionResults": [
+        {
+          "status": "passed",
+          "attempts": 1
+        }
+      ],
+      "realSessionDeletionPerformed": false
+    },
+    "limitations": [
+      "Successful deletion tested only in isolated PostgreSQL and local mock UI; no actual staging classroom was deleted.",
+      "Actual staging API recognizes deletion for a nonexistent synthetic ID and preserves the original classroom. The existing real passed result has one submission; multi-submission color checked in mock UI.",
+      "No real staging class creation, withdrawal, student submission, lesson start or content editing during verification.",
+      "CI workflow does not target staging-next; targeted local checks and Railway production build passed. Existing large-chunk build warning remains."
+    ]
+  },
+  "health": true,
+  "assets": [
+    {
+      "path": "/native-web/assets/01-time-DFk4JVx4.webp",
+      "status": 200,
+      "type": "image/webp",
+      "bytes": 264300,
+      "sha256": "ada19753f0e183333193c4fa70c559dd5a48c69ad4fcf04dfc6ecd3e7de869ef",
+      "matched": true
+    },
+    {
+      "path": "/native-web/assets/02-create-mTR28tFI.webp",
+      "status": 200,
+      "type": "image/webp",
+      "bytes": 250892,
+      "sha256": "3077162477d6286456936a127c7b49938d460275e8c3a917a61d470ce24dfcad",
+      "matched": true
+    },
+    {
+      "path": "/native-web/assets/03-honesty-KxFqNqAH.webp",
+      "status": 200,
+      "type": "image/webp",
+      "bytes": 249356,
+      "sha256": "4e3883d09095876193598d319813c84d1484ef7a117e96b050653b40671e019d",
+      "matched": true
+    },
+    {
+      "path": "/native-web/assets/04-kindness-LnG02CGu.webp",
+      "status": 200,
+      "type": "image/webp",
+      "bytes": 261734,
+      "sha256": "05a903bef4d0857427f1c0f836355e0bc85ff3ef4abb8498cc88402ae60ab0b6",
+      "matched": true
+    },
+    {
+      "path": "/native-web/assets/05-choice-KzKmXB0e.webp",
+      "status": 200,
+      "type": "image/webp",
+      "bytes": 253624,
+      "sha256": "e787296f0c79610bf3dfa5c45fe1670da48eac467dff1a2cf378e14f3dd68086",
+      "matched": true
+    },
+    {
+      "path": "/native-web/assets/06-solitude-C7F0QRWx.webp",
+      "status": 200,
+      "type": "image/webp",
+      "bytes": 264564,
+      "sha256": "c01608ab7e67b26bee9c501a419ef4a56abeeeb64b7b4cf8ebfbc340e488f344",
+      "matched": true
+    },
+    {
+      "path": "/native-web/assets/07-days-BPZI3kJ-.webp",
+      "status": 200,
+      "type": "image/webp",
+      "bytes": 285944,
+      "sha256": "4add989a90b82a8396038303c5139a9b6437ad688d48766a28efbf68c6d0b95b",
+      "matched": true
+    },
+    {
+      "path": "/native-web/assets/08-wild-life-D0f_wGEl.webp",
+      "status": 200,
+      "type": "image/webp",
+      "bytes": 229714,
+      "sha256": "c5e6a85880f7b9af9d7324301a78027696e8b7c42bcbff407f763b157c5cd897",
+      "matched": true
+    },
+    {
+      "path": "/native-web/assets/09-turning-point-C3gjf3ST.webp",
+      "status": 200,
+      "type": "image/webp",
+      "bytes": 286884,
+      "sha256": "91474d1caeedf6634520c9610844c4d471b5aa070484c909cff9a07cb21a79ce",
+      "matched": true
+    },
+    {
+      "path": "/native-web/assets/10-given-time-CdNDhoNi.webp",
+      "status": 200,
+      "type": "image/webp",
+      "bytes": 275638,
+      "sha256": "d9b052d7fedd27470447e21704053dfcaf6b35dc9f0ff24ef45f44b606176af6",
+      "matched": true
+    },
+    {
+      "path": "/native-web/assets/11-life-cost-DdTFqAKo.webp",
+      "status": 200,
+      "type": "image/webp",
+      "bytes": 214536,
+      "sha256": "cdc988a0b268e89324cf84d1cbce61464f18fcff2b55b974b6a6d94e2c61e360",
+      "matched": true
+    },
+    {
+      "path": "/native-web/assets/12-time-wastes-me-B5kB05m7.webp",
+      "status": 200,
+      "type": "image/webp",
+      "bytes": 236706,
+      "sha256": "66907b2f63cb6c49575ce7674df1f0ad01a9d80ff252b5537af8a25bde89c014",
+      "matched": true
+    },
+    {
+      "path": "/native-web/assets/13-live-not-dream-k1AlmNEu.webp",
+      "status": 200,
+      "type": "image/webp",
+      "bytes": 271050,
+      "sha256": "8225d7a72ba7108fb07c654e0bc0370c28357f493f2b199473270e79f12066d3",
+      "matched": true
+    },
+    {
+      "path": "/native-web/assets/14-diligence-DPxLtRWf.webp",
+      "status": 200,
+      "type": "image/webp",
+      "bytes": 247444,
+      "sha256": "64647cffeeaf0eaa11b51d6696ffb8bdb38b68c7ce095a36bb9a0ab97caff69c",
+      "matched": true
+    },
+    {
+      "path": "/native-web/assets/15-knowing-doing-OHEXLQEy.webp",
+      "status": 200,
+      "type": "image/webp",
+      "bytes": 285328,
+      "sha256": "6457dac20303cf564fe58743d22fc34a7d4d24d6caae33c2472fdfd87ef70ed5",
+      "matched": true
+    },
+    {
+      "path": "/native-web/assets/16-become-brave-Cm7R8csj.webp",
+      "status": 200,
+      "type": "image/webp",
+      "bytes": 224734,
+      "sha256": "a69e17939f44738728afad244be48bcae60733e37bdbe108271494aa61e2874a",
+      "matched": true
+    },
+    {
+      "path": "/native-web/assets/17-perseverance-D83S5H3a.webp",
+      "status": 200,
+      "type": "image/webp",
+      "bytes": 274924,
+      "sha256": "9a5f8e86f0fe90635cf24ec722858207556504713d1e8bd7c313a58bad0b7d6e",
+      "matched": true
+    },
+    {
+      "path": "/native-web/assets/18-study-purpose-ExWqjfUM.webp",
+      "status": 200,
+      "type": "image/webp",
+      "bytes": 221946,
+      "sha256": "09774cdd2af07d0ed66338f7afc329a64a1eeeb379e2a3fe37e9e4e93c22e24e",
+      "matched": true
+    },
+    {
+      "path": "/native-web/assets/19-persist-CjOpJox6.webp",
+      "status": 200,
+      "type": "image/webp",
+      "bytes": 210126,
+      "sha256": "37c3fd46e9db346015f124ab8375a58d7d9dbcd6c898d2277b518b33fadb4a1c",
+      "matched": true
+    },
+    {
+      "path": "/native-web/assets/20-learning-limits-BuSlhIFH.webp",
+      "status": 200,
+      "type": "image/webp",
+      "bytes": 282832,
+      "sha256": "764b774a720352f11cf4246f4bb9b87781c8f56bfeab28a1ac193faaaf4fc08a",
+      "matched": true
+    },
+    {
+      "path": "/native-web/assets/21-no-self-deception-CJDisBEu.webp",
+      "status": 200,
+      "type": "image/webp",
+      "bytes": 208834,
+      "sha256": "77e03185fa33c8fe6e1343f9e43454025bae17ef002cfa0106801d18440fb1dd",
+      "matched": true
+    },
+    {
+      "path": "/native-web/assets/22-face-it-CUtlpx87.webp",
+      "status": 200,
+      "type": "image/webp",
+      "bytes": 248260,
+      "sha256": "9a98587018d85be9e607447449f48d705ef85a0a3d01494624e1e0cc613f7bb1",
+      "matched": true
+    },
+    {
+      "path": "/native-web/assets/23-control-BBK9JalE.webp",
+      "status": 200,
+      "type": "image/webp",
+      "bytes": 262822,
+      "sha256": "d6fd6fb19d900246f9115667bbd72006c39e14a2e0bee0ee279ea12df29cb616",
+      "matched": true
+    },
+    {
+      "path": "/native-web/assets/24-responsible-CieSBQQg.webp",
+      "status": 200,
+      "type": "image/webp",
+      "bytes": 250886,
+      "sha256": "6ce073859242e5c56ca68e405c717ac9e903bec6f6e28f991e3a588775900f0a",
+      "matched": true
+    },
+    {
+      "path": "/native-web/assets/25-learn-from-past-sjdo9qjl.webp",
+      "status": 200,
+      "type": "image/webp",
+      "bytes": 241156,
+      "sha256": "b313e26d932c8a914c5c266412c8920bb12a4acc2f04fdf772a12feab5b6b9e3",
+      "matched": true
+    },
+    {
+      "path": "/native-web/assets/26-ability-responsibility-CSz_lx6b.webp",
+      "status": 200,
+      "type": "image/webp",
+      "bytes": 260438,
+      "sha256": "e22e17341cdf529f2db05531be87ccac00764478b260ab162a0c652bdaa7d8d5",
+      "matched": true
+    },
+    {
+      "path": "/native-web/assets/27-be-good-DYwk4JbI.webp",
+      "status": 200,
+      "type": "image/webp",
+      "bytes": 240256,
+      "sha256": "6e9aacd98c702eed8b92263bac05e7c457bfd05f92e535a0c7ad00425c0f20c2",
+      "matched": true
+    },
+    {
+      "path": "/native-web/assets/28-advantages-DL1SeS5c.webp",
+      "status": 200,
+      "type": "image/webp",
+      "bytes": 267688,
+      "sha256": "0fe5135f03a5065957ada447ded6b538de6e04945edc0771228fc021690fd04f",
+      "matched": true
+    },
+    {
+      "path": "/native-web/assets/29-ignorance-confidence-BVKH4yPo.webp",
+      "status": 200,
+      "type": "image/webp",
+      "bytes": 260858,
+      "sha256": "ccbe011992972156a3080344c142bc8fffdc430c90318b445efcda84953f1187",
+      "matched": true
+    },
+    {
+      "path": "/native-web/assets/30-other-argument-Ciu3LLNJ.webp",
+      "status": 200,
+      "type": "image/webp",
+      "bytes": 279870,
+      "sha256": "d7ba3cf70c72e87a906ce06229fd11080ddcd7c0db3d0e9ccc70f2ab5f168cef",
+      "matched": true
+    },
+    {
+      "path": "/native-web/assets/31-highest-throne-CfnYlKVE.webp",
+      "status": 200,
+      "type": "image/webp",
+      "bytes": 302998,
+      "sha256": "373aa27942dd4881164a43d697bdf902bd8e335732a5e37ddebeee48048e38bc",
+      "matched": true
+    },
+    {
+      "path": "/native-web/assets/32-dont-know-CtQrKm8w.webp",
+      "status": 200,
+      "type": "image/webp",
+      "bytes": 241056,
+      "sha256": "4edcdfb0defea6f537d899c94afd2e9923416d399766328ed8b2715c9e7fbba6",
+      "matched": true
+    },
+    {
+      "path": "/native-web/assets/33-wise-fool-q8ks1fvO.webp",
+      "status": 200,
+      "type": "image/webp",
+      "bytes": 260308,
+      "sha256": "009eee767b2a1746052a77eb311229260cf941c2bf0068585783a2d9f1337e23",
+      "matched": true
+    },
+    {
+      "path": "/native-web/assets/34-everyone-teacher-DVXHQbHd.webp",
+      "status": 200,
+      "type": "image/webp",
+      "bytes": 285284,
+      "sha256": "dc71935b36fe76172d7053181541aaa98c00c06c5a111b7355c84a6ba6a73a57",
+      "matched": true
+    },
+    {
+      "path": "/native-web/assets/35-own-understanding-ZSKoEPf8.webp",
+      "status": 200,
+      "type": "image/webp",
+      "bytes": 257432,
+      "sha256": "e3df6e1903db02e6b0434053938ce6bc277b89836a05b3a5d43e04997e92a6ae",
+      "matched": true
+    },
+    {
+      "path": "/native-web/assets/36-self-mastery-DjMA1gmc.webp",
+      "status": 200,
+      "type": "image/webp",
+      "bytes": 254446,
+      "sha256": "553439e58bf454dd320d29c3e3a9f9b51248f50197ba7931fa97dd654e3f6081",
+      "matched": true
+    },
+    {
+      "path": "/native-web/assets/37-different-dream-B68JQx6i.webp",
+      "status": 200,
+      "type": "image/webp",
+      "bytes": 251014,
+      "sha256": "a2137f8c708a89a792b53f4441b6e9778571bfaf67e7a94b7d9d256591162323",
+      "matched": true
+    },
+    {
+      "path": "/native-web/assets/38-think-yourself-Dc0LDEIA.webp",
+      "status": 200,
+      "type": "image/webp",
+      "bytes": 268626,
+      "sha256": "9130afc838e48557ce7e276beb2b5be4a985b585838b8510ad01e7ec5b93a84b",
+      "matched": true
+    },
+    {
+      "path": "/native-web/assets/39-anywhere-VZ3QtTmE.webp",
+      "status": 200,
+      "type": "image/webp",
+      "bytes": 252012,
+      "sha256": "315077ab873c4b611f3625f9559978c4286dd63e87fb119d799c4d280a0e5575",
+      "matched": true
+    },
+    {
+      "path": "/native-web/assets/40-lived-wisdom-B0QklZ8n.webp",
+      "status": 200,
+      "type": "image/webp",
+      "bytes": 306024,
+      "sha256": "b4060ed7a94822d97e78a4ec610b7dc7c00e4f58dc80735597f7ea229e7ac398",
+      "matched": true
+    },
+    {
+      "path": "/native-web/assets/index-DXsO1-KH.js",
+      "status": 200,
+      "type": "application/javascript; charset=UTF-8",
+      "bytes": 2213964,
+      "sha256": "c1d139c7e597d7b4f653a43f4d6a9a7be22677214cbe23b1cb442ca35180a190",
+      "matched": true
+    },
+    {
+      "path": "/native-web/assets/index-E4gbjsBD.css",
+      "status": 200,
+      "type": "text/css; charset=UTF-8",
+      "bytes": 523718,
+      "sha256": "5e893cdb60dd10eeda976593b1d7fbcae6212ceb73032e07c2f9a02621fb4712",
+      "matched": true
+    }
+  ],
+  "migrations": [],
+  "realClassroomDeletions": false,
+  "nativeInstallersRebuilt": false
+}
