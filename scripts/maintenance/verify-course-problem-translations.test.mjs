@@ -252,3 +252,67 @@ test('multipart accepts standard 100-point and legacy weighted rubrics without c
     [40, 60],
   );
 });
+
+test('paper tag updates never read, normalize or write question content, grading or tests', async () => {
+  const { updateCourseProblemTags, courseProblemTagUpdatesSchema } = await jiti.import(
+    '../../lib/server/course-problem-tag-updates.ts',
+  );
+  const row = { id: 'question', tags: ['Old paper'], updatedAt: new Date('2026-01-01') };
+  const writes = [];
+  const tx = {
+    notebookProblem: {
+      findMany: async ({ where, select }) => {
+        assert.equal(where.courseId, 'course');
+        assert.equal(where.ownerId, null);
+        assert.deepEqual(Object.keys(select).sort(), ['id', 'tags', 'updatedAt']);
+        return [row];
+      },
+      updateMany: async (value) => {
+        writes.push(value);
+        row.tags = value.data.tags;
+        return { count: 1 };
+      },
+    },
+    course: { update: async () => {} },
+  };
+  const db = { $transaction: async (callback) => callback(tx) };
+  const input = {
+    changes: [
+      {
+        id: row.id,
+        expectedUpdatedAt: row.updatedAt.toISOString(),
+        tags: ['Old paper', 'TT2 Mock A'],
+      },
+    ],
+  };
+  assert.equal((await updateCourseProblemTags(db, 'course', input)).mode, 'preview');
+  assert.equal(writes.length, 0);
+  await assert.rejects(
+    updateCourseProblemTags(db, 'course', {
+      ...input,
+      apply: true,
+      changes: [{ ...input.changes[0], expectedUpdatedAt: '2025-01-01T00:00:00.000Z' }],
+    }),
+    /changed after review/,
+  );
+  assert.equal(writes.length, 0);
+  assert.equal((await updateCourseProblemTags(db, 'course', { ...input, apply: true })).updated, 1);
+  assert.deepEqual(Object.keys(writes[0].data).sort(), ['contentUpdatedAt', 'tags']);
+  assert.equal(
+    (await updateCourseProblemTags(db, 'course', { ...input, apply: true })).unchanged,
+    1,
+  );
+  assert.equal(writes.length, 1);
+  assert.throws(() =>
+    courseProblemTagUpdatesSchema.parse({
+      ...input,
+      changes: [{ ...input.changes[0], grading: {} }],
+    }),
+  );
+  assert.throws(() =>
+    courseProblemTagUpdatesSchema.parse({
+      ...input,
+      changes: [input.changes[0], input.changes[0]],
+    }),
+  );
+});
