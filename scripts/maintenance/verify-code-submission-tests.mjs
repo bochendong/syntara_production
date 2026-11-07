@@ -14,6 +14,7 @@ const mocks = new Map();
 
 function loadSource(file) {
   let filename = resolve(root, file);
+  if (filename.endsWith('.json')) return require(filename);
   if (!existsSync(filename) || !filename.endsWith('.ts')) {
     filename = existsSync(`${filename}.ts`) ? `${filename}.ts` : `${filename}/index.ts`;
   }
