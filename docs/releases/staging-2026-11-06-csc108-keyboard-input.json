@@ -1,0 +1,111 @@
+{
+  "status": "deployed",
+  "at": "2026-11-07T01:51:08.230722+00:00",
+  "revision": "ff03ff1fffe512ed294203f89e17d4eebebe367e",
+  "deploymentId": "07ab0d51-f6c8-4445-8d44-a89fc4f89404",
+  "pullRequests": [62, 63],
+  "environment": "staging",
+  "managedCoursesScanned": [
+    {
+      "name": "UTSG-CSC108Y",
+      "count": 336,
+      "code": 196,
+      "matched": ["cmw5lqf320025qk010lb1mcr2"]
+    },
+    {
+      "name": "UTM-CSC108",
+      "count": 336,
+      "code": 196,
+      "matched": ["cmw5gcf87002bqq013d58b111"]
+    },
+    {
+      "name": "UBC-CPSC103",
+      "count": 177,
+      "code": 81,
+      "matched": []
+    },
+    {
+      "name": "UTM-MAT102",
+      "count": 333,
+      "code": 0,
+      "matched": []
+    },
+    {
+      "name": "UTSC-CSCA67",
+      "count": 111,
+      "code": 0,
+      "matched": []
+    },
+    {
+      "name": "Syntara 测试课程",
+      "count": 0,
+      "code": 0,
+      "matched": []
+    }
+  ],
+  "content": {
+    "utm": {
+      "courseId": "cmvq7r8j10001tf7bwoo3j5z8",
+      "problemId": "cmw5gcf87002bqq013d58b111",
+      "courseVersion": 43,
+      "unchangedOtherQuestions": 335,
+      "sameSeries": ["TT2原版模拟A卷", "循环基础", "CSC108", "TT2模拟A卷"],
+      "publicCases": 2,
+      "hiddenCases": 4,
+      "referencePassed": true,
+      "starterRejected": true,
+      "incorrectRejected": true,
+      "readbackAccepted": true,
+      "incrementalProblemIds": ["cmw5gcf87002bqq013d58b111"]
+    },
+    "utsg": {
+      "courseId": "cmsq4yi7k0001kv04zxlzy7ct",
+      "problemId": "cmw5lqf320025qk010lb1mcr2",
+      "courseVersion": 36,
+      "unchangedOtherQuestions": 335,
+      "sameSeries": ["TT2原版模拟A卷", "循环基础", "CSC108", "TT2模拟A卷"],
+      "publicCases": 2,
+      "hiddenCases": 4,
+      "referencePassed": true,
+      "starterRejected": true,
+      "incorrectRejected": true,
+      "readbackAccepted": true,
+      "incrementalProblemIds": ["cmw5lqf320025qk010lb1mcr2"]
+    }
+  },
+  "verification": {
+    "browser": "Existing native editor and Tests panel, separate public inputs, retries, EOF, both inclusive endpoints, old draft body migration.",
+    "pythonRunnerChecks": 10,
+    "submissionChecks": 14,
+    "submissionScenarios": 6,
+    "assessmentCompiler": "passed",
+    "formatLintAndTypes": "passed",
+    "deployment": {
+      "version": {
+        "version": "0.1.1",
+        "release": "2026.10.28-sync.1",
+        "syncProtocol": 2,
+        "revision": "ff03ff1fffe512ed294203f89e17d4eebebe367e"
+      },
+      "health": {
+        "status": "ok",
+        "service": "syntara-native",
+        "environment": "staging"
+      },
+      "assets": [
+        {
+          "path": "/native-web/assets/index-DmcrYPAM.js",
+          "hash": "ed98bc6aafe17727caa0ef06f502c2de6a6d395216c7e0a980bf7cf427592eb4",
+          "localMatch": true
+        },
+        {
+          "path": "/native-web/assets/index-DqxVGfrc.css",
+          "hash": "2c4874989059817736049fdb22501b38b65b6116e936a04bf2a022f3986f0c39",
+          "localMatch": true
+        }
+      ]
+    }
+  },
+  "nativeInstallersRebuilt": false,
+  "realStudentAttemptsCreated": false
+}
