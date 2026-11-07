@@ -322,6 +322,7 @@ export const notebookCodeTestSchema = z.object({
 });
 
 export const notebookCodeSampleIoSchema = z.object({
+  stdin: z.string().max(20000).optional(),
   input: z.string().trim().min(1).max(4000),
   output: z.string().trim().min(1).max(4000),
   explanation: z.string().trim().min(1).max(2000).optional(),

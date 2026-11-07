@@ -15,6 +15,7 @@ const LOAD_TIMEOUT_MS = 60_000;
 export type BrowserPythonFile = { path: string; content: string };
 
 export type BrowserScriptResult = {
+  returnValue?: string;
   stdout: string;
   error: string | null;
   files: BrowserPythonFile[];
@@ -29,6 +30,14 @@ export type BrowserRowResult = {
 
 const RUNNER = String.raw`
 import sys, io, os, json, contextlib, traceback, runpy
+
+class KeyboardInput(io.StringIO):
+    def readline(self, *args):
+        line = super().readline(*args)
+        if not line:
+            return ""
+        print(line.rstrip("\n"))
+        return line
 
 def write_files(files):
     written = {}
@@ -80,6 +89,7 @@ def run(payload):
         rows = []
         for item in payload["rows"]:
             write_files(payload.get("files"))
+            sys.stdin = io.StringIO(item.get("stdin") or "")
             namespace = {"__name__": "__main__"}
             capture = io.StringIO()
             error_type = None
@@ -105,15 +115,21 @@ def run(payload):
     written = write_files(payload.get("files"))
     with open("main.py", "w", encoding="utf-8") as handle:
         handle.write(payload["code"])
-    sys.stdin = io.StringIO(payload.get("stdin") or "")
+    stream = KeyboardInput if payload.get("keyboard") else io.StringIO
+    sys.stdin = stream(payload.get("stdin") or "")
+    returned = {}
     capture = io.StringIO()
     error = None
     try:
         with contextlib.redirect_stdout(capture), contextlib.redirect_stderr(capture):
-            runpy.run_path("main.py", run_name="__main__")
+            scope = runpy.run_path("main.py", run_name="__main__")
+            if payload.get("expression"):
+                returned["returnValue"] = repr(eval(payload["expression"], scope))[:8000]
+    except EOFError as exc:
+        error = "键盘输入已用完。请添加下一行输入后重新运行。" if payload.get("keyboard") else "EOFError: " + str(exc)
     except BaseException as exc:
         error = "".join(traceback.format_exception_only(type(exc), exc)).strip()
-    return {"stdout": capture.getvalue()[:100000], "error": error, "files": collect_files(written)}
+    return {"stdout": capture.getvalue()[:100000], "error": error, "files": collect_files(written), **returned}
 
 result = json.dumps(run(json.loads(_payload_json)), ensure_ascii=False)
 result
@@ -229,6 +245,8 @@ export function runPythonScriptInBrowser(args: {
   code: string;
   files?: BrowserPythonFile[];
   stdin?: string;
+  keyboard?: boolean;
+  expression?: string;
   timeoutMs?: number;
 }): Promise<BrowserScriptResult> {
   return runInWorker<BrowserScriptResult>(
@@ -237,6 +255,8 @@ export function runPythonScriptInBrowser(args: {
       code: args.code,
       files: args.files ?? [],
       stdin: args.stdin ?? '',
+      keyboard: args.keyboard,
+      expression: args.expression,
       cs103Source: CS103_PYTHON_SOURCE,
     },
     args.timeoutMs ?? DEFAULT_TIMEOUT_MS,
@@ -245,7 +265,7 @@ export function runPythonScriptInBrowser(args: {
 
 /** 表格题逐行运行：每行一个新命名空间，先跑 setup。 */
 export async function runPythonRowsInBrowser(args: {
-  rows: Array<{ id: string; code: string }>;
+  rows: Array<{ id: string; code: string; stdin?: string }>;
   setup?: string;
   files?: BrowserPythonFile[];
   timeoutMs?: number;

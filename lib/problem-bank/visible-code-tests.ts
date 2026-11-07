@@ -7,12 +7,13 @@ type CodeSample = NonNullable<NotebookProblemPublicCode['sampleIO']>[number];
 export function visibleCodeTests(content: {
   publicTests?: CodeTest[];
   sampleIO?: CodeSample[];
-}): CodeTest[] {
+}): Array<CodeTest & { stdin?: string }> {
   if (content.publicTests?.length) return content.publicTests;
   return (content.sampleIO ?? []).map((sample, index) => ({
     id: `sample-${index + 1}`,
     expression: sample.input,
     expected: sample.output,
     description: sample.explanation,
+    ...(sample.stdin !== undefined ? { stdin: sample.stdin } : {}),
   }));
 }
