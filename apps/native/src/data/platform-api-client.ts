@@ -842,6 +842,13 @@ export async function getTeachProblemPreview(sessionId: string, problemId: strin
   return result.problem;
 }
 
+export async function getTeachProblemPreviews(sessionId: string) {
+  const result = await invokeQuery<{ problems: LocalProblem[] }>('native_get_teach', {
+    preview: sessionId,
+  });
+  return result.problems;
+}
+
 /** 点弹珠：这个学生这道题在这节课里提交过的全部答案，最新的在前。 */
 export function getTeachStudentAnswers(
   sessionId: string,

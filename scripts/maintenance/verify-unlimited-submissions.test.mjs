@@ -163,7 +163,8 @@ test('teacher practice is window-scoped and snapshots never change graded progre
     publicContent: {},
     courseId: 'course',
   };
-  const store = createTeacherPracticeStore([problem]);
+  const submissions = [];
+  const store = createTeacherPracticeStore([problem], (progress) => submissions.push(progress));
   const nextWindow = createTeacherPracticeStore([problem]);
   for (let i = 1; i <= 5; i++) {
     const saved = await store.saveProblemAttempt({
@@ -176,6 +177,13 @@ test('teacher practice is window-scoped and snapshots never change graded progre
     assert.equal(saved.progress.score, 1);
   }
   const before = await store.loadProblemDocument(problem.id);
+  store.addProblems([
+    { ...problem, title: 'Updated' },
+    { ...problem, id: 'second-question' },
+  ]);
+  assert.deepEqual(store.listProblemProgress(), [before.progress]);
+  assert.equal((await store.loadProblemDocument(problem.id)).problem.title, 'Updated');
+  assert.equal((await store.loadProblemDocument('second-question')).progress, null);
   const snapshot = await saveProblemLearningSnapshot(store, {
     problem,
     answer: { kind: 'choice', selectedOptionIds: ['A'] },
@@ -186,6 +194,7 @@ test('teacher practice is window-scoped and snapshots never change graded progre
   });
   assert.deepEqual(snapshot.document.progress, before.progress);
   assert.equal(snapshot.document.attempts.length, 6);
+  assert.equal(submissions.length, 5);
   snapshot.document.attempts.length = 0;
   assert.equal((await store.loadProblemDocument(problem.id)).attempts.length, 6);
   assert.equal((await nextWindow.loadProblemDocument(problem.id)).attempts.length, 0);

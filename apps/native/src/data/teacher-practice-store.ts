@@ -1,15 +1,38 @@
-import type { LocalProblem, LocalProblemAttempt, LocalProblemDocument } from '../domain/models';
+import type {
+  LocalProblem,
+  LocalProblemAttempt,
+  LocalProblemDocument,
+  LocalProblemProgress,
+} from '../domain/models';
 import { summarizeArchive } from './archive';
 import type { LocalRepository } from './repository';
 
 /** Window-scoped teacher demonstrations: never reads/writes the learner repository. */
+type TeacherPracticeStore = Pick<
+  LocalRepository,
+  'loadProblemDocument' | 'saveProblemAttempt' | 'importArchive'
+> & {
+  addProblems: (problems: LocalProblem[]) => void;
+  listProblemProgress: () => LocalProblemProgress[];
+};
+
 export function createTeacherPracticeStore(
   problems: LocalProblem[],
-): Pick<LocalRepository, 'loadProblemDocument' | 'saveProblemAttempt' | 'importArchive'> {
+  onSubmission?: (progress: LocalProblemProgress) => void,
+): TeacherPracticeStore {
   const documents = new Map<string, LocalProblemDocument>(
     problems.map((problem) => [problem.id, { problem, attempts: [], progress: null }]),
   );
   return {
+    addProblems(problems) {
+      for (const problem of problems) {
+        const previous = documents.get(problem.id);
+        documents.set(problem.id, { attempts: [], progress: null, ...previous, problem });
+      }
+    },
+    listProblemProgress() {
+      return [...documents.values()].flatMap(({ progress }) => (progress ? [progress] : []));
+    },
     async loadProblemDocument(id) {
       return structuredClone(documents.get(id) ?? null);
     },
@@ -46,6 +69,7 @@ export function createTeacherPracticeStore(
         progress,
       };
       documents.set(input.problemId, document);
+      onSubmission?.(progress);
       return structuredClone({ attempt, progress, document });
     },
     async importArchive(archive) {

@@ -1076,10 +1076,20 @@ export async function getClassSessionProblemPreview(
   sessionId: string,
   problemId: string,
 ) {
+  const [problem] = await getClassSessionProblemPreviews(viewer, sessionId, problemId);
+  if (!problem) throw new ClassroomError(404, '没有找到这节课里的题目。');
+  return problem;
+}
+
+export async function getClassSessionProblemPreviews(
+  viewer: ClassroomViewer,
+  sessionId: string,
+  problemId?: string,
+) {
   const session = await loadSessionForTeacher(viewer, sessionId);
-  const problem = await prisma.notebookProblem.findFirst({
+  const problems = await prisma.notebookProblem.findMany({
     where: {
-      id: problemId,
+      ...(problemId === undefined ? {} : { id: problemId }),
       courseId: session.class.courseId,
       ownerId: null,
       classSessionItems: { some: { sessionId } },
@@ -1099,8 +1109,7 @@ export async function getClassSessionProblemPreview(
       updatedAt: true,
     },
   });
-  if (!problem) throw new ClassroomError(404, '没有找到这节课里的题目。');
-  return {
+  return problems.map((problem) => ({
     id: problem.id,
     courseId: problem.courseId,
     notebookId: problem.notebookId,
@@ -1113,7 +1122,7 @@ export async function getClassSessionProblemPreview(
     grading: jsonRecord(problem.gradingJson),
     createdAt: problem.createdAt.getTime(),
     updatedAt: problem.updatedAt.getTime(),
-  };
+  }));
 }
 
 /** 点弹珠看到的内容：这个学生这道题在这节课里提交过的全部答案，最新的在前。 */
