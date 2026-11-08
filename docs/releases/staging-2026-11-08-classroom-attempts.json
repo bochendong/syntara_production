@@ -1,0 +1,53 @@
+{
+  "status": "deployed",
+  "at": "2026-11-08T05:08:12.643Z",
+  "origin": "https://native-api-staging-staging-95a1.up.railway.app",
+  "environment": "staging",
+  "revision": "6aa3bbd157d90461dda4cb7c2d46564a5024a56a",
+  "deploymentId": "0222c5e2-e118-45a2-9b79-969cddf1d940",
+  "pullRequest": "https://github.com/bochendong/syntara_production/pull/65",
+  "sourceBranch": "codex/unlimited-problem-attempts",
+  "previousRevision": "ff03ff1fffe512ed294203f89e17d4eebebe367e",
+  "changes": [
+    "所有题目可不限次数提交，每次按答案正常评分。",
+    "课堂按课次读取作答、草稿和进度。",
+    "老师可在本节课试做，试做状态独立于学生记录。",
+    "学生在本节课查看答案后，老师看板增加蓝球标记。"
+  ],
+  "verification": {
+    "localRegressionChecks": 65,
+    "changedFileFormatAndLint": true,
+    "rootAndNativeTypeChecks": true,
+    "localStagingBuild": true,
+    "railwayBuild": true,
+    "online": {
+      "health": {
+        "status": "ok",
+        "service": "syntara-native",
+        "environment": "staging"
+      },
+      "version": {
+        "version": "0.1.1",
+        "release": "2026.10.28-sync.1",
+        "syncProtocol": 2,
+        "revision": "6aa3bbd157d90461dda4cb7c2d46564a5024a56a"
+      },
+      "entryStatus": 200,
+      "cardApiStatus": 404,
+      "assets": [
+        {
+          "path": "/native-web/assets/index-CC1AEqM8.js",
+          "sha256": "0fdf56a99c5bb44470450f72c891eb382d2624f0bab7e6f86f5335a31ada2166"
+        },
+        {
+          "path": "/native-web/assets/index-DqxVGfrc.css",
+          "sha256": "2c4874989059817736049fdb22501b38b65b6116e936a04bf2a022f3986f0c39"
+        }
+      ]
+    },
+    "liveChecks": "Read-only health, source revision, App entry and matched JS/CSS SHA-256. Behavior verified by local regression checks."
+  },
+  "pendingMigrations": 0,
+  "studyCardCollectionIncluded": false,
+  "nativeInstallersRebuilt": false
+}
