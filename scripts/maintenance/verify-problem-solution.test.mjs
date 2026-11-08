@@ -574,7 +574,9 @@ test('the next AI prompt sees freshly persisted help memory even when its mounte
   });
   assert.equal(context.memories.length, 1);
   assert.match(context.memories[0].text, /查看了参考答案/);
-  const { buildNativeChatSystemPrompt } = load('features/native-ai/server/prompt.ts');
+  const { buildNativeChatSystemPrompt } = await jiti.import(
+    '../../features/native-ai/server/prompt.ts',
+  );
   const prompt = buildNativeChatSystemPrompt({
     surface: 'phone',
     course: { name: 'Math', language: 'zh-CN' },

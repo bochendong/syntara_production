@@ -1,3 +1,5 @@
+import { ProblemPracticePage } from './ProblemPracticePage';
+import { PracticeOverlay } from './PracticeOverlay';
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
@@ -59,7 +61,7 @@ import './course-content-manager.css';
  * 点弹珠看这个学生这道题提交过的答案，只看提交，不看草稿。
  */
 
-type Tab = 'grid' | 'stats';
+type Tab = 'grid' | 'stats' | 'practice';
 
 export function TeachSessionView({
   sessionId,
@@ -73,6 +75,27 @@ export function TeachSessionView({
   const [busy, setBusy] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const [tab, setTab] = useState<Tab>('grid');
+  const [practiceProblem, setPracticeProblem] = useState<LocalProblem | null>(null);
+  const [practiceMinimized, setPracticeMinimized] = useState(false);
+  const practice = useMemo(
+    () =>
+      practiceProblem
+        ? {
+            problems: [practiceProblem],
+            launch: {
+              problemIds: [practiceProblem.id],
+              initialProblemId: practiceProblem.id,
+              title: '老师试做 · 不计入学生成绩',
+              teacherPreview: true,
+            },
+          }
+        : null,
+    [practiceProblem],
+  );
+  const openPractice = (problem: LocalProblem) => {
+    setPracticeProblem(problem);
+    setPracticeMinimized(false);
+  };
   const [picking, setPicking] = useState(false);
   const [ending, setEnding] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -161,6 +184,7 @@ export function TeachSessionView({
           <DraftEditor
             data={data}
             busy={busy}
+            onPractice={openPractice}
             onStart={() => void start()}
             onAdd={() => setPicking(true)}
             onDelete={() => setDeleting(true)}
@@ -253,9 +277,36 @@ export function TeachSessionView({
               <button type="button" aria-pressed={tab === 'stats'} onClick={() => setTab('stats')}>
                 统计
               </button>
+              <button
+                type="button"
+                aria-pressed={tab === 'practice'}
+                onClick={() => setTab('practice')}
+              >
+                老师试做
+              </button>
             </div>
 
-            {tab === 'grid' ? (
+            {tab === 'practice' ? (
+              <div className="ts-stats">
+                <p>老师可以在这里做题、演示和查看判分，不计入学生成绩。</p>
+                {data.items.length ? (
+                  data.items.map((item) => (
+                    <article key={item.id} className="ts-stat">
+                      <h2>
+                        <ProblemTitleText content={problemName(item)} />
+                      </h2>
+                      <SessionProblemPreview
+                        sessionId={sessionId}
+                        item={item}
+                        onPractice={openPractice}
+                      />
+                    </article>
+                  ))
+                ) : (
+                  <PhoneEmpty title="这节课还没有题" hint="先加题，再试做。" />
+                )}
+              </div>
+            ) : tab === 'grid' ? (
               <SessionGrid
                 data={data}
                 editable={status === 'live'}
@@ -285,6 +336,28 @@ export function TeachSessionView({
         ) : null}
       </div>
 
+      {practice
+        ? createPortal(
+            <PracticeOverlay
+              key={practice.launch.initialProblemId}
+              minimized={practiceMinimized}
+              onClose={() => setPracticeMinimized(true)}
+              onRestore={() => setPracticeMinimized(false)}
+              onDismiss={() => {
+                setPracticeProblem(null);
+                setPracticeMinimized(false);
+              }}
+            >
+              <ProblemPracticePage
+                problems={practice.problems}
+                launch={practice.launch}
+                onBack={() => setPracticeMinimized(true)}
+                onMinimize={() => setPracticeMinimized(true)}
+              />
+            </PracticeOverlay>,
+            document.body,
+          )
+        : null}
       {picking && data && editable ? (
         <ProblemPicker
           sessionId={sessionId}
@@ -424,7 +497,15 @@ function SessionNameEditor({
   );
 }
 
-function SessionProblemPreview({ sessionId, item }: { sessionId: string; item: TeachSessionItem }) {
+function SessionProblemPreview({
+  sessionId,
+  item,
+  onPractice,
+}: {
+  sessionId: string;
+  item: TeachSessionItem;
+  onPractice: (problem: LocalProblem) => void;
+}) {
   const detailsId = useId();
   const [expanded, setExpanded] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -488,6 +569,14 @@ function SessionProblemPreview({ sessionId, item }: { sessionId: string; item: T
             )}
           </div>
           <div className="ts-problem-preview-footer">
+            <button
+              type="button"
+              className="ts-pill is-primary"
+              onClick={() => onPractice(problem)}
+            >
+              <Play size={14} aria-hidden />
+              老师试做
+            </button>
             {!expanded ? (
               <span>
                 {problemTypeLabel(problem.type)} · {difficultyLabel(problem.difficulty)}
@@ -519,6 +608,7 @@ function SessionProblemPreview({ sessionId, item }: { sessionId: string; item: T
 }
 
 function DraftEditor({
+  onPractice,
   data,
   busy,
   onStart,
@@ -528,6 +618,7 @@ function DraftEditor({
   onRemove,
 }: {
   data: TeachSession;
+  onPractice: (problem: LocalProblem) => void;
   busy: string;
   onStart: () => void;
   onAdd: () => void;
@@ -600,7 +691,11 @@ function DraftEditor({
                   <X size={15} aria-hidden />
                 </button>
               </div>
-              <SessionProblemPreview sessionId={data.session.id} item={item} />
+              <SessionProblemPreview
+                sessionId={data.session.id}
+                item={item}
+                onPractice={onPractice}
+              />
             </li>
           ))}
         </ol>
@@ -695,16 +790,23 @@ function SessionGrid({
                   {data.items.map((item) => {
                     const row = results.get(`${student.userId}:${item.problemId}`);
                     const status = row?.status ?? 'none';
+                    const solutionViewed =
+                      item.solutionViewedUserIds?.includes(student.userId) ?? false;
                     return (
                       <td key={item.id}>
                         <button
                           type="button"
                           className="ts-cell"
-                          aria-label={`${student.name} · ${item.title} · ${teachResultStatus(status, row?.attempts).label}`}
-                          title={`${teachResultStatus(status, row?.attempts).label}${row && row.attempts > 1 ? ` · ${row.attempts} 次` : ''}`}
+                          aria-label={`${student.name} · ${item.title} · ${teachResultStatus(status, row?.attempts, solutionViewed).label}`}
+                          title={`${teachResultStatus(status, row?.attempts, solutionViewed).label}${row && row.attempts > 1 ? ` · ${row.attempts} 次` : ''}`}
                           onClick={() => onOpenAnswer(student.userId, item.problemId)}
                         >
-                          <Marble status={status} attempts={row?.attempts} size={24} />
+                          <Marble
+                            status={status}
+                            attempts={row?.attempts}
+                            solutionViewed={solutionViewed}
+                            size={24}
+                          />
                         </button>
                       </td>
                     );
@@ -716,7 +818,7 @@ function SessionGrid({
         </table>
       </div>
       {!data.items.length ? <p className="ts-grid-hint">还没有题，点「加题」。</p> : null}
-      <Legend />
+      <Legend showSolutionViewed />
     </div>
   );
 }
@@ -865,6 +967,7 @@ function AnswerDialog({
     [data, item.problemId],
   );
   const status = item.results.find((row) => row.userId === userId)?.status ?? 'none';
+  const solutionViewed = item.solutionViewedUserIds?.includes(userId) ?? false;
 
   return createPortal(
     <div className="phone-confirm-layer tp-sheet-layer" role="presentation">
@@ -886,7 +989,12 @@ function AnswerDialog({
             <ChevronLeft size={18} aria-hidden />
           </button>
           <div className="ts-answer-who">
-            <Marble status={status} attempts={attemptCount} size={26} />
+            <Marble
+              status={status}
+              attempts={attemptCount}
+              solutionViewed={solutionViewed}
+              size={26}
+            />
             <span>
               <strong>{student?.name}</strong>
               <small>
@@ -910,6 +1018,9 @@ function AnswerDialog({
         <p className="ts-answer-problem">
           <ProblemTitleText content={problemName(item)} />
         </p>
+        {solutionViewed ? (
+          <p className="ts-answer-problem">已看答案 · 提交次数和成绩仍按实际作答计算</p>
+        ) : null}
         <div className="ts-answer-body">
           {error ? <p className="phone-page-error">{error}</p> : null}
           {!data && !error ? <GlassSkeletonRows rows={3} height={44} /> : null}

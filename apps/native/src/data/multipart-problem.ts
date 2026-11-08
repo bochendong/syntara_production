@@ -60,8 +60,6 @@ export type LocalPartResult = {
   designRecipe?: unknown[];
 };
 
-export const PART_SUBMISSION_LIMIT = 3;
-const PART_SCORE_CAPS = [1, 0.6, 0.3];
 const PART_TYPES: LocalPartType[] = [
   'choice',
   'fill_blank',
@@ -216,11 +214,6 @@ export function gradeLocalPart(
     text: answer.text ?? '',
     images: answer.images,
   });
-}
-
-/** 自动判分的小问按第几次提交封顶：100% → 60% → 30%。 */
-export function capPartScore(score: number, submissions: number): number {
-  return score * PART_SCORE_CAPS[Math.max(0, Math.min(2, submissions - 1))];
 }
 
 export function aggregatePartResults(results: LocalPartResult[]): {

@@ -23,8 +23,6 @@ const AUTO_GRADED_PART_TYPES = new Set<NotebookProblemPartPublicContent['type']>
   'code',
 ]);
 
-export const MULTIPART_PART_SUBMISSION_LIMIT = 3;
-
 export function isAutoGradedPartType(type: NotebookProblemPartPublicContent['type']): boolean {
   return AUTO_GRADED_PART_TYPES.has(type);
 }

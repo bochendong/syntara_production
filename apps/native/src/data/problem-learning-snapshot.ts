@@ -33,6 +33,7 @@ export function problemLearningArchive(input: {
   answer: LocalProblemAnswer;
   progress: LocalProblemProgress | null;
   event: ProblemLearningEvent;
+  classSessionId?: string;
   at: number;
   id: string;
 }): { archive: SyntaraArchiveV1; attempt: LocalProblemAttempt } {
@@ -51,7 +52,12 @@ export function problemLearningArchive(input: {
     problemId: problem.id,
     kind: event,
     answer: structuredClone(answer) as unknown as Record<string, unknown>,
-    result: { event, progressSnapshot: snapshot, feedback },
+    result: {
+      event,
+      progressSnapshot: snapshot,
+      feedback,
+      ...(input.classSessionId ? { classSessionId: input.classSessionId } : {}),
+    },
     status: 'pending',
     score: null,
     createdAt: at,

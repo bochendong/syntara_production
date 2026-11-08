@@ -121,6 +121,7 @@ function uploadOf(attempt: LocalProblemAttempt): NativeProblemAttemptUpload | nu
     // 服务器只收字母、数字、- 和 _。
     id: attempt.id.replace(/[^A-Za-z0-9_-]/g, '').slice(0, 80),
     problemId: attempt.problemId,
+    ...(typeof result.classSessionId === 'string' ? { classSessionId: result.classSessionId } : {}),
     ...(event ? { event, progressSnapshot } : {}),
     status: attempt.status as NativeProblemAttemptUpload['status'],
     score: typeof attempt.score === 'number' ? Math.max(0, Math.min(1, attempt.score)) : null,
@@ -177,7 +178,15 @@ export function mergeSyncedProblemAttempts(
         item.id === clientId || item.id === attempt.id || item.result?.serverCodeId === attempt.id,
     );
     if (!existing) return { ...attempt, id: clientId };
-    if (existing.updatedAt > attempt.updatedAt) return existing;
+    if (existing.updatedAt > attempt.updatedAt) {
+      // Session ownership is server-authoritative even when a richer local draft is newer.
+      return Object.hasOwn(attempt.result ?? {}, 'classSessionId')
+        ? {
+            ...existing,
+            result: { ...existing.result, classSessionId: attempt.result?.classSessionId },
+          }
+        : existing;
+    }
     // Downloads never erase richer local answers, photos, handwriting, or code test details.
     return {
       ...attempt,
@@ -195,9 +204,10 @@ export async function syncProblemAttempts(
   courseId: string,
   problemId: string,
   before?: string | null,
+  classSessionId?: string,
 ): Promise<string | null> {
   if (!(await isPlatformCourse(repository, courseId))) return null;
-  const page = await getNativeProblemAttempts(courseId, problemId, before);
+  const page = await getNativeProblemAttempts(courseId, problemId, before, classSessionId);
   // Read after the request, so a submission saved while downloading is preserved.
   const local = await repository.loadProblemDocument(problemId);
   if (!local) return page.nextCursor;

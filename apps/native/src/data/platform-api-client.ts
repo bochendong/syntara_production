@@ -478,6 +478,7 @@ export function syncNativeMemories(payload: NativeMemorySnapshot): Promise<Nativ
 }
 
 export function gradeNativeCode(input: {
+  teacherPreview?: boolean;
   courseId: string;
   problemId: string;
   attemptId: string;
@@ -547,12 +548,14 @@ export function getNativeProblemAttempts(
   courseId: string,
   problemId: string,
   before?: string | null,
+  classSessionId?: string,
 ): Promise<NativeProblemAttemptPage> {
   return invokeQuery('native_get_problems', {
     courseId,
     problemId,
     attempts: 1,
     before: before ?? undefined,
+    classSessionId,
   });
 }
 
@@ -743,6 +746,8 @@ export type TeachSession = {
 };
 
 export type TeachSessionItem = {
+  /** 本课看过答案的学生；和提交/通过统计分开。兼容旧服务器。 */
+  solutionViewedUserIds?: string[];
   id: string;
   problemId: string;
   position: number;

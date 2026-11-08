@@ -19,8 +19,6 @@ import {
   codeSlotTemplateFor,
   defaultCodeAnswerFor,
   formatPartLabel,
-  isAutoGradedPartType,
-  MULTIPART_PART_SUBMISSION_LIMIT,
   partAnswerIsEmpty,
   partPointShares,
   type NotebookProblemAttemptRecord,
@@ -460,8 +458,6 @@ export function MultipartAnswerPanel({
         const result = results.find((item) => item.label === part.label);
         const draft = drafts[part.label] ?? savedAnswers[part.label] ?? {};
         const used = result?.submissions ?? 0;
-        const limited = isAutoGradedPartType(part.content.type);
-        const exhausted = limited && used >= MULTIPART_PART_SUBMISSION_LIMIT;
         const tone = partStatusTone(result);
         return (
           <section
@@ -504,7 +500,7 @@ export function MultipartAnswerPanel({
               onEditorReady={formulaEditor.registerEditor}
               onEditorFocus={formulaEditor.activateEditor}
               value={draft}
-              disabled={disabled || submitting || exhausted}
+              disabled={disabled || submitting}
               locale={locale}
               onChange={(next) => onChangePart(part.label, next)}
               onRunCode={onRunCodePart}
@@ -531,20 +527,16 @@ export function MultipartAnswerPanel({
               </p>
             ) : null}
             <div className="mt-2 flex items-center gap-2">
-              {limited ? (
+              {used > 0 ? (
                 <span className="text-[11px] text-slate-400">
-                  {zh
-                    ? `已交 ${used}/${MULTIPART_PART_SUBMISSION_LIMIT} 次`
-                    : `${used}/${MULTIPART_PART_SUBMISSION_LIMIT} submissions`}
+                  {zh ? `已交 ${used} 次` : `${used} submissions`}
                 </span>
               ) : null}
               <Button
                 type="button"
                 size="sm"
                 variant="outline"
-                disabled={
-                  disabled || submitting || exhausted || partAnswerIsEmpty(drafts[part.label])
-                }
+                disabled={disabled || submitting || partAnswerIsEmpty(drafts[part.label])}
                 onClick={() => onSubmit([part.label])}
                 className="ml-auto h-7 gap-1 rounded-md px-2.5 text-xs"
               >

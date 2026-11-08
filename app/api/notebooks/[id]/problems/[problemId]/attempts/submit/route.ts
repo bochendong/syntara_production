@@ -26,9 +26,6 @@ import {
 import { resolveNotebookProblemCourseIdentity } from '@/lib/server/notebook-problems/course-identity';
 import {
   applySubmissionScorePolicy,
-  hasLimitedSubmissions,
-  LIMITED_SUBMISSION_COUNT,
-  remainingSubmissions,
   STANDARD_PROBLEM_POINTS,
 } from '@/lib/problem-bank/scoring-policy';
 
@@ -102,21 +99,8 @@ export async function POST(
         { status: 409 },
       );
     }
-    const limitedSubmissions = hasLimitedSubmissions(loaded.problem.type);
-    const previousSubmissionCount = limitedSubmissions
-      ? await countNotebookProblemSubmissions({ userId: auth.userId, problemId })
-      : 0;
-    if (limitedSubmissions && previousSubmissionCount >= LIMITED_SUBMISSION_COUNT) {
-      return NextResponse.json(
-        {
-          code: 'ATTEMPT_LIMIT_REACHED',
-          error: `这道题最多只能提交 ${LIMITED_SUBMISSION_COUNT} 次。`,
-          remainingSubmissions: 0,
-        },
-        { status: 409 },
-      );
-    }
-    const attemptNumber = previousSubmissionCount + 1;
+    const attemptNumber =
+      (await countNotebookProblemSubmissions({ userId: auth.userId, problemId })) + 1;
     const scoringProblem = { ...loaded.problem, points: STANDARD_PROBLEM_POINTS };
     const courseIdentity = await resolveNotebookProblemCourseIdentity({
       courseId: loaded.problem.courseId,
@@ -203,13 +187,7 @@ export async function POST(
         { status: 422 },
       );
     }
-    const scored = applySubmissionScorePolicy({
-      type: loaded.problem.type,
-      attemptNumber,
-      score: evaluated.score,
-      result: evaluated.result,
-      language: payload.data.language,
-    });
+    const scored = applySubmissionScorePolicy({ score: evaluated.score, result: evaluated.result });
 
     const attempt = await createNotebookProblemAttempt({
       userId: auth.userId,
@@ -226,8 +204,8 @@ export async function POST(
     return NextResponse.json({
       attempt,
       result: scored.result,
-      attemptNumber: limitedSubmissions ? attemptNumber : null,
-      remainingSubmissions: limitedSubmissions ? remainingSubmissions(attemptNumber) : null,
+      attemptNumber,
+      remainingSubmissions: null,
     });
   });
 }

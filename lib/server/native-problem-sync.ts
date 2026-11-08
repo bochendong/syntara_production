@@ -316,12 +316,10 @@ export async function saveNativeProblemAttempts(
       createdAt,
       userId,
       problemId: attempt.problemId,
-      classSessionId: attempt.event
-        ? null
-        : await classSessionForAttempt(
-            { userId, problemId: attempt.problemId, classSessionId: attempt.classSessionId },
-            prisma,
-          ),
+      classSessionId: await classSessionForAttempt(
+        { userId, problemId: attempt.problemId, classSessionId: attempt.classSessionId },
+        prisma,
+      ),
       kind: 'answer',
       status: attempt.event ? 'pending' : attempt.status,
       score: attempt.event ? null : score,

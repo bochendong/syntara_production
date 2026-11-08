@@ -11,8 +11,6 @@ import type {
 import {
   aggregatePartStatus,
   buildPartProblem,
-  formatPartLabel,
-  isAutoGradedPartType,
   isNotebookCalculationProblemRecord,
   isNotebookChoiceProblemRecord,
   isNotebookFillBlankProblemRecord,
@@ -20,14 +18,12 @@ import {
   isNotebookProofProblemRecord,
   isNotebookShortAnswerProblemRecord,
   isNotebookTableProblemRecord,
-  MULTIPART_PART_SUBMISSION_LIMIT,
   partPointShares,
   partSecretJudge,
   submittedPartAnswers,
 } from '@/lib/problem-bank';
 import { judgeNotebookCodeProblem } from '@/lib/server/notebook-problems/judge';
 import type { NotebookProblemCourseIdentity } from '@/lib/server/notebook-problems/course-identity';
-import { maxScoreForAttempt } from '@/lib/problem-bank/scoring-policy';
 import { parseNumericPair, parseNumericScalar } from '@/lib/problem-bank/numeric-answer';
 import { calculationNumericMatches } from '@/lib/problem-bank/calculation-numeric-match';
 import { evaluateNotebookTableProblem } from '@/lib/server/notebook-problems/table-evaluate';
@@ -435,7 +431,7 @@ export async function evaluateNotebookNonCodeProblem(args: {
 
 /**
  * 大题逐问判分：只批改这次交了的小问，其余小问沿用上一次的结果。
- * 每问复用对应题型的判分器；自动判分的小问各自最多交 3 次，分数上限 100% → 60% → 30%。
+ * 每问复用对应题型的判分器，允许重复提交，每次按实际答案评分。
  */
 export async function evaluateNotebookMultipartProblem(args: {
   problem: NotebookProblemRecord;
@@ -501,15 +497,6 @@ export async function evaluateNotebookMultipartProblem(args: {
       if (!partAnswer) return carried;
 
       const priorSubmissions = previous?.submissions ?? 0;
-      const limited = isAutoGradedPartType(part.content.type);
-      if (limited && priorSubmissions >= MULTIPART_PART_SUBMISSION_LIMIT) {
-        return {
-          ...carried,
-          feedback: zh
-            ? `${formatPartLabel(part.label)} 已经交满 ${MULTIPART_PART_SUBMISSION_LIMIT} 次，保留上次结果。`
-            : `${formatPartLabel(part.label)} already used ${MULTIPART_PART_SUBMISSION_LIMIT} submissions; the last result is kept.`,
-        };
-      }
       const partProblem = buildPartProblem(problem, index, points, mergedAnswers);
       if (!partProblem) {
         return {
@@ -541,8 +528,7 @@ export async function evaluateNotebookMultipartProblem(args: {
         return { ...carried, feedback: graded.result.feedback };
       }
       const submissions = priorSubmissions + 1;
-      const cap = limited ? maxScoreForAttempt(submissions) / 100 : 1;
-      const score = Math.round(Math.min(points, graded.score) * cap * 100) / 100;
+      const score = Math.round(Math.min(points, graded.score) * 100) / 100;
       return {
         label: part.label,
         status: graded.status,

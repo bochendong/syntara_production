@@ -7,11 +7,9 @@ import { ChevronLeft, ChevronRight, FlaskConical, Loader2, SendHorizontal } from
 
 import {
   formatPartLabel,
-  isAutoGradedPart,
   partAnswerHasContent,
   partDraftIsDirty,
   partBlankIds,
-  PART_SUBMISSION_LIMIT,
   type LocalPartAnswer,
   type LocalPartResult,
   type LocalProblemPart,
@@ -433,26 +431,21 @@ function PartPrompt({
 }
 
 export function PartSubmitButton({
-  part,
   answer,
   dirty,
-  result,
   submitting,
   onSubmit,
 }: {
-  part: LocalProblemPart;
   answer: LocalPartAnswer;
   dirty: boolean;
-  result?: LocalPartResult;
   submitting: boolean;
   onSubmit: () => void;
 }) {
-  const exhausted = isAutoGradedPart(part) && (result?.submissions ?? 0) >= PART_SUBMISSION_LIMIT;
   return (
     <button
       type="button"
       className="pp-submit pp-header-submit"
-      disabled={submitting || exhausted || !dirty || !partAnswerHasContent(answer)}
+      disabled={submitting || !dirty || !partAnswerHasContent(answer)}
       onClick={onSubmit}
     >
       {submitting ? <GlassSpinner size={14} /> : <SendHorizontal size={14} />}
@@ -497,7 +490,6 @@ function PartCard({
   handwritingHeaderId?: string;
 } & PartEditorRegistration) {
   const used = result?.submissions ?? 0;
-  const limited = isAutoGradedPart(part);
   const tone = result?.gradedAt ? result.status : 'todo';
   return (
     <article className={`mp-card is-${tone}`} id={`mp-part-${part.label}`}>
@@ -531,11 +523,9 @@ function PartCard({
           ) : null}
         </p>
       ) : null}
-      {limited ? (
+      {used > 0 ? (
         <footer>
-          <small>
-            已交 {used}/{PART_SUBMISSION_LIMIT}
-          </small>
+          <small>已交 {used} 次</small>
         </footer>
       ) : null}
     </article>

@@ -65,6 +65,8 @@ export type ProblemBankLaunch = {
   title?: string;
   /** 从课堂入口进来：这组题的提交记到这节课上。 */
   classSessionId?: string;
+  /** 老师试做：作答只留在本次窗口，不计入学生记录。 */
+  teacherPreview?: boolean;
 };
 
 type ProblemBankPageProps = {

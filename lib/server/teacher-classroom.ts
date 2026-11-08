@@ -854,9 +854,18 @@ async function latestSessionAttempts(sessionId: string, userIds: string[], probl
       kind: { in: ['submit', 'answer'] },
     },
     orderBy: { createdAt: 'asc' },
-    select: { id: true, problemId: true, userId: true, status: true, score: true, createdAt: true },
+    select: {
+      id: true,
+      problemId: true,
+      userId: true,
+      status: true,
+      score: true,
+      createdAt: true,
+      resultJson: true,
+    },
   });
   for (const attempt of attempts) {
+    if (isLearningSnapshot(attempt.resultJson)) continue;
     const key = `${attempt.problemId}:${attempt.userId}`;
     latest.set(key, {
       status: attempt.status as AttemptStatus,
@@ -867,6 +876,12 @@ async function latestSessionAttempts(sessionId: string, userIds: string[], probl
     });
   }
   return latest;
+}
+
+function isLearningSnapshot(value: unknown) {
+  return ['solution_viewed', 'hidden_tests_viewed', 'answer_reset'].includes(
+    String(jsonRecord(value).event),
+  );
 }
 
 function jsonRecord(value: unknown): Record<string, unknown> {
@@ -967,6 +982,19 @@ export async function getClassSessionDashboard(viewer: ClassroomViewer, sessionI
     userIds,
     items.map((item) => item.problemId),
   );
+  const solutionViews =
+    userIds.length && items.length
+      ? await prisma.notebookProblemAttempt.findMany({
+          where: {
+            classSessionId: sessionId,
+            userId: { in: userIds },
+            problemId: { in: items.map((item) => item.problemId) },
+            resultJson: { path: ['event'], equals: 'solution_viewed' },
+          },
+          distinct: ['problemId', 'userId'],
+          select: { problemId: true, userId: true },
+        })
+      : [];
   // 选择题才读作答内容；别的题的 answerJson 可能很大（代码、照片）。
   const choiceProblemIds = new Set(
     items.filter((item) => item.problem.type === 'choice').map((item) => item.problemId),
@@ -1021,6 +1049,9 @@ export async function getClassSessionDashboard(viewer: ClassroomViewer, sessionI
         type: item.problem.type,
         number: item.problem.problemNumber,
         addedAt: item.pushedAt.getTime(),
+        solutionViewedUserIds: solutionViews
+          .filter((view) => view.problemId === item.problemId)
+          .map((view) => view.userId),
         submittedCount: results.length,
         passedCount: count('passed'),
         partialCount: count('partial', 'pending'),
@@ -1331,11 +1362,12 @@ export async function getStudentClassroomState(userId: string) {
           kind: { in: ['submit', 'answer'] },
         },
         orderBy: { createdAt: 'asc' },
-        select: { classSessionId: true, problemId: true, status: true },
+        select: { classSessionId: true, problemId: true, status: true, resultJson: true },
       })
     : [];
   const mine = new Map<string, { status: AttemptStatus; attempts: number }>();
   for (const attempt of attempts) {
+    if (isLearningSnapshot(attempt.resultJson)) continue;
     const key = `${attempt.classSessionId}:${attempt.problemId}`;
     mine.set(key, {
       status: attempt.status as AttemptStatus,
