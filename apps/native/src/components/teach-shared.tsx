@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import type { TeachAttemptStatus } from '../data/platform-api-client';
 import { marbleImages } from '../lib/learning-action-marbles';
 
-/** 老师端共用：弹珠颜色、题名、静默刷新。绿首次做对、紫多次做对、粉错、琥珀部分对或待批改、灰没交。 */
+/** 老师端共用：弹珠颜色、题名、静默刷新。绿首次做对、紫多次做对、粉错、琥珀部分对或待批改、灰没交，蓝看过答案。 */
 export const STATUS: Record<TeachAttemptStatus | 'none', { label: string; marble: string | null }> =
   {
     passed: { label: '首次做对', marble: marbleImages.green },
@@ -15,7 +15,16 @@ export const STATUS: Record<TeachAttemptStatus | 'none', { label: string; marble
   };
 
 /** 只用已提交的作答次数区分通过；运行测试不计入课堂 attempts。 */
-export function teachResultStatus(status: TeachAttemptStatus | 'none', attempts = 0) {
+export function teachResultStatus(
+  status: TeachAttemptStatus | 'none',
+  attempts = 0,
+  solutionViewed = false,
+) {
+  if (solutionViewed)
+    return {
+      label: `已看答案 · ${status === 'passed' ? '已答对' : STATUS[status].label}`,
+      marble: marbleImages.blue,
+    };
   return status === 'passed' && attempts > 1
     ? { label: '多次做对', marble: marbleImages.purple }
     : STATUS[status];
@@ -24,13 +33,15 @@ export function teachResultStatus(status: TeachAttemptStatus | 'none', attempts 
 export function Marble({
   status,
   attempts = 0,
+  solutionViewed = false,
   size = 22,
 }: {
   status: TeachAttemptStatus | 'none';
   attempts?: number;
+  solutionViewed?: boolean;
   size?: number;
 }) {
-  const marble = teachResultStatus(status, attempts).marble;
+  const marble = teachResultStatus(status, attempts, solutionViewed).marble;
   return marble ? (
     <img className="tp-marble" src={marble} alt="" style={{ width: size, height: size }} />
   ) : (
@@ -38,7 +49,7 @@ export function Marble({
   );
 }
 
-export function Legend() {
+export function Legend({ showSolutionViewed = false }: { showSolutionViewed?: boolean } = {}) {
   const rows = [
     ['passed', 1, '首次做对'],
     ['passed', 2, '多次做对'],
@@ -48,6 +59,12 @@ export function Legend() {
   ] as const;
   return (
     <div className="tp-legend">
+      {showSolutionViewed ? (
+        <span>
+          <Marble status="none" solutionViewed size={14} />
+          已看答案
+        </span>
+      ) : null}
       {rows.map(([status, attempts, label]) => (
         <span key={label}>
           <Marble status={status} attempts={attempts} size={14} />

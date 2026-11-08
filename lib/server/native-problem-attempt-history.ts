@@ -26,6 +26,7 @@ export async function readNativeProblemAttempts(
   courseId: string,
   problemId: string,
   before: z.infer<typeof cursorSchema> | null,
+  classSessionId?: string,
 ) {
   const visible = await visibleProblemWhere(prisma, userId, courseId);
   if (!visible) return null;
@@ -39,6 +40,7 @@ export async function readNativeProblemAttempts(
       userId,
       problemId,
       kind: { in: ['answer', 'submit'] },
+      ...(classSessionId ? { classSessionId } : {}),
       ...(before
         ? {
             OR: [
@@ -53,6 +55,7 @@ export async function readNativeProblemAttempts(
     select: {
       id: true,
       kind: true,
+      classSessionId: true,
       answerJson: true,
       resultJson: true,
       score: true,
@@ -71,6 +74,7 @@ export async function readNativeProblemAttempts(
       answer: syncedAttemptAnswer(row.answerJson),
       result: {
         ...syncedAttemptResult(row.resultJson, problem.points),
+        classSessionId: row.classSessionId,
         ...(row.kind === 'submit' ? { serverCodeId: row.id } : {}),
       },
       score: attemptScoreRatio(row.score, problem.points),

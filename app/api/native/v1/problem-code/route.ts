@@ -2,13 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { judgeNotebookCodeProblem } from '@/features/problems/server/judge';
 import {
-  countNotebookProblemSubmissions,
   createNotebookProblemAttempt,
   getCourseProblemForUser,
 } from '@/features/problems/server/service';
 import {
   applySubmissionScorePolicy,
-  LIMITED_SUBMISSION_COUNT,
   STANDARD_PROBLEM_POINTS,
 } from '@/lib/problem-bank/scoring-policy';
 import { classSessionForAttempt } from '@/lib/server/class-session-attempts';
@@ -26,6 +24,7 @@ import {
 export const runtime = 'nodejs';
 export const maxDuration = 300;
 const requestSchema = z.object({
+  teacherPreview: z.boolean().optional(),
   courseId: z.string().trim().min(1).max(200),
   problemId: z.string().trim().min(1).max(200),
   attemptId: z.string().regex(/^[a-zA-Z0-9_-]{8,80}$/),
@@ -56,6 +55,13 @@ export async function POST(request: NextRequest) {
     const loaded = await getCourseProblemForUser(principal.userId, courseId, problemId, {
       includeSecretJudgeForEvaluation: true,
     });
+    if (parsed.data.teacherPreview && !loaded.isTeacherPreview)
+      return publicApiError(
+        requestId,
+        403,
+        'unauthorized',
+        'Teacher preview requires course management access.',
+      );
     if (part) {
       // 代码小问：结果交回 App，和其他小问一起存成整道大题的作答
       const multipart = { ...loaded.problem, points: STANDARD_PROBLEM_POINTS };
@@ -162,7 +168,7 @@ export async function POST(request: NextRequest) {
         result: replay.resultJson,
       });
     }
-    // 课堂提交不占平时 3 次的名额，也不按次数降分；核对不上这节课就按平时提交算。
+    // 核对课堂归属；核对不上时仍按平时作答保存，所有提交按实际答案评分。
     const verifiedClassSessionId = loaded.isTeacherPreview
       ? null
       : await classSessionForAttempt({
@@ -170,12 +176,6 @@ export async function POST(request: NextRequest) {
           problemId,
           classSessionId,
         });
-    const count =
-      loaded.isTeacherPreview || verifiedClassSessionId
-        ? 0
-        : await countNotebookProblemSubmissions({ userId: principal.userId, problemId });
-    if (count >= LIMITED_SUBMISSION_COUNT)
-      return publicApiError(requestId, 409, 'invalid_request', '这道题最多只能提交 3 次。');
     const problem = { ...loaded.problem, points: STANDARD_PROBLEM_POINTS };
     const courseIdentity = await resolveNotebookProblemCourseIdentity({
       courseId: loaded.problem.courseId ?? courseId,
@@ -218,18 +218,7 @@ export async function POST(request: NextRequest) {
         score: null,
         result: judged.result,
       });
-    const scored = verifiedClassSessionId
-      ? {
-          score: judged.score,
-          result: { ...judged.result, earnedPoints: judged.score },
-        }
-      : applySubmissionScorePolicy({
-          type: 'code',
-          attemptNumber: count + 1,
-          score: judged.score,
-          result: judged.result,
-          language,
-        });
+    const scored = applySubmissionScorePolicy({ score: judged.score, result: judged.result });
     if (loaded.isTeacherPreview)
       return publicApiSuccess(requestId, {
         saved: false,

@@ -56,12 +56,16 @@ async function getContent(request: NextRequest, requestId: string) {
     } catch {
       return publicApiError(requestId, 400, 'invalid_request', 'Invalid attempt cursor.');
     }
+    const classSessionId = request.nextUrl.searchParams.get('classSessionId')?.trim() || undefined;
+    if (classSessionId && classSessionId.length > 200)
+      return publicApiError(requestId, 400, 'invalid_request', 'Invalid class session.');
     const data = await readNativeProblemAttempts(
       prisma,
       principal.userId,
       courseId,
       problemId,
       before,
+      classSessionId,
     );
     return data
       ? publicApiSuccess(requestId, data, NO_STORE)

@@ -200,9 +200,22 @@ test('server grading submits one part at a time and preserves other parts and sc
     previous: wrong,
     language: 'en-US',
   });
-  assert.equal(retry.score, 24);
+  assert.equal(retry.score, 40);
   assert.equal(retry.result.parts[0].submissions, 2);
   assert.equal(retry.result.parts[1].submissions, 0);
+  let repeated = retry;
+  for (let count = 3; count <= 6; count++) {
+    repeated = await evaluator.evaluateNotebookMultipartProblem({
+      problem: fixture,
+      answer: { parts: { a: { selectedOptionIds: ['y'] } } },
+      previous: repeated,
+      language: 'en-US',
+    });
+    assert.equal(repeated.score, 40, 'repeat answers keep the full 40-point share');
+    assert.equal(repeated.result.parts[0].submissions, count);
+    assert.equal(repeated.result.parts[1].submissions, 0);
+  }
+
   const unknown = await evaluator.evaluateNotebookMultipartProblem({
     problem: fixture,
     answer: { parts: { unknown: { text: '6' } } },

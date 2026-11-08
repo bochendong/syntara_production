@@ -74,7 +74,6 @@ import {
   type TextAnswerMode,
 } from '@/components/problem-bank/course-problem-bank-helpers';
 import { useProblemActiveTimer } from '@/components/problem-bank/use-problem-active-timer';
-import { hasLimitedSubmissions } from '@/lib/problem-bank/scoring-policy';
 
 type CourseProblemBankControllerArgs = {
   courseId: string;
@@ -1032,13 +1031,6 @@ export function useCourseProblemBankController({
     if (selectedProblemAttemptsLoaded) return;
     const problem = selectedProblemRef.current;
     if (!problem || problem.id !== selectedProblemId) return;
-    if (
-      answerPanelTab !== 'history' &&
-      !hasLimitedSubmissions(problem.type) &&
-      problem.type !== 'multipart'
-    )
-      return;
-
     if (previewMode) {
       setAttemptsByProblemId((prev) => ({ ...prev, [selectedProblemId]: [] }));
       return;

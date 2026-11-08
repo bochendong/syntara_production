@@ -1,3 +1,4 @@
+import { classroomProblemDocument } from '../../data/classroom-practice-scope';
 import { useEffect, useState } from 'react';
 
 import { getLocalRepository } from '../../data/repository';
@@ -34,7 +35,13 @@ export function notifyProblemProgress() {
 }
 
 /** 本机作答进度：每道题最新的状态。 */
-export function useProblemStatuses(courseId: string, revision: unknown) {
+export function useProblemStatuses(
+  courseId: string,
+  revision: unknown,
+  classSessionId?: string,
+  problemIds?: string[],
+  preview = false,
+) {
   const [statuses, setStatuses] = useState<Map<string, ProblemStatus>>(() => new Map());
   const [mistakes, setMistakes] = useState<Set<string>>(() => new Set());
   const [tick, setTick] = useState(0);
@@ -44,9 +51,19 @@ export function useProblemStatuses(courseId: string, revision: unknown) {
     return () => window.removeEventListener(PROGRESS_EVENT, bump);
   }, []);
   useEffect(() => {
+    if (preview) return;
     let alive = true;
     void getLocalRepository()
-      .then((repository) => repository.listProblemProgress(courseId))
+      .then(async (repository) => {
+        if (!classSessionId) return repository.listProblemProgress(courseId);
+        const documents = await Promise.all(
+          (problemIds ?? []).map((id) => repository.loadProblemDocument(id)),
+        );
+        return documents.flatMap((document) => {
+          const progress = classroomProblemDocument(document, classSessionId)?.progress;
+          return progress ? [progress] : [];
+        });
+      })
       .then((progress) => {
         if (!alive) return;
         const next = new Map<string, ProblemStatus>();
@@ -65,7 +82,7 @@ export function useProblemStatuses(courseId: string, revision: unknown) {
     return () => {
       alive = false;
     };
-  }, [courseId, revision, tick]);
+  }, [courseId, revision, tick, classSessionId, problemIds, preview]);
   return [statuses, setStatuses, mistakes] as const;
 }
 

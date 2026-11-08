@@ -125,11 +125,6 @@ import {
   resolveCourseSpaceHeaderFields,
 } from '@/lib/course-space/format-course-space-header';
 import { findLocalDemoTeacherHomeCourse } from '@/lib/teacher/local-demo-fixtures';
-import {
-  hasLimitedSubmissions,
-  maxScoreForAttempt,
-  remainingSubmissions,
-} from '@/lib/problem-bank/scoring-policy';
 import { isLocalDemoProblemBankCourse } from '@/lib/teacher/local-demo-problem-bank';
 import {
   recordCourseProblemEvent,
@@ -1265,7 +1260,6 @@ export function CourseProblemBankView({
     selectedAnswerFeedback,
     selectedProblem,
     selectedProblemAttempts,
-    selectedProblemAttemptsLoaded,
     selectedProblemAttemptsLoading,
     selectedProblemContent,
     selectedProblemEditDraft,
@@ -1749,43 +1743,11 @@ export function CourseProblemBankView({
     handledAskRequestRef.current = aiAskRequest.id;
     askAiRef.current(aiAskRequest.move);
   }, [aiAskRequest]);
-  // 课堂入口的提交不占平时的提交名额。
-  const selectedProblemSubmissionCount = selectedProblemAttempts.filter(
-    (attempt) =>
-      (attempt.kind === 'submit' || attempt.kind === 'answer') && !attempt.classSessionId,
-  ).length;
-  const selectedProblemHasLimitedSubmissions =
-    selectedProblem && !canEditProblems ? hasLimitedSubmissions(selectedProblem.type) : false;
-  const selectedProblemRemainingSubmissions = remainingSubmissions(selectedProblemSubmissionCount);
-  const selectedProblemSubmissionLimitReached =
-    selectedProblemHasLimitedSubmissions &&
-    selectedProblemAttemptsLoaded &&
-    selectedProblemRemainingSubmissions === 0;
-  const selectedProblemNextAttemptNumber = Math.min(3, selectedProblemSubmissionCount + 1);
-  const problemSubmissionStatus = selectedProblemHasLimitedSubmissions ? (
-    <span
-      aria-live="polite"
-      className="whitespace-nowrap text-[11px] font-medium text-slate-500 dark:text-slate-400"
-    >
-      {selectedProblemAttemptsLoaded
-        ? selectedProblemSubmissionLimitReached
-          ? locale === 'zh-CN'
-            ? '3 次机会已用完'
-            : 'No attempts remaining'
-          : locale === 'zh-CN'
-            ? `剩余 ${selectedProblemRemainingSubmissions} 次 · 下次最高 ${maxScoreForAttempt(selectedProblemNextAttemptNumber)} 分`
-            : `${selectedProblemRemainingSubmissions} left · next max ${maxScoreForAttempt(selectedProblemNextAttemptNumber)}`
-        : locale === 'zh-CN'
-          ? '正在读取尝试次数…'
-          : 'Checking attempts...'}
-    </span>
-  ) : null;
   const problemSubmissionActions = (
     <div
       data-problem-submission-actions
       className="flex min-w-0 flex-wrap items-center justify-end gap-2"
     >
-      {!showCourseNavigation ? problemSubmissionStatus : null}
       {selectedProblem && courseAccessRole !== 'owner' && !previewMode ? (
         <ProblemForumPublishDialog
           key={selectedProblem.id}
@@ -2408,12 +2370,7 @@ export function CourseProblemBankView({
             selectedProblem?.type !== 'multipart' ? (
               <Button
                 onClick={handleSubmitInlineAnswer}
-                disabled={
-                  submittingAnswer ||
-                  runningCode ||
-                  (selectedProblemHasLimitedSubmissions &&
-                    (!selectedProblemAttemptsLoaded || selectedProblemSubmissionLimitReached))
-                }
+                disabled={submittingAnswer || runningCode}
                 className={cn(
                   'h-8 shrink-0 rounded-md px-3 text-xs font-semibold',
                   PROBLEM_BANK_EMERALD_ACTION_BUTTON_CLASS,
@@ -3065,7 +3022,6 @@ export function CourseProblemBankView({
                     {locale === 'zh-CN' ? '编辑题目' : 'Edit problem'}
                   </Button>
                 ) : null}
-                {problemSubmissionStatus}
               </div>
             ) : (
               (bulkDeleteActions ?? learnerActions)

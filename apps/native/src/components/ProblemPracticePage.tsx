@@ -1,3 +1,5 @@
+import { createTeacherPracticeStore } from '../data/teacher-practice-store';
+import { classroomDraftAccount, classroomProblemDocument } from '../data/classroom-practice-scope';
 import { createPracticeMilestones } from '../lib/practice-milestones';
 import {
   PracticeCelebration,
@@ -65,9 +67,7 @@ import {
 } from '../data/local-problem-grading';
 import {
   aggregatePartResults,
-  capPartScore,
   gradeLocalPart,
-  isAutoGradedPart,
   isMultipartProblem,
   multipartParts,
   partAnswerHasContent,
@@ -75,7 +75,6 @@ import {
   partBlankIds,
   partQuestionText,
   partShares,
-  PART_SUBMISSION_LIMIT,
   type LocalPartAnswer,
   type LocalPartResult,
 } from '../data/multipart-problem';
@@ -358,6 +357,12 @@ export function ProblemPracticePage({
   onAskAi,
   loadHiddenTests,
 }: ProblemPracticePageProps) {
+  const previewStore = useMemo(
+    () => (launch.teacherPreview ? createTeacherPracticeStore(problems) : null),
+    [launch.teacherPreview, problems],
+  );
+  const [previewDraftScope] = useState(() => `teacher-preview:${crypto.randomUUID()}`);
+  const draftScope = launch.teacherPreview ? previewDraftScope : launch.classSessionId;
   const [language, setLanguage] = useState<ProblemContentLanguage>(launch.language ?? 'zh-CN');
   const problemMap = useMemo(
     () => new Map(problems.map((problem) => [problem.id, problem])),
@@ -387,6 +392,7 @@ export function ProblemPracticePage({
   const draftRef = useRef<{ key: string; code: string; dirty: boolean } | null>(null);
   const [draftError, setDraftError] = useState<string | null>(null);
   const saveDraft = useCallback(() => {
+    if (launch.teacherPreview) return;
     const draft = draftRef.current;
     if (!draft?.dirty) return;
     try {
@@ -396,7 +402,7 @@ export function ProblemPracticePage({
     } catch {
       setDraftError('代码草稿保存失败，请保留当前代码后重试。');
     }
-  }, []);
+  }, [launch.teacherPreview]);
   useEffect(() => {
     window.addEventListener('pagehide', saveDraft);
     return () => window.removeEventListener('pagehide', saveDraft);
@@ -441,7 +447,13 @@ export function ProblemPracticePage({
   const [debugInput, setDebugInput] = useState('');
   const debugSequence = useRef(0);
   const debugRunning = debugResult.phase === 'loading' || debugResult.phase === 'running';
-  const [statuses, setStatuses, mistakes] = useProblemStatuses(problems[0]?.courseId ?? '', launch);
+  const [statuses, setStatuses, mistakes] = useProblemStatuses(
+    problems[0]?.courseId ?? '',
+    launch,
+    launch.classSessionId,
+    orderedIds,
+    launch.teacherPreview,
+  );
   const [justGraded, setJustGraded] = useState<ProblemStatus | null>(null);
   const milestones = useRef(createPracticeMilestones());
   const [celebration, setCelebration] = useState<PracticeCelebrationSnapshot | null>(null);
@@ -521,7 +533,7 @@ export function ProblemPracticePage({
   const structuredRacket = racketAnswerSpec(publicContent);
   const structuredRacketDraftKey = currentProblem
     ? problemCodeDraftKey(
-        accountStorageKey('syntara.racket-answer-draft.v1'),
+        classroomDraftAccount(accountStorageKey('syntara.racket-answer-draft.v1'), draftScope),
         currentProblem.courseId,
         currentProblem.id,
       )
@@ -636,6 +648,7 @@ export function ProblemPracticePage({
     if (!currentProblem) return { stdout: '', error: '题目不可用，请重试。', files: [] };
     try {
       const reply = await gradeNativeCode({
+        teacherPreview: launch.teacherPreview,
         courseId: currentProblem.courseId,
         problemId: currentProblem.id,
         attemptId: `run_${crypto.randomUUID().replace(/-/g, '')}`,
@@ -663,6 +676,7 @@ export function ProblemPracticePage({
   const serverRunPublicTests: ServerCodeTestRun = async (code) => {
     if (!currentProblem) return null;
     const reply = await gradeNativeCode({
+      teacherPreview: launch.teacherPreview,
       courseId: currentProblem.courseId,
       problemId: currentProblem.id,
       attemptId: `run_${crypto.randomUUID().replace(/-/g, '')}`,
@@ -772,7 +786,7 @@ export function ProblemPracticePage({
     setHistoryVisibleCount(20);
     draftRef.current = null;
     const draftKey = problemCodeDraftKey(
-      accountStorageKey('syntara.problem-code-draft.v1'),
+      classroomDraftAccount(accountStorageKey('syntara.problem-code-draft.v1'), draftScope),
       currentProblem.courseId,
       currentProblem.id,
     );
@@ -820,25 +834,38 @@ export function ProblemPracticePage({
     void (async () => {
       try {
         const repository = await getLocalRepository();
-        const localDocument = await repository.loadProblemDocument(currentProblem.id);
+        const localDocument = await (previewStore ?? repository).loadProblemDocument(
+          currentProblem.id,
+        );
         if (!alive) return;
-        setDocument(localDocument);
-        const originalAnswer = restoreAnswer(localDocument);
+        setDocument(classroomProblemDocument(localDocument, launch.classSessionId));
+        const originalAnswer = restoreAnswer(
+          classroomProblemDocument(localDocument, launch.classSessionId),
+        );
         setLoading(false);
+        if (previewStore) return;
         try {
           const cursor = await syncProblemAttempts(
             repository,
             currentProblem.courseId,
             currentProblem.id,
+            undefined,
+            launch.classSessionId,
           );
           if (!alive) return;
           setHistoryCursor(cursor);
           historyCursorInitialized.current = true;
-          const nextDocument = await repository.loadProblemDocument(currentProblem.id);
+          const nextDocument = await (previewStore ?? repository).loadProblemDocument(
+            currentProblem.id,
+          );
           if (!alive) return;
-          setDocument(nextDocument);
+          setDocument(classroomProblemDocument(nextDocument, launch.classSessionId));
+          if (!previewStore) notifyProblemProgress();
           // A slow connection must not replace text/options edited since the local page opened.
-          restoreAnswer(nextDocument, originalAnswer);
+          restoreAnswer(
+            classroomProblemDocument(nextDocument, launch.classSessionId),
+            originalAnswer,
+          );
         } catch {
           if (!alive) return;
           setHistorySyncError('作答记录同步失败，暂时显示本机记录。');
@@ -857,11 +884,19 @@ export function ProblemPracticePage({
       snapshotSequence.current += 1;
       saveDraft();
     };
-  }, [currentProblem, saveDraft]);
+  }, [currentProblem, saveDraft, launch.classSessionId, previewStore, draftScope]);
 
   // Refresh history without replacing the learner's current answer or unsent draft.
   useEffect(() => {
-    if (!currentProblem || rightTab !== 'history' || loading || submitting || snapshotBusy) return;
+    if (
+      previewStore ||
+      !currentProblem ||
+      rightTab !== 'history' ||
+      loading ||
+      submitting ||
+      snapshotBusy
+    )
+      return;
     let alive = true;
     const stop = subscribeVisibleRefresh(async () => {
       try {
@@ -870,14 +905,16 @@ export function ProblemPracticePage({
           repository,
           currentProblem.courseId,
           currentProblem.id,
+          undefined,
+          launch.classSessionId,
         );
-        const next = await repository.loadProblemDocument(currentProblem.id);
+        const next = await (previewStore ?? repository).loadProblemDocument(currentProblem.id);
         if (!alive) return;
         if (!historyCursorInitialized.current) {
           setHistoryCursor(cursor);
           historyCursorInitialized.current = true;
         }
-        setDocument(next);
+        setDocument(classroomProblemDocument(next, launch.classSessionId));
         setHistorySyncError(null);
       } catch {
         if (alive) setHistorySyncError('作答记录同步失败，暂时显示本机记录。');
@@ -887,10 +924,18 @@ export function ProblemPracticePage({
       alive = false;
       stop();
     };
-  }, [currentProblem, rightTab, loading, submitting, snapshotBusy]);
+  }, [
+    currentProblem,
+    rightTab,
+    loading,
+    submitting,
+    snapshotBusy,
+    launch.classSessionId,
+    previewStore,
+  ]);
 
   const loadMoreHistory = async () => {
-    if (!currentProblem || historySyncing) return;
+    if (!currentProblem || historySyncing || previewStore) return;
     const problemId = currentProblem.id;
     if (!historyCursor && !historySyncError) {
       setHistoryVisibleCount((count) => count + 20);
@@ -905,10 +950,11 @@ export function ProblemPracticePage({
         currentProblem.courseId,
         problemId,
         historyCursor,
+        launch.classSessionId,
       );
-      const next = await repository.loadProblemDocument(problemId);
+      const next = await (previewStore ?? repository).loadProblemDocument(problemId);
       if (sequence !== snapshotSequence.current) return;
-      setDocument(next);
+      setDocument(classroomProblemDocument(next, launch.classSessionId));
       setHistoryCursor(cursor);
       setHistorySyncError(null);
       setHistoryVisibleCount((count) => count + 20);
@@ -1011,7 +1057,7 @@ export function ProblemPracticePage({
         let codePreview = false;
         let grade = gradeLocalProblem(currentProblem, submittedAnswer);
         if (submittedAnswer.kind === 'code') {
-          if (!(await isPlatformCourse(repository, currentProblem.courseId))) {
+          if (!previewStore && !(await isPlatformCourse(repository, currentProblem.courseId))) {
             throw new Error('这道代码题需要连接课程服务器才能提交和判分。');
           }
           const attemptId = pendingCodeSubmission(
@@ -1020,6 +1066,7 @@ export function ProblemPracticePage({
             launch.classSessionId,
           );
           const reply = await gradeNativeCode({
+            teacherPreview: launch.teacherPreview,
             courseId: currentProblem.courseId,
             problemId: currentProblem.id,
             attemptId,
@@ -1113,7 +1160,7 @@ export function ProblemPracticePage({
           }
         }
         const previousDocument = serverCodeId
-          ? await repository.loadProblemDocument(currentProblem.id)
+          ? await (previewStore ?? repository).loadProblemDocument(currentProblem.id)
           : null;
         const priorAttempt = previousDocument?.attempts.find(
           (item) => item.result?.serverCodeId === serverCodeId,
@@ -1121,13 +1168,14 @@ export function ProblemPracticePage({
         const saved =
           priorAttempt && previousDocument
             ? { attempt: priorAttempt, document: previousDocument }
-            : await repository.saveProblemAttempt({
+            : await (previewStore ?? repository).saveProblemAttempt({
                 problemId: currentProblem.id,
                 answer: submittedAnswer,
                 status: grade.status === 'pending' ? 'pending' : grade.status,
                 score: grade.score,
                 feedback: grade.feedback,
                 result: {
+                  classSessionId: launch.classSessionId ?? null,
                   feedback: grade.feedback,
                   autoGraded: grade.autoGraded,
                   ...(tableCells ? { cells: tableCells } : {}),
@@ -1143,7 +1191,7 @@ export function ProblemPracticePage({
         if (serverCodeId)
           clearPendingCodeSubmission(currentProblem.id, serverCodeId, launch.classSessionId);
         // Persist/sync even if the learner changed questions while grading.
-        if (!serverCodeId && !codePreview)
+        if (!previewStore && !serverCodeId && !codePreview)
           void queueProblemAttempt(
             repository,
             currentProblem.courseId,
@@ -1151,14 +1199,14 @@ export function ProblemPracticePage({
             launch.classSessionId,
           );
         if (sequence !== snapshotSequence.current) return;
-        setDocument(saved.document);
+        setDocument(classroomProblemDocument(saved.document, launch.classSessionId));
         setSubmissionNotice(submissionFeedback([grade]));
         setFeedback(grade.feedback);
         const status: ProblemStatus = grade.status === 'pending' ? 'pending' : grade.status;
         const nextStatuses = new Map(statuses);
         nextStatuses.set(currentProblem.id, status);
         setStatuses(nextStatuses);
-        notifyProblemProgress();
+        if (!previewStore) notifyProblemProgress();
         setJustGraded(status);
         celebrateSubmission(currentProblem.id, status, nextStatuses);
         // 这一组每题都做过了：弹珠落进罐子。
@@ -1189,6 +1237,8 @@ export function ProblemPracticePage({
       publicContent,
       structuredRacket,
       launch.classSessionId,
+      launch.teacherPreview,
+      previewStore,
     ],
   );
 
@@ -1200,6 +1250,7 @@ export function ProblemPracticePage({
       publicTestReceipts.current.delete(key);
       try {
         const reply = await gradeNativeCode({
+          teacherPreview: launch.teacherPreview,
           courseId: currentProblem.courseId,
           problemId: currentProblem.id,
           attemptId: `run_${crypto.randomUUID().replace(/-/g, '')}`,
@@ -1238,7 +1289,7 @@ export function ProblemPracticePage({
         return null;
       }
     },
-    [currentProblem, language],
+    [currentProblem, language, launch.teacherPreview],
   );
 
   /** 大题：只批改这几问，其余小问沿用上次结果，再存成一条完整的作答。 */
@@ -1284,7 +1335,6 @@ export function ProblemPracticePage({
               if (!partAnswerHasContent(draft)) return carried;
             }
             const used = before?.submissions ?? 0;
-            if (isAutoGradedPart(part) && used >= PART_SUBMISSION_LIMIT) return carried;
             let grade = gradeLocalPart(currentProblem, part, draft);
             let tableCells: Array<{ key: string; correct: boolean }> | undefined;
             let codeSummary: Pick<
@@ -1295,6 +1345,7 @@ export function ProblemPracticePage({
               // 代码小问在服务器上跑公开 + 隐藏测试；结果和其他小问一起存成整题作答
               try {
                 const reply = await gradeNativeCode({
+                  teacherPreview: launch.teacherPreview,
                   courseId: currentProblem.courseId,
                   problemId: currentProblem.id,
                   attemptId: `part_${crypto.randomUUID().replace(/-/g, '')}`,
@@ -1386,7 +1437,7 @@ export function ProblemPracticePage({
             return {
               label: part.label,
               status: grade.status,
-              score: isAutoGradedPart(part) ? capPartScore(raw, submissions) : raw,
+              score: raw,
               share,
               feedback: grade.feedback,
               ...(tableCells ? { cells: tableCells } : {}),
@@ -1407,27 +1458,29 @@ export function ProblemPracticePage({
         const passedCount = results.filter((item) => item.status === 'passed').length;
         const summary = `答对 ${passedCount}/${results.length} 个小问。`;
         const repository = await getLocalRepository();
-        const saved = await repository.saveProblemAttempt({
+        const saved = await (previewStore ?? repository).saveProblemAttempt({
           problemId: currentProblem.id,
           answer: { kind: 'parts', parts: answers },
           status: overall.status,
           score: overall.score,
           feedback: summary,
           result: {
+            classSessionId: launch.classSessionId ?? null,
             feedback: summary,
             autoGraded: results.every((item) => item.status !== 'pending'),
             gradingProvider: 'local',
             parts: results,
           },
         });
-        void queueProblemAttempt(
-          repository,
-          currentProblem.courseId,
-          saved.attempt,
-          launch.classSessionId,
-        ).catch(() => undefined);
+        if (!previewStore)
+          void queueProblemAttempt(
+            repository,
+            currentProblem.courseId,
+            saved.attempt,
+            launch.classSessionId,
+          ).catch(() => undefined);
         if (sequence !== snapshotSequence.current) return;
-        setDocument(saved.document);
+        setDocument(classroomProblemDocument(saved.document, launch.classSessionId));
         setSubmissionNotice(
           submissionFeedback(
             results
@@ -1447,7 +1500,7 @@ export function ProblemPracticePage({
         const nextStatuses = new Map(statuses);
         nextStatuses.set(currentProblem.id, status);
         setStatuses(nextStatuses);
-        notifyProblemProgress();
+        if (!previewStore) notifyProblemProgress();
         setJustGraded(status);
         celebrateSubmission(currentProblem.id, status, nextStatuses);
         if (
@@ -1487,6 +1540,8 @@ export function ProblemPracticePage({
       submitting,
       snapshotBusy,
       launch.classSessionId,
+      launch.teacherPreview,
+      previewStore,
     ],
   );
 
@@ -1506,30 +1561,37 @@ export function ProblemPracticePage({
       const repository = await getLocalRepository();
       const preparedAnswer =
         event === 'answer_reset' ? nextAnswer : await prepareProblemHandwriting(nextAnswer);
-      const saved = await saveProblemLearningSnapshot(repository, {
+      const saved = await saveProblemLearningSnapshot(previewStore ?? repository, {
         problem,
         answer: preparedAnswer,
         progress: document?.progress ?? null,
         event,
+        classSessionId: launch.classSessionId,
         at: Date.now(),
         id: crypto.randomUUID(),
       });
-      void queueProblemAttempt(repository, problem.courseId, saved.attempt).catch(() => undefined);
-      if (event === 'solution_viewed' || event === 'hidden_tests_viewed')
+      if (!previewStore)
+        void queueProblemAttempt(
+          repository,
+          problem.courseId,
+          saved.attempt,
+          launch.classSessionId,
+        ).catch(() => undefined);
+      if (!previewStore && (event === 'solution_viewed' || event === 'hidden_tests_viewed'))
         void syncAppMemories(repository, problem.courseId).catch(() => undefined);
       if (sequence !== snapshotSequence.current) return false;
       if (event === 'answer_reset') {
         if (structuredRacket) window.localStorage.removeItem(structuredRacketDraftKey);
         await clearHandwritingDrafts(
           handwritingDraftKey(
-            accountStorageKey('syntara.handwriting.v1'),
+            classroomDraftAccount(accountStorageKey('syntara.handwriting.v1'), draftScope),
             problem.courseId,
             problem.id,
           ),
         );
         setHandwritingReset((value) => value + 1);
       }
-      setDocument(saved.document);
+      setDocument(classroomProblemDocument(saved.document, launch.classSessionId));
       if (event === 'answer_reset') {
         publicTestReceipts.current.clear();
         setAnswer(nextAnswer);
@@ -1891,13 +1953,11 @@ export function ProblemPracticePage({
           activePart &&
           (rightTab === 'answer' || (rightTab === 'tests' && activePartCode)) ? (
             <PartSubmitButton
-              part={activePart}
               answer={partDrafts[activePart.label] ?? savedParts.answers[activePart.label] ?? {}}
               dirty={partDraftIsDirty(
                 partDrafts[activePart.label],
                 savedParts.answers[activePart.label],
               )}
-              result={savedParts.results.find((item) => item.label === activePart.label)}
               submitting={loading || submitting || snapshotBusy || debugRunning || photoBusy}
               onSubmit={() => void submitParts([activePart.label])}
             />
@@ -2366,17 +2426,7 @@ export function ProblemPracticePage({
                       <PhotoAnswerInput
                         key={handwritingModeKey}
                         maxImageBytes={writtenPart ? 180 * 1024 : undefined}
-                        disabled={
-                          loading ||
-                          submitting ||
-                          snapshotBusy ||
-                          Boolean(
-                            writtenPart &&
-                            isAutoGradedPart(writtenPart) &&
-                            (savedParts.results.find((item) => item.label === writtenPart.label)
-                              ?.submissions ?? 0) >= PART_SUBMISSION_LIMIT,
-                          )
-                        }
+                        disabled={loading || submitting || snapshotBusy}
                         onBusyChange={setPhotoBusy}
                         onError={setError}
                         onSubmit={async (images) => {
@@ -2515,7 +2565,7 @@ export function ProblemPracticePage({
                       onRunScript={serverRunsCode ? serverRunCode : undefined}
                       onTestRun={(code, passed, target) => {
                         // Racket 的公开测试在服务器上跑，服务器自己会记。
-                        if (serverRunsCode && target === 'public') return;
+                        if (previewStore || (serverRunsCode && target === 'public')) return;
                         void getLocalRepository()
                           .then((repository) =>
                             queueProblemTestRun(repository, {
@@ -2563,7 +2613,10 @@ export function ProblemPracticePage({
                     handwritingMode={handwritingMode}
                     handwritingHeaderId={handwritingHeaderId}
                     handwritingKey={handwritingDraftKey(
-                      accountStorageKey('syntara.handwriting.v1'),
+                      classroomDraftAccount(
+                        accountStorageKey('syntara.handwriting.v1'),
+                        draftScope,
+                      ),
                       currentProblem.courseId,
                       currentProblem.id,
                     )}
@@ -2715,7 +2768,10 @@ export function ProblemPracticePage({
                     <HandwritingAnswerInput
                       key={`${currentProblem.id}:${handwritingReset}`}
                       draftKey={handwritingDraftKey(
-                        accountStorageKey('syntara.handwriting.v1'),
+                        classroomDraftAccount(
+                          accountStorageKey('syntara.handwriting.v1'),
+                          draftScope,
+                        ),
                         currentProblem.courseId,
                         currentProblem.id,
                       )}

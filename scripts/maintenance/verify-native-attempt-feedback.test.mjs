@@ -27,12 +27,15 @@ const source = ts.transpileModule(
   },
 ).outputText;
 
-function fixture() {
+function fixture(verifiedSession = null) {
   const writes = [];
   const mocks = {
     '@/lib/problem-bank/schema': schema,
     '@/lib/problem-bank/photo-answer': photo,
-    '@/lib/server/class-session-attempts': { classSessionForAttempt: async () => null },
+    '@/lib/server/class-session-attempts': {
+      classSessionForAttempt: async ({ classSessionId }) =>
+        classSessionId === verifiedSession ? verifiedSession : null,
+    },
     '@/lib/server/repositories/course-enrollment-repository': {
       resolveCourseNotebookAccess: async () => ({ role: 'owner', notebookAccessLimit: null }),
     },
@@ -137,4 +140,17 @@ test('multipart sync omits blank feedback, retains useful comments and preserves
     result.parts.map((part) => part.score),
     [2.5, 2.5, 5],
   );
+});
+
+test('learning snapshots retain only verified classroom ownership and preserve assessed progress', async () => {
+  for (const requested of ['lesson', 'unverified']) {
+    const f = fixture('lesson');
+    const payload = f.nativeProblemAttemptUploadSchema.parse(
+      upload('', { event: 'solution_viewed', classSessionId: requested }),
+    );
+    await f.saveNativeProblemAttempts(f.db, 'learner', payload);
+    assert.equal(f.writes[0].classSessionId, requested === 'lesson' ? 'lesson' : null);
+    assert.equal(f.writes[0].preserveProgress, true);
+    assert.equal(f.writes[0].score, null);
+  }
 });

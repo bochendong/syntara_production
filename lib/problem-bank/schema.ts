@@ -782,7 +782,7 @@ export const notebookProblemPartResultSchema = z.object({
   analysis: z.string().trim().min(1).max(16000).optional(),
   /// 这一问最后一次被批改的时间（沿用旧结果时保留原时间）
   gradedAt: z.number().optional(),
-  /// 这一问累计提交了几次（自动判分的小问最多 3 次，分数上限逐次降低）
+  /// 这一问累计提交了几次（仅记录历史，不限制次数或降低分数）
   submissions: z.number().int().min(0).max(1000).optional(),
   /// 代码小问的测试结果
   publicSummary: notebookCodeCaseSummarySchema.optional(),
