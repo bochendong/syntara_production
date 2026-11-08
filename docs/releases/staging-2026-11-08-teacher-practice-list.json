@@ -1,0 +1,48 @@
+{
+  "status": "deployed",
+  "at": "2026-11-08T05:31:12.137Z",
+  "environment": "staging",
+  "revision": "4f81e4faac303a1140309f8f8cefda57632e5628",
+  "deploymentId": "dd6f10e7-8cfd-42fc-81dc-987a8b30c3f4",
+  "pullRequest": "https://github.com/bochendong/syntara_production/pull/67",
+  "previousRevision": "6aa3bbd157d90461dda4cb7c2d46564a5024a56a",
+  "changes": [
+    "老师试做复用学生课堂题单。",
+    "整节课一次读取，点击题目后可在做题页切题。",
+    "试做进度和记录保存在当前课堂页面的独立内存存储。"
+  ],
+  "verification": {
+    "regressionChecks": 21,
+    "formatLintAndTypes": true,
+    "localAndRailwayBuild": true,
+    "online": {
+      "health": {
+        "status": "ok",
+        "service": "syntara-native",
+        "environment": "staging"
+      },
+      "version": {
+        "version": "0.1.1",
+        "release": "2026.10.28-sync.1",
+        "syncProtocol": 2,
+        "revision": "4f81e4faac303a1140309f8f8cefda57632e5628"
+      },
+      "entryStatus": 200,
+      "cardApiStatus": 404,
+      "assets": [
+        {
+          "path": "/native-web/assets/index-DzecqX_c.js",
+          "sha256": "259e67eae62fafdffbe7e022428cfe0d41672f4b5a9a78a5e0b4cb61a7181a47"
+        },
+        {
+          "path": "/native-web/assets/index-DqxVGfrc.css",
+          "sha256": "2c4874989059817736049fdb22501b38b65b6116e936a04bf2a022f3986f0c39"
+        }
+      ]
+    },
+    "readOnlyStagingClass": "UTM-CSC108 Term Test 2 Review，15 题，从第二题打开并切到第三题。",
+    "isolatedSubmission": "第二题试做答对，返回题单显示绿球与 1/3。"
+  },
+  "pendingMigrations": 0,
+  "studyCardCollectionIncluded": false
+}
