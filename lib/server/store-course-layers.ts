@@ -232,6 +232,7 @@ export async function releaseCourseVersion(
   db: RootDbClient,
   courseId: string,
   actorId?: string,
+  expectedProblemIds?: string[],
 ): Promise<CourseRelease> {
   return db.$transaction(
     async (tx) => {
@@ -240,7 +241,7 @@ export async function releaseCourseVersion(
     `;
       if (!course) throw new CourseContentNotFoundError();
       if (actorId) await draftAuthority(tx, actorId, courseId);
-      const changes = await applyContentDrafts(tx, courseId);
+      const changes = await applyContentDrafts(tx, courseId, expectedProblemIds);
       const { draftCount: _draftCount, ...summary } = summarizeContentDrafts(changes);
       if (!changes.length) return { version: course.contentVersion, ...summary };
       const version = course.contentVersion + 1;

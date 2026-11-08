@@ -103,6 +103,7 @@ export async function stageContent(
   id: string | null,
   patch: Record<string, unknown>,
   deleting = false,
+  expectedUpdatedAt?: number,
 ) {
   await lockAdmissionCourse(db, courseId);
   const course = await draftAuthority(db, userId, courseId);
@@ -121,6 +122,23 @@ export async function stageContent(
         })
     : null;
   if (id && !live && !previous) throw new CourseAdmissionError(404, '内容不存在。');
+  if (
+    expectedUpdatedAt !== undefined &&
+    (previous || live?.updatedAt.getTime() !== expectedUpdatedAt)
+  )
+    throw new CourseAdmissionError(409, '原题或草稿已更新，请重新读取后再修改。');
+  if (
+    patch.type !== undefined &&
+    (kind !== 'problems' ||
+      !live ||
+      !('type' in live) ||
+      live.type !== 'table' ||
+      patch.type !== 'multipart' ||
+      expectedUpdatedAt === undefined ||
+      !patch.publicContent ||
+      !patch.grading)
+  )
+    throw new CourseAdmissionError(400, '只支持将当前版本的表格题转换为分小问题。');
   if (previous?.operation === 'delete' && !deleting)
     throw new CourseAdmissionError(409, '请先撤销待删除操作。');
   const targetId = id || randomUUID();
@@ -185,7 +203,7 @@ export async function stageContent(
       difficulty: normalized.difficulty,
       publicContentJson: normalized.publicContent,
       gradingJson: normalized.grading,
-      points: normalized.points,
+      points: patch.type === undefined ? normalized.points : payload.points,
       tags: normalized.tags,
       dedupeKey: courseProblemDedupeKey(normalized),
       sourceMeta: normalized.sourceMeta,
@@ -211,7 +229,11 @@ export async function stageContent(
     baseUpdatedAt: previous?.baseUpdatedAt ?? live?.updatedAt ?? null,
   });
 }
-export async function applyContentDrafts(db: DbClient, courseId: string) {
+export async function applyContentDrafts(
+  db: DbClient,
+  courseId: string,
+  expectedProblemIds?: string[],
+) {
   const course = await db.course.findUniqueOrThrow({ where: { id: courseId } });
   const allChanges = await contentDrafts(db, courseId);
   const changes = allChanges
@@ -220,6 +242,20 @@ export async function applyContentDrafts(db: DbClient, courseId: string) {
         !(row.kind === 'problems' && row.operation === 'save' && row.payload.status === 'draft'),
     )
     .sort((a, b) => (a.kind === b.kind ? 0 : a.kind === 'notes' ? -1 : 1));
+  if (expectedProblemIds) {
+    const expected = new Set(expectedProblemIds);
+    if (
+      changes.length !== expected.size ||
+      changes.some(
+        (change) =>
+          change.kind !== 'problems' ||
+          change.operation !== 'save' ||
+          !change.baseUpdatedAt ||
+          !expected.has(change.targetId),
+      )
+    )
+      throw new CourseAdmissionError(409, '待发布的题目范围已改变，请重新核对。');
+  }
   const touchedNotebooks = new Set<string>();
   for (const change of changes)
     if (change.kind === 'problems' && change.operation === 'save')

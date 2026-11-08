@@ -223,6 +223,8 @@ const actionSchema = z.union([
     courseId: z.string().trim().min(1).max(200),
     action: z.literal('update-managed-problem'),
     id: z.string().trim().min(1).max(200),
+    type: z.literal('multipart').optional(),
+    expectedUpdatedAt: z.number().int().positive().optional(),
     title: z.string().trim().min(1).max(200).optional(),
     status: z.enum(['draft', 'published']).optional(),
     difficulty: z.enum(['easy', 'medium', 'hard']).optional(),
@@ -259,7 +261,12 @@ const actionSchema = z.union([
   }),
   z.object({
     courseId: z.string().trim().min(1).max(200),
-    action: z.enum(['join', 'release']),
+    action: z.literal('release'),
+    expectedProblemIds: z.array(z.string().trim().min(1).max(200)).min(1).max(100).optional(),
+  }),
+  z.object({
+    courseId: z.string().trim().min(1).max(200),
+    action: z.literal('join'),
     answers: z
       .record(z.string().max(60), z.string().max(500))
       .refine((value) => Object.keys(value).length <= 8)
@@ -288,7 +295,7 @@ async function postStore(request: NextRequest, requestId: string) {
   if (!parsed.success) {
     return publicApiError(requestId, 400, 'invalid_request', 'Invalid store action.');
   }
-  const { courseId, action } = parsed.data;
+  const { courseId } = parsed.data;
   if (parsed.data.action === 'undo-managed-content') {
     const input = parsed.data;
     await prisma.$transaction((tx) =>
@@ -321,9 +328,19 @@ async function postStore(request: NextRequest, requestId: string) {
     return publicApiSuccess(requestId, { saved: true });
   }
   if (parsed.data.action === 'update-managed-problem') {
-    const { id, courseId: _course, action: _action, ...patch } = parsed.data;
+    const { id, courseId: _course, action: _action, expectedUpdatedAt, ...patch } = parsed.data;
     await prisma.$transaction(
-      (tx) => stageContent(tx, principal.userId, courseId, 'problems', id, patch),
+      (tx) =>
+        stageContent(
+          tx,
+          principal.userId,
+          courseId,
+          'problems',
+          id,
+          patch,
+          false,
+          expectedUpdatedAt,
+        ),
       { timeout: 60000 },
     );
     return publicApiSuccess(requestId, { saved: true });
@@ -393,8 +410,13 @@ async function postStore(request: NextRequest, requestId: string) {
       throw error;
     }
   }
-  if (action === 'release') {
-    const release = await releaseCourseVersion(prisma, courseId, principal.userId);
+  if (parsed.data.action === 'release') {
+    const release = await releaseCourseVersion(
+      prisma,
+      courseId,
+      principal.userId,
+      parsed.data.expectedProblemIds,
+    );
     return publicApiSuccess(requestId, { ...release, text: formatCourseUpdateSummary(release) });
   }
   if (parsed.data.action === 'seen') {

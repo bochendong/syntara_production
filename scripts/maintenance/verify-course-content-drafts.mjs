@@ -269,6 +269,89 @@ try {
           (await tx.notebook.findUnique({ where: { id: book.id } })).name,
           'Other editor',
         );
+        await drafts.undoContentDraft(tx, owner.id, course.id, 'notes', book.id);
+        const table = await tx.notebookProblem.create({
+          data: {
+            courseId: course.id,
+            title: 'Dictionary trace',
+            type: 'table',
+            status: 'published',
+            order: 10,
+            problemNumber: 42,
+            points: 70,
+            tags: [],
+            publicContentJson: { type: 'table', stem: 'Trace a dictionary.' },
+            gradingJson: { type: 'table', cells: [] },
+          },
+        });
+        const oldAnswer = { kind: 'table', cells: { 'r:answer': '3' } };
+        const historic = await tx.notebookProblemAttempt.create({
+          data: { problemId: table.id, userId: student.id, kind: 'answer', answerJson: oldAnswer },
+        });
+        const labels = ['a', 'b'];
+        const choice = {
+          type: 'choice',
+          selectionMode: 'single',
+          stem: 'Which value does the lookup produce?',
+          options: [
+            { id: 'a', label: '3' },
+            { id: 'b', label: '5' },
+          ],
+        };
+        const patch = {
+          type: 'multipart',
+          publicContent: {
+            type: 'multipart',
+            stem: 'Read the dictionary.',
+            parts: labels.map((label) => ({ label, points: 35, content: choice })),
+          },
+          grading: {
+            type: 'multipart',
+            parts: labels.map((label) => ({
+              label,
+              grading: { type: 'choice', correctOptionIds: ['a'] },
+            })),
+          },
+        };
+        const stage = (expected) =>
+          drafts.stageContent(
+            tx,
+            owner.id,
+            course.id,
+            'problems',
+            table.id,
+            patch,
+            false,
+            expected,
+          );
+        await assert.rejects(stage(), (e) => e.status === 400);
+        await assert.rejects(stage(table.updatedAt.getTime() - 1), (e) => e.status === 409);
+        await stage(table.updatedAt.getTime());
+        assert.equal(
+          (await tx.notebookProblem.findUnique({ where: { id: table.id } })).type,
+          'table',
+        );
+        await assert.rejects(stage(table.updatedAt.getTime()), (e) => e.status === 409);
+        await drafts.stageContent(tx, owner.id, course.id, 'notes', book.id, {
+          title: 'Unrelated draft',
+        });
+        await assert.rejects(
+          releaseCourseVersion(transactional, course.id, owner.id, [table.id]),
+          (e) => e.status === 409,
+        );
+        await drafts.undoContentDraft(tx, owner.id, course.id, 'notes', book.id);
+        const converted = await releaseCourseVersion(transactional, course.id, owner.id, [
+          table.id,
+        ]);
+        assert.equal(converted.updatedProblems, 1);
+        const updated = await tx.notebookProblem.findUnique({ where: { id: table.id } });
+        assert.equal(updated.type, 'multipart');
+        assert.equal(updated.problemNumber, 42);
+        assert.equal(updated.points, 70);
+        assert.deepEqual(
+          (await tx.notebookProblemAttempt.findUnique({ where: { id: historic.id } })).answerJson,
+          oldAnswer,
+        );
         throw rollback;
       },
       { timeout: 60000 },
@@ -276,7 +359,7 @@ try {
     (e) => e === rollback,
   );
   console.log(
-    'PASS: draft isolation, publication, undo deletion, new notes, unready questions, authorization; all fixtures rolled back.',
+    'PASS: draft isolation, publication, scoped type conversion, preserved history, undo deletion, new notes, unready questions, authorization. All fixtures rolled back.',
   );
 } finally {
   await db.$disconnect();
