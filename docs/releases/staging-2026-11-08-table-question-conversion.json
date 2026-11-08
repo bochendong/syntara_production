@@ -1,0 +1,23 @@
+{
+  "status": "deployed",
+  "at": "2026-11-08T05:52:29.196Z",
+  "environment": "staging",
+  "revision": "da2ad21f246d0584528683d3dffe647d7aa9a6a4",
+  "deploymentId": "bcf8f1a0-dcf1-47c4-a363-28c6debe0023",
+  "pullRequest": "https://github.com/bochendong/syntara_production/pull/69",
+  "previousRevision": "4f81e4faac303a1140309f8f8cefda57632e5628",
+  "changes": [
+    "Version-checked in-place table to multipart conversion in the existing managed question workflow.",
+    "Optional release scope checks the pending changes under the course lock."
+  ],
+  "verification": {
+    "formatLintTypes": true,
+    "postgresqlRegression": true,
+    "railwayBuild": true,
+    "healthAndRevision": true,
+    "courseContentVersions": [40, 41],
+    "classroomReadback": "Four requested question updates verified by the existing classroom API. All other managed questions matched their prior content.",
+    "questionChecks": "Python execution, current question schema and local grading checks. The older course-materials checker accepts the eight choice subparts but does not cover table or multipart wrappers."
+  },
+  "pendingMigrations": 0
+}
