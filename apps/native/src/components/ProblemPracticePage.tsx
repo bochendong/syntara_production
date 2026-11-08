@@ -195,6 +195,7 @@ type ProblemPracticePageProps = {
   /** iPad/桌面：「问 AI」把这道题交给课程主聊天。没有时不显示按钮。 */
   onAskAi?: (attachment: ProblemChatAttachment, move: ProblemCoachMove) => void;
   loadHiddenTests?: (problemId: string, part?: string) => Promise<RevealedHiddenTests>;
+  teacherPracticeStore?: ReturnType<typeof createTeacherPracticeStore>;
 };
 
 type RightTab = 'answer' | 'code' | 'tests' | 'history' | 'solution';
@@ -356,10 +357,12 @@ export function ProblemPracticePage({
   onMinimize,
   onAskAi,
   loadHiddenTests,
+  teacherPracticeStore,
 }: ProblemPracticePageProps) {
   const previewStore = useMemo(
-    () => (launch.teacherPreview ? createTeacherPracticeStore(problems) : null),
-    [launch.teacherPreview, problems],
+    () =>
+      launch.teacherPreview ? (teacherPracticeStore ?? createTeacherPracticeStore(problems)) : null,
+    [launch.teacherPreview, problems, teacherPracticeStore],
   );
   const [previewDraftScope] = useState(() => `teacher-preview:${crypto.randomUUID()}`);
   const draftScope = launch.teacherPreview ? previewDraftScope : launch.classSessionId;
@@ -452,7 +455,7 @@ export function ProblemPracticePage({
     launch,
     launch.classSessionId,
     orderedIds,
-    launch.teacherPreview,
+    previewStore,
   );
   const [justGraded, setJustGraded] = useState<ProblemStatus | null>(null);
   const milestones = useRef(createPracticeMilestones());

@@ -361,14 +361,19 @@ function ClassroomCourseCard({
   );
 }
 
-function ClassroomSession({
+export function ClassroomSession({
   session,
   onBack,
   onOpenProblem,
+  teacherPreview = false,
 }: {
-  session: NativeClassroomSession;
+  session: Pick<
+    NativeClassroomSession,
+    'id' | 'number' | 'name' | 'status' | 'courseId' | 'courseName' | 'items'
+  >;
   onBack: () => void;
   onOpenProblem: ClassroomOpenProblem;
+  teacherPreview?: boolean;
 }) {
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
@@ -428,6 +433,7 @@ function ClassroomSession({
         <div className="tc-status">
           {live ? <span className="tl-dot" aria-hidden /> : null}
           <span>{live ? '上课中' : '已下课'}</span>
+          {teacherPreview ? <span>· 老师试做</span> : null}
           {session.items.length ? (
             <b>
               {done}/{session.items.length}
@@ -442,7 +448,12 @@ function ClassroomSession({
               const label = teachResultStatus(status, item.myAttempts).label;
               return (
                 <li key={item.id} className={fresh.has(item.id) ? 'is-fresh' : undefined}>
-                  <button type="button" disabled={busy === item.id} onClick={() => void open(item)}>
+                  <button
+                    type="button"
+                    disabled={Boolean(busy)}
+                    aria-busy={busy === item.id}
+                    onClick={() => void open(item)}
+                  >
                     <Marble status={status} attempts={item.myAttempts} size={34} />
                     <span className="tc-item-copy">
                       <strong>
@@ -460,7 +471,7 @@ function ClassroomSession({
             })}
           </ol>
         ) : (
-          <PhoneEmpty title="等老师加题" hint="" />
+          <PhoneEmpty title={teacherPreview ? '这节课还没有题' : '等老师加题'} hint="" />
         )}
       </div>
       {toast ? (

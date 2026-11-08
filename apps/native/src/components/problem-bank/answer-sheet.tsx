@@ -2,7 +2,7 @@ import { classroomProblemDocument } from '../../data/classroom-practice-scope';
 import { useEffect, useState } from 'react';
 
 import { getLocalRepository } from '../../data/repository';
-import type { LocalProblem } from '../../domain/models';
+import type { LocalProblem, LocalProblemProgress } from '../../domain/models';
 import { marbleImages, type MarbleColor } from '../../lib/learning-action-marbles';
 
 export type ProblemStatus = 'passed' | 'partial' | 'failed' | 'pending';
@@ -40,9 +40,16 @@ export function useProblemStatuses(
   revision: unknown,
   classSessionId?: string,
   problemIds?: string[],
-  preview = false,
+  preview?: { listProblemProgress: () => LocalProblemProgress[] } | null,
 ) {
-  const [statuses, setStatuses] = useState<Map<string, ProblemStatus>>(() => new Map());
+  const [statuses, setStatuses] = useState(() => {
+    const initial = new Map<string, ProblemStatus>();
+    for (const item of preview?.listProblemProgress() ?? []) {
+      const status = progressStatus(item.status);
+      if (status) initial.set(item.problemId, status);
+    }
+    return initial;
+  });
   const [mistakes, setMistakes] = useState<Set<string>>(() => new Set());
   const [tick, setTick] = useState(0);
   useEffect(() => {

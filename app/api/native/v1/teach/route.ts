@@ -19,6 +19,7 @@ import {
   getClassOverview,
   getClassSessionDashboard,
   getClassSessionProblemPreview,
+  getClassSessionProblemPreviews,
   getLiveSessionForCourse,
   getSessionStudentAnswers,
   importSessionsAsDrafts,
@@ -87,12 +88,15 @@ export async function GET(request: NextRequest) {
     const preview = query.get('preview');
     if (preview) {
       const problemId = query.get('problemId');
-      if (!problemId || preview.length > 200 || problemId.length > 200) {
+      if (preview.length > 200 || problemId === '' || (problemId?.length ?? 0) > 200) {
         return publicApiError(requestId, 400, 'invalid_request', '请求无效。');
       }
-      return publicApiSuccess(requestId, {
-        problem: await getClassSessionProblemPreview(viewer, preview, problemId),
-      });
+      return publicApiSuccess(
+        requestId,
+        problemId === null
+          ? { problems: await getClassSessionProblemPreviews(viewer, preview) }
+          : { problem: await getClassSessionProblemPreview(viewer, preview, problemId) },
+      );
     }
     if (query.get('claim')) {
       return publicApiSuccess(

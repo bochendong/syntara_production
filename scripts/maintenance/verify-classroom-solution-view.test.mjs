@@ -66,7 +66,7 @@ function dashboardFixture() {
         classId: 'class',
         number: 1,
         status: 'live',
-        class: { id: 'class', teacherId: 'teacher', course: { id: 'course' } },
+        class: { id: 'class', teacherId: 'teacher', courseId: 'course', course: { id: 'course' } },
       }),
     },
     classSessionParticipant: {
@@ -78,6 +78,25 @@ function dashboardFixture() {
         })),
     },
     courseClassMember: { findMany: async () => [] },
+    notebookProblem: {
+      findMany: async ({ where, select }) => {
+        assert.equal(where.courseId, 'course');
+        assert.equal(where.ownerId, null);
+        assert.deepEqual(where.classSessionItems, { some: { sessionId: 'lesson' } });
+        assert.equal(select.secret, undefined);
+        return ['p', 'q']
+          .filter((id) => where.id === undefined || where.id === id)
+          .map((id) => ({
+            id,
+            courseId: 'course',
+            title: id,
+            publicContentJson: { stem: id },
+            gradingJson: {},
+            createdAt: new Date(1),
+            updatedAt: new Date(1),
+          }));
+      },
+    },
     classSessionItem: {
       findMany: async () => [
         {
@@ -124,6 +143,24 @@ test('a view-only student is marked; viewing then passing keeps the flag without
   assert.equal(item.results[0].score, 100);
   await assert.rejects(
     api.getClassSessionDashboard({ userId: 'other-teacher' }, 'lesson'),
+    /没有找到/,
+  );
+});
+test('teacher can load the whole lesson and only its public problems for practice', async () => {
+  const api = dashboardFixture();
+  const teacher = { userId: 'teacher' };
+  const problems = await api.getClassSessionProblemPreviews(teacher, 'lesson');
+  assert.deepEqual(
+    problems.map((problem) => problem.id),
+    ['p', 'q'],
+  );
+  assert.equal((await api.getClassSessionProblemPreview(teacher, 'lesson', 'q')).id, 'q');
+  await assert.rejects(
+    api.getClassSessionProblemPreview(teacher, 'lesson', 'elsewhere'),
+    /没有找到/,
+  );
+  await assert.rejects(
+    api.getClassSessionProblemPreviews({ userId: 'student' }, 'lesson'),
     /没有找到/,
   );
 });

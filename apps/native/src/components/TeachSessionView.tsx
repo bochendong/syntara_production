@@ -1,5 +1,10 @@
 import { ProblemPracticePage } from './ProblemPracticePage';
 import { PracticeOverlay } from './PracticeOverlay';
+import { ClassroomSession } from './StudentClassroomPage';
+import { createTeacherPracticeStore } from '../data/teacher-practice-store';
+import { progressStatus } from './problem-bank/answer-sheet';
+import type { ClassroomOpenProblem } from './ClassroomPanel';
+import type { ProblemBankLaunch } from './ProblemBankPage';
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
@@ -26,6 +31,7 @@ import {
   deleteTeachDraft,
   getTeachProblemChoices,
   getTeachProblemPreview,
+  getTeachProblemPreviews,
   getTeachSession,
   getTeachStudentAnswers,
   startTeachSession,
@@ -36,7 +42,7 @@ import {
   type TeachStudentAnswers,
 } from '../data/platform-api-client';
 import { paperLabels, problemPaperSeries } from '../data/problem-bank-filters';
-import type { LocalProblem, LocalProblemAttempt } from '../domain/models';
+import type { LocalProblem, LocalProblemAttempt, LocalProblemProgress } from '../domain/models';
 import { difficultyLabel, problemStem, problemTypeLabel } from '../data/local-problem-grading';
 import { classSessionLabel } from '../lib/class-session-label';
 import { GlassSkeletonRows } from './GlassLoadMore';
@@ -61,7 +67,7 @@ import './course-content-manager.css';
  * 点弹珠看这个学生这道题提交过的答案，只看提交，不看草稿。
  */
 
-type Tab = 'grid' | 'stats' | 'practice';
+type Tab = 'grid' | 'stats';
 
 export function TeachSessionView({
   sessionId,
@@ -75,26 +81,49 @@ export function TeachSessionView({
   const [busy, setBusy] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const [tab, setTab] = useState<Tab>('grid');
-  const [practiceProblem, setPracticeProblem] = useState<LocalProblem | null>(null);
+  const [showPracticeList, setShowPracticeList] = useState(false);
+  const [practice, setPractice] = useState<{
+    id: string;
+    problems: LocalProblem[];
+    launch: ProblemBankLaunch;
+  } | null>(null);
   const [practiceMinimized, setPracticeMinimized] = useState(false);
-  const practice = useMemo(
-    () =>
-      practiceProblem
-        ? {
-            problems: [practiceProblem],
-            launch: {
-              problemIds: [practiceProblem.id],
-              initialProblemId: practiceProblem.id,
-              title: '老师试做 · 不计入学生成绩',
-              teacherPreview: true,
-            },
-          }
-        : null,
-    [practiceProblem],
+  const practiceLoad = useRef(0);
+  const [practiceProgress, setPracticeProgress] = useState<Record<string, LocalProblemProgress>>(
+    {},
   );
-  const openPractice = (problem: LocalProblem) => {
-    setPracticeProblem(problem);
+  const [teacherPracticeStore] = useState(() =>
+    createTeacherPracticeStore([], (progress) => {
+      setPracticeProgress((previous) => ({ ...previous, [progress.problemId]: progress }));
+    }),
+  );
+  const launchPractice = (problems: LocalProblem[], launch: ProblemBankLaunch) => {
+    teacherPracticeStore.addProblems(problems);
+    setPractice({ id: crypto.randomUUID(), problems, launch: { ...launch, teacherPreview: true } });
     setPracticeMinimized(false);
+  };
+  const openPractice = (problem: LocalProblem) =>
+    launchPractice([problem], {
+      problemIds: [problem.id],
+      initialProblemId: problem.id,
+      title: '老师试做',
+    });
+  const openPracticeProblem: ClassroomOpenProblem = async ({ problemIds, problemId, title }) => {
+    const loadId = ++practiceLoad.current;
+    const problems = await getTeachProblemPreviews(sessionId);
+    if (loadId !== practiceLoad.current) return;
+    const available = new Set(problems.map((problem) => problem.id));
+    if (!available.has(problemId)) throw new Error('这道题已移出课堂，请刷新题单。');
+    launchPractice(problems, {
+      problemIds: problemIds.filter((id) => available.has(id)),
+      initialProblemId: problemId,
+      title,
+      numbers: Object.fromEntries(
+        (data?.items ?? []).flatMap((item) =>
+          item.number === null ? [] : [[item.problemId, item.number]],
+        ),
+      ),
+    });
   };
   const [picking, setPicking] = useState(false);
   const [ending, setEnding] = useState(false);
@@ -155,6 +184,60 @@ export function TeachSessionView({
   const viewingItem = viewing
     ? (data?.items.find((item) => item.problemId === viewing.problemId) ?? null)
     : null;
+
+  const practiceOverlay = practice
+    ? createPortal(
+        <PracticeOverlay
+          key={practice.id}
+          minimized={practiceMinimized}
+          onClose={() => setPracticeMinimized(true)}
+          onRestore={() => setPracticeMinimized(false)}
+          onDismiss={() => setPractice(null)}
+        >
+          <ProblemPracticePage
+            problems={practice.problems}
+            launch={practice.launch}
+            teacherPracticeStore={teacherPracticeStore}
+            onBack={() => setPracticeMinimized(true)}
+            onMinimize={() => setPracticeMinimized(true)}
+          />
+        </PracticeOverlay>,
+        document.body,
+      )
+    : null;
+
+  if (showPracticeList && data) {
+    return (
+      <>
+        <ClassroomSession
+          session={{
+            id: sessionId,
+            number: data.session.number,
+            name: data.session.name,
+            status: data.session.status,
+            courseId: data.session.course.id,
+            courseName: data.session.course.name,
+            items: data.items.map((item) => {
+              const progress = practiceProgress[item.problemId];
+              return {
+                ...item,
+                myStatus: progressStatus(progress?.status),
+                myAttempts: progress?.attemptedCount ?? 0,
+              };
+            }),
+          }}
+          teacherPreview
+          onBack={() => {
+            practiceLoad.current += 1;
+            setPractice(null);
+            setShowPracticeList(false);
+          }}
+          onOpenProblem={openPracticeProblem}
+        />
+        {practiceOverlay}
+      </>
+    );
+  }
 
   return (
     <PhonePage
@@ -277,36 +360,12 @@ export function TeachSessionView({
               <button type="button" aria-pressed={tab === 'stats'} onClick={() => setTab('stats')}>
                 统计
               </button>
-              <button
-                type="button"
-                aria-pressed={tab === 'practice'}
-                onClick={() => setTab('practice')}
-              >
+              <button type="button" onClick={() => setShowPracticeList(true)}>
                 老师试做
               </button>
             </div>
 
-            {tab === 'practice' ? (
-              <div className="ts-stats">
-                <p>老师可以在这里做题、演示和查看判分，不计入学生成绩。</p>
-                {data.items.length ? (
-                  data.items.map((item) => (
-                    <article key={item.id} className="ts-stat">
-                      <h2>
-                        <ProblemTitleText content={problemName(item)} />
-                      </h2>
-                      <SessionProblemPreview
-                        sessionId={sessionId}
-                        item={item}
-                        onPractice={openPractice}
-                      />
-                    </article>
-                  ))
-                ) : (
-                  <PhoneEmpty title="这节课还没有题" hint="先加题，再试做。" />
-                )}
-              </div>
-            ) : tab === 'grid' ? (
+            {tab === 'grid' ? (
               <SessionGrid
                 data={data}
                 editable={status === 'live'}
@@ -336,28 +395,7 @@ export function TeachSessionView({
         ) : null}
       </div>
 
-      {practice
-        ? createPortal(
-            <PracticeOverlay
-              key={practice.launch.initialProblemId}
-              minimized={practiceMinimized}
-              onClose={() => setPracticeMinimized(true)}
-              onRestore={() => setPracticeMinimized(false)}
-              onDismiss={() => {
-                setPracticeProblem(null);
-                setPracticeMinimized(false);
-              }}
-            >
-              <ProblemPracticePage
-                problems={practice.problems}
-                launch={practice.launch}
-                onBack={() => setPracticeMinimized(true)}
-                onMinimize={() => setPracticeMinimized(true)}
-              />
-            </PracticeOverlay>,
-            document.body,
-          )
-        : null}
+      {practiceOverlay}
       {picking && data && editable ? (
         <ProblemPicker
           sessionId={sessionId}
