@@ -215,6 +215,29 @@ export function codeSlotTemplateFor(
   return deriveTemplateFromStarter(content.starterCode);
 }
 
+/** Preserve an existing body when a keyboard exercise removes its old sample_run harness. */
+export function migrateScriptedInputDraft(
+  code: string,
+  content: Pick<NotebookProblemPublicCode, 'starterCode' | 'functionSignature'>,
+): string {
+  const { functionSignature } = content;
+  if (
+    !functionSignature ||
+    !code.startsWith('from unittest.mock import patch') ||
+    !code.includes('def sample_run(')
+  )
+    return code;
+  const current = deriveTemplateFromStarter(content.starterCode);
+  if (!current) return code;
+  const { template, slots } = current;
+  const start = code.indexOf('\n' + functionSignature);
+  if (start < 0 || !template.startsWith(functionSignature)) return code;
+  const previous = deriveTemplateFromStarter(code.slice(start + 1));
+  if (!previous) return code;
+  const values = extractSlotValues(previous.template, previous.slots, code.slice(start + 1));
+  return values ? assembleCodeFromSlots(template, slots, values) : code;
+}
+
 /** 新开一道题时编辑器里的初始代码。 */
 export function initialCodeForSlots(slotTemplate: CodeSlotTemplate): string {
   return assembleCodeFromSlots(

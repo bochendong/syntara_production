@@ -27,6 +27,7 @@ export function NativeCodeTests({
   label = '公开测试',
   language,
   assumedHelpersHint = true,
+  keyboardInput,
   onPublicTestResult,
   onTestRun,
 }: {
@@ -40,6 +41,7 @@ export function NativeCodeTests({
   language?: string;
   /** 服务器跑测试的代码小问才提示「假定辅助函数正确」；Racket 整题也走服务器，不提示 */
   assumedHelpersHint?: boolean;
+  keyboardInput?: string;
   onPublicTestResult?: (code: string, passed: boolean) => void;
   /** 测试真的跑完了一次（不含运行环境出错）：用来记录「连续跑不过」 */
   onTestRun?: (code: string, passed: boolean, target: 'public' | 'secret') => void;
@@ -93,7 +95,8 @@ export function NativeCodeTests({
         files: files.filter((file) => file.role !== 'expected_output'),
         rows: cases.map((test) => ({
           id: test.id,
-          code: `import json as _syntara_test_json\n_syntara_test_actual = (${test.expression})\nprint(_syntara_test_json.dumps({"passed": _syntara_test_actual == (${test.expected}), "actual": repr(_syntara_test_actual)}))`,
+          stdin: test.stdin ?? keyboardInput,
+          code: `import json as _syntara_test_json\n_syntara_test_actual = (${test.expression})\n${test.stdin === undefined && keyboardInput === undefined ? '' : 'print()\n'}print(_syntara_test_json.dumps({"passed": _syntara_test_actual == (${test.expected}), "actual": repr(_syntara_test_actual)}))`,
         })),
       });
       const updates: Record<string, CaseResult> = {};
@@ -181,6 +184,12 @@ export function NativeCodeTests({
                   )}
                 </button>
               </div>
+              {(test.stdin ?? keyboardInput) !== undefined ? (
+                <div className="native-code-test-values">
+                  <span>键盘输入</span>
+                  <pre>{test.stdin ?? keyboardInput}</pre>
+                </div>
+              ) : null}
               <div className="native-code-test-values">
                 <span>
                   预期 <code>{test.expected}</code>

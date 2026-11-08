@@ -126,9 +126,17 @@ export function NativeCodePlayground({
   /** 每跑完一次公开/隐藏测试回报结果，供学习记忆判断「连续跑不过」 */
   onTestRun?: (code: string, passed: boolean, target: 'public' | 'secret') => void;
 }) {
+  const keyboardSample =
+    stdin !== undefined && !onRunScript && tests.some((test) => test.stdin !== undefined);
   const nextId = useRef(1);
   const [customTests, setCustomTests] = useState<CustomTest[]>([
-    { id: 0, expression: '', result: null, error: '', running: false },
+    {
+      id: 0,
+      expression: keyboardSample ? (example ?? '') : '',
+      result: null,
+      error: '',
+      running: false,
+    },
   ]);
   const [input, setInput] = useState(stdin ?? '');
   const updateTest = (id: number, changes: Partial<CustomTest>) => {
@@ -157,9 +165,11 @@ export function NativeCodePlayground({
         return;
       }
       const result = await runPythonScriptInBrowser({
-        code: expr ? `${code}\n\nprint(repr(${expr}))\n` : code,
+        code: expr && !keyboardSample ? `${code}\n\nprint(repr(${expr}))\n` : code,
         files: files.filter((file) => file.role !== 'expected_output'),
         stdin: input,
+        keyboard: keyboardSample,
+        expression: keyboardSample ? expr : undefined,
       });
       updateTest(test.id, { result });
     } catch (cause) {
@@ -180,6 +190,7 @@ export function NativeCodePlayground({
       <NativeCodeTests
         code={code}
         tests={tests}
+        keyboardInput={keyboardSample ? stdin : undefined}
         runAllTarget={runAllTarget}
         files={files}
         onRunTests={onRunTests}
@@ -194,6 +205,26 @@ export function NativeCodePlayground({
             aria-label="自己试"
             className={cn('native-code-playground space-y-2', className)}
           >
+            {stdin !== undefined || /\binput\s*\(/.test(code) ? (
+              <label className="block text-xs font-semibold text-slate-600">
+                模拟键盘输入 · 每行一次
+                <textarea
+                  value={input}
+                  onChange={(event) => {
+                    setInput(event.target.value);
+                    setCustomTests((rows) =>
+                      rows.map((row) => ({ ...row, result: null, error: '' })),
+                    );
+                  }}
+                  disabled={customTests.some((test) => test.running)}
+                  aria-label="程序输入"
+                  rows={3}
+                  placeholder="每行输入一个值"
+                  spellCheck={false}
+                  className="block w-full resize-y rounded-lg border border-slate-200 bg-white/90 px-3 py-1.5 font-mono text-xs text-slate-700 outline-none focus:border-sky-400"
+                />
+              </label>
+            ) : null}
             {customTests.map((test, index) => (
               <div key={test.id} className="native-code-playground-test">
                 <div className="native-code-playground-entry">
@@ -259,10 +290,17 @@ export function NativeCodePlayground({
                     className={cn('native-code-playground-result', test.result.error && 'is-error')}
                   >
                     {test.result.stdout}
+                    {test.result.returnValue !== undefined && !test.result.error
+                      ? `函数返回值：${test.result.returnValue}`
+                      : null}
                     {test.result.error
                       ? `${test.result.stdout ? '\n' : ''}${test.result.error}`
                       : ''}
-                    {!test.result.stdout && !test.result.error ? '∅' : ''}
+                    {!test.result.stdout &&
+                    !test.result.error &&
+                    test.result.returnValue === undefined
+                      ? '∅'
+                      : ''}
                   </pre>
                 ) : null}
                 <TestFiles files={test.result?.files ?? []} />
@@ -281,17 +319,6 @@ export function NativeCodePlayground({
             >
               <Plus size={14} /> 添加测试
             </button>
-            {stdin !== undefined || /\binput\s*\(/.test(code) ? (
-              <textarea
-                value={input}
-                onChange={(event) => setInput(event.target.value)}
-                aria-label="程序输入"
-                rows={2}
-                placeholder="stdin"
-                spellCheck={false}
-                className="block w-full resize-y rounded-lg border border-slate-200 bg-white/90 px-3 py-1.5 font-mono text-xs text-slate-700 outline-none focus:border-sky-400"
-              />
-            ) : null}
           </section>
         </>
       ) : null}

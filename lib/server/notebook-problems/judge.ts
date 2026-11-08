@@ -321,9 +321,10 @@ def main():
     globals_dict = {"__builtins__": __builtins__}
     globals_dict.update(module.__dict__)
 
+    default_input = sys.stdin
     for case in payload["testCases"]:
-        if payload.get("stdin") is not None:
-            sys.stdin = io.StringIO(payload["stdin"])
+        supplied = case.get("stdin", payload.get("stdin"))
+        sys.stdin = io.StringIO(supplied) if supplied is not None else default_input
         expected = parse_expected(case["expected"])
         stdout_capture = io.StringIO()
         try:
@@ -358,6 +359,7 @@ if __name__ == "__main__":
 `.trim();
 
 type CodeCase = {
+  stdin?: string;
   id: string;
   description?: string;
   expression: string;
@@ -827,6 +829,7 @@ export async function verifyNotebookCodeDraftReferenceAnswer(
     const secretResults = await run(secretTests);
     const exampleTests: CodeCase[] = draft.publicContent.sampleIO.map((sample, index) => ({
       id: `example_${index + 1}`,
+      stdin: sample.stdin,
       expression: sample.input,
       expected: sample.output,
     }));

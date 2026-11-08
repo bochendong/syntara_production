@@ -1,0 +1,162 @@
+{
+  "at": "2026-11-07T00:00:42.736980+00:00",
+  "status": "deployed",
+  "branch": "codex/staging-next",
+  "baselineBranch": "codex/staging-baseline",
+  "revision": "446fe8cf27a76f43782dfc7f9474ffede83f171c",
+  "deploymentId": "53b0dac9-802f-497d-a437-81c705ec1855",
+  "origin": "https://native-api-staging-staging-95a1.up.railway.app",
+  "pullRequests": [
+    "https://github.com/bochendong/syntara_production/pull/56",
+    "https://github.com/bochendong/syntara_production/pull/58",
+    "https://github.com/bochendong/syntara_production/pull/61"
+  ],
+  "changes": [
+    "Sync all published UTM-CSC108 questions into UTSG-CSC108Y: 73 additions, 13 existing public-content updates, and 9 existing paper-series tag updates.",
+    "Complete Chinese and English public question text in both courses, including multipart children and code statement sections; preserve executable code and English docstrings.",
+    "Translate 110 unique UTM questions and 37 existing UTSG counterparts; all 73 new UTSG questions include both locales.",
+    "Support safe admin-only locale updates and version-guarded metadata-only tag updates without rewriting grading or private tests.",
+    "Accept both legacy part-weighted and normalized 100-point child rubrics; normalize two existing source rubric formats without changing part weights or regrading attempts."
+  ],
+  "newTargetQuestionTypes": {
+    "choice": 50,
+    "short_answer": 9,
+    "code": 12,
+    "multipart": 2
+  },
+  "dataVerification": {
+    "publishedCounts": {
+      "utm": 336,
+      "utsg": 336
+    },
+    "bilingualPublishedCounts": {
+      "utm": 336,
+      "utsg": 336
+    },
+    "allPublishedQuestionsAndPartsBilingual": true,
+    "crossCourseMismatches": [],
+    "notebookFiles": {
+      "utm": {
+        "filesCompared": 202,
+        "unchanged": true
+      },
+      "utsg": {
+        "filesCompared": 202,
+        "unchanged": true
+      }
+    },
+    "historyPreservation": {
+      "utm": {
+        "originalIdsPreserved": 350,
+        "archivedRowsUnchanged": 14,
+        "privateCheckersUnchanged": true
+      },
+      "utsg": {
+        "originalIdsPreserved": 265,
+        "archivedRowsUnchanged": 2,
+        "privateCheckersUnchanged": true
+      }
+    },
+    "targetAdded": 73,
+    "existingTargetContentUpdated": 13,
+    "existingTargetPaperTagsUpdated": 9,
+    "translatedUniqueSourceQuestions": 110,
+    "existingTargetTranslated": 37,
+    "sourceRubricFormatRepairs": 2,
+    "typeCounts": {
+      "multipart": 45,
+      "choice": 82,
+      "table": 16,
+      "code": 172,
+      "fill_blank": 7,
+      "short_answer": 14
+    },
+    "paperSeriesCounts": {
+      "utm": {
+        "TT2原版模拟A卷": 15,
+        "TT2模拟A卷": 15,
+        "TT2模拟B卷": 14,
+        "TT2模拟C卷": 15
+      },
+      "utsg": {
+        "TT2原版模拟A卷": 15,
+        "TT2模拟A卷": 15,
+        "TT2模拟B卷": 14,
+        "TT2模拟C卷": 15
+      }
+    }
+  },
+  "verification": {
+    "formatLintRootNativeViteTypes": "PASS",
+    "nativeWebProductionBuild": "PASS",
+    "railwayProductionBuild": "PASS",
+    "offlineRegressionTests": 16,
+    "assessmentCompilerContracts": "PASS",
+    "realCodePreflights": {
+      "passed": 12,
+      "referencePassed": true,
+      "starterRejected": true,
+      "incorrectRejected": true
+    },
+    "independentNonCodeAnswerReviews": {
+      "passed": 61,
+      "conflicts": 0
+    },
+    "translations": {
+      "uniqueQuestions": 110,
+      "subagents": 3,
+      "crossReviewed": true,
+      "structureAndCodePreserved": true
+    },
+    "sourceAndJsonQualityAcceptance": {
+      "fullyAccepted": true,
+      "errors": [],
+      "importedQuestions": 73,
+      "auditRecords": 75,
+      "multipartAuditNote": "Two imported multipart questions expand into four child audit records solely for the quality checker."
+    },
+    "live": {
+      "at": "2026-11-07T00:00:01.480Z",
+      "version": {
+        "version": "0.1.1",
+        "release": "2026.10.28-sync.1",
+        "syncProtocol": 2,
+        "revision": "446fe8cf27a76f43782dfc7f9474ffede83f171c"
+      },
+      "health": 200,
+      "app": 200,
+      "assets": [
+        {
+          "path": "/native-web/assets/index-C9HVWNPt.js",
+          "sha256": "50c342bb2c721fbaa5ffda463bfa25e2070e4b8536ec482a0a061486c1eced82",
+          "status": 200,
+          "matched": true
+        },
+        {
+          "path": "/native-web/assets/index-DqxVGfrc.css",
+          "sha256": "2c4874989059817736049fdb22501b38b65b6116e936a04bf2a022f3986f0c39",
+          "status": 200,
+          "matched": true
+        }
+      ]
+    },
+    "pendingCourseDraftsAfterCompletion": 0,
+    "limitations": [
+      "Source and JSON acceptance; no live question-view UI inspection claimed.",
+      "No real student submissions or AI-grading calls performed."
+    ]
+  },
+  "preservation": {
+    "newNotebooks": 0,
+    "notebookFilesCompared": 404,
+    "notebookFilesUnchanged": true,
+    "existingQuestionIdsPreserved": true,
+    "archivedRowsUnchanged": true,
+    "privateCheckersUnchanged": true,
+    "studentAttemptsNotWritten": true,
+    "databaseMigrations": 0,
+    "productionChanged": false,
+    "nativeInstallerRebuilt": false
+  },
+  "privateAuditDirectory": ".data/csc108-sync-translations (ignored; contains backups, reviewed manifests, receipts and detailed evidence)"
+}

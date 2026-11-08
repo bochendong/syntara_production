@@ -122,7 +122,10 @@ import type {
   NotebookProblemPublicTable,
   NotebookProblemGradingTable,
 } from '../../../../lib/problem-bank/schema';
-import { codeSlotTemplateFor } from '../../../../lib/problem-bank/code-slots';
+import {
+  codeSlotTemplateFor,
+  migrateScriptedInputDraft,
+} from '../../../../lib/problem-bank/code-slots';
 import type { NotebookCodeSlot, NotebookCodeFile } from '../../../../lib/problem-bank/schema';
 import { FormulaReferencePanel } from './problem-bank/formula-reference-panel';
 import { PythonRunOutput, type PythonDebugResult } from './problem-bank/PythonRunOutput';
@@ -799,6 +802,10 @@ export function ProblemPracticePage({
             next = { kind: 'code', code: draft.code };
         } catch {
           setDraftError('无法读取代码草稿，请检查本机存储是否可用。');
+        }
+        const content = asCodeContent(problemPublicContent(currentProblem));
+        if (content?.stdin !== undefined) {
+          next = { kind: 'code', code: migrateScriptedInputDraft(next.code, content) };
         }
         if (!expectedAnswer) draftRef.current = { key: draftKey, code: next.code, dirty: false };
       }

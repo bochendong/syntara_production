@@ -24,6 +24,11 @@ import {
 } from '@/lib/server/admin-course-management';
 import { archiveResponse, buildAdminCourseArchive } from '@/lib/server/admin-course-export';
 import {
+  courseProblemTagUpdatesSchema,
+  CourseProblemTagUpdateConflict,
+  updateCourseProblemTags,
+} from '@/lib/server/course-problem-tag-updates';
+import {
   publicApiError,
   publicApiRequestId,
   publicApiSuccess,
@@ -148,6 +153,12 @@ const costLimit = z.number().min(0).max(1_000_000).nullable();
 const requestLimit = z.number().int().min(0).max(100_000_000).nullable();
 
 const actionSchema = z.discriminatedUnion('action', [
+  z.object({
+    action: z.literal('update-course-problem-tags'),
+    courseId: id,
+    changes: courseProblemTagUpdatesSchema.shape.changes,
+    apply: z.boolean().default(false),
+  }),
   z.object({ action: z.literal('remove-course-student'), courseId: id, userId: id }),
   z.object({
     action: z.literal('set-course-manager'),
@@ -200,6 +211,14 @@ export async function POST(request: NextRequest) {
   const input = parsed.data;
   try {
     switch (input.action) {
+      case 'update-course-problem-tags':
+        return publicApiSuccess(
+          requestId,
+          await updateCourseProblemTags(prisma, input.courseId, {
+            changes: input.changes,
+            apply: input.apply,
+          }),
+        );
       case 'remove-course-student':
         return publicApiSuccess(
           requestId,
@@ -231,6 +250,8 @@ export async function POST(request: NextRequest) {
       }
     }
   } catch (error) {
+    if (error instanceof CourseProblemTagUpdateConflict)
+      return publicApiError(requestId, 409, 'idempotency_conflict', error.message);
     return adminError(requestId, error);
   }
 }

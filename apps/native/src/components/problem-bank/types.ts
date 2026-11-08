@@ -31,6 +31,7 @@ export type CodeStatementSection = {
 };
 
 export type CodeSampleIO = {
+  stdin?: string;
   input: string;
   output: string;
   explanation?: string;
