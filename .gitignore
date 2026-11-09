@@ -97,6 +97,9 @@ next-env.d.ts
 # docs
 /docs/*
 !/docs/branch-state.md
+!/docs/study-card-collection.md
+!/docs/study-card-art-prompts.json
+!/docs/study-card-premium-prompts.json
 !/docs/releases/
 !/docs/releases/staging-2026-10-24.json
 !/docs/releases/staging-2026-10-25.json

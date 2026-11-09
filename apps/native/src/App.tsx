@@ -1,3 +1,4 @@
+import { CardCollectionPage } from './components/study-cards/CardCollectionPage';
 import { flushPendingAccountChanges } from './data/pending-sync';
 import { syncAccountPreferences } from './data/preferences-sync';
 import { subscribeVisibleRefresh } from './lib/visible-refresh';
@@ -149,7 +150,15 @@ function AuthenticatedApp() {
   }, []);
   const compactLayout = useCompactLayout();
   const [globalPage, setGlobalPage] = useState<
-    'calendar' | 'profile' | 'store' | 'teach' | 'classroom' | 'student-classroom' | 'admin' | null
+    | 'calendar'
+    | 'profile'
+    | 'collection'
+    | 'store'
+    | 'teach'
+    | 'classroom'
+    | 'student-classroom'
+    | 'admin'
+    | null
   >(() => (teacherLogin && classroomEnabled ? 'teach' : null));
   const classroom = useClassroomState(classroomEnabled, globalPage === 'student-classroom');
   const refreshClassroom = classroom.refresh;
@@ -673,7 +682,7 @@ function AuthenticatedApp() {
     active:
       globalPage === 'calendar'
         ? 'calendar'
-        : globalPage === 'profile'
+        : globalPage === 'profile' || globalPage === 'collection'
           ? 'settings'
           : globalPage === 'store'
             ? 'store'
@@ -761,6 +770,10 @@ function AuthenticatedApp() {
               launch={practiceSession.launch}
               onBack={minimizePractice}
               onMinimize={minimizePractice}
+              onOpenCollection={() => {
+                setPracticeMinimized(true);
+                setGlobalPage('collection');
+              }}
               onAskAi={phoneLayout ? undefined : askAiInCourseChat}
             />
           </PracticeOverlay>
@@ -892,6 +905,8 @@ function AuthenticatedApp() {
               />
             ) : globalPage === 'admin' ? (
               <AdminPage onBack={() => setGlobalPage(null)} />
+            ) : globalPage === 'collection' ? (
+              <CardCollectionPage onBack={() => setGlobalPage('profile')} />
             ) : globalPage === 'store' ? (
               <StorePage
                 onBack={() => setGlobalPage(null)}
@@ -923,6 +938,7 @@ function AuthenticatedApp() {
                     /* Retain the session preference. */
                   }
                 }}
+                onOpenCollection={() => setGlobalPage('collection')}
                 onOpenCourseJar={(id) => void openRecentCourse(id, { page: 'memory' })}
                 onBack={() => setGlobalPage(null)}
               />

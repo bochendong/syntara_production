@@ -1362,3 +1362,16 @@ pub async fn native_delete_general_conversation(
 pub async fn native_sync_preferences(request: PlatformJsonRequest) -> Result<Value, String> {
     post_json("/api/native/v1/preferences", &request, DEFAULT_TIMEOUT).await
 }
+
+#[tauri::command]
+pub async fn native_get_study_cards(request: PlatformQueryRequest) -> Result<Value, String> {
+    get_json(
+        "/api/native/v1/study-cards",
+        request.syntara_token.as_deref(),
+    )
+    .await
+}
+#[tauri::command]
+pub async fn native_study_card_action(request: PlatformJsonRequest) -> Result<Value, String> {
+    post_json("/api/native/v1/study-cards", &request, DEFAULT_TIMEOUT).await
+}

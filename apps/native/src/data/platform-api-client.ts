@@ -1737,3 +1737,28 @@ export function undoManagedCourseContent(
     payload: { action: 'undo-managed-content', courseId, kind, id },
   });
 }
+
+export function getStudyCards() {
+  return invokeQuery<import('../../../../lib/study-cards/catalog').CardCollection>(
+    'native_get_study_cards',
+    {},
+  );
+}
+export function drawStudyCard(drawRequestId: string) {
+  return invokeJson<
+    { action: string; drawRequestId: string },
+    import('../../../../lib/study-cards/catalog').CardDrawResponse
+  >('native_study_card_action', {
+    requestId: crypto.randomUUID(),
+    payload: { action: 'draw', drawRequestId },
+  });
+}
+export function favoriteStudyCard(cardId: string, favorite: boolean) {
+  return invokeJson<
+    { action: string; cardId: string; favorite: boolean },
+    import('../../../../lib/study-cards/catalog').CardCollection
+  >('native_study_card_action', {
+    requestId: crypto.randomUUID(),
+    payload: { action: 'favorite', cardId, favorite },
+  });
+}

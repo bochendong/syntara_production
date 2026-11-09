@@ -307,3 +307,19 @@
     animation: none;
   }
 }
+.pc-collection-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  width: 100%;
+  padding: 13px 15px;
+  margin: 0 0 12px;
+  border: 1px solid #baa0dc55;
+  border-radius: 12px;
+  background: #b89add15;
+  color: #755c94;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}

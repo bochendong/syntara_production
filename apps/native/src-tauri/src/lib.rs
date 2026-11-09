@@ -119,6 +119,8 @@ pub fn run() {
             platform_api::native_upload_problem_attempts,
             platform_api::native_get_store,
             platform_api::native_store_action,
+            platform_api::native_get_study_cards,
+            platform_api::native_study_card_action,
             platform_api::native_get_classroom,
             platform_api::native_classroom_action,
             platform_api::native_get_teach,

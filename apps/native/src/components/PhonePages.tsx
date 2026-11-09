@@ -520,6 +520,7 @@ export function PhoneProfilePage({
   responseStrength,
   onResponseStrengthChange,
   onOpenCourseJar,
+  onOpenCollection,
   onBack,
 }: {
   courses: LocalCourseSummary[];
@@ -529,6 +530,7 @@ export function PhoneProfilePage({
   responseStrength: ChatResponseStrength;
   onResponseStrengthChange: (strength: ChatResponseStrength) => void;
   onOpenCourseJar: (courseId: string) => void;
+  onOpenCollection?: () => void;
   onBack: () => void;
 }) {
   const courseCount = courses.length;
@@ -672,6 +674,16 @@ export function PhoneProfilePage({
           </div>
         </section>
 
+        {onOpenCollection ? (
+          <button type="button" className="sc-profile-entry" onClick={onOpenCollection}>
+            <span className="sc-profile-icon">✦</span>
+            <span>
+              <strong>我的卡片收藏</strong>
+              <small>把努力，收藏成闪光 · R / SR / SSR</small>
+            </span>
+            <ChevronRight size={18} />
+          </button>
+        ) : null}
         {courses.length ? (
           <>
             <p className="phone-group-title">我的记忆星图</p>

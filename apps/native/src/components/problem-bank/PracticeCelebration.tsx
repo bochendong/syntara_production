@@ -31,10 +31,12 @@ export function PracticeCelebration({
   snapshot,
   onClose,
   onContinue,
+  onOpenCollection,
 }: {
   snapshot: PracticeCelebrationSnapshot;
   onClose: () => void;
   onContinue: () => void;
+  onOpenCollection?: () => void;
 }) {
   const titleId = useId();
   const descriptionId = useId();
@@ -144,6 +146,13 @@ export function PracticeCelebration({
               </span>
             </div>
           </div>
+          {onOpenCollection && (
+            <button type="button" className="pc-collection-link" onClick={onOpenCollection}>
+              <Sparkles size={16} />
+              <span>努力有回响，去收藏室看看</span>
+              <ArrowRight size={15} />
+            </button>
+          )}
           <button ref={continueButton} type="button" className="pc-continue" onClick={onContinue}>
             {remaining ? '再做几题' : '回看本组'} <ArrowRight size={17} />
           </button>

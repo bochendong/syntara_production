@@ -190,6 +190,7 @@ type ProblemPracticePageProps = {
   launch: ProblemBankLaunch;
   onBack: () => void;
   onMinimize?: () => void;
+  onOpenCollection?: () => void;
   /** iPad/桌面：「问 AI」把这道题交给课程主聊天。没有时不显示按钮。 */
   onAskAi?: (attachment: ProblemChatAttachment, move: ProblemCoachMove) => void;
   loadHiddenTests?: (problemId: string, part?: string) => Promise<RevealedHiddenTests>;
@@ -352,6 +353,7 @@ export function ProblemPracticePage({
   launch,
   onBack,
   onMinimize,
+  onOpenCollection,
   onAskAi,
   loadHiddenTests,
 }: ProblemPracticePageProps) {
@@ -1958,6 +1960,14 @@ export function ProblemPracticePage({
       {celebration ? (
         <PracticeCelebration
           snapshot={celebration}
+          onOpenCollection={
+            onOpenCollection
+              ? () => {
+                  dismissCelebration();
+                  onOpenCollection();
+                }
+              : undefined
+          }
           onClose={dismissCelebration}
           onContinue={() => {
             dismissCelebration();
