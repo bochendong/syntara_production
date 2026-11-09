@@ -1,13 +1,25 @@
 import type { LocalProblem } from '../domain/models';
 
+export function namedMidtermYear(label: string): string | undefined {
+  return /^UT(?:SG|M|SC) [A-Z]{3} \d{3} (\d{2})[FWS] Midterm$/.exec(label)?.[1];
+}
+
 /** Only explicit paper tags (including the legacy midterm + set-NN pair) are series. */
 export function paperLabels(tags: readonly string[] = []): string[] {
   const labels = new Set<string>();
   const midterm = tags.includes('midterm');
+  const namedYears = new Set<string>();
+  for (const tag of tags) {
+    const year = namedMidtermYear(tag);
+    if (year) {
+      namedYears.add(year);
+      labels.add(tag);
+    }
+  }
   for (const tag of tags) {
     if (/^TT\d+(?:原版)?模拟[A-Z]卷$/.test(tag)) labels.add(tag);
     const set = midterm && /^set-(0[1-9]|[1-9]\d)$/.exec(tag);
-    if (set) labels.add(`Midterm Set ${set[1]}`);
+    if (set && !namedYears.has(set[1])) labels.add(`Midterm Set ${set[1]}`);
   }
   return [...labels];
 }

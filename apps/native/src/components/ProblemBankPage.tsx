@@ -9,7 +9,11 @@ import {
 import { ArrowLeft, Check, ChevronLeft, LayoutGrid, List, Play } from 'lucide-react';
 
 import { difficultyLabel, problemTypeLabel } from '../data/local-problem-grading';
-import { matchesProblemFilters, problemPaperSeries } from '../data/problem-bank-filters';
+import {
+  matchesProblemFilters,
+  namedMidtermYear,
+  problemPaperSeries,
+} from '../data/problem-bank-filters';
 import { practiceLaunchForResults } from '../data/problem-practice-scope';
 import { ProblemTitleText } from './problem-bank/problem-rich-text';
 import {
@@ -627,19 +631,31 @@ export function ProblemBankPage({
     typeFilter === 'all' || typeOptions.some(([type]) => type === typeFilter) ? typeFilter : 'all';
   const activeDifficultyFilter =
     difficultyFilter === 'all' || difficultyCounts[difficultyFilter] > 0 ? difficultyFilter : 'all';
-  const sheetProblems = useMemo(
-    () =>
-      scopeProblems.filter((problem) =>
-        matchesProblemFilters(sourceProblems.get(problem.id) ?? problem, {
-          query,
-          type: activeTypeFilter,
-          difficulty: activeDifficultyFilter,
-          chapter: 'all',
-          series: activeSeries,
-        }),
-      ),
-    [scopeProblems, query, activeDifficultyFilter, activeTypeFilter, sourceProblems, activeSeries],
-  );
+  const sheetProblems = useMemo(() => {
+    const filtered = scopeProblems.filter((problem) =>
+      matchesProblemFilters(sourceProblems.get(problem.id) ?? problem, {
+        query,
+        type: activeTypeFilter,
+        difficulty: activeDifficultyFilter,
+        chapter: 'all',
+        series: activeSeries,
+      }),
+    );
+    // Imported named midterms use course order even when their questions span several topics.
+    if (namedMidtermYear(activeSeries)) {
+      filtered.sort((a, b) =>
+        problemOrder(sourceProblems.get(a.id) ?? a, sourceProblems.get(b.id) ?? b),
+      );
+    }
+    return filtered;
+  }, [
+    scopeProblems,
+    query,
+    activeDifficultyFilter,
+    activeTypeFilter,
+    sourceProblems,
+    activeSeries,
+  ]);
 
   const hasFilters = Boolean(
     query.trim() || activeSeries || activeTypeFilter !== 'all' || activeDifficultyFilter !== 'all',
