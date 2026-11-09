@@ -6,7 +6,9 @@ const jiti = createJiti(import.meta.url);
 const { practiceLaunchForResults, adjacentPracticeProblem, recommendedPracticeIds } = jiti(
   '../../apps/native/src/data/problem-practice-scope.ts',
 );
-const { matchesProblemFilters } = jiti('../../apps/native/src/data/problem-bank-filters.ts');
+const { matchesProblemFilters, problemPaperSeries } = jiti(
+  '../../apps/native/src/data/problem-bank-filters.ts',
+);
 const rows = [
   {
     id: 'function-a1',
@@ -93,6 +95,27 @@ test('series launch captures the visible sequence across chapters and excludes o
   assert.equal(adjacentPracticeProblem(launch.problemIds, 'function-a2', 1), 'relation-a1');
   visible.reverse();
   assert.equal(launch.problemIds[0], 'function-a1');
+});
+
+test('an explicitly named CSC108 midterm replaces its numeric fallback only', () => {
+  const title = 'UTSG CSC 108 26F Midterm';
+  const seriesRows = [
+    { ...rows[0], tags: ['midterm', 'set-26', title] },
+    { ...rows[3], tags: [title, 'set-26', 'midterm', 'set-03'] },
+    { ...rows[1], tags: ['midterm', 'set-03'] },
+    rows[4],
+  ];
+  const series = new Map(problemPaperSeries(seriesRows));
+  assert.equal(series.get(title), 2);
+  assert.equal(series.get('Midterm Set 03'), 2);
+  assert.equal(series.get('TT1模拟A卷'), 1);
+  assert(!series.has('Midterm Set 26'));
+  assert.deepEqual(
+    seriesRows
+      .filter((row) => matchesProblemFilters(row, { ...base, series: title }))
+      .map((row) => row.chapterId),
+    ['functions', 'relations'],
+  );
 });
 
 test('difficulty, type, chapter and series intersections define the entire practice scope', () => {
