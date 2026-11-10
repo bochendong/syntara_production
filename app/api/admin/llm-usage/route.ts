@@ -1,3 +1,4 @@
+import { parseCloudUsageWeek } from '@/lib/cloud-usage-week';
 import { apiError, apiSuccess } from '@/lib/server/api-response';
 import { requireAdmin } from '@/lib/server/admin-auth';
 import { getOptionalPrisma } from '@/lib/server/prisma-safe';
@@ -9,7 +10,15 @@ export async function GET(request: Request) {
   const admin = await requireAdmin();
   if ('response' in admin) return admin.response;
 
-  const requestedPage = Number(new URL(request.url).searchParams.get('page'));
+  const { searchParams } = new URL(request.url);
+  const requestedWeek = searchParams.get('week');
+  const week = requestedWeek === null ? null : parseCloudUsageWeek(requestedWeek);
+  if (requestedWeek !== null && !week) {
+    return apiError('INVALID_REQUEST', 400, '请选择本周或更早的有效日期');
+  }
+  const where = week ? { createdAt: { gte: week.start, lt: week.end } } : undefined;
+
+  const requestedPage = Number(searchParams.get('page'));
   const page =
     Number.isSafeInteger(requestedPage) && requestedPage > 0 && requestedPage <= 100_000
       ? requestedPage
@@ -33,6 +42,7 @@ export async function GET(request: Request) {
   try {
     const [rows, aggregate, costRows] = await Promise.all([
       prisma.lLMUsageLog.findMany({
+        where,
         orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
         skip: (page - 1) * PAGE_SIZE,
         take: PAGE_SIZE,
@@ -54,6 +64,7 @@ export async function GET(request: Request) {
         },
       }),
       prisma.lLMUsageLog.aggregate({
+        where,
         _count: { id: true },
         _sum: {
           inputTokens: true,
@@ -62,6 +73,7 @@ export async function GET(request: Request) {
         },
       }),
       prisma.lLMUsageLog.groupBy({
+        where,
         by: ['providerId', 'modelId', 'modelString'],
         _sum: {
           inputTokens: true,
