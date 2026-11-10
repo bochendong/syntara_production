@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 
 import { isAdminTextModel } from '@/lib/ai/admin-model-options';
+import { parseCloudUsageWeek } from '@/lib/cloud-usage-week';
 import {
   ADMIN_CONSOLE_ROLES,
   AdminConsoleError,
@@ -14,6 +15,7 @@ import {
   setAdminConsoleUserLimit,
   setAdminConsoleUserRole,
 } from '@/lib/server/admin-console';
+import { summarizeCloudUsage } from '@/lib/server/cloud-usage-limits';
 import { getOptionalPrisma } from '@/lib/server/prisma-safe';
 import {
   listAdminManagedCourses,
@@ -72,7 +74,7 @@ function adminError(requestId: string, error: unknown) {
 
 const roleSchema = z.enum(ADMIN_CONSOLE_ROLES);
 
-/** ?check=1 = 管理员检查；?users=1（可带 query / role / page）= 分页账号；没有参数 = 总览。 */
+/** ?check=1 = 管理员检查；?usageWeek=YYYY-MM-DD = 该周全站用量；没有参数 = 总览。 */
 export async function GET(request: NextRequest) {
   const requestId = publicApiRequestId(request);
   const admin = await adminFor(request, requestId);
@@ -80,6 +82,16 @@ export async function GET(request: NextRequest) {
   const query = request.nextUrl.searchParams;
   try {
     if (query.get('check')) return publicApiSuccess(requestId, { admin: true });
+    const usageWeek = query.get('usageWeek');
+    if (usageWeek !== null) {
+      const period = parseCloudUsageWeek(usageWeek);
+      if (!period) {
+        return publicApiError(requestId, 400, 'invalid_request', '请选择本周或更早的有效日期。');
+      }
+      return publicApiSuccess(requestId, {
+        weekUsage: await summarizeCloudUsage(admin.prisma, null, period),
+      });
+    }
     if (query.get('students') || query.get('export')) {
       const courseId = query.get('courseId')?.trim();
       if (!courseId || courseId.length > 200) {
