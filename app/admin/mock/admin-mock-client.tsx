@@ -2,6 +2,7 @@
 
 import { Suspense, useEffect, useState } from 'react';
 import { AdminConsole } from '@/components/admin/admin-console';
+import { parseCloudUsageWeek } from '@/lib/cloud-usage-week';
 
 type MockConfig = {
   providerId: 'openai';
@@ -64,36 +65,36 @@ function mockResponse(path: string, config: MockConfig, searchParams: URLSearchP
   if (path.includes('/api/admin/llm-usage')) {
     const requestedPage = Number(searchParams.get('page'));
     const page = Number.isSafeInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1;
-    const total = 43;
     const pageSize = 20;
+    const week = parseCloudUsageWeek(searchParams.get('week') ?? '');
+    const matchingRows = Array.from({ length: 43 }, (_, index) => {
+      const number = index + 1;
+      const createdAt = new Date(Date.parse(now) - index * 6 * 60 * 60 * 1000);
+      return {
+        id: `demo-usage-${number}`,
+        userId: teacher.id,
+        userEmail: teacher.email,
+        userName: teacher.name,
+        route: '/api/notebooks/send-message',
+        modelString: 'openai:gpt-5.6-sol',
+        inputTokens: 1450,
+        outputTokens: 380,
+        totalTokens: 1830,
+        estimatedCostUsd: 0.01,
+        createdAt,
+      };
+    }).filter(({ createdAt }) => !week || (createdAt >= week.start && createdAt < week.end));
+    const total = matchingRows.length;
     return {
       summary: {
-        totalRequests: 128,
-        totalInputTokens: 580000,
-        totalOutputTokens: 120000,
-        totalTokens: 700000,
-        estimatedCostUsd: 12.4,
+        totalRequests: total,
+        totalInputTokens: total * 1450,
+        totalOutputTokens: total * 380,
+        totalTokens: total * 1830,
+        estimatedCostUsd: total * 0.01,
       },
-      rows: Array.from(
-        { length: Math.max(0, Math.min(pageSize, total - (page - 1) * pageSize)) },
-        (_, index) => {
-          const number = (page - 1) * pageSize + index + 1;
-          return {
-            id: `demo-usage-${number}`,
-            userId: teacher.id,
-            userEmail: teacher.email,
-            userName: teacher.name,
-            route: '/api/notebooks/send-message',
-            modelString: 'openai:gpt-5.6-sol',
-            inputTokens: 1450,
-            outputTokens: 380,
-            totalTokens: 1830,
-            estimatedCostUsd: 0.01,
-            createdAt: new Date(Date.parse(now) - number * 60_000).toISOString(),
-          };
-        },
-      ),
-      pagination: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) },
+      rows: matchingRows.slice((page - 1) * pageSize, page * pageSize),
+      pagination: { page, pageSize, total, totalPages: Math.max(1, Math.ceil(total / pageSize)) },
     };
   }
   if (path.includes('/api/admin/teachers/') && path.includes('/resources'))

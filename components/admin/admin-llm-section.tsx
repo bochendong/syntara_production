@@ -1,11 +1,12 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { BarChart3 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { UsageContentDialog } from '@/components/admin/usage-content-dialog';
 import { Button } from '@/components/ui/button';
+import { getCloudUsageWeekWindow, parseCloudUsageWeek } from '@/lib/cloud-usage-week';
 import { backendJson } from '@/lib/utils/backend-api';
 import { formatUsdLabel } from '@/lib/utils/credits';
 
@@ -38,58 +39,133 @@ function formatNumber(value: number) {
 }
 
 export function AdminLLMSection() {
+  const [week, setWeek] = useState<string | null>(null);
+  const [date, setDate] = useState('');
+  const now = new Date();
+  const thisWeek = getCloudUsageWeekWindow(now);
+  const lastWeek = getCloudUsageWeekWindow(new Date(thisWeek.start.getTime() - 1));
+  const selectedWeek = week ? getCloudUsageWeekWindow(new Date(week)) : null;
+  const lastDay = selectedWeek ? new Date(selectedWeek.end.getTime() - 1) : null;
+  const choices = [
+    { label: '全部时间', value: null },
+    { label: '本周', value: thisWeek.start.toISOString().slice(0, 10) },
+    { label: '上周', value: lastWeek.start.toISOString().slice(0, 10) },
+  ];
+
+  return (
+    <div className="space-y-6">
+      <div className="space-y-2">
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="flex flex-wrap gap-2" role="group" aria-label="用量时间范围">
+            {choices.map(({ label, value }) => (
+              <Button
+                key={label}
+                type="button"
+                variant={week === value ? 'default' : 'outline'}
+                size="sm"
+                aria-pressed={week === value}
+                onClick={() => setWeek(value)}
+              >
+                {label}
+              </Button>
+            ))}
+          </div>
+          <form
+            className="flex flex-wrap items-end gap-2"
+            onSubmit={(event) => {
+              event.preventDefault();
+              const period = parseCloudUsageWeek(date);
+              if (period) setWeek(period.start.toISOString().slice(0, 10));
+            }}
+          >
+            <label className="grid gap-1 text-xs text-muted-foreground">
+              周内任意日期
+              <input
+                type="date"
+                value={date}
+                min="0001-01-01"
+                max={now.toISOString().slice(0, 10)}
+                onChange={(event) => setDate(event.target.value)}
+                required
+                className="h-8 rounded-md border bg-background px-2 text-sm text-foreground"
+              />
+            </label>
+            <Button type="submit" variant="outline" size="sm" disabled={!date}>
+              查看该周
+            </Button>
+          </form>
+        </div>
+        <p className="text-xs text-muted-foreground" aria-live="polite">
+          {selectedWeek && lastDay
+            ? `${selectedWeek.start.toISOString().slice(0, 10)} 至 ${lastDay.toISOString().slice(0, 10)}（UTC）`
+            : '显示全部时间 · 每周按 UTC 周一至周日统计'}
+        </p>
+      </div>
+      <AdminLLMUsageResults key={week ?? 'all'} week={week} />
+    </div>
+  );
+}
+
+function AdminLLMUsageResults({ week }: { week: string | null }) {
   const [loading, setLoading] = useState(true);
   const [usageError, setUsageError] = useState<string | null>(null);
   const [usage, setUsage] = useState<LLMUsageResponse | null>(null);
   const [usagePage, setUsagePage] = useState(1);
 
-  const loadAll = useCallback(async () => {
-    setLoading(true);
-    setUsageError(null);
-    try {
+  useEffect(() => {
+    const controller = new AbortController();
+    const params = new URLSearchParams({ page: String(usagePage) });
+    if (week) params.set('week', week);
+
+    const loadUsage = async () => {
+      setLoading(true);
+      setUsageError(null);
       try {
-        const usageResp = await backendJson<LLMUsageResponse>(
-          `/api/admin/llm-usage?page=${usagePage}`,
-        );
+        const usageResp = await backendJson<LLMUsageResponse>(`/api/admin/llm-usage?${params}`, {
+          signal: controller.signal,
+        });
+        if (controller.signal.aborted) return;
         setUsage(usageResp);
+        if (usagePage > usageResp.pagination.totalPages) {
+          setUsagePage(usageResp.pagination.totalPages);
+        }
       } catch (usageLoadError) {
+        if (controller.signal.aborted) return;
         setUsage(null);
         setUsageError(
           usageLoadError instanceof Error ? usageLoadError.message : String(usageLoadError),
         );
+      } finally {
+        if (!controller.signal.aborted) setLoading(false);
       }
-    } finally {
-      setLoading(false);
-    }
-  }, [usagePage]);
-
-  useEffect(() => {
-    void loadAll();
-  }, [loadAll]);
+    };
+    void loadUsage();
+    return () => controller.abort();
+  }, [usagePage, week]);
 
   const usageRows = usage?.rows ?? [];
   const usageTotalPages = usage?.pagination.totalPages ?? 1;
   const usageTotal = usage?.pagination.total ?? 0;
 
-  useEffect(() => {
-    if (usagePage > usageTotalPages) {
-      setUsagePage(usageTotalPages);
-    }
-  }, [usagePage, usageTotalPages]);
-
   if (loading) {
-    return <p className="text-sm text-muted-foreground">加载用量明细…</p>;
+    return (
+      <p role="status" className="text-sm text-muted-foreground">
+        加载用量明细…
+      </p>
+    );
+  }
+
+  if (usageError) {
+    return (
+      <Alert>
+        <AlertTitle>用量数据暂不可用</AlertTitle>
+        <AlertDescription>{usageError}</AlertDescription>
+      </Alert>
+    );
   }
 
   return (
     <div className="space-y-6">
-      {usageError ? (
-        <Alert>
-          <AlertTitle>用量数据暂不可用</AlertTitle>
-          <AlertDescription>{usageError}</AlertDescription>
-        </Alert>
-      ) : null}
-
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -136,8 +212,8 @@ export function AdminLLMSection() {
 
       <Card>
         <CardHeader>
-          <CardTitle>最近用量明细</CardTitle>
-          <CardDescription>按最近调用时间倒序，每页最多 20 条。</CardDescription>
+          <CardTitle>调用明细</CardTitle>
+          <CardDescription>按调用时间倒序（UTC），每页最多 20 条。</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto rounded-lg border">
@@ -159,7 +235,7 @@ export function AdminLLMSection() {
                 {usageRows.map((row) => (
                   <tr key={row.id} className="border-t">
                     <td className="px-3 py-2 whitespace-nowrap">
-                      {new Date(row.createdAt).toLocaleString('zh-CN')}
+                      {new Date(row.createdAt).toLocaleString('zh-CN', { timeZone: 'UTC' })}
                     </td>
                     <td className="px-3 py-2">
                       <div className="font-medium">

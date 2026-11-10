@@ -1,10 +1,13 @@
 import { Prisma } from '@/lib/server/generated-prisma';
+import { getCloudUsageWeekWindow } from '@/lib/cloud-usage-week';
 import { createLogger } from '@/lib/logger';
 import { getOptionalPrisma } from '@/lib/server/prisma-safe';
 import type { DbClient } from '@/lib/server/repositories/types';
 import { estimateTrackedModelUsageRetailCostUsd } from '@/lib/utils/openai-pricing';
 
 const log = createLogger('CloudUsageLimits');
+
+export { getCloudUsageWeekWindow };
 
 export type UsageLimitScope = 'global' | 'user';
 
@@ -67,17 +70,6 @@ function toNullableNumber(
         ? Number.parseFloat(value)
         : value.toNumber();
   return Number.isFinite(parsed) ? parsed : null;
-}
-
-export function getCloudUsageWeekWindow(now = new Date()): { start: Date; end: Date } {
-  const start = new Date(now);
-  const day = start.getUTCDay();
-  const daysSinceMonday = day === 0 ? 6 : day - 1;
-  start.setUTCDate(start.getUTCDate() - daysSinceMonday);
-  start.setUTCHours(0, 0, 0, 0);
-  const end = new Date(start);
-  end.setUTCDate(start.getUTCDate() + 7);
-  return { start, end };
 }
 
 function normalizeGlobalLimit(row: LimitRow | null | undefined): CloudUsageGlobalLimit {
