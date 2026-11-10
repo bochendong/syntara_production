@@ -1023,6 +1023,14 @@ export function getAdminOverview(): Promise<AdminOverview> {
   return invokeQuery('native_get_admin', {});
 }
 
+export async function getAdminWeekUsage(usageWeek: string): Promise<AdminUsage> {
+  const { weekUsage } = await invokeQuery<{ weekUsage?: AdminUsage }>('native_get_admin', {
+    usageWeek,
+  });
+  if (!weekUsage) throw new Error('历史用量暂不可用。');
+  return weekUsage;
+}
+
 export type AdminUsersPage = {
   users: AdminUser[];
   total: number;

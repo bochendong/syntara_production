@@ -231,21 +231,24 @@ export async function saveCloudUsageUserLimit(
 export async function summarizeCloudUsage(
   db: DbClient,
   userId?: string | null,
+  { start, end } = getCloudUsageWeekWindow(),
 ): Promise<CloudUsageSummary> {
-  const { start, end } = getCloudUsageWeekWindow();
+  // Prisma Date parameters are timestamptz, while these columns store UTC as timestamp.
+  const startUtc = Prisma.sql`(${start}::timestamptz AT TIME ZONE 'UTC')`;
+  const endUtc = Prisma.sql`(${end}::timestamptz AT TIME ZONE 'UTC')`;
   const llmRows = userId
     ? await db.$queryRaw<LLMUsageCostRow[]>(
         Prisma.sql`
           SELECT "providerId", "modelId", "modelString", "inputTokens", "outputTokens"
           FROM "LLMUsageLog"
-          WHERE "createdAt" >= ${start} AND "createdAt" < ${end} AND "userId" = ${userId}
+          WHERE "createdAt" >= ${startUtc} AND "createdAt" < ${endUtc} AND "userId" = ${userId}
         `,
       )
     : await db.$queryRaw<LLMUsageCostRow[]>(
         Prisma.sql`
           SELECT "providerId", "modelId", "modelString", "inputTokens", "outputTokens"
           FROM "LLMUsageLog"
-          WHERE "createdAt" >= ${start} AND "createdAt" < ${end}
+          WHERE "createdAt" >= ${startUtc} AND "createdAt" < ${endUtc}
         `,
       );
 
@@ -269,7 +272,7 @@ export async function summarizeCloudUsage(
             COALESCE(SUM("estimatedCostUsd"), 0) AS "estimatedCostUsd",
             COALESCE(SUM("requestCount"), 0)::int AS "requestCount"
           FROM "CloudUsageCostLog"
-          WHERE "createdAt" >= ${start} AND "createdAt" < ${end} AND "userId" = ${userId}
+          WHERE "createdAt" >= ${startUtc} AND "createdAt" < ${endUtc} AND "userId" = ${userId}
         `,
       )
     : await db.$queryRaw<CostLogAggregateRow[]>(
@@ -278,7 +281,7 @@ export async function summarizeCloudUsage(
             COALESCE(SUM("estimatedCostUsd"), 0) AS "estimatedCostUsd",
             COALESCE(SUM("requestCount"), 0)::int AS "requestCount"
           FROM "CloudUsageCostLog"
-          WHERE "createdAt" >= ${start} AND "createdAt" < ${end}
+          WHERE "createdAt" >= ${startUtc} AND "createdAt" < ${endUtc}
         `,
       );
 

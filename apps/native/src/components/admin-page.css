@@ -1028,6 +1028,32 @@
   height: 14px;
 }
 
+.ap-usage-navigation {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  color: var(--ap-muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.ap-usage-navigation .ap-icon-button {
+  margin: 0;
+  width: 32px;
+  height: 32px;
+}
+
+.ap-usage-navigation .ap-icon-button:disabled {
+  opacity: 0.45;
+}
+
+button.ap-usage-reset {
+  border: 0;
+  cursor: pointer;
+}
+
 .ap-usage-reset {
   border-radius: 999px;
   padding: 4px 10px;

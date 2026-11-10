@@ -1,18 +1,12 @@
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type FormEvent,
-  type ReactNode,
-} from 'react';
-import { ChevronDown, Gauge, RefreshCw, Search } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { ChevronDown, ChevronLeft, ChevronRight, Gauge, RefreshCw, Search } from 'lucide-react';
 
+import { getCloudUsageWeekWindow } from '../../../../lib/cloud-usage-week';
 import { nativeAccountAvatarUrl, resolveNativeCourseAvatar } from '../assets';
 import {
   getAdminOverview,
   getAdminUserCourses,
+  getAdminWeekUsage,
   saveAdminLlm,
   searchAdminUsers,
   setAdminGlobalLimit,
@@ -21,6 +15,7 @@ import {
   type AdminLlmConfig,
   type AdminOverview,
   type AdminRole,
+  type AdminUsage,
   type AdminUser,
   type AdminUserCourse,
   type AdminUsersPage,
@@ -88,12 +83,14 @@ function limitText(value: number | null | undefined) {
 export function AdminPage({ onBack }: { onBack: () => void }) {
   const [tab, setTab] = useState<Tab>('models');
   const [overview, setOverview] = useState<AdminOverview | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
 
   const reload = useCallback(async () => {
     try {
       setOverview(await getAdminOverview());
+      setRefreshKey((value) => value + 1);
       setError('');
     } catch (cause) {
       setError(errorText(cause, '读取失败'));
@@ -183,6 +180,7 @@ export function AdminPage({ onBack }: { onBack: () => void }) {
         {overview && tab === 'usage' ? (
           <UsageTab
             overview={overview}
+            refreshKey={refreshKey}
             onSaved={(usage) => {
               setOverview({ ...overview, usage });
               saved('全站额度已更新');
@@ -925,12 +923,47 @@ function UserRow({
   );
 }
 
+function HistoricalUsage({ week }: { week: string }) {
+  const [usage, setUsage] = useState<AdminUsage | null>(null);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let active = true;
+    void getAdminWeekUsage(week)
+      .then((result) => {
+        if (active) setUsage(result);
+      })
+      .catch((cause) => {
+        if (active) setError(errorText(cause, '历史用量暂不可用。'));
+      });
+    return () => {
+      active = false;
+    };
+  }, [week]);
+
+  return (
+    <div role="status">
+      <small>该周全站</small>
+      {usage ? (
+        <>
+          <strong>{money(usage.estimatedCostUsd)}</strong>
+          <p>{usage.requestCount} 次请求</p>
+        </>
+      ) : (
+        <p>{error || '正在读取用量…'}</p>
+      )}
+    </div>
+  );
+}
+
 function UsageTab({
   overview,
+  refreshKey,
   onSaved,
   onError,
 }: {
   overview: AdminOverview;
+  refreshKey: number;
   onSaved: (usage: AdminOverview['usage']) => void;
   onError: (message: string) => void;
 }) {
@@ -939,6 +972,7 @@ function UsageTab({
   const [cost, setCost] = useState(limitText(limit.weeklyCostLimitUsd));
   const [requests, setRequests] = useState(limitText(limit.weeklyRequestLimit));
   const [busy, setBusy] = useState(false);
+  const [week, setWeek] = useState<string | null>(null);
   const dirty =
     enabled !== limit.enabled ||
     cost !== limitText(limit.weeklyCostLimitUsd) ||
@@ -946,11 +980,19 @@ function UsageTab({
   const activeCost = limit.enabled ? limit.weeklyCostLimitUsd : null;
   const activeRequests = limit.enabled ? limit.weeklyRequestLimit : null;
 
-  const resetDay = useMemo(() => {
-    const now = new Date();
-    const days = (8 - (now.getUTCDay() || 7)) % 7 || 7;
-    return days === 1 ? '明天' : `${days} 天后`;
-  }, []);
+  const now = new Date();
+  const current = getCloudUsageWeekWindow(now);
+  const period = week ? getCloudUsageWeekWindow(new Date(week)) : current;
+  const days = Math.ceil((current.end.getTime() - now.getTime()) / 86_400_000);
+  const resetDay = days === 1 ? '明天' : `${days} 天后`;
+  const startDate = period.start.toISOString().slice(0, 10);
+  const endDate = new Date(period.end.getTime() - 1).toISOString().slice(0, 10);
+
+  const moveWeek = (direction: -1 | 1) => {
+    const next = new Date(period.start);
+    next.setUTCDate(next.getUTCDate() + direction * 7);
+    setWeek(next < current.start ? next.toISOString().slice(0, 10) : null);
+  };
 
   const save = async () => {
     const weeklyCostLimitUsd = parseLimit(cost, false);
@@ -972,17 +1014,50 @@ function UsageTab({
   return (
     <>
       <div className="ap-usage-hero">
-        <div>
-          <small>本周全站</small>
-          <strong>{money(usage.estimatedCostUsd)}</strong>
-          <p>
-            {usage.requestCount} 次请求
-            {activeCost != null ? ` · 上限 ${money(activeCost)}` : ''}
-            {activeRequests != null ? ` / ${activeRequests} 次` : ''}
-          </p>
+        <div className="ap-usage-navigation" role="group" aria-label="用量统计周">
+          <button
+            type="button"
+            className="ap-icon-button"
+            aria-label="上一周"
+            onClick={() => moveWeek(-1)}
+          >
+            <ChevronLeft size={16} aria-hidden />
+          </button>
+          <span aria-live="polite">
+            {startDate} 至 {endDate}（UTC）
+          </span>
+          <button
+            type="button"
+            className="ap-icon-button"
+            aria-label="下一周"
+            disabled={!week}
+            onClick={() => moveWeek(1)}
+          >
+            <ChevronRight size={16} aria-hidden />
+          </button>
+          {week ? (
+            <button type="button" className="ap-usage-reset" onClick={() => setWeek(null)}>
+              回到本周
+            </button>
+          ) : null}
         </div>
-        <span className="ap-usage-reset">{resetDay}重置</span>
-        <UsageMeter used={usage.estimatedCostUsd} limit={activeCost} label="本周全站成本" />
+        {week ? (
+          <HistoricalUsage key={`${week}:${refreshKey}`} week={week} />
+        ) : (
+          <>
+            <div>
+              <small>本周全站</small>
+              <strong>{money(usage.estimatedCostUsd)}</strong>
+              <p>
+                {usage.requestCount} 次请求
+                {activeCost != null ? ` · 上限 ${money(activeCost)}` : ''}
+                {activeRequests != null ? ` / ${activeRequests} 次` : ''}
+              </p>
+            </div>
+            <span className="ap-usage-reset">{resetDay}重置</span>
+            <UsageMeter used={usage.estimatedCostUsd} limit={activeCost} label="本周全站成本" />
+          </>
+        )}
       </div>
 
       <p className="phone-group-title">全站每周上限</p>
