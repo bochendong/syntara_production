@@ -1,6 +1,6 @@
 import { ProblemPracticePage } from './ProblemPracticePage';
 import { PracticeOverlay } from './PracticeOverlay';
-import { ClassroomSession } from './StudentClassroomPage';
+import { ClassroomSessionProblems, type ClassroomProblemView } from './StudentClassroomPage';
 import { createTeacherPracticeStore } from '../data/teacher-practice-store';
 import { progressStatus } from './problem-bank/answer-sheet';
 import type { ClassroomOpenProblem } from './ClassroomPanel';
@@ -67,7 +67,7 @@ import './course-content-manager.css';
  * 点弹珠看这个学生这道题提交过的答案，只看提交，不看草稿。
  */
 
-type Tab = 'grid' | 'stats';
+type Tab = 'grid' | 'practice';
 
 export function TeachSessionView({
   sessionId,
@@ -81,11 +81,12 @@ export function TeachSessionView({
   const [busy, setBusy] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const [tab, setTab] = useState<Tab>('grid');
-  const [showPracticeList, setShowPracticeList] = useState(false);
+  const [practiceView, setPracticeView] = useState<ClassroomProblemView>('list');
   const [practice, setPractice] = useState<{
     id: string;
     problems: LocalProblem[];
     launch: ProblemBankLaunch;
+    showStats: boolean;
   } | null>(null);
   const [practiceMinimized, setPracticeMinimized] = useState(false);
   const practiceLoad = useRef(0);
@@ -97,9 +98,18 @@ export function TeachSessionView({
       setPracticeProgress((previous) => ({ ...previous, [progress.problemId]: progress }));
     }),
   );
-  const launchPractice = (problems: LocalProblem[], launch: ProblemBankLaunch) => {
+  const launchPractice = (
+    problems: LocalProblem[],
+    launch: ProblemBankLaunch,
+    showStats = false,
+  ) => {
     teacherPracticeStore.addProblems(problems);
-    setPractice({ id: crypto.randomUUID(), problems, launch: { ...launch, teacherPreview: true } });
+    setPractice({
+      id: crypto.randomUUID(),
+      problems,
+      launch: { ...launch, teacherPreview: true },
+      showStats,
+    });
     setPracticeMinimized(false);
   };
   const openPractice = (problem: LocalProblem) =>
@@ -108,28 +118,38 @@ export function TeachSessionView({
       initialProblemId: problem.id,
       title: '老师试做',
     });
-  const openPracticeProblem: ClassroomOpenProblem = async ({ problemIds, problemId, title }) => {
+  const openPracticeProblem = async (
+    {
+      problemIds,
+      problemId,
+      title,
+    }: Pick<Parameters<ClassroomOpenProblem>[0], 'problemIds' | 'problemId' | 'title'>,
+    showStats = false,
+  ) => {
     const loadId = ++practiceLoad.current;
     const problems = await getTeachProblemPreviews(sessionId);
     if (loadId !== practiceLoad.current) return;
     const available = new Set(problems.map((problem) => problem.id));
     if (!available.has(problemId)) throw new Error('这道题已移出课堂，请刷新题单。');
-    launchPractice(problems, {
-      problemIds: problemIds.filter((id) => available.has(id)),
-      initialProblemId: problemId,
-      title,
-      numbers: Object.fromEntries(
-        (data?.items ?? []).flatMap((item) =>
-          item.number === null ? [] : [[item.problemId, item.number]],
+    launchPractice(
+      problems,
+      {
+        problemIds: problemIds.filter((id) => available.has(id)),
+        initialProblemId: problemId,
+        title,
+        numbers: Object.fromEntries(
+          (data?.items ?? []).flatMap((item) =>
+            item.number === null ? [] : [[item.problemId, item.number]],
+          ),
         ),
-      ),
-    });
+      },
+      showStats,
+    );
   };
   const [picking, setPicking] = useState(false);
   const [ending, setEnding] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [viewing, setViewing] = useState<{ userId: string; problemId: string } | null>(null);
-  const statsRef = useRef<HTMLDivElement>(null);
 
   const act = async (key: string, payload: Parameters<typeof teachSessionAction>[0]) => {
     setBusy(key);
@@ -172,25 +192,43 @@ export function TeachSessionView({
     }
   };
 
-  const openStats = (problemId: string) => {
-    setTab('stats');
-    window.setTimeout(() => {
-      statsRef.current
-        ?.querySelector(`[data-problem="${CSS.escape(problemId)}"]`)
-        ?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    }, 0);
+  const openStats = async (problemId: string) => {
+    if (!data) return;
+    try {
+      await openPracticeProblem(
+        {
+          problemIds: data.items.map((item) => item.problemId),
+          problemId,
+          title: classSessionLabel(data.session),
+        },
+        true,
+      );
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : '读取统计失败');
+    }
   };
 
   const viewingItem = viewing
     ? (data?.items.find((item) => item.problemId === viewing.problemId) ?? null)
     : null;
 
+  const minimizePractice = () => setPracticeMinimized(true);
+  const renderPracticeStats = (problemId: string) => {
+    const index = data?.items.findIndex((item) => item.problemId === problemId) ?? -1;
+    if (!data || index < 0) return <PhoneEmpty title="这道题已移出课堂" hint="" />;
+
+    return (
+      <div className="ts-practice-stats" key={problemId}>
+        <ProblemStats item={data.items[index]} index={index} studentCount={data.students.length} />
+      </div>
+    );
+  };
   const practiceOverlay = practice
     ? createPortal(
         <PracticeOverlay
           key={practice.id}
           minimized={practiceMinimized}
-          onClose={() => setPracticeMinimized(true)}
+          onClose={minimizePractice}
           onRestore={() => setPracticeMinimized(false)}
           onDismiss={() => setPractice(null)}
         >
@@ -198,46 +236,15 @@ export function TeachSessionView({
             problems={practice.problems}
             launch={practice.launch}
             teacherPracticeStore={teacherPracticeStore}
-            onBack={() => setPracticeMinimized(true)}
-            onMinimize={() => setPracticeMinimized(true)}
+            renderClassroomStats={data && status !== 'draft' ? renderPracticeStats : undefined}
+            showClassroomStatsInitially={practice.showStats}
+            onBack={minimizePractice}
+            onMinimize={minimizePractice}
           />
         </PracticeOverlay>,
         document.body,
       )
     : null;
-
-  if (showPracticeList && data) {
-    return (
-      <>
-        <ClassroomSession
-          session={{
-            id: sessionId,
-            number: data.session.number,
-            name: data.session.name,
-            status: data.session.status,
-            courseId: data.session.course.id,
-            courseName: data.session.course.name,
-            items: data.items.map((item) => {
-              const progress = practiceProgress[item.problemId];
-              return {
-                ...item,
-                myStatus: progressStatus(progress?.status),
-                myAttempts: progress?.attemptedCount ?? 0,
-              };
-            }),
-          }}
-          teacherPreview
-          onBack={() => {
-            practiceLoad.current += 1;
-            setPractice(null);
-            setShowPracticeList(false);
-          }}
-          onOpenProblem={openPracticeProblem}
-        />
-        {practiceOverlay}
-      </>
-    );
-  }
 
   return (
     <PhonePage
@@ -357,10 +364,11 @@ export function TeachSessionView({
               <button type="button" aria-pressed={tab === 'grid'} onClick={() => setTab('grid')}>
                 答题
               </button>
-              <button type="button" aria-pressed={tab === 'stats'} onClick={() => setTab('stats')}>
-                统计
-              </button>
-              <button type="button" onClick={() => setShowPracticeList(true)}>
+              <button
+                type="button"
+                aria-pressed={tab === 'practice'}
+                onClick={() => setTab('practice')}
+              >
                 老师试做
               </button>
             </div>
@@ -369,27 +377,37 @@ export function TeachSessionView({
               <SessionGrid
                 data={data}
                 editable={status === 'live'}
-                onOpenStats={openStats}
+                onOpenStats={(problemId) => void openStats(problemId)}
                 onOpenAnswer={(userId, problemId) => setViewing({ userId, problemId })}
                 onRemove={(problemId) =>
                   void act(`remove:${problemId}`, { action: 'remove', sessionId, problemId })
                 }
               />
             ) : (
-              <div className="ts-stats" ref={statsRef}>
-                {data.items.length ? (
-                  data.items.map((item, index) => (
-                    <ProblemStats
-                      key={item.id}
-                      item={item}
-                      index={index}
-                      studentCount={data.students.length}
-                    />
-                  ))
-                ) : (
-                  <PhoneEmpty title="这节课还没有题" hint="" />
-                )}
-              </div>
+              <section aria-label="老师试做">
+                <ClassroomSessionProblems
+                  session={{
+                    id: sessionId,
+                    number: data.session.number,
+                    name: data.session.name,
+                    status: data.session.status,
+                    courseId: data.session.course.id,
+                    items: data.items.map((item) => {
+                      const progress = practiceProgress[item.problemId];
+                      return {
+                        ...item,
+                        myStatus: progressStatus(progress?.status),
+                        myAttempts: progress?.attemptedCount ?? 0,
+                      };
+                    }),
+                  }}
+                  teacherView={{
+                    view: practiceView,
+                    onChange: setPracticeView,
+                  }}
+                  onOpenProblem={openPracticeProblem}
+                />
+              </section>
             )}
           </>
         ) : null}
@@ -818,7 +836,12 @@ function SessionGrid({
               return (
                 <tr key={student.userId} className={student.present ? undefined : 'is-absent'}>
                   <th className="ts-grid-name" scope="row">
-                    <strong>{student.name}</strong>
+                    <strong>
+                      <span className="ts-grid-student-name">{student.name}</span>
+                      {student.phoneLast4 ? (
+                        <span className="ts-grid-phone-tail">尾号 {student.phoneLast4}</span>
+                      ) : null}
+                    </strong>
                     <small>
                       {student.present
                         ? `${student.via === 'code' ? '旁听 · ' : ''}${done}/${data.items.length}`
@@ -885,27 +908,49 @@ function ProblemStats({
         </small>
       </header>
       {item.options ? (
-        <ul className="ts-options">
-          {item.options.map((option) => (
-            <li key={option.id} className={option.correct ? 'is-correct' : undefined}>
-              <span className="ts-option-id">{option.id}</span>
-              <span className="ts-option-body">
-                <span className="ts-option-label">
-                  <ProblemTitleText content={option.label} />
-                  {option.correct ? <Check size={14} aria-label="正确选项" /> : null}
-                </span>
-                <span className="ts-option-bar">
-                  <i
-                    style={{
-                      width: `${item.submittedCount ? (option.count / item.submittedCount) * 100 : 0}%`,
-                    }}
-                  />
-                </span>
-              </span>
-              <b>{option.count}</b>
-            </li>
-          ))}
-        </ul>
+        <>
+          <p className="ts-options-caption">
+            最新提交分布
+            {item.options.some((option) => option.wrongSelectionUserIds?.length) ? (
+              <span>紫色 · 曾选错</span>
+            ) : null}
+          </p>
+          <ul className="ts-options">
+            {item.options.map((option) => {
+              const wrongCount = option.wrongSelectionUserIds?.length ?? 0;
+              const submittedCount = item.submittedCount || 1;
+              return (
+                <li key={option.id} className={option.correct ? 'is-correct' : undefined}>
+                  <span className="ts-option-id">{option.id}</span>
+                  <div className="ts-option-body">
+                    <span className="ts-option-label">
+                      <ProblemTitleText content={option.label} />
+                      {option.correct ? <Check size={14} aria-label="正确选项" /> : null}
+                    </span>
+                    <span
+                      className="ts-option-bar"
+                      aria-hidden={wrongCount === 0}
+                      role={wrongCount ? 'img' : undefined}
+                      aria-label={wrongCount ? `${wrongCount} 人曾选错` : undefined}
+                    >
+                      <i
+                        className="ts-option-latest-fill"
+                        style={{ width: `${(option.count / submittedCount) * 100}%` }}
+                      />
+                      {wrongCount ? (
+                        <i
+                          className="ts-option-history-fill"
+                          style={{ width: `${(wrongCount / submittedCount) * 100}%` }}
+                        />
+                      ) : null}
+                    </span>
+                  </div>
+                  <b>{option.count}</b>
+                </li>
+              );
+            })}
+          </ul>
+        </>
       ) : (
         <div className="ts-ratio">
           <RatioTube item={item} total={item.submittedCount} />

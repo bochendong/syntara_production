@@ -28,8 +28,10 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type ReactNode,
 } from 'react';
 import {
+  ChartNoAxesColumn,
   CheckCircle2,
   CircleDashed,
   CircleMinus,
@@ -196,9 +198,11 @@ type ProblemPracticePageProps = {
   onAskAi?: (attachment: ProblemChatAttachment, move: ProblemCoachMove) => void;
   loadHiddenTests?: (problemId: string, part?: string) => Promise<RevealedHiddenTests>;
   teacherPracticeStore?: ReturnType<typeof createTeacherPracticeStore>;
+  renderClassroomStats?: (problemId: string) => ReactNode;
+  showClassroomStatsInitially?: boolean;
 };
 
-type RightTab = 'answer' | 'code' | 'tests' | 'history' | 'solution';
+type RightTab = 'answer' | 'code' | 'tests' | 'history' | 'solution' | 'stats';
 
 const PROGRESS_PRESENTATION: Record<string, { label: string; icon: typeof CheckCircle2 }> = {
   passed: { label: '已通过', icon: CheckCircle2 },
@@ -358,6 +362,8 @@ export function ProblemPracticePage({
   onAskAi,
   loadHiddenTests,
   teacherPracticeStore,
+  renderClassroomStats,
+  showClassroomStatsInitially = false,
 }: ProblemPracticePageProps) {
   const previewStore = useMemo(
     () =>
@@ -438,7 +444,9 @@ export function ProblemPracticePage({
   const [submitting, setSubmitting] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [rightTab, setRightTab] = useState<RightTab>('answer');
+  const [rightTab, setRightTab] = useState<RightTab>(
+    showClassroomStatsInitially && renderClassroomStats ? 'stats' : 'answer',
+  );
   const [leftTab, setLeftTab] = useState<'description' | 'output' | 'formulas'>('description');
   const [debugResult, setDebugResult] = useState<PythonDebugResult>({
     phase: 'idle',
@@ -831,7 +839,8 @@ export function ProblemPracticePage({
     setLoading(true);
     setError(null);
     setFeedback(null);
-    setRightTab(problemIsCode(currentProblem) ? 'code' : 'answer');
+    const defaultTab = problemIsCode(currentProblem) ? 'code' : 'answer';
+    setRightTab((tab) => (tab === 'stats' ? tab : defaultTab));
     setLeftTab('description');
     setPhotoBusy(false);
     void (async () => {
@@ -1817,6 +1826,9 @@ export function ProblemPracticePage({
           : []),
         { id: 'history', label: '记录', icon: Terminal },
       ];
+  if (renderClassroomStats) {
+    rightTabs.push({ id: 'stats', label: '统计', icon: ChartNoAxesColumn });
+  }
 
   const progressPresentation = PROGRESS_PRESENTATION[document?.progress?.status ?? ''];
   const ProgressIcon = progressPresentation?.icon ?? CircleDashed;
@@ -1912,7 +1924,7 @@ export function ProblemPracticePage({
           </span>
         </div>
         <div className="pp-top-answer-actions" role="group" aria-label="题目操作">
-          {rightTab !== 'answer' || !handwritingMode ? (
+          {rightTab !== 'stats' && (rightTab !== 'answer' || !handwritingMode) ? (
             <>
               {rightTab !== 'solution' ? (
                 <button
@@ -1965,7 +1977,7 @@ export function ProblemPracticePage({
               onSubmit={() => void submitParts([activePart.label])}
             />
           ) : null}
-          {rightTab !== 'history' && rightTab !== 'solution' && !isMultipart && !isCode ? (
+          {rightTab === 'answer' && !isMultipart && !isCode ? (
             <button
               type="button"
               className="pp-submit pp-header-submit"
@@ -2446,7 +2458,7 @@ export function ProblemPracticePage({
                   </div>
                 ) : null}
                 {isCode && rightTab === 'tests' ? <span ref={setRunAllTarget} /> : null}
-                {isCode && !isMultipart && rightTab !== 'history' && rightTab !== 'solution' ? (
+                {isCode && !isMultipart && (rightTab === 'code' || rightTab === 'tests') ? (
                   <button
                     type="button"
                     className="pp-submit pp-header-submit"
@@ -2494,6 +2506,7 @@ export function ProblemPracticePage({
                 rightTab === 'answer' && handwritingMode && 'is-handwriting',
               )}
             >
+              {rightTab === 'stats' ? renderClassroomStats?.(currentProblem.id) : null}
               {rightTab === 'solution' && solutionSeen && solution ? (
                 <ProblemReferenceAnswer problem={displayedProblem!} notice={solutionNotice} />
               ) : null}

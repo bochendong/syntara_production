@@ -736,6 +736,8 @@ export type TeachSession = {
   students: Array<{
     userId: string;
     name: string;
+    /** SpeedUp 课程课堂专用；没填尾号时为 null。 */
+    phoneLast4?: string | null;
     avatarUrl: string | null;
     present: boolean;
     via: string;
@@ -760,8 +762,14 @@ export type TeachSessionItem = {
   /** 部分对 + 待批改 */
   partialCount: number;
   failedCount: number;
-  /** 选择题的选项分布；别的题是 null。 */
-  options: Array<{ id: string; label: string; count: number; correct: boolean }> | null;
+  /** count 按最新提交计算；wrongSelectionUserIds 包含课堂历次提交中选过该错误选项的学生。 */
+  options: Array<{
+    id: string;
+    label: string;
+    count: number;
+    correct: boolean;
+    wrongSelectionUserIds?: string[];
+  }> | null;
   results: Array<{
     userId: string;
     status: TeachAttemptStatus;

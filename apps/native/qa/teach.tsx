@@ -204,7 +204,7 @@ const problemRecord = (index: number) => {
       functionSignature: 'def sum_even_squares(nums: list[int]) -> int:',
       constraints: ['列表长度不超过 1000', '不要修改传入的列表'],
       sampleIO: [{ input: 'sum_even_squares([1, 2, 3, 4])', output: '20' }],
-      publicTests: [{ input: 'sum_even_squares([])', output: '0' }],
+      publicTests: [{ id: 'empty-list', expression: 'sum_even_squares([])', expected: '0' }],
       starterCode: 'def sum_even_squares(nums: list[int]) -> int:\n    # 在这里写代码\n    pass',
     },
     grading: {
@@ -488,6 +488,7 @@ const dashboard = (sessionId: string) => {
     },
     students: rows.map((student) => ({
       ...student,
+      phoneLast4: student.userId === 's0' ? '0428' : null,
       avatarUrl: null,
       present: entry.present.includes(student.userId),
       via: 'roster',
@@ -537,6 +538,20 @@ const dashboard = (sessionId: string) => {
                       ?.answer.selectedOptionIds as string[] | undefined
                   )?.includes(option.id),
                 ).length,
+                wrongSelectionUserIds:
+                  option.id === 'A'
+                    ? []
+                    : rows
+                        .filter((student) =>
+                          attemptStore
+                            .get(attemptKey(entry.id, problemId, student.userId))
+                            ?.some((attempt) =>
+                              (attempt.answer.selectedOptionIds as string[] | undefined)?.includes(
+                                option.id,
+                              ),
+                            ),
+                        )
+                        .map((student) => student.userId),
               }))
             : null,
         results,
@@ -545,8 +560,14 @@ const dashboard = (sessionId: string) => {
   };
 };
 function teachGet(query: URLSearchParams) {
-  if (query.has('preview')) {
-    return { problem: problemRecord(Number(query.get('problemId')!.split('-')[1])) };
+  const preview = query.get('preview');
+  if (preview) {
+    const problemId = query.get('problemId');
+    if (problemId) return { problem: problemRecord(Number(problemId.split('-')[1])) };
+    const session = mockSessions.find((entry) => entry.id === preview);
+    return {
+      problems: (session?.problemIds ?? []).map((id) => problemRecord(Number(id.split('-')[1]))),
+    };
   }
   const classId = query.get('classId');
   const sessionId = query.get('sessionId');

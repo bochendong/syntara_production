@@ -109,6 +109,7 @@ export function SheetCell({
   title,
   size = 'md',
   fresh = false,
+  disabled = false,
   onClick,
 }: {
   number: number | undefined;
@@ -120,6 +121,7 @@ export function SheetCell({
   size?: 'sm' | 'md';
   /** 机构新发布的题：右上角一颗小蓝珠。 */
   fresh?: boolean;
+  disabled?: boolean;
   onClick: () => void;
 }) {
   const recovered = status === 'passed' && previouslyIncorrect;
@@ -142,6 +144,7 @@ export function SheetCell({
       title={title ? `${title} · ${statusLabel}` : statusLabel}
       aria-label={`${number === undefined ? title || '我的题目' : `第 ${number} 题`}，${statusLabel}`}
       aria-current={current ? 'true' : undefined}
+      disabled={disabled}
       onClick={onClick}
     >
       <span className="sheet-cell-orb">

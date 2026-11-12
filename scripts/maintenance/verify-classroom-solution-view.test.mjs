@@ -60,6 +60,7 @@ function dashboardFixture() {
     },
   ].map((entry, i) => ({ ...entry, kind: 'answer', problemId: 'p', createdAt: new Date(i + 1) }));
   const db = {
+    course: { findFirst: async () => null },
     classSession: {
       findUnique: async () => ({
         id: 'lesson',
@@ -125,6 +126,7 @@ function dashboardFixture() {
     '@/lib/server/prisma': { prisma: db },
     '@/lib/server/generated-prisma': { Prisma: {} },
     '@/lib/server/external-course-access': {},
+    '@/lib/server/speedup-phone': { speedupOrganizationWhere: () => ({}) },
     './teacher-classroom-period': {},
     './course-admissions': {},
   });

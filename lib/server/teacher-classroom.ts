@@ -3,6 +3,7 @@ import { randomInt } from 'node:crypto';
 import { Prisma } from '@/lib/server/generated-prisma';
 import { teacherCourseAccessWhere } from '@/lib/server/external-course-access';
 import { prisma } from '@/lib/server/prisma';
+import { parsePhoneLast4, speedupOrganizationWhere } from '@/lib/server/speedup-phone';
 import type { DbClient } from '@/lib/server/repositories/types';
 import { currentAcademicPeriod } from './teacher-classroom-period';
 import {
@@ -896,21 +897,42 @@ function stringList(value: unknown): string[] {
     : [];
 }
 
-/** 选择题：每个选项按每人最后一次提交统计，标出正确选项。 */
+type ChoiceAttempt = {
+  id: string;
+  userId: string;
+  answerJson: unknown;
+};
+
 function choiceDistribution(
   problem: { publicContentJson: unknown; gradingJson: unknown },
-  selections: string[][],
+  attempts: ChoiceAttempt[],
+  latestAttemptIds: Set<string>,
 ) {
   const options = jsonRecord(problem.publicContentJson).options;
   const correct = new Set(stringList(jsonRecord(problem.gradingJson).correctOptionIds));
+  const latestCounts = new Map<string, number>();
+  const wrongSelections = new Map<string, Set<string>>();
+  for (const attempt of attempts) {
+    for (const optionId of new Set(stringList(jsonRecord(attempt.answerJson).selectedOptionIds))) {
+      if (latestAttemptIds.has(attempt.id)) {
+        latestCounts.set(optionId, (latestCounts.get(optionId) ?? 0) + 1);
+      }
+      if (!correct.has(optionId)) {
+        const students = wrongSelections.get(optionId) ?? new Set<string>();
+        students.add(attempt.userId);
+        wrongSelections.set(optionId, students);
+      }
+    }
+  }
   return (Array.isArray(options) ? options : []).map((raw) => {
     const option = jsonRecord(raw);
     const id = String(option.id ?? '');
     return {
       id,
       label: String(option.label ?? id),
-      count: selections.filter((selected) => selected.includes(id)).length,
+      count: latestCounts.get(id) ?? 0,
       correct: correct.has(id),
+      wrongSelectionUserIds: [...(wrongSelections.get(id) ?? [])],
     };
   });
 }
@@ -921,7 +943,24 @@ function personName(user: { name: string | null; email: string | null }) {
 
 export async function getClassSessionDashboard(viewer: ClassroomViewer, sessionId: string) {
   const session = await loadSessionForTeacher(viewer, sessionId);
-  const userSelect = { id: true, name: true, email: true, image: true } as const;
+  const speedupCourse = await prisma.course.findFirst({
+    where: {
+      id: session.class.courseId,
+      OR: [
+        { organization: speedupOrganizationWhere() },
+        { externalBinding: { provider: 'speedup' } },
+      ],
+    },
+    select: { id: true },
+  });
+  const includePhoneLast4 = Boolean(speedupCourse);
+  const userSelect = {
+    id: true,
+    name: true,
+    email: true,
+    image: true,
+    speedupPhoneLast4: includePhoneLast4,
+  } as const;
   const [participants, roster, items] = await Promise.all([
     prisma.classSessionParticipant.findMany({
       where: { sessionId },
@@ -954,13 +993,24 @@ export async function getClassSessionDashboard(viewer: ClassroomViewer, sessionI
     }),
   ]);
 
+  const studentIdentity = (user: {
+    id: string;
+    name: string | null;
+    email: string | null;
+    image: string | null;
+    speedupPhoneLast4?: string | null;
+  }) => ({
+    userId: user.id,
+    name: personName(user),
+    avatarUrl: user.image,
+    ...(includePhoneLast4 ? { phoneLast4: parsePhoneLast4(user.speedupPhoneLast4) } : {}),
+  });
+
   // 一行一个学生：在场的人在前，没进来的名单学生在后。
   const present = new Set(participants.map((row) => row.user.id));
   const students = [
     ...participants.map((row) => ({
-      userId: row.user.id,
-      name: personName(row.user),
-      avatarUrl: row.user.image,
+      ...studentIdentity(row.user),
       present: true,
       via: row.via,
       joinedAt: row.joinedAt.getTime(),
@@ -968,46 +1018,52 @@ export async function getClassSessionDashboard(viewer: ClassroomViewer, sessionI
     ...roster
       .filter((row) => !present.has(row.user.id))
       .map((row) => ({
-        userId: row.user.id,
-        name: personName(row.user),
-        avatarUrl: row.user.image,
+        ...studentIdentity(row.user),
         present: false,
         via: 'roster',
         joinedAt: null,
       })),
   ];
   const userIds = students.map((student) => student.userId);
-  const latest = await latestSessionAttempts(
-    sessionId,
-    userIds,
-    items.map((item) => item.problemId),
+  const problemIds = items.map((item) => item.problemId);
+  const choiceProblemIds = new Set(
+    items.filter((item) => item.problem.type === 'choice').map((item) => item.problemId),
   );
-  const solutionViews =
-    userIds.length && items.length
-      ? await prisma.notebookProblemAttempt.findMany({
+  // 只有选择题需要读历次答案；其他题的代码或图片可能很大。
+  const [latest, solutionViews, choiceAnswers] = await Promise.all([
+    latestSessionAttempts(sessionId, userIds, problemIds),
+    userIds.length && problemIds.length
+      ? prisma.notebookProblemAttempt.findMany({
           where: {
             classSessionId: sessionId,
             userId: { in: userIds },
-            problemId: { in: items.map((item) => item.problemId) },
+            problemId: { in: problemIds },
             resultJson: { path: ['event'], equals: 'solution_viewed' },
           },
           distinct: ['problemId', 'userId'],
           select: { problemId: true, userId: true },
         })
-      : [];
-  // 选择题才读作答内容；别的题的 answerJson 可能很大（代码、照片）。
-  const choiceProblemIds = new Set(
-    items.filter((item) => item.problem.type === 'choice').map((item) => item.problemId),
-  );
-  const choiceAttemptIds = [...latest.entries()]
-    .filter(([key]) => choiceProblemIds.has(key.split(':')[0]))
-    .map(([, row]) => row.attemptId);
-  const choiceAnswers = choiceAttemptIds.length
-    ? await prisma.notebookProblemAttempt.findMany({
-        where: { id: { in: choiceAttemptIds } },
-        select: { problemId: true, answerJson: true },
-      })
-    : [];
+      : [],
+    userIds.length && choiceProblemIds.size
+      ? prisma.notebookProblemAttempt.findMany({
+          where: {
+            classSessionId: sessionId,
+            userId: { in: userIds },
+            problemId: { in: [...choiceProblemIds] },
+            kind: { in: ['submit', 'answer'] },
+          },
+          select: { id: true, problemId: true, userId: true, answerJson: true, resultJson: true },
+        })
+      : [],
+  ]);
+  const latestAttemptIds = new Set([...latest.values()].map((attempt) => attempt.attemptId));
+  const choicesByProblem = new Map<string, ChoiceAttempt[]>();
+  for (const attempt of choiceAnswers) {
+    if (isLearningSnapshot(attempt.resultJson)) continue;
+    const choices = choicesByProblem.get(attempt.problemId) ?? [];
+    choices.push(attempt);
+    choicesByProblem.set(attempt.problemId, choices);
+  }
 
   return {
     session: {
@@ -1059,9 +1115,8 @@ export async function getClassSessionDashboard(viewer: ClassroomViewer, sessionI
         options: choiceProblemIds.has(item.problemId)
           ? choiceDistribution(
               item.problem,
-              choiceAnswers
-                .filter((row) => row.problemId === item.problemId)
-                .map((row) => stringList(jsonRecord(row.answerJson).selectedOptionIds)),
+              choicesByProblem.get(item.problemId) ?? [],
+              latestAttemptIds,
             )
           : null,
         results,

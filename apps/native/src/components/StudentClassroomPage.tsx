@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
-import { ChevronRight, LogIn, Radio } from 'lucide-react';
+import { ChevronRight, LayoutGrid, List, LogIn, Radio } from 'lucide-react';
 
 import { profileThemeForAvatar, resolveNativeCourseAvatar } from '../assets';
 import type { LocalCourse } from '../domain/models';
@@ -12,11 +12,13 @@ import {
 } from '../data/platform-api-client';
 import type { ClassroomOpenProblem } from './ClassroomPanel';
 import { PhoneEmpty, PhonePage } from './PhonePages';
+import { SheetCell, progressStatus } from './problem-bank/answer-sheet';
 import { ProblemTitleText } from './problem-bank/problem-rich-text';
 import { clock, courseLabel, Marble, problemName, teachResultStatus } from './teach-shared';
 import { classSessionLabel } from '../lib/class-session-label';
 import './teach-page.css';
 import './student-classroom.css';
+import './course-pages.css';
 
 /**
  * 学生的「上课」页（网页版、iPad、电脑 App；手机没有）：
@@ -361,19 +363,46 @@ function ClassroomCourseCard({
   );
 }
 
-export function ClassroomSession({
+type ClassroomSessionContentData = Pick<
+  NativeClassroomSession,
+  'id' | 'number' | 'name' | 'status' | 'courseId' | 'items'
+>;
+
+function ClassroomSession({
   session,
   onBack,
   onOpenProblem,
-  teacherPreview = false,
 }: {
-  session: Pick<
-    NativeClassroomSession,
-    'id' | 'number' | 'name' | 'status' | 'courseId' | 'courseName' | 'items'
-  >;
+  session: ClassroomSessionContentData & Pick<NativeClassroomSession, 'courseName'>;
   onBack: () => void;
   onOpenProblem: ClassroomOpenProblem;
-  teacherPreview?: boolean;
+}) {
+  return (
+    <PhonePage title={classSessionLabel(session)} overlay largeTitle onBack={onBack}>
+      <div className="tp-page tc-page">
+        <header className="phone-large-head tp-head">
+          <h1>{classSessionLabel(session)}</h1>
+          <span className="tp-term">{session.courseName}</span>
+        </header>
+        <ClassroomSessionProblems session={session} onOpenProblem={onOpenProblem} />
+      </div>
+    </PhonePage>
+  );
+}
+
+export type ClassroomProblemView = 'list' | 'grid';
+
+export function ClassroomSessionProblems({
+  session,
+  onOpenProblem,
+  teacherView,
+}: {
+  session: ClassroomSessionContentData;
+  onOpenProblem: ClassroomOpenProblem;
+  teacherView?: {
+    view: ClassroomProblemView;
+    onChange: (view: ClassroomProblemView) => void;
+  };
 }) {
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
@@ -424,61 +453,98 @@ export function ClassroomSession({
 
   const done = session.items.filter((item) => item.myStatus).length;
   return (
-    <PhonePage title={classSessionLabel(session)} overlay largeTitle onBack={onBack}>
-      <div className="tp-page tc-page">
-        <header className="phone-large-head tp-head">
-          <h1>{classSessionLabel(session)}</h1>
-          <span className="tp-term">{session.courseName}</span>
-        </header>
-        <div className="tc-status">
-          {live ? <span className="tl-dot" aria-hidden /> : null}
-          <span>{live ? '上课中' : '已下课'}</span>
-          {teacherPreview ? <span>· 老师试做</span> : null}
-          {session.items.length ? (
-            <b>
-              {done}/{session.items.length}
-            </b>
-          ) : null}
-        </div>
-        {error ? <p className="phone-page-error">{error}</p> : null}
-        {session.items.length ? (
-          <ol className="tc-items">
-            {session.items.map((item) => {
-              const status = item.myStatus ?? 'none';
-              const label = teachResultStatus(status, item.myAttempts).label;
-              return (
-                <li key={item.id} className={fresh.has(item.id) ? 'is-fresh' : undefined}>
-                  <button
-                    type="button"
-                    disabled={Boolean(busy)}
-                    aria-busy={busy === item.id}
-                    onClick={() => void open(item)}
-                  >
-                    <Marble status={status} attempts={item.myAttempts} size={34} />
-                    <span className="tc-item-copy">
-                      <strong>
-                        <ProblemTitleText content={problemName(item)} />
-                      </strong>
-                      <small>
-                        {label === '没交' ? '未作答' : label}
-                        {item.myAttempts > 1 ? ` · ${item.myAttempts} 次` : ''}
-                      </small>
-                    </span>
-                    <ChevronRight size={17} className="tp-chevron" aria-hidden />
-                  </button>
-                </li>
-              );
-            })}
-          </ol>
+    <>
+      <div className="tc-status">
+        {teacherView ? (
+          <span>题单</span>
         ) : (
-          <PhoneEmpty title={teacherPreview ? '这节课还没有题' : '等老师加题'} hint="" />
+          <>
+            {live ? <span className="tl-dot" aria-hidden /> : null}
+            <span>{live ? '上课中' : '已下课'}</span>
+          </>
         )}
+        {session.items.length ? (
+          <b>
+            {done}/{session.items.length}
+          </b>
+        ) : null}
+        {teacherView && session.items.length ? (
+          <div className="pb-view-toggle" role="group" aria-label="题单显示方式">
+            <button
+              type="button"
+              className={teacherView.view === 'grid' ? 'is-active' : undefined}
+              onClick={() => teacherView.onChange('grid')}
+              aria-label="答题卡"
+              aria-pressed={teacherView.view === 'grid'}
+              title="答题卡"
+            >
+              <LayoutGrid size={16} aria-hidden />
+            </button>
+            <button
+              type="button"
+              className={teacherView.view === 'list' ? 'is-active' : undefined}
+              onClick={() => teacherView.onChange('list')}
+              aria-label="列表"
+              aria-pressed={teacherView.view === 'list'}
+              title="列表"
+            >
+              <List size={16} aria-hidden />
+            </button>
+          </div>
+        ) : null}
       </div>
+      {error ? <p className="phone-page-error">{error}</p> : null}
+      {!session.items.length ? (
+        <PhoneEmpty title={teacherView ? '这节课还没有题' : '等老师加题'} hint="" />
+      ) : teacherView?.view === 'grid' ? (
+        <div className="pb-sheet" role="list" aria-label="课堂答题卡">
+          {session.items.map((item, index) => (
+            <span key={item.id} role="listitem">
+              <SheetCell
+                number={item.number ?? index + 1}
+                status={progressStatus(item.myStatus)}
+                title={problemName(item)}
+                disabled={Boolean(busy)}
+                onClick={() => void open(item)}
+              />
+            </span>
+          ))}
+        </div>
+      ) : (
+        <ol className="tc-items">
+          {session.items.map((item) => {
+            const status = item.myStatus ?? 'none';
+            const label = teachResultStatus(status, item.myAttempts).label;
+            return (
+              <li key={item.id} className={fresh.has(item.id) ? 'is-fresh' : undefined}>
+                <button
+                  type="button"
+                  disabled={Boolean(busy)}
+                  aria-busy={busy === item.id}
+                  onClick={() => void open(item)}
+                >
+                  <Marble status={status} attempts={item.myAttempts} size={34} />
+                  <span className="tc-item-copy">
+                    <strong>
+                      <ProblemTitleText content={problemName(item)} />
+                    </strong>
+                    <small>
+                      {label === '没交' ? '未作答' : label}
+                      {item.myAttempts > 1 ? ` · ${item.myAttempts} 次` : ''}
+                    </small>
+                  </span>
+                  <ChevronRight size={17} className="tp-chevron" aria-hidden />
+                </button>
+              </li>
+            );
+          })}
+        </ol>
+      )}
       {toast ? (
         <div className="tc-toast" role="status">
           {toast}
         </div>
       ) : null}
-    </PhonePage>
+    </>
   );
 }

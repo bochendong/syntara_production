@@ -282,11 +282,26 @@
 }
 
 .ts-grid-name strong {
-  display: block;
-  overflow: hidden;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
   font-size: 14px;
   font-weight: 600;
+}
+
+.ts-grid-student-name {
+  min-width: 0;
+  overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ts-grid-phone-tail {
+  flex: none;
+  color: var(--tp-muted);
+  font-size: 11px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
@@ -408,11 +423,15 @@
 }
 
 /* 每题统计 */
-.ts-stats {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr));
-  align-items: start;
-  gap: 12px;
+.ts-practice-stats {
+  --tp-muted: #64748b;
+}
+
+.ts-practice-stats .ts-stat {
+  border: 0;
+  padding: 8px 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 .ts-stat {
@@ -461,6 +480,19 @@
   font-variant-numeric: tabular-nums;
 }
 
+.ts-options-caption {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin: 0 0 8px;
+  color: var(--tp-muted);
+  font-size: 12px;
+}
+
+.ts-options-caption span {
+  color: var(--marble-purple-deep);
+}
+
 .ts-options {
   display: grid;
   gap: 8px;
@@ -499,7 +531,8 @@
 }
 
 .ts-option-bar {
-  display: block;
+  display: grid;
+  grid-auto-rows: 1fr;
   overflow: hidden;
   height: 8px;
   border-radius: 999px;
@@ -507,14 +540,20 @@
 }
 
 .ts-option-bar i {
-  display: block;
-  height: 100%;
+  max-width: 100%;
   border-radius: 999px;
-  background: rgb(var(--marble-pink-rgb) / 62%);
   transition: width 420ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-.ts-options li.is-correct .ts-option-bar i {
+.ts-option-latest-fill {
+  background: rgb(var(--marble-pink-rgb) / 62%);
+}
+
+.ts-option-history-fill {
+  background: var(--marble-purple-deep);
+}
+
+.ts-options li.is-correct .ts-option-latest-fill {
   background: linear-gradient(90deg, var(--marble-green-mid), #16a34a);
 }
 
@@ -532,6 +571,10 @@
   font-size: 14px;
   font-variant-numeric: tabular-nums;
   text-align: right;
+}
+
+.ts-option-bar:has(.ts-option-history-fill) {
+  height: 12px;
 }
 
 .ts-ratio {
