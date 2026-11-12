@@ -211,7 +211,7 @@ export function SyntaraWorldLanding({
   const teacherLoginHref = googleTest ? '/test?as=teacher' : null;
   const loginLabel = googleTest ? '学生登录' : '开始学习';
   const loginHint = googleTest
-    ? '测试版用 Google 账号登录。老师登录后先认领自己教的课。'
+    ? '测试版用 Google 账号登录。老师可在「教学」里认领课程。'
     : '用 SpeedUp 账号登录，再从课程页进入 Syntara。';
 
   const canvasRef = useRef<HTMLCanvasElement>(null);

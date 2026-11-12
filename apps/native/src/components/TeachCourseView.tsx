@@ -34,14 +34,16 @@ type Tab = ManagedContentKind | 'rules' | 'students' | 'applications';
  */
 export function TeachCourseView({
   courseId,
+  initialTab = 'notes',
   onBack,
   onCourseChanged,
 }: {
   courseId: string;
+  initialTab?: Tab;
   onBack: () => void;
   onCourseChanged?: () => Promise<void> | void;
 }) {
-  const [tab, setTab] = useState<Tab>('notes');
+  const [tab, setTab] = useState<Tab>(initialTab);
   const [filter, setFilter] = useState({ query: '', page: 1 });
   const [loaded, setLoaded] = useState<{
     filter: typeof filter;
@@ -155,7 +157,7 @@ export function TeachCourseView({
   };
 
   const canManageContent = Boolean(publication?.canEditProfile);
-  const activeTab: Tab = canManageContent ? tab : 'applications';
+  const activeTab: Tab = canManageContent || tab === 'students' ? tab : 'applications';
   const tabs: Array<{ id: Tab; label: string; count?: number }> = [
     ...(canManageContent
       ? [

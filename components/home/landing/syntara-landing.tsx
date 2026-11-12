@@ -118,11 +118,11 @@ const coverSwitch = (kind: TransitionKind | undefined, rainSwitch = RAIN_SWITCH)
 
 export function SyntaraLanding({ googleTest = false }: { googleTest?: boolean }) {
   const loginHref = googleTest ? '/test?as=student' : '/login';
-  // 测试服把登录分成学生 / 老师两个入口；老师登录后先认领自己教的课。
+  // 测试服把登录分成学生 / 老师两个入口；老师可在「教学」里认领课程。
   const teacherLoginHref = googleTest ? '/test?as=teacher' : null;
   const loginLabel = googleTest ? '学生登录' : '开始学习';
   const loginHint = googleTest
-    ? '测试版用 Google 账号登录。老师登录后先认领自己教的课。'
+    ? '测试版用 Google 账号登录。老师可在「教学」里认领课程。'
     : '用 SpeedUp 账号登录，再从课程页进入 Syntara。';
   const storyRef = useRef<HTMLDivElement>(null);
   const heroRef = useRef<HTMLDivElement>(null);

@@ -150,7 +150,7 @@ function AuthenticatedApp() {
   const compactLayout = useCompactLayout();
   const [globalPage, setGlobalPage] = useState<
     'calendar' | 'profile' | 'store' | 'teach' | 'classroom' | 'student-classroom' | 'admin' | null
-  >(() => (teacherLogin && classroomEnabled ? 'teach' : null));
+  >(null);
   const classroom = useClassroomState(classroomEnabled, globalPage === 'student-classroom');
   const refreshClassroom = classroom.refresh;
   const [dismissedClassroomId, setDismissedClassroomId] = useState<string | null>(null);
@@ -307,9 +307,7 @@ function AuthenticatedApp() {
   );
 
   useEffect(() => {
-    if (loading || surface !== 'launch') return;
-    // Teacher entry owns the initial screen; restore the last chat only after leaving teaching.
-    if (teacherLogin && classroomEnabled && globalPage === 'teach') return;
+    if (loading || surface !== 'launch' || globalPage !== null) return;
     const entry = browserApp ? new URLSearchParams(window.location.search) : null;
     const requested = launchCourses.find((course) => course.id === entry?.get('courseId'));
     const course = requested ?? selectChatCourse(launchCourses, readPhoneLastChat());
@@ -318,16 +316,8 @@ function AuthenticatedApp() {
         course.id,
         requested && entry?.get('page') === 'notes' ? { page: 'notes' } : undefined,
       );
-    else if (browserApp) setSurface('general');
-  }, [
-    loading,
-    surface,
-    launchCourses,
-    openRecentCourse,
-    teacherLogin,
-    classroomEnabled,
-    globalPage,
-  ]);
+    else if (browserApp || teacherLogin) setSurface('general');
+  }, [loading, surface, launchCourses, openRecentCourse, teacherLogin, globalPage]);
 
   const openGeneralChat = useCallback((draft = '', conversationId: string | null = null) => {
     setInitialGeneralConversationId(conversationId);
@@ -341,7 +331,7 @@ function AuthenticatedApp() {
 
   const openRecentChat = async (courseId: string | null, conversationId: string) => {
     if (!courseId) {
-      if (browserApp) openGeneralChat('', conversationId);
+      if (browserApp || teacherLogin) openGeneralChat('', conversationId);
       return;
     }
     if (!launchCourses.some((course) => course.id === courseId)) return;
@@ -696,7 +686,13 @@ function AuthenticatedApp() {
             setGlobalPage('student-classroom');
           }
         : undefined,
-    onOpenTeach: classroomEnabled && canTeach ? () => setGlobalPage('teach') : undefined,
+    onOpenTeach:
+      classroomEnabled && canTeach
+        ? () => {
+            cancelPendingNavigation();
+            setGlobalPage('teach');
+          }
+        : undefined,
     onOpenAdmin: canAdmin ? () => setGlobalPage('admin') : undefined,
     onManageCourse: platformAvailable()
       ? (course, action) => setManagedCourse({ course, action })

@@ -22,6 +22,7 @@ import {
   Settings2,
   Trash2,
   UserPlus,
+  UsersRound,
   X,
 } from 'lucide-react';
 
@@ -69,7 +70,7 @@ import {
 
 type View =
   | { kind: 'home' }
-  | { kind: 'course'; courseId: string }
+  | { kind: 'course'; courseId: string; initialTab?: 'students' }
   | { kind: 'claim' }
   | { kind: 'class'; classId: string }
   | { kind: 'session'; sessionId: string; classId: string | null };
@@ -91,6 +92,7 @@ export function TeachPage({
       <TeachCourseView
         key={view.courseId}
         courseId={view.courseId}
+        initialTab={view.initialTab}
         onBack={() => setView({ kind: 'home' })}
         onCourseChanged={onCourseChanged}
       />
@@ -132,7 +134,7 @@ export function TeachPage({
   return (
     <TeachHomeView
       onBack={onBack}
-      onOpenCourse={(courseId) => setView({ kind: 'course', courseId })}
+      onOpenCourse={(courseId, initialTab) => setView({ kind: 'course', courseId, initialTab })}
       onOpenClaim={() => setView({ kind: 'claim' })}
       onOpenClass={(classId) => setView({ kind: 'class', classId })}
       onCourseChanged={onCourseChanged}
@@ -151,7 +153,7 @@ function TeachHomeView({
   onCourseChanged,
 }: {
   onBack: () => void;
-  onOpenCourse: (courseId: string) => void;
+  onOpenCourse: (courseId: string, initialTab?: 'students') => void;
   onOpenClaim: () => void;
   onOpenClass: (classId: string) => void;
   onCourseChanged?: () => Promise<void> | void;
@@ -336,6 +338,15 @@ function TeachHomeView({
                           </button>
                         ) : null}
                         <div className="tp-course-primary-actions">
+                          <button
+                            type="button"
+                            className="tp-course-card-publish tp-course-card-students"
+                            aria-label={`学生：${courseLabel(course)}`}
+                            onClick={() => onOpenCourse(course.id, 'students')}
+                          >
+                            <UsersRound size={14} aria-hidden />
+                            学生
+                          </button>
                           <button
                             type="button"
                             className="tp-course-card-open"

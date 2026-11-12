@@ -41,6 +41,8 @@ export async function POST(request: NextRequest) {
     return publicApiError(requestId, 400, 'invalid_request', 'Code is required to run tests.');
   try {
     const loaded = await getCourseProblemForUser(principal.userId, courseId, problemId, {
+      // Evaluating an existing problem does not require course-owner backfills.
+      skipMaintenance: true,
       includeSecretJudgeForEvaluation: true,
     });
     let judgedProblem = loaded.problem;
