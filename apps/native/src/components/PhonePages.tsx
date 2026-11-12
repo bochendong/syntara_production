@@ -6,6 +6,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
   type ReactNode,
   type TouchEvent,
 } from 'react';
@@ -1338,15 +1339,6 @@ const RESEARCH_EVENT_LABELS: Record<LocalCourseEventKind, string> = {
 
 const CALENDAR_WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六'];
 
-function formatDayHeading(key: string): string {
-  const [year, month, day] = key.split('-').map(Number);
-  const date = new Date(year, month - 1, day);
-  const weekday = CALENDAR_WEEKDAYS[date.getDay()];
-  return key === localDayKey(new Date())
-    ? `今天 · ${month}月${day}日`
-    : `${month}月${day}日 周${weekday}`;
-}
-
 function addDays(key: string, days: number): string {
   const [year, month, day] = key.split('-').map(Number);
   return localDayKey(new Date(year, month - 1, day + days));
@@ -1442,17 +1434,32 @@ function PhoneEventRow({
   onClick: () => void;
 }) {
   return (
-    <button type="button" className="phone-row phone-row-button phone-event-row" onClick={onClick}>
-      <span className={`phone-event-dot is-${event.kind}`} aria-hidden="true" />
+    <button
+      type="button"
+      className={`phone-calendar-event-card is-${event.kind}`}
+      onClick={onClick}
+    >
+      <span className="phone-calendar-event-marble" aria-hidden="true" />
       <span className="phone-row-copy">
         <strong>{event.title}</strong>
-        <small>
-          {label}
-          {event.note ? ` · ${event.note}` : ''}
-        </small>
+        {event.note ? <small>{event.note}</small> : null}
       </span>
+      <span className="phone-calendar-kind">{label}</span>
     </button>
   );
+}
+
+/** 只留下包含本月日子的那几周，不再多出一整排灰色的下个月。 */
+function trimCalendarWeeks<T extends { inMonth: boolean }>(days: T[]): T[] {
+  const weeks: T[][] = [];
+  for (let index = 0; index < days.length; index += 7) weeks.push(days.slice(index, index + 7));
+  return weeks.filter((week) => week.some((day) => day.inMonth)).flat();
+}
+
+function calendarDayParts(key: string) {
+  const [year, month, day] = key.split('-').map(Number);
+  const date = new Date(year, month - 1, day);
+  return { month, day, weekday: `周${CALENDAR_WEEKDAYS[date.getDay()]}` };
 }
 
 export function PhoneCalendarPage({
@@ -1478,9 +1485,11 @@ export function PhoneCalendarPage({
   const [selectedKey, setSelectedKey] = useState(() => initialDate ?? localDayKey(new Date()));
   const labels = isResearchCourse ? RESEARCH_EVENT_LABELS : LEARNING_EVENT_LABELS;
   const days = useMemo(
-    () => buildLearningCalendarDays(referenceDate, events),
+    () => trimCalendarWeeks(buildLearningCalendarDays(referenceDate, events)),
     [events, referenceDate],
   );
+  // 翻月时日历从左或右滑进来。
+  const [slide, setSlide] = useState<'next' | 'prev' | null>(null);
   const eventsByDay = useMemo(() => {
     const map = new Map<string, LocalCourseEvent[]>();
     for (const event of events) {
@@ -1502,25 +1511,44 @@ export function PhoneCalendarPage({
     [events, selectedKey, todayKey],
   );
 
-  const shiftMonth = (delta: number) =>
+  const shiftMonth = (delta: number) => {
+    setSlide(delta > 0 ? 'next' : 'prev');
     setReferenceDate((current) => new Date(current.getFullYear(), current.getMonth() + delta, 1));
+  };
+  const jumpTo = (key: string) => {
+    const [year, month] = key.split('-').map(Number);
+    const target = new Date(year, month - 1, 1);
+    const current = referenceDate.getFullYear() * 12 + referenceDate.getMonth();
+    const next = target.getFullYear() * 12 + target.getMonth();
+    if (next !== current) {
+      setSlide(next > current ? 'next' : 'prev');
+      setReferenceDate(target);
+    }
+    setSelectedKey(key);
+  };
+  const selectedParts = calendarDayParts(selectedKey);
+  const viewingThisMonth =
+    referenceDate.getFullYear() === new Date().getFullYear() &&
+    referenceDate.getMonth() === new Date().getMonth();
 
   return (
     <PhonePage title={title} overlay wide largeTitle onBack={onBack}>
       <header className="phone-large-head phone-calendar-head">
-        <h1>{formatCalendarMonth(referenceDate)}</h1>
-        <div className="phone-large-head-actions">
+        <h1 className="phone-calendar-title">
+          <span>{referenceDate.getMonth() + 1}月</span>
+          <small>{referenceDate.getFullYear()}</small>
+        </h1>
+        <div className="phone-large-head-actions phone-calendar-nav">
           <button type="button" onClick={() => shiftMonth(-1)} aria-label="上个月">
             <ChevronLeft size={18} />
           </button>
           <button
             type="button"
-            className="phone-calendar-today"
-            onClick={() => {
-              setReferenceDate(new Date());
-              setSelectedKey(todayKey);
-            }}
+            className={`phone-calendar-today${viewingThisMonth && selectedKey === todayKey ? ' is-here' : ''}`}
+            aria-label={`回到今天，${formatCalendarMonth(new Date())}`}
+            onClick={() => jumpTo(todayKey)}
           >
+            <i aria-hidden="true" />
             今天
           </button>
           <button type="button" onClick={() => shiftMonth(1)} aria-label="下个月">
@@ -1530,19 +1558,27 @@ export function PhoneCalendarPage({
       </header>
       <div className="phone-calendar-layout">
         <section className="phone-group phone-calendar" aria-label="选择日期">
-          <div className="phone-calendar-grid">
-            {CALENDAR_WEEKDAYS.map((weekday) => (
-              <span key={weekday} className="phone-calendar-weekday">
+          <div
+            className={`phone-calendar-grid${slide ? ` is-slide-${slide}` : ''}`}
+            key={formatCalendarMonth(referenceDate)}
+            style={{ '--calendar-weeks': days.length / 7 } as CSSProperties}
+          >
+            {CALENDAR_WEEKDAYS.map((weekday, index) => (
+              <span
+                key={weekday}
+                className={`phone-calendar-weekday${index === 0 || index === 6 ? ' is-weekend' : ''}`}
+              >
                 {weekday}
               </span>
             ))}
-            {days.map((day) => {
+            {days.map((day, index) => {
               const dayEvents = eventsByDay.get(day.key) ?? [];
+              const weekend = index % 7 === 0 || index % 7 === 6;
               return (
                 <button
                   type="button"
                   key={day.key}
-                  className={`phone-calendar-day${day.inMonth ? '' : ' is-muted'}${day.isToday ? ' is-today' : ''}${day.key === selectedKey ? ' is-selected' : ''}`}
+                  className={`phone-calendar-day${day.inMonth ? '' : ' is-muted'}${weekend ? ' is-weekend' : ''}${dayEvents.length ? ' has-events' : ''}${day.isToday ? ' is-today' : ''}${day.key === selectedKey ? ' is-selected' : ''}`}
                   aria-label={`${day.key}${day.eventCount ? `，${day.eventCount} 项安排` : ''}`}
                   aria-pressed={day.key === selectedKey}
                   aria-current={day.isToday ? 'date' : undefined}
@@ -1587,9 +1623,26 @@ export function PhoneCalendarPage({
             aria-labelledby="calendar-day-title"
           >
             <header className="phone-calendar-agenda-head" aria-live="polite">
+              <span
+                className={`phone-calendar-daybadge${selectedKey === todayKey ? ' is-today' : ''}`}
+                aria-hidden="true"
+              >
+                <small>{selectedParts.weekday}</small>
+                <b>{selectedParts.day}</b>
+              </span>
               <div>
-                <h2 id="calendar-day-title">{formatDayHeading(selectedKey)}</h2>
-                {selectedEvents.length ? <small>{selectedEvents.length} 项安排</small> : null}
+                <h2 id="calendar-day-title">
+                  {selectedKey === todayKey
+                    ? '今天'
+                    : `${selectedParts.month}月${selectedParts.day}日`}
+                </h2>
+                <small>
+                  {selectedEvents.length
+                    ? `${selectedEvents.length} 项安排`
+                    : selectedKey === todayKey
+                      ? `${selectedParts.month}月${selectedParts.day}日 ${selectedParts.weekday}`
+                      : selectedParts.weekday}
+                </small>
               </div>
               <button
                 type="button"
@@ -1602,24 +1655,22 @@ export function PhoneCalendarPage({
               </button>
             </header>
             {selectedEvents.length ? (
-              selectedEvents.map((event) => (
-                <PhoneEventRow
-                  key={event.id}
-                  event={event}
-                  label={labels[event.kind]}
-                  onClick={() => onEditEvent(event)}
-                />
-              ))
+              <div className="phone-calendar-event-list">
+                {selectedEvents.map((event) => (
+                  <PhoneEventRow
+                    key={event.id}
+                    event={event}
+                    label={labels[event.kind]}
+                    onClick={() => onEditEvent(event)}
+                  />
+                ))}
+              </div>
             ) : (
               <CalendarFreeDay
                 dateKey={selectedKey}
                 todayKey={todayKey}
                 eventsByDay={eventsByDay}
-                onSelect={(key) => {
-                  const [year, month] = key.split('-').map(Number);
-                  setReferenceDate(new Date(year, month - 1, 1));
-                  setSelectedKey(key);
-                }}
+                onSelect={jumpTo}
                 onAdd={() => onAddEvent(selectedKey)}
               />
             )}
@@ -1630,32 +1681,28 @@ export function PhoneCalendarPage({
               <h3 className="phone-group-title" id="calendar-upcoming-title">
                 接下来
               </h3>
-              <div className="phone-group">
-                {upcoming.map((event) => (
-                  <button
-                    type="button"
-                    key={event.id}
-                    className="phone-row phone-row-button phone-event-row"
-                    onClick={() => {
-                      const key = localDayKey(event.date);
-                      const [year, month] = key.split('-').map(Number);
-                      setReferenceDate(new Date(year, month - 1, 1));
-                      setSelectedKey(key);
-                    }}
-                  >
-                    <span className={`phone-event-dot is-${event.kind}`} aria-hidden="true" />
-                    <span className="phone-row-copy">
-                      <strong>{event.title}</strong>
-                      <small>
-                        {labels[event.kind]} · {formatDayHeading(localDayKey(event.date))}
-                      </small>
-                    </span>
-                    <span className="phone-calendar-countdown">
-                      {calendarCountdown(localDayKey(event.date), todayKey)}
-                    </span>
-                  </button>
-                ))}
-              </div>
+              <ol className="phone-calendar-timeline">
+                {upcoming.map((event) => {
+                  const key = localDayKey(event.date);
+                  const parts = calendarDayParts(key);
+                  return (
+                    <li key={event.id} className={`is-${event.kind}`}>
+                      <button type="button" onClick={() => jumpTo(key)}>
+                        <span className="phone-calendar-timeline-marble" aria-hidden="true" />
+                        <span className="phone-row-copy">
+                          <strong>{event.title}</strong>
+                          <small>
+                            {labels[event.kind]} · {parts.month}月{parts.day}日 {parts.weekday}
+                          </small>
+                        </span>
+                        <span className="phone-calendar-countdown">
+                          {calendarCountdown(key, todayKey)}
+                        </span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ol>
             </section>
           ) : null}
         </aside>

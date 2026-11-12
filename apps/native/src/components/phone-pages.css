@@ -1198,7 +1198,7 @@
   line-height: 1.5;
 }
 
-/* 日历 */
+/* 日历：一张玻璃月历 + 右边（窄屏在下面）选中那天和接下来的弹珠时间线。 */
 .phone-page-scroll:has(> .phone-calendar-layout) {
   container-type: inline-size;
   display: flex;
@@ -1211,176 +1211,290 @@
   grid-template-columns: minmax(0, 1fr);
   align-content: start;
   align-items: start;
-  gap: 24px;
+  gap: 18px;
 }
 
 .phone-calendar-layout .phone-group {
   margin-bottom: 0;
 }
 
-.phone-calendar-agenda {
-  display: grid;
-  min-width: 0;
-  gap: 24px;
-}
-
-.phone-calendar-agenda-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 20px;
-  border-bottom: 1px solid rgb(15 23 42 / 6%);
-}
-
-.phone-calendar-agenda-head h2 {
-  margin: 0;
-  font-size: 17px;
-  font-weight: 600;
-}
-
-.phone-calendar-agenda-head small {
-  display: block;
-  margin-top: 4px;
-  color: #64748b;
-  font-size: 12px;
-}
-
-.phone-calendar-agenda .phone-group-title {
-  font-weight: 500;
-}
-
-.phone-calendar {
-  padding: 14px 12px 10px;
-  border: 1px solid rgb(255 255 255 / 85%);
-  background: linear-gradient(180deg, rgb(255 255 255 / 84%), rgb(255 255 255 / 60%));
-  box-shadow:
-    0 1px 2px rgb(15 23 42 / 4%),
-    0 22px 44px -28px rgb(var(--marble-purple-rgb) / 45%);
-  backdrop-filter: blur(var(--glass-blur-md));
-  -webkit-backdrop-filter: blur(var(--glass-blur-md));
-}
-
-/* 每类安排一种弹珠色：日期下的小弹珠、大日历里的胶囊都用它。 */
+/* 每类安排一种弹珠色：日期下的小弹珠、胶囊、卡片、时间线都用它。 */
 .phone-calendar-marbles i,
-.phone-calendar-event-chip {
+.phone-calendar-event-chip,
+.phone-calendar-event-card,
+.phone-calendar-timeline li {
   --ev-mid: #b4bfcf;
   --ev-deep: #64748b;
   --ev-light: #eef2f7;
   --ev-ink: #334155;
+  --ev-rgb: 148 163 184;
 }
 
-.phone-calendar .is-assignment {
+.phone-calendar-layout .is-assignment {
   --ev-mid: var(--marble-blue-mid);
   --ev-deep: var(--marble-blue-deep);
   --ev-light: var(--marble-blue-light);
   --ev-ink: var(--marble-blue-ink);
+  --ev-rgb: var(--marble-blue-rgb);
 }
 
-.phone-calendar .is-exam {
+.phone-calendar-layout .is-exam {
   --ev-mid: var(--marble-pink-mid);
   --ev-deep: var(--marble-pink-deep);
   --ev-light: var(--marble-pink-light);
   --ev-ink: var(--marble-pink-ink);
+  --ev-rgb: var(--marble-pink-rgb);
 }
 
-.phone-calendar .is-progress {
+.phone-calendar-layout .is-progress {
   --ev-mid: var(--marble-amber-mid);
   --ev-deep: var(--marble-amber-deep);
   --ev-light: var(--marble-amber-light);
   --ev-ink: var(--marble-amber-ink);
+  --ev-rgb: var(--marble-amber-rgb);
 }
 
-.phone-calendar .is-tutorial {
+.phone-calendar-layout .is-tutorial {
   --ev-mid: var(--marble-purple-mid);
   --ev-deep: var(--marble-purple-deep);
   --ev-light: var(--marble-purple-light);
   --ev-ink: var(--marble-purple-ink);
+  --ev-rgb: var(--marble-purple-rgb);
 }
 
-.phone-calendar .is-holiday {
+.phone-calendar-layout .is-holiday {
   --ev-mid: var(--marble-green-mid);
   --ev-deep: var(--marble-green-deep);
   --ev-light: var(--marble-green-light);
   --ev-ink: var(--marble-green-ink);
+  --ev-rgb: var(--marble-green-rgb);
 }
 
-.phone-calendar-head button {
-  display: grid;
-  min-width: 34px;
-  height: 34px;
-  place-items: center;
-  padding: 0 10px;
+/* 头部：大大的「11月」，年份小字；翻月三个按钮合成一颗玻璃胶囊。 */
+.phone-calendar-title {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.phone-calendar-head h1.phone-calendar-title {
+  font-size: 30px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+.phone-calendar-title small {
+  color: #94a3b8;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.phone-calendar-nav {
+  gap: 0;
+  padding: 3px;
   border: 1px solid rgb(255 255 255 / 90%);
   border-radius: 999px;
-  background: rgb(255 255 255 / 72%);
-  color: #0f172a;
-  font-size: 14px;
+  background: linear-gradient(180deg, rgb(255 255 255 / 82%), rgb(255 255 255 / 58%));
+  box-shadow:
+    0 1px 2px rgb(15 23 42 / 5%),
+    0 10px 24px -16px rgb(var(--marble-purple-rgb) / 60%);
+  backdrop-filter: blur(var(--glass-blur-md));
+  -webkit-backdrop-filter: blur(var(--glass-blur-md));
+}
+
+.phone-calendar-nav button {
+  display: inline-flex;
+  min-width: 34px;
+  height: 32px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #334155;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background 160ms ease,
+    transform 160ms ease;
+}
+.phone-calendar-nav button:hover {
+  background: rgb(255 255 255 / 90%);
+}
+.phone-calendar-nav button:active {
+  transform: scale(0.94);
+}
+.phone-calendar-today {
+  padding: 0 12px 0 10px;
+}
+.phone-calendar-today i {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle at 32% 28%,
+    #fff 0 16%,
+    var(--marble-blue-mid) 52%,
+    var(--marble-blue-deep)
+  );
+  box-shadow: 0 1px 3px rgb(var(--marble-blue-rgb) / 60%);
+  transition: transform 300ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.phone-calendar-today:hover i {
+  transform: translateY(-2px);
+}
+.phone-calendar-today.is-here {
+  color: #94a3b8;
+}
+.phone-calendar-today.is-here i {
+  opacity: 0.45;
+}
+
+/* 月历卡片 */
+.phone-calendar {
+  padding: 12px 10px 12px;
+  border: 1px solid rgb(255 255 255 / 85%);
+  background:
+    radial-gradient(120% 70% at 0% 0%, rgb(var(--marble-blue-rgb) / 9%), transparent 60%),
+    radial-gradient(90% 60% at 100% 100%, rgb(var(--marble-purple-rgb) / 9%), transparent 60%),
+    linear-gradient(180deg, rgb(255 255 255 / 86%), rgb(255 255 255 / 64%));
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 95%),
+    0 1px 2px rgb(15 23 42 / 4%),
+    0 22px 44px -28px rgb(var(--marble-purple-rgb) / 50%);
+  backdrop-filter: blur(var(--glass-blur-md));
+  -webkit-backdrop-filter: blur(var(--glass-blur-md));
 }
 
 .phone-calendar-grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  row-gap: 2px;
+  row-gap: 4px;
+}
+.phone-calendar-grid.is-slide-next {
+  animation: calendar-slide-next 320ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.phone-calendar-grid.is-slide-prev {
+  animation: calendar-slide-prev 320ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes calendar-slide-next {
+  from {
+    opacity: 0;
+    transform: translateX(28px);
+  }
+}
+@keyframes calendar-slide-prev {
+  from {
+    opacity: 0;
+    transform: translateX(-28px);
+  }
 }
 
 .phone-calendar-weekday {
-  padding: 4px 0 6px;
+  padding: 2px 0 8px;
   color: #94a3b8;
-  font-size: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
   text-align: center;
+}
+.phone-calendar-weekday.is-weekend {
+  color: rgb(var(--marble-pink-rgb) / 90%);
 }
 
 .phone-calendar-day {
   position: relative;
   display: flex;
-  height: 44px;
+  height: 46px;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  padding: 0;
+  justify-content: flex-start;
+  padding: 3px 0 0;
   border: 0;
   background: transparent;
   color: #0f172a;
   font-size: 15px;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.phone-calendar-day.is-weekend {
+  color: #475569;
 }
 
 .phone-calendar-number {
+  position: relative;
   display: grid;
   width: 34px;
   height: 34px;
   place-items: center;
   border-radius: 50%;
+  transition:
+    background 180ms ease,
+    box-shadow 180ms ease,
+    transform 180ms ease;
+}
+.phone-calendar-day:hover .phone-calendar-number {
+  background: rgb(255 255 255 / 85%);
+}
+.phone-calendar-day:active .phone-calendar-number {
+  transform: scale(0.9);
 }
 
 .phone-calendar-day.is-muted {
   color: #cbd5e1;
 }
 
-.phone-calendar-day.is-today .phone-calendar-number {
-  box-shadow: inset 0 0 0 1.5px rgb(var(--marble-blue-rgb) / 55%);
-  color: var(--marble-blue-deep);
+/* 选中的那天：一颗透明玻璃珠，数字在里面。 */
+.phone-calendar-day.is-selected .phone-calendar-number {
+  background:
+    radial-gradient(circle at 28% 22%, rgb(255 255 255 / 100%) 0 3px, transparent 5px),
+    radial-gradient(circle at 50% 120%, rgb(var(--marble-blue-rgb) / 30%), transparent 60%),
+    linear-gradient(180deg, rgb(255 255 255 / 95%), rgb(236 244 255 / 90%));
+  box-shadow:
+    inset 0 0 0 1px rgb(var(--marble-blue-rgb) / 45%),
+    inset 0 -3px 6px rgb(var(--marble-blue-rgb) / 18%),
+    0 6px 14px -6px rgb(var(--marble-blue-rgb) / 70%);
+  color: var(--marble-blue-ink);
   font-weight: 700;
+  animation: calendar-pick 340ms cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-/* 选中的日子是一颗蓝色玻璃珠 */
-.phone-calendar-day.is-selected .phone-calendar-number {
-  background: radial-gradient(
-    circle at 32% 28%,
-    #fff 0 12%,
-    var(--marble-blue-mid) 48%,
-    var(--marble-blue-deep) 100%
-  );
+/* 今天永远是一颗蓝色玻璃珠，高光放在左上角，不压数字。 */
+.phone-calendar-day.is-today .phone-calendar-number {
+  background:
+    radial-gradient(ellipse 7px 4px at 30% 20%, rgb(255 255 255 / 95%), transparent),
+    radial-gradient(circle at 70% 85%, rgb(255 255 255 / 30%), transparent 35%),
+    radial-gradient(circle at 35% 30%, var(--marble-blue-mid), var(--marble-blue-deep) 95%);
   box-shadow:
-    inset 0 -2px 4px rgb(15 23 42 / 18%),
-    0 4px 10px rgb(var(--marble-blue-rgb) / 35%);
+    inset 0 -3px 5px rgb(15 23 42 / 22%),
+    inset 0 1px 0 rgb(255 255 255 / 60%),
+    0 6px 14px -5px rgb(var(--marble-blue-rgb) / 85%);
   color: #fff;
-  font-weight: 600;
+  font-weight: 700;
+  text-shadow: 0 1px 2px rgb(15 23 42 / 35%);
+}
+.phone-calendar-day.is-today.is-selected .phone-calendar-number {
+  box-shadow:
+    inset 0 -3px 5px rgb(15 23 42 / 22%),
+    inset 0 1px 0 rgb(255 255 255 / 60%),
+    0 0 0 3px rgb(255 255 255 / 95%),
+    0 0 0 4.5px rgb(var(--marble-blue-rgb) / 45%),
+    0 8px 16px -6px rgb(var(--marble-blue-rgb) / 85%);
+}
+
+@keyframes calendar-pick {
+  from {
+    transform: scale(0.7);
+  }
 }
 
 .phone-calendar-marbles {
   position: absolute;
-  bottom: 0;
+  bottom: 1px;
   display: flex;
   gap: 2px;
 }
@@ -1393,58 +1507,95 @@
   box-shadow: 0 1px 2px rgb(15 23 42 / 18%);
 }
 
-.phone-calendar-empty {
-  display: flex;
-  min-height: 92px;
-  flex-direction: row;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  padding: 20px;
-  color: #64748b;
-  font-size: 14px;
+/* 选中那天的头：左边一颗日期弹珠，右边一行字和加号。 */
+.phone-calendar-agenda {
+  display: grid;
+  min-width: 0;
+  gap: 18px;
 }
 
-.phone-calendar-empty p {
-  margin: 0;
-}
-
-.phone-calendar-empty img {
-  width: 18px;
-  height: 18px;
-  opacity: 0.85;
-}
-
-.phone-event-dot {
-  width: 10px;
-  height: 10px;
-  flex: none;
-  border-radius: 50%;
-  background-color: #94a3b8;
-  background-image: radial-gradient(circle at 32% 28%, #fff 0 16%, transparent 46%);
+.phone-calendar-selected {
+  border: 1px solid rgb(255 255 255 / 85%);
+  background: linear-gradient(180deg, rgb(255 255 255 / 88%), rgb(255 255 255 / 70%));
   box-shadow:
-    inset 0 -2px 3px rgb(15 23 42 / 22%),
-    0 1px 2px rgb(15 23 42 / 14%);
+    inset 0 1px 0 rgb(255 255 255 / 95%),
+    0 1px 2px rgb(15 23 42 / 4%),
+    0 18px 36px -26px rgb(var(--marble-purple-rgb) / 45%);
+  backdrop-filter: blur(var(--glass-blur-md));
+  -webkit-backdrop-filter: blur(var(--glass-blur-md));
 }
 
-.phone-event-dot.is-assignment {
-  background-color: var(--marble-blue-mid);
+.phone-calendar-agenda-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 16px 14px;
+}
+.phone-calendar-agenda-head > div {
+  min-width: 0;
+  flex: 1;
 }
 
-.phone-event-dot.is-exam {
-  background-color: var(--marble-pink-mid);
+.phone-calendar-agenda-head h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
 }
 
-.phone-event-dot.is-progress {
-  background-color: var(--marble-amber-mid);
+.phone-calendar-agenda-head small {
+  display: block;
+  margin-top: 2px;
+  color: #64748b;
+  font-size: 12px;
 }
 
-.phone-event-dot.is-tutorial {
-  background-color: var(--marble-purple-mid);
+.phone-calendar-daybadge {
+  display: grid;
+  width: 48px;
+  height: 48px;
+  flex: none;
+  place-content: center;
+  border-radius: 50%;
+  background:
+    radial-gradient(ellipse 9px 5px at 30% 20%, rgb(255 255 255 / 100%), transparent),
+    linear-gradient(180deg, #fff, rgb(241 245 255));
+  box-shadow:
+    inset 0 0 0 1px rgb(var(--marble-purple-rgb) / 25%),
+    inset 0 -4px 8px rgb(var(--marble-purple-rgb) / 14%),
+    0 8px 16px -10px rgb(var(--marble-purple-rgb) / 70%);
+  color: #0f172a;
+  line-height: 1;
+  text-align: center;
+}
+.phone-calendar-daybadge small {
+  color: #94a3b8;
+  font-size: 9px;
+  font-weight: 700;
+}
+.phone-calendar-daybadge b {
+  margin-top: 2px;
+  font-size: 19px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.phone-calendar-daybadge.is-today {
+  background:
+    radial-gradient(ellipse 9px 5px at 30% 20%, rgb(255 255 255 / 95%), transparent),
+    radial-gradient(circle at 35% 30%, var(--marble-blue-mid), var(--marble-blue-deep) 95%);
+  box-shadow:
+    inset 0 -4px 6px rgb(15 23 42 / 22%),
+    inset 0 1px 0 rgb(255 255 255 / 60%),
+    0 8px 18px -8px rgb(var(--marble-blue-rgb) / 90%);
+  color: #fff;
+  text-shadow: 0 1px 2px rgb(15 23 42 / 30%);
+}
+.phone-calendar-daybadge.is-today small {
+  color: rgb(255 255 255 / 85%);
 }
 
-.phone-event-dot.is-holiday {
-  background-color: var(--marble-green-mid);
+.phone-calendar-agenda .phone-group-title {
+  font-weight: 600;
 }
 
 /* 空的一天：一颗慢慢转的玻璃弹珠 + 接下来一周的弹珠排。 */
@@ -1638,35 +1789,165 @@
 
 .phone-calendar-add {
   display: grid;
-  width: 34px;
-  height: 34px;
+  width: 36px;
+  height: 36px;
   flex: none;
   place-items: center;
-  border: 0;
+  border: 1px solid rgb(255 255 255 / 95%);
   border-radius: 50%;
-  background: #f1f5f9;
+  background: linear-gradient(180deg, #fff, #eef2f8);
+  box-shadow:
+    0 1px 2px rgb(15 23 42 / 8%),
+    0 6px 14px -8px rgb(15 23 42 / 30%);
   color: #334155;
+  cursor: pointer;
+  transition: transform 260ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.phone-calendar-add:hover {
+  transform: rotate(90deg);
 }
 
 .phone-calendar-day-events {
   display: none;
 }
 
+/* 选中那天的安排：每项一张带颜色的玻璃小卡。 */
+.phone-calendar-event-list {
+  display: grid;
+  gap: 8px;
+  padding: 0 12px 12px;
+}
+
+.phone-calendar-event-card {
+  display: flex;
+  width: 100%;
+  min-height: 56px;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 16px;
+  background: linear-gradient(
+    100deg,
+    color-mix(in srgb, var(--ev-light) 80%, #fff),
+    rgb(255 255 255 / 70%)
+  );
+  box-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 85%),
+    0 6px 14px -10px rgb(var(--ev-rgb) / 90%);
+  color: #0f172a;
+  text-align: left;
+  cursor: pointer;
+  transition: transform 180ms ease;
+}
+.phone-calendar-event-card:hover {
+  transform: translateY(-1px);
+}
+.phone-calendar-event-card .phone-row-copy strong {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.phone-calendar-event-marble,
+.phone-calendar-timeline-marble {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  border-radius: 50%;
+  background:
+    radial-gradient(ellipse 3.5px 2.2px at 32% 26%, #fff, transparent),
+    radial-gradient(circle at 38% 34%, var(--ev-mid), var(--ev-deep) 100%);
+  box-shadow:
+    inset 0 -2px 3px rgb(15 23 42 / 20%),
+    0 3px 6px -2px rgb(var(--ev-rgb) / 90%);
+}
+
+.phone-calendar-kind {
+  flex: none;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 80%);
+  color: var(--ev-ink);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+/* 接下来：一根玻璃管串起几颗弹珠。 */
+.phone-calendar-timeline {
+  position: relative;
+  margin: 0;
+  padding: 6px 0;
+  overflow: hidden;
+  list-style: none;
+  border: 1px solid rgb(255 255 255 / 85%);
+  border-radius: var(--radius-md);
+  background: linear-gradient(180deg, rgb(255 255 255 / 84%), rgb(255 255 255 / 64%));
+  box-shadow:
+    0 1px 2px rgb(15 23 42 / 4%),
+    0 18px 36px -28px rgb(var(--marble-purple-rgb) / 45%);
+  backdrop-filter: blur(var(--glass-blur-md));
+  -webkit-backdrop-filter: blur(var(--glass-blur-md));
+}
+.phone-calendar-timeline::before {
+  position: absolute;
+  top: 30px;
+  bottom: 30px;
+  left: 23px;
+  width: 4px;
+  border-radius: 999px;
+  background: linear-gradient(
+    180deg,
+    rgb(var(--marble-blue-rgb) / 25%),
+    rgb(var(--marble-purple-rgb) / 25%),
+    rgb(var(--marble-pink-rgb) / 25%)
+  );
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 70%);
+  content: '';
+}
+
+.phone-calendar-timeline button {
+  position: relative;
+  display: flex;
+  width: 100%;
+  min-height: 58px;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 14px 8px 17px;
+  border: 0;
+  background: transparent;
+  color: #0f172a;
+  text-align: left;
+  cursor: pointer;
+  transition: background 160ms ease;
+}
+.phone-calendar-timeline button:hover {
+  background: rgb(255 255 255 / 70%);
+}
+.phone-calendar-timeline button:hover .phone-calendar-timeline-marble {
+  transform: scale(1.18);
+}
+.phone-calendar-timeline-marble {
+  transition: transform 260ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.phone-calendar-timeline .phone-row-copy strong {
+  font-size: 15px;
+  font-weight: 600;
+  -webkit-line-clamp: 1;
+}
+.phone-calendar-timeline .phone-row-copy small {
+  font-size: 12px;
+}
+
 .phone-calendar-countdown {
   flex: none;
   margin-left: auto;
-  color: #64748b;
-  font-size: 12px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: rgb(var(--ev-rgb) / 14%);
+  color: var(--ev-ink);
+  font-size: 11px;
+  font-weight: 700;
   white-space: nowrap;
-}
-
-.phone-calendar-agenda .phone-event-row {
-  min-height: 72px;
-}
-
-.phone-calendar-agenda .phone-row-copy strong {
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .native-dialog-layer.is-calendar-editor {
@@ -1674,36 +1955,44 @@
 }
 
 .phone-calendar-day:focus-visible,
-.phone-calendar-head button:focus-visible,
+.phone-calendar-nav button:focus-visible,
 .phone-calendar-add:focus-visible,
 .phone-calendar-agenda button:focus-visible {
   outline: 2px solid #6366f1;
   outline-offset: -2px;
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .phone-calendar-grid,
+  .phone-calendar-day.is-selected .phone-calendar-number {
+    animation: none;
+  }
+}
+
+/* iPad / 桌面：大月历，每天是一块浅浅的玻璃，安排是彩色胶囊。 */
 @container (min-width: 820px) {
   .phone-calendar-layout {
-    grid-template-columns: minmax(0, 1fr) clamp(260px, 28%, 340px);
+    grid-template-columns: minmax(0, 1fr) clamp(280px, 30%, 360px);
     align-items: stretch;
-    min-height: 640px;
-    gap: 24px;
+    min-height: 600px;
+    gap: 20px;
   }
 
   .phone-calendar-layout .phone-calendar {
     display: flex;
     min-width: 0;
     flex-direction: column;
-    padding: 22px 16px 16px;
+    padding: 16px 14px 14px;
   }
 
   .phone-calendar-grid {
     flex: 1;
-    grid-template-rows: 30px repeat(6, minmax(90px, 1fr));
+    grid-template-rows: 28px repeat(var(--calendar-weeks, 6), minmax(92px, 1fr));
     gap: 6px;
   }
 
   .phone-calendar-weekday {
-    padding-left: 14px;
+    padding: 4px 0 0 12px;
     text-align: left;
   }
 
@@ -1711,14 +2000,11 @@
     min-width: 0;
     height: auto;
     align-items: stretch;
-    justify-content: flex-start;
-    gap: 4px;
+    gap: 5px;
     padding: 6px;
-    border-radius: 12px;
-    background: rgb(255 255 255 / 62%);
-    box-shadow:
-      inset 0 0 0 1px rgb(255 255 255 / 90%),
-      0 1px 2px rgb(15 23 42 / 4%);
+    border-radius: 14px;
+    background: rgb(255 255 255 / 52%);
+    box-shadow: inset 0 0 0 1px rgb(255 255 255 / 80%);
     text-align: left;
     transition:
       background 0.18s ease,
@@ -1726,9 +2012,20 @@
       transform 0.18s ease;
   }
 
+  .phone-calendar-layout .phone-calendar-day.is-weekend {
+    background: rgb(var(--marble-purple-rgb) / 6%);
+  }
+
   .phone-calendar-layout .phone-calendar-day:hover {
-    background: rgb(255 255 255 / 92%);
-    transform: translateY(-1px);
+    background: rgb(255 255 255 / 95%);
+    box-shadow:
+      inset 0 0 0 1px rgb(255 255 255 / 100%),
+      0 10px 20px -14px rgb(var(--marble-purple-rgb) / 70%);
+    transform: translateY(-2px);
+  }
+
+  .phone-calendar-layout .phone-calendar-day:hover .phone-calendar-number {
+    background: transparent;
   }
 
   .phone-calendar-layout .phone-calendar-day.is-muted {
@@ -1738,16 +2035,30 @@
   }
 
   .phone-calendar-layout .phone-calendar-day.is-selected {
-    background: rgb(var(--marble-blue-rgb) / 12%);
+    background: linear-gradient(180deg, rgb(255 255 255 / 98%), rgb(240 247 255 / 95%));
     box-shadow:
-      inset 0 0 0 1.5px rgb(var(--marble-blue-rgb) / 50%),
-      0 8px 18px -12px rgb(var(--marble-blue-rgb) / 70%);
+      inset 0 0 0 1.5px rgb(var(--marble-blue-rgb) / 55%),
+      0 12px 24px -14px rgb(var(--marble-blue-rgb) / 80%);
+  }
+
+  /* 大格子里选中不再套玻璃珠，格子本身就是选中态。 */
+  .phone-calendar-layout .phone-calendar-day.is-selected:not(.is-today) .phone-calendar-number {
+    background: transparent;
+    box-shadow: none;
+    animation: none;
+  }
+  .phone-calendar-layout .phone-calendar-day.is-today.is-selected .phone-calendar-number {
+    box-shadow:
+      inset 0 -3px 5px rgb(15 23 42 / 22%),
+      inset 0 1px 0 rgb(255 255 255 / 60%),
+      0 6px 14px -5px rgb(var(--marble-blue-rgb) / 85%);
   }
 
   .phone-calendar-number {
-    width: 28px;
-    height: 28px;
+    width: 30px;
+    height: 30px;
     flex: none;
+    font-size: 14px;
   }
 
   .phone-calendar-marbles {
@@ -1758,30 +2069,40 @@
     display: flex;
     min-width: 0;
     flex-direction: column;
-    gap: 3px;
+    gap: 4px;
   }
 
   .phone-calendar-event-chip {
     display: flex;
     overflow: hidden;
     align-items: center;
-    gap: 3px;
-    padding: 2px 5px 2px 3px;
+    gap: 5px;
+    padding: 3px 8px 3px 4px;
     border-radius: 999px;
-    background: color-mix(in srgb, var(--ev-light) 80%, transparent);
-    box-shadow: inset 0 0 0 1px rgb(255 255 255 / 70%);
+    background: linear-gradient(
+      100deg,
+      color-mix(in srgb, var(--ev-light) 90%, #fff),
+      color-mix(in srgb, var(--ev-light) 50%, #fff)
+    );
+    box-shadow:
+      inset 0 0 0 1px rgb(255 255 255 / 80%),
+      0 3px 8px -5px rgb(var(--ev-rgb) / 90%);
     color: var(--ev-ink);
-    font-size: 11px;
+    font-size: 11.5px;
+    font-weight: 600;
     line-height: 1.3;
     white-space: nowrap;
   }
 
   .phone-calendar-event-chip::before {
-    width: 7px;
-    height: 7px;
+    width: 10px;
+    height: 10px;
     flex: none;
     border-radius: 50%;
-    background: radial-gradient(circle at 32% 28%, #fff 0 16%, var(--ev-mid) 52%, var(--ev-deep));
+    background:
+      radial-gradient(ellipse 2.4px 1.6px at 32% 26%, #fff, transparent),
+      radial-gradient(circle at 38% 34%, var(--ev-mid), var(--ev-deep));
+    box-shadow: 0 1px 2px rgb(var(--ev-rgb) / 80%);
     content: '';
   }
 
@@ -1793,14 +2114,15 @@
 
   .phone-calendar-more {
     position: absolute;
-    top: 9px;
-    right: 6px;
+    top: 11px;
+    right: 8px;
     padding: 1px 6px;
     border-radius: 999px;
-    background: rgb(255 255 255 / 80%);
+    background: rgb(255 255 255 / 85%);
     box-shadow: inset 0 0 0 1px rgb(15 23 42 / 6%);
     color: #64748b;
     font-size: 10px;
+    font-weight: 700;
   }
 
   .phone-calendar-agenda {
@@ -1813,21 +2135,6 @@
     padding-bottom: 28px;
     -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent);
     mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent);
-  }
-
-  .phone-calendar-agenda .phone-event-row {
-    flex-wrap: wrap;
-    column-gap: 10px;
-    row-gap: 4px;
-    padding: 14px 16px;
-  }
-
-  .phone-calendar-agenda .phone-row-copy {
-    flex-basis: calc(100% - 20px);
-  }
-
-  .phone-calendar-countdown {
-    margin-left: 20px;
   }
 }
 
