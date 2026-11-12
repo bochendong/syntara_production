@@ -502,11 +502,70 @@ async function main() {
       answerJson: { selectedOptionIds: ['C'] },
       score: 0,
     });
+    await attempt(bob.id, choiceProblem.id, 'failed', sessionId, {
+      answerJson: { selectedOptionIds: ['C'] },
+      score: 0,
+    });
+    await attempt(alice.id, choiceProblem.id, 'failed', null, {
+      answerJson: { selectedOptionIds: ['C'] },
+      score: 0,
+    });
+    await prisma.notebookProblemAttempt.create({
+      data: {
+        userId: alice.id,
+        problemId: choiceProblem.id,
+        classSessionId: sessionId,
+        kind: 'answer',
+        status: 'pending',
+        answerJson: { selectedOptionIds: ['C'] },
+        resultJson: { event: 'answer_reset' },
+        createdAt: new Date((attemptClock += 1000)),
+      },
+    });
     await attempt(bob.id, choiceProblem.id, 'passed', sessionId, {
       answerJson: { selectedOptionIds: ['B'] },
       score: 10,
     });
+    await prisma.user.update({
+      where: { id: alice.id },
+      data: { speedupPhoneLast4: '0428' },
+    });
+    await prisma.user.update({
+      where: { id: bob.id },
+      data: { phone: '+14165550100' },
+    });
     let board = await classroom.getClassSessionDashboard(T, sessionId);
+    assert.equal(board.students.find((row) => row.userId === alice.id)?.phoneLast4, '0428');
+    assert.equal(board.students.find((row) => row.userId === bob.id)?.phoneLast4, null);
+    assert.ok(board.students.every((row) => !('phone' in row) && !('speedupPhoneLast4' in row)));
+    await expectError(classroom.getClassSessionDashboard(T2, sessionId), 404);
+
+    await prisma.organization.update({ where: { id: org.id }, data: { slug: `${run}-ordinary` } });
+    try {
+      const ordinaryBoard = await classroom.getClassSessionDashboard(T, sessionId);
+      assert.ok(ordinaryBoard.students.every((row) => !('phoneLast4' in row)));
+      const binding = await prisma.externalCourseBinding.create({
+        data: {
+          provider: 'speedup',
+          externalCourseId: course.id,
+          courseId: course.id,
+          activatedById: owner.id,
+          externalCourseName: course.name,
+        },
+      });
+      try {
+        const linkedBoard = await classroom.getClassSessionDashboard(T, sessionId);
+        assert.equal(
+          linkedBoard.students.find((row) => row.userId === alice.id)?.phoneLast4,
+          '0428',
+        );
+      } finally {
+        await prisma.externalCourseBinding.delete({ where: { id: binding.id } });
+      }
+    } finally {
+      await prisma.organization.update({ where: { id: org.id }, data: { slug: org.slug } });
+    }
+    console.log('ok  仅 SpeedUp 课堂向有权限的老师显示已登记的四位尾号');
     assert.equal(board.session.presentCount, 2);
     assert.deepEqual(
       board.students.map((row) => [row.userId, row.present]),
@@ -536,7 +595,18 @@ async function main() {
       ],
       '选项分布按每人最后一次提交',
     );
-    console.log('ok  只统计带这节课标记的提交，选择题有选项分布');
+    assert.deepEqual(
+      onChoice.options?.map((option) => [option.id, option.wrongSelectionUserIds]),
+      [
+        ['A', [alice.id]],
+        ['B', []],
+        ['C', [bob.id]],
+      ],
+      '改对后仍保留错选学生，重复错选只记一次，平时作答和草稿快照不计',
+    );
+    assert.equal(onChoice.results.find((row) => row.userId === bob.id)?.status, 'passed');
+    assert.equal(onChoice.results.find((row) => row.userId === bob.id)?.attempts, 3);
+    console.log('ok  只统计这节课的提交，选择题显示最新分布及历次错选');
 
     // 7b. 提交名额：课堂提交和平时提交各算各的
     const quotaProblem = await problem(9);
