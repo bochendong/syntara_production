@@ -53,6 +53,8 @@ export async function POST(request: NextRequest) {
     return publicApiError(requestId, 503, 'auth_not_configured', 'Problem storage is unavailable.');
   try {
     const loaded = await getCourseProblemForUser(principal.userId, courseId, problemId, {
+      // Evaluating an existing problem does not require course-owner backfills.
+      skipMaintenance: true,
       includeSecretJudgeForEvaluation: true,
     });
     if (parsed.data.teacherPreview && !loaded.isTeacherPreview)

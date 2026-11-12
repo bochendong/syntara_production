@@ -266,7 +266,8 @@
   cursor: pointer;
 }
 
-.tp-course-card-menu {
+.tp-course-card-menu,
+.tp-course-card-students {
   display: inline-flex;
   align-items: center;
   gap: 6px;

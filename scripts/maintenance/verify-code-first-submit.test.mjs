@@ -15,7 +15,7 @@ const { judgeNotebookCodeProblem } = await jiti.import(
 const { NextRequest, NextResponse } = require('next/server');
 
 // Exercise the real route, persistence service, schema and Python subprocess. Only
-// identity/course loading and database I/O are replaced by disposable fixtures.
+// authentication, access roles and database I/O are replaced by disposable fixtures.
 function loadSource(path, mocks) {
   const output = ts.transpileModule(readFileSync(path, 'utf8'), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
@@ -37,7 +37,12 @@ class Public(unittest.TestCase):
         self.assertEqual(add(1, 2), ${expected})
 `;
 
-function harness({ description = '', secretExpected = 3, memoryFails = false } = {}) {
+function harness({
+  description = '',
+  secretExpected = 3,
+  memoryFails = false,
+  claimedTeacher = false,
+} = {}) {
   const rows = new Map();
   const memorySignals = [];
   let inTransaction = false;
@@ -62,6 +67,18 @@ function harness({ description = '', secretExpected = 3, memoryFails = false } =
     notebookProblem: { findUnique: async () => ({ courseId: 'course', notebookId: null }) },
   };
   const prisma = {
+    // Claiming the course grants teacher access, but leaves its ownerId unchanged.
+    course: { findFirst: async () => null },
+    notebookProblem: {
+      findFirst: async () => ({
+        ...problem,
+        createdAt: new Date(problem.createdAt),
+        updatedAt: new Date(problem.updatedAt),
+        publicContentJson: problem.publicContent,
+        gradingJson: problem.grading,
+        secret: { secretJudgeJson: secretJudge },
+      }),
+    },
     $transaction: async (run) => {
       calls.transactions += 1;
       inTransaction = true;
@@ -77,6 +94,10 @@ function harness({ description = '', secretExpected = 3, memoryFails = false } =
     '@/lib/server/prisma': { prisma },
     '@/lib/server/prisma-json': { toPrismaJson: (value) => value },
     '@/lib/problem-bank': schemas,
+    '@/lib/server/repositories/course-enrollment-repository': {
+      findCourseAccessRole: async () => (claimedTeacher ? 'owner' : 'enrolled'),
+    },
+    '@/lib/server/store-course-layers': { problemLayerWhere: async () => ({}) },
     '@/lib/server/problem-attempt-memory-signals': {
       recordProblemAttemptMemorySignal: async ({ attempt }) => {
         assert.equal(inTransaction, false, 'Memory signals run after the attempt transaction');
@@ -115,7 +136,13 @@ function harness({ description = '', secretExpected = 3, memoryFails = false } =
     createdAt: 0,
     updatedAt: 0,
   };
-  const route = loadSource('app/api/native/v1/problem-code/route.ts', {
+  const secretJudge = {
+    language: 'python',
+    timeoutMs: 5000,
+    secretTestCode: suite('', secretExpected),
+    secretTests: [{ id: 'sum', expression: 'add(1, 2)', expected: '3' }],
+  };
+  const routeMocks = {
     zod: require('zod'),
     '@/lib/server/class-session-attempts': { classSessionForAttempt: async () => null },
     'next/server': { NextResponse },
@@ -127,16 +154,7 @@ function harness({ description = '', secretExpected = 3, memoryFails = false } =
     },
     '@/features/problems/server/service': {
       createNotebookProblemAttempt: service.createNotebookProblemAttempt,
-      countNotebookProblemSubmissions: async () => rows.size,
-      getCourseProblemForUser: async () => ({
-        problem,
-        isTeacherPreview: false,
-        secretJudge: {
-          language: 'python',
-          timeoutMs: 5000,
-          secretTestCode: suite('', secretExpected),
-        },
-      }),
+      getCourseProblemForUser: service.getCourseProblemForUser,
     },
     '@/lib/problem-bank/scoring-policy': scoring,
     '@/lib/server/notebook-problems/course-identity': {
@@ -150,9 +168,22 @@ function harness({ description = '', secretExpected = 3, memoryFails = false } =
         NextResponse.json({ code, message }, { status }),
       publicApiSuccess: (_id, data) => NextResponse.json({ success: true, data }),
     },
-  });
+    '@/lib/problem-bank/schema': schemas,
+  };
+  const route = loadSource('app/api/native/v1/problem-code/route.ts', routeMocks);
+  const hiddenTests = loadSource('app/api/native/v1/hidden-tests/route.ts', routeMocks);
   return {
     rows,
+    requestHiddenTests: async (changes = {}) => {
+      const response = await hiddenTests.POST(
+        new NextRequest('https://example.test/api/native/v1/hidden-tests', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ courseId: 'course', problemId: 'problem', ...changes }),
+        }),
+      );
+      return { status: response.status, body: await response.json() };
+    },
     memorySignals,
     calls,
     service,
@@ -196,6 +227,28 @@ test('Python unittest without docstrings succeeds on the first POST and replays 
   assert.equal(h.rows.size, 1);
   assert.equal(h.memorySignals.length, 1, 'Replay does not duplicate the memory signal');
   assert.deepEqual(h.calls, { transactions: 1, progress: 1, jobs: 1, grades: 2 });
+});
+
+test('claimed teachers can view and run hidden tests and submit a preview without student writes', async () => {
+  const h = harness({ claimedTeacher: true });
+  const code = 'def add(a, b):\n    return a + b';
+  const hidden = await h.requestHiddenTests();
+  assert.equal(hidden.status, 200, JSON.stringify(hidden.body));
+  assert.deepEqual(hidden.body.data, {
+    cases: [{ expression: 'add(1, 2)', expected: '3' }],
+    hasScript: true,
+  });
+  const run = await h.requestHiddenTests({ mode: 'run', code, indices: [0] });
+  assert.equal(run.status, 200, JSON.stringify(run.body));
+  assert.deepEqual(run.body.data.cases, [{ id: 'hidden-0', passed: true }]);
+  const result = await h.send({ teacherPreview: true, code });
+  assert.equal(result.status, 200, JSON.stringify(result.body));
+  assert.equal(result.body.data.preview, true);
+  assert.equal(result.body.data.saved, false);
+  assert.equal(result.body.data.status, 'passed');
+  assert.equal(result.body.data.result.secretSummary.passed, 1);
+  assert.equal(h.rows.size, 0);
+  assert.equal(h.calls.transactions, 0);
 });
 
 test('memory failures after commit preserve a successful first submission', async () => {
