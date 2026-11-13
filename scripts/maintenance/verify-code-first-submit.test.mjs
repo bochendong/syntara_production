@@ -46,9 +46,20 @@ function harness({
   const rows = new Map();
   const memorySignals = [];
   let inTransaction = false;
-  const calls = { transactions: 0, progress: 0, jobs: 0, grades: 0 };
+  const calls = { transactions: 0, progress: 0, jobs: 0, grades: 0, gamePoints: 0 };
+  const rewarded = new Set();
   const tx = {
     notebookProblemAttempt: {
+      findFirst: async ({ where }) =>
+        [...rows.values()].find(
+          (row) =>
+            row.userId === where.userId &&
+            row.problemId === where.problemId &&
+            row.id !== where.id?.not &&
+            where.kind.in.includes(row.kind) &&
+            row.status === where.status &&
+            (row.brawlVerified === true || row.brawlVerified == null),
+        ) ?? null,
       create: async ({ data }) => {
         const row = {
           ...JSON.parse(JSON.stringify(data)),
@@ -64,7 +75,30 @@ function harness({
         calls.progress += 1;
       },
     },
-    notebookProblem: { findUnique: async () => ({ courseId: 'course', notebookId: null }) },
+    notebookProblem: {
+      findUnique: async () => ({
+        courseId: 'course',
+        notebookId: null,
+        ownerId: null,
+        status: 'published',
+        difficulty: 'easy',
+      }),
+    },
+    user: {
+      findUnique: async () => ({ role: 'STUDENT' }),
+      update: async ({ data }) => {
+        assert(inTransaction, 'Game points are granted in the attempt transaction');
+        calls.gamePoints += data.brawlPracticePoints.increment;
+      },
+    },
+    brawlProblemReward: {
+      createMany: async ({ data: [reward] }) => {
+        const key = `${reward.userId}:${reward.problemId}`;
+        if (rewarded.has(key)) return { count: 0 };
+        rewarded.add(key);
+        return { count: 1 };
+      },
+    },
   };
   const prisma = {
     // Claiming the course grants teacher access, but leaves its ownerId unchanged.
@@ -91,6 +125,7 @@ function harness({
     notebookProblemAttempt: { findUnique: async ({ where }) => rows.get(where.id) ?? null },
   };
   const service = loadSource('lib/server/notebook-problems/service.ts', {
+    '@/lib/server/brawl-practice-points': loadSource('lib/server/brawl-practice-points.ts', {}),
     '@/lib/server/prisma': { prisma },
     '@/lib/server/prisma-json': { toPrismaJson: (value) => value },
     '@/lib/problem-bank': schemas,
@@ -215,6 +250,7 @@ test('Python unittest without docstrings succeeds on the first POST and replays 
   assert.equal(first.body.data.score, 100);
   assert.equal(first.body.data.saved, true);
   assert.equal(first.body.data.replayed, false);
+  assert.equal(h.calls.gamePoints, 3);
   assert.equal(Object.hasOwn(first.body.data.result.publicCases[0], 'description'), false);
   assert.equal(
     schemas.notebookProblemAttemptResultSchema.safeParse(first.body.data.result).success,
@@ -223,10 +259,11 @@ test('Python unittest without docstrings succeeds on the first POST and replays 
   const replay = await h.send();
   assert.equal(replay.status, 200);
   assert.equal(replay.body.data.replayed, true);
+  assert.equal(h.calls.gamePoints, 3);
   assert.deepEqual(replay.body.data.result, first.body.data.result);
   assert.equal(h.rows.size, 1);
   assert.equal(h.memorySignals.length, 1, 'Replay does not duplicate the memory signal');
-  assert.deepEqual(h.calls, { transactions: 1, progress: 1, jobs: 1, grades: 2 });
+  assert.deepEqual(h.calls, { transactions: 1, progress: 1, jobs: 1, grades: 2, gamePoints: 3 });
 });
 
 test('claimed teachers can view and run hidden tests and submit a preview without student writes', async () => {
