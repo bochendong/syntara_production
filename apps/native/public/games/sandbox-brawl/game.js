@@ -933,7 +933,10 @@ const BOSS_T = 600, EVT = 30;   // 一局 10 分钟，每 30 秒一个事件
 let diffId = 'normal', modeId = 'std'; const DF = () => DIFFS[diffId];
 const UNLOCK_ORDER = ['gun', 'magic', 'summon'];   // 通关一次解锁下一个流派的全部同学
 // 局外进度：开局只有 3 位同学、5 个技能、4 件遗物、6 件饰品，其余用积分兑换
-const META_KEY = 'syntara.brawl.meta', PRICE = { heroes: 150, arts: 80, relics: 50 }, FREE_SKILLS = ['mop', 'plane'];
+const localPreview = location.protocol === 'http:' && ['127.0.0.1', 'localhost', '[::1]'].includes(location.hostname);
+const SAVE_PREFIX = localPreview ? 'syntara.brawl.preview' : 'syntara.brawl';
+const META_KEY = `${SAVE_PREFIX}.meta`, BEST_KEY = `${SAVE_PREFIX}.best`;
+const PRICE = { heroes: 150, arts: 80, relics: 50 }, FREE_SKILLS = ['mop', 'plane'];
 const DEF0 = { heroes: ['brawler', 'scholar', 'geo'], arts: ['vamp', 'mirror', 'plate', 'koi'], relics: ['dumbbell', 'wrist', 'mom', 'bucket', 'scope', 'drink'] };
 const meta = { pts: 0, heroes: [...DEF0.heroes], arts: [...DEF0.arts], relics: [...DEF0.relics], seen: [], ach: [], skins: [], ults: [], top: [], skinOn: {}, stat: { runs: 0, kills: 0, wins: 0, hardWin: 0, pulls: 0, pity: 0 } };
 try { const m = JSON.parse(localStorage.getItem(META_KEY) || 'null'); if (m) for (const k in meta) { if (m[k] == null) continue; if (Array.isArray(meta[k])) meta[k] = k === 'top' ? m[k] : [...new Set([...meta[k], ...m[k]])]; else if (typeof meta[k] === 'object') Object.assign(meta[k], m[k]); else meta[k] = +m[k] || 0; } } catch (e) {}
@@ -1044,7 +1047,7 @@ function gItem(q) {
   const S = SKINS[q.id]; return { name: S.n, sub: `${CLASSES[S.h].name}的皮肤`, ic: CLASSES[S.h].start };
 }
 function buy(kind, id) { if (meta[kind].includes(id) || achFor(kind, id) || meta.pts < PRICE[kind]) return false; meta.pts -= PRICE[kind]; meta[kind].push(id); saveMeta(); checkAch(false); return true; }
-let bestEndless = 0; try { bestEndless = +localStorage.getItem('syntara.brawl.best') || 0; } catch (e) {}
+let bestEndless = 0; try { bestEndless = +localStorage.getItem(BEST_KEY) || 0; } catch (e) {}
 let state = 'title', T = 0, timeScale = 1, spawnAcc = 0, nextElite = 75, nextBats = 25, nextBomb = 90, nextBoss = BOSS_T, bossCount = 0, boss = null, ev = {};
 let pendingUlt = [], gifts = [], corpses = [], drops = [], altars = [], pendingInfuse = [], CW = null, watchT = 12, shieldT = 10;
 let enemies = [], eid = 0, shots = [], planes = [], gems = [], chests = [], eshots = [], minions = [], lamps = [], ducks = [], slippers = [], books = [], wet = [], blasts = [], pendingLevels = 0;
@@ -1707,7 +1710,7 @@ function hide() { ov.hidden = true; }
 const wipeEl = $('wipe');
 function wipe(fn) { if (REDUCED) return fn(); wipeEl.classList.add('close'); setTimeout(() => { fn(); requestAnimationFrame(() => requestAnimationFrame(() => wipeEl.classList.remove('close'))); }, 420); }
 let bannerT = 0;
-function banner(text, sub = '') { const b = $('banner'); b.innerHTML = `<b>${text}</b>` + (sub ? `<small>${sub}</small>` : ''); b.classList.remove('on'); void b.offsetWidth; b.classList.add('on'); bannerT = 2.4; }
+function banner(text, sub = '', image = '') { const b = $('banner'); b.innerHTML = `<b>${image}${text}</b>` + (sub ? `<small>${sub}</small>` : ''); b.classList.remove('on'); void b.offsetWidth; b.classList.add('on'); bannerT = 2.4; }
 const CLS_IDS = Object.keys(CLASSES);
 const fmt = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 const confetti = (n = 36) => `<div class="confetti">${Array.from({ length: n }, (_, i) => `<i style="left:${(i * 37 % 100)}%;background:${['#ffc93c', '#ff6b6b', '#4aa8ff', '#3fc98a', '#a98bff', '#fff'][i % 6]};animation-duration:${2.2 + (i * 13 % 10) / 5}s;animation-delay:${-(i * 7 % 30) / 10}s"></i>`).join('')}</div>`;
@@ -1757,6 +1760,35 @@ function showAch() {
 const MON_ORDER = ['sleepy', 'bat', 'bomber', 'chalk', 'cross', 'mole', 'clock', 'ink', 'ghost', 'phone', 'snail', 'hourglass', 'boss'];
 const MON_MORE = { sleepy: ['瞌睡团子', '最常见，慢吞吞地围上来'], bat: ['问号蝙蝠', '成群飞过来，不怕桌椅挡路'], hourglass: ['DDL 沙漏人', '精英，血很厚，打倒会掉宝箱'], boss: ['期末大魔王', '10:00 出场，打倒它就通关'] };
 const MON_C = { sleepy: '#a98bd8', bat: '#7a5ad8', bomber: '#e2453a', chalk: '#e88aa0', cross: '#e0473c', mole: '#b8843a', clock: '#e0a800', ink: '#3a3f6a', ghost: '#9aa3b5', phone: '#3f97e8', snail: '#5fb04f', hourglass: '#c98a2e', boss: '#8a2a3a' };
+if (localPreview) {
+  meta.heroes = [...CLS_IDS];
+  meta.arts = Object.keys(ARTS);
+  meta.relics = Object.keys(RELICS);
+  meta.seen = [...MON_ORDER];
+}
+
+const ICON_DIRECTORIES = {
+  heroes: 'classmate-icons',
+  skills: 'skill-icons',
+  arts: 'art-icons',
+  relics: 'relic-icons',
+  mons: 'monster-icons',
+  stats: 'stat-icons',
+  elements: 'element-icons',
+  duos: 'duo-icons',
+  ultimates: 'ultimate-icons',
+};
+const illustration = (category, id) => `<img class="item-illustration" src="./${ICON_DIRECTORIES[category]}/${id}.webp" width="48" height="48" alt="">`;
+const illustratedBadge = (category, id, color, size) =>
+  `<span class="ico illustrated" style="--c:${color}${size ? `;--s:${size}px` : ''}">${illustration(category, id)}</span>`;
+
+function codexIcon(item, tab) {
+  if (ICON_DIRECTORIES[tab] && (!item.mon || item.open)) {
+    return `<span class="crelic">${illustration(tab, item.id)}${item.open ? '' : ico('#a89a92', 'lock', 18)}</span>`;
+  }
+  return ico(item.open ? item.c : '#a89a92', item.open || item.mon ? item.ic : 'lock');
+}
+
 let cdxTab = 'heroes';
 const howGet = (kind, id) => { const a = achFor(kind, id); return DEF0[kind] && DEF0[kind].includes(id) ? '一开始就有' : a ? `达成成就「${a.n}」：${a.d}` : `用 ${PRICE[kind]} 积分兑换`; };
 const tagOf = (kind, id) => achFor(kind, id) ? '成就' : `${PRICE[kind]} 积分`;
@@ -1777,7 +1809,7 @@ function showCodex(tab = cdxTab, sel) {
   cdxTab = tab; const items = codexItems(tab), it = items.find((q) => q.id === sel) || items[0], TABS = { heroes: '同学', skills: '技能', arts: '遗物', relics: '饰品', gacha: '抽卡奖池', ach: '成就', mons: '怪物' }, price = PRICE[it.kind];
   show(`<div class="chead"><h2>图鉴</h2><span class="pts">积分 <b>${meta.pts}</b></span></div>
     <div class="ctabs">${Object.keys(TABS).map((t) => `<button class="${t === tab ? 'on' : ''}" data-t="${t}">${TABS[t]}</button>`).join('')}<span>${items.filter((q) => q.open).length} / ${items.length}</span></div>
-    <div class="cgrid">${items.map((q) => `<button class="ctile ${q.open ? '' : 'lock'} ${q.id === it.id ? 'sel' : ''}" data-id="${q.id}" aria-label="${q.name}">${ico(q.open ? q.c : '#a89a92', q.open || q.mon ? q.ic : 'lock')}<span>${q.short || q.name}</span>${!q.open && q.tag ? `<small>${q.tag}</small>` : ''}</button>`).join('')}</div>
+    <div class="cgrid">${items.map((q) => `<button class="ctile ${q.open ? '' : 'lock'} ${q.id === it.id ? 'sel' : ''}" data-id="${q.id}" aria-label="${q.name}">${codexIcon(q, tab)}<span>${q.short || q.name}</span>${!q.open && q.tag ? `<small>${q.tag}</small>` : ''}</button>`).join('')}</div>
     <div class="cdetail"><b>${it.name}${it.open && !it.mon ? '<em>已拥有</em>' : ''}</b><p>${it.desc}</p>${!it.open && price ? `<button class="primary" id="cbuy" ${meta.pts < price ? 'disabled' : ''}>${meta.pts < price ? `还差 ${price - meta.pts} 积分` : `兑换 · ${price} 积分`}</button>` : !it.open && it.hint && !price ? `<p><b>${it.hint}</b></p>` : ''}</div>
     <p class="note">东西有四种来路：一开始就有、积分兑换（每局按击倒数和时间给积分，通关另加 80）、达成成就、大鹅抽卡。只有拿到的遗物和饰品才会在对局里出现。</p>
     <div class="actions"><button class="primary" id="cok">关闭</button></div>`, 'frame codex');
@@ -1804,12 +1836,12 @@ function renderPrep(fresh) {
   const maxHp = Math.max(...CLS_IDS.map((id) => CLASSES[id].hp)), spdOf = (c) => (c.spd - 4.6) / 1.2;
   const side = `
     <h3>选同学</h3>
-    <div class="chips">${CLS_IDS.map((id, i) => { const c = CLASSES[id], lk = !isOpen(id); return `<button class="chip ${i === selIdx ? 'sel' : ''} ${lk ? 'locked' : ''}" data-i="${i}" aria-label="${c.name}">${ico(TAGS[c.tag].c, lk ? 'lock' : c.start)}${c.short || c.name}</button>`; }).join('')}</div>
+    <div class="chips">${CLS_IDS.map((id, i) => { const c = CLASSES[id], lk = !isOpen(id); return `<button class="chip ${i === selIdx ? 'sel' : ''} ${lk ? 'locked' : ''}" data-i="${i}" aria-label="${c.name}">${lk ? ico(TAGS[c.tag].c, 'lock') : illustration('heroes', id)}${c.short || c.name}</button>`; }).join('')}</div>
     <div class="hinfo"><p>${aL ? `还没加入。达成成就「${aL.n}」（${aL.d}）后加入。` : locked ? `还没加入。用 ${PRICE.heroes} 积分兑换，现在有 ${meta.pts} 积分。每局结束都会拿到积分。` : cls.desc}</p>
       <div class="hstats" style="--c:${t.c}">
         <div><span>生命</span><div class="mini"><i style="width:${cls.hp / maxHp * 100}%"></i></div><b>${cls.hp}</b></div>
         <div><span>移速</span><div class="mini"><i style="width:${spdOf(cls) * 100}%"></i></div><b>${cls.spd.toFixed(1)}</b></div>
-        <div class="wp"><span>武器</span>${ico(w.c, cls.start)}<span>${w.name}</span></div>
+        <div class="wp"><span>武器</span>${illustratedBadge('skills', cls.start, w.c)}<span>${w.name}</span></div>
       </div></div>
     <h3>皮肤</h3>
     <div class="skins"><button class="sk ${on ? '' : 'on'}" data-sk="">${ico(t.c, cls.start)}默认</button>${mySk.map((k) => { const own = meta.skins.includes(k); return `<button class="sk ${on === k ? 'on' : ''} ${own ? '' : 'lk'}" data-sk="${k}" ${own ? '' : 'disabled'}>${ico(own ? RC[SKINS[k].r] : '#a89a92', own ? cls.start : 'lock')}${SKINS[k].n}${own ? '' : ' · 抽卡'}</button>`; }).join('')}</div>
@@ -1881,7 +1913,7 @@ function startRun() {
   T = 0; spawnAcc = 0; settled = false; run = { tasks: 0, hg: 0, hit: -1 }; achClock = 0; nextElite = DF().elite * 1.8; nextBats = 25; nextBomb = 90; nextBoss = modeId === 'std' ? BOSS_T : 300; bossCount = 0; boss = null; ev = {}; timeScale = 1; pendingLevels = 0; task = null; nextTask = 50;
   for (const k in cds) delete cds[k];
   $('bossBar').hidden = true; $('hud').classList.remove('boss'); $('hud').hidden = false; titleEl.hidden = true; titleEl.innerHTML = ''; hide(); $('stage').classList.remove('dead'); $('task').hidden = true;
-  $('who').innerHTML = ico(TAGS[cls.tag].c, cls.start, 40); $('pname').textContent = cls.name; hud.lv = 1; hud.score = player.score; $('lv').textContent = 1; $('score').textContent = player.score;
+  $('who').innerHTML = illustratedBadge('heroes', clsId, TAGS[cls.tag].c, 40); $('pname').textContent = cls.name; hud.lv = 1; hud.score = player.score; $('lv').textContent = 1; $('score').textContent = player.score;
   camLook.set(0, 0, 0);
   for (let k = 0; k < 6; k++) spawnNear('sleepy', 8, 13);
   state = 'play'; SL = {}; refreshSets(); renderSlots(); renderItems(); banner('第一波', modeId === 'std' ? '撑到 10:00，期末大魔王会出现' : '无尽模式：撑得越久越好');
@@ -1890,7 +1922,7 @@ $('pauseBtn').onclick = () => { if (state === 'play') pause(); };
 function pause() { state = 'paused'; show(`<h2>暂停</h2>${statsHtml()}${buildSummary()}<div class="actions"><button class="primary" id="rs">继续</button><button id="qt">换个同学</button></div>`); $('rs').onclick = resume; $('qt').onclick = () => { settle(false); wipe(() => showTitle('prep')); }; $('rs').focus(); }
 function resume() { hide(); state = 'play'; }
 function statsHtml() {
-  return `<div class="stats-grid">${Object.keys(STATS).map((id) => `<div>${ico(STATS[id].c, 's_' + id)}<span>${STATS[id].name}</span><b>${STATS[id].show(player.st[id])}</b></div>`).join('')}</div>`;
+  return `<div class="stats-grid">${Object.keys(STATS).map((id) => `<div>${illustratedBadge('stats', id, STATS[id].c)}<span>${STATS[id].name}</span><b>${STATS[id].show(player.st[id])}</b></div>`).join('')}</div>`;
 }
 function buildSummary() {
   const rows = Object.keys(TAGS).filter((t) => tagPts(t) > 0).map((t) => `<div><span class="role" style="--c:${TAGS[t].c}">${TAGS[t].name} ${tagPts(t)}</span> ${SL[t] ? SETS[t].slice(0, SL[t]).join('；') : '凑齐 2 件解锁第一阶'}</div>`);
@@ -1900,16 +1932,29 @@ function buildSummary() {
 let slotSig = {};
 function renderSlots() {
   const ids = Object.keys(player.weapons), sig = {};
+  const activeDuos = Object.keys(player.duos).filter((id) => player.duos[id]);
+  const duoBar = $('activeDuos');
+  duoBar.hidden = !activeDuos.length;
+  duoBar.innerHTML = activeDuos.map((id) => {
+    const duo = DUOS[id];
+    const label = `${duo.name} · ${WEAPONS[duo.a].name} × ${WEAPONS[duo.b].name}`;
+    return `<span class="duo-badge" role="img" aria-label="${label}" title="${label}">${illustratedBadge('duos', id, '#2a9a86', 32)}</span>`;
+  }).join('');
   $('slots').innerHTML = Array.from({ length: MAXW }, (_, i) => {
     const id = ids[i]; if (!id) return `<div class="slot empty">${ico('#fff', 'lock')}<span class="wn">Lv ${SKILL_LV[i - 1] ?? ''}</span></div>`;
-    const w = WEAPONS[id], l = wLevel(id), evo = player.evo[id], name = evo ? w.evo.name : player.alt[id] ? ALT[id].name : w.name;
-    const els = (player.elem[id] || []).map((e) => `<i style="background:${ELEMS[e].c}"></i>`).join('');
-    sig[id] = l + (evo ? 100 : 0) + els.length; const changed = slotSig[id] !== sig[id];
-    return `<div class="slot ${evo ? 'evo' : ''}  ${changed ? 'bump' : ''}" title="${name}">${ico(w.c, id)}<b class="lv">${evo ? '★' : l}</b>${els ? `<span class="els">${els}</span>` : ''}<span class="wn">${name}</span></div>`;
+    const w = WEAPONS[id], l = wLevel(id), evo = player.evo[id], alt = player.alt[id], name = evo ? w.evo.name : alt ? ALT[id].name : w.name;
+    const elements = player.elem[id] || [];
+    const badges = elements.map((element) => illustratedBadge('elements', element, ELEMS[element].c)).join('');
+    const label = elements.length ? `${name} · ${elements.map((element) => ELEMS[element].name).join(' + ')}` : name;
+    sig[id] = `${l}:${evo ? 'base' : alt ? 'alt' : ''}:${elements.join('+')}`;
+    const changed = slotSig[id] !== sig[id];
+    return `<div class="slot ${evo || alt ? 'evo' : ''}  ${changed ? 'bump' : ''}" title="${label}">${illustratedBadge(evo ? 'ultimates' : 'skills', id, w.c)}<b class="lv">${evo || alt ? '★' : l}</b>${badges ? `<span class="els" role="img" aria-label="${label}">${badges}</span>` : ''}<span class="wn">${name}</span></div>`;
   }).join('');
   slotSig = sig;
 }
-function renderItems() { const el = $('items'); if (el) el.innerHTML = Object.keys(player.relics).map((id) => `<div class="ichip" style="--c:${rarOf(id).c}" title="${RELICS[id].name}：每件 ${RELICS[id].desc}"><i></i>${RELICS[id].name}<b>×${R(id)}</b></div>`).join(''); }
+function renderItems() {
+  $('items').innerHTML = Object.keys(player.relics).map((id) => `<div class="ichip" title="${RELICS[id].name}：每件 ${RELICS[id].desc}">${illustration('relics', id)}${RELICS[id].name}<b>×${R(id)}</b></div>`).join('');
+}
 function renderBuilds() {
   $('builds').innerHTML = Object.keys(TAGS).filter((t) => tagPts(t) > 0).map((t) => `<div class="bchip frame" style="--c:${TAGS[t].c}">${TAGS[t].name} ${tagPts(t)}<span class="tiers">${[1, 2, 3].map((k) => `<i class="${SL[t] >= k ? 'on' : ''}"></i>`).join('')}</span></div>`).join('');
 }
@@ -1940,49 +1985,56 @@ function buildLine(tag) {
   return `<span class="build">${TAGS[tag].name}流派 ${p}→${next}${need ? `，再 ${need - next} 件到下一阶` : ''}</span>`;
 }
 const deltaHtml = (s) => { const m = s.match(/^(.*?)\s*(\S+) → (.+)$/); return m ? `<span class="delta">${m[1]} <s>${m[2]}</s><em>→</em><b>${m[3]}</b></span>` : `<span class="delta">${s}</span>`; };
+const OPTION_ICON_CATEGORIES = { w: 'skills', u: 'skills', e: 'ultimates', d: 'duos', x: 'skills', r: 'relics', a: 'arts', s: 'stats' };
 function optionCard(o, i) {
-  let c, ic, kind, rar = '', rn = '', stars = 0, name, sub = '', desc = '', delta = '', pips = '', foot = '';
-  if (o.kind === 'e') { const w = WEAPONS[o.id]; c = w.c; ic = 'crown'; kind = '武器进化'; rar = 'legend'; rn = '传说'; name = w.evo.name; sub = `${w.name} + ${RELICS[w.evo.relic].name}`; desc = w.evo.desc; }
-  else if (o.kind === 'd') { const d = DUOS[o.id]; c = '#2a9a86'; ic = 'link'; kind = '武器联动'; rar = 'duo'; rn = '联动'; name = d.name; sub = `${WEAPONS[d.a].name} × ${WEAPONS[d.b].name}`; desc = d.desc; }
-  else if (o.kind === 'w') { const w = WEAPONS[o.id], t = TAGS[w.tag]; c = w.c; ic = o.id; kind = `新技能 ${Object.keys(player.weapons).length + 1}/${MAXW}`; rar = w.funny ? 'funny' : 'rare'; rn = w.funny ? '搞笑' : t.name; name = w.name; desc = w.desc; foot = buildLine(w.tag); }
+  let c, kind, rar = '', rn = '', stars = 0, name, sub = '', desc = '', delta = '', pips = '', foot = '';
+  let elementIcon;
+  let category = OPTION_ICON_CATEGORIES[o.kind];
+  if (o.kind === 'e') { const w = WEAPONS[o.id]; c = w.c; kind = '武器进化'; rar = 'legend'; rn = '传说'; name = w.evo.name; sub = `${w.name} + ${RELICS[w.evo.relic].name}`; desc = w.evo.desc; }
+  else if (o.kind === 'd') { const d = DUOS[o.id]; c = '#2a9a86'; kind = '武器联动'; rar = 'duo'; rn = '联动'; name = d.name; sub = `${WEAPONS[d.a].name} × ${WEAPONS[d.b].name}`; desc = d.desc; }
+  else if (o.kind === 'w') { const w = WEAPONS[o.id], t = TAGS[w.tag]; c = w.c; kind = `新技能 ${Object.keys(player.weapons).length + 1}/${MAXW}`; rar = w.funny ? 'funny' : 'rare'; rn = w.funny ? '搞笑' : t.name; name = w.name; desc = w.desc; foot = buildLine(w.tag); }
   else if (o.kind === 'u') {
     const w = WEAPONS[o.id], k = (player.wup[o.id] || {})[o.u] || 0, l = wLevel(o.id), mx = UPS[o.u].max;
-    const n = (o.tier || 0) + 1; c = w.c; ic = o.id; kind = `${w.name} Lv ${l}→${l + n}`; rn = TIER[o.tier || 0].n; rar = 'q' + (o.tier || 0); stars = n; name = LVUP[o.id][2]; sub = ''; rn = ''; rar = ''; stars = 0; delta = deltaHtml(upPreview(o.id, o.u, n));
+    const n = (o.tier || 0) + 1; c = w.c; kind = `${w.name} Lv ${l}→${l + n}`; rn = TIER[o.tier || 0].n; rar = 'q' + (o.tier || 0); stars = n; name = LVUP[o.id][2]; sub = ''; rn = ''; rar = ''; stars = 0; delta = deltaHtml(upPreview(o.id, o.u, n));
     pips = `<span class="pips">${Array.from({ length: mx }, (_, q) => `<i class="${q < k ? 'on' : q < k + n ? 'new' : ''}"></i>`).join('')}</span>`;
-    if (l + 1 >= MAXLV && altOwned(o.id)) { kind = `${w.name} 满级`; rar = 'legend'; rn = '终极形态'; ic = 'crown'; name = '两种终极形态'; desc = `升到 Lv 10 时，在「${w.evo.name}」和「${ALT[o.id].name}」里选一个`; }
-    else if (l + 1 >= MAXLV) { kind = `${w.name} 满级`; rar = 'legend'; rn = '终极形态'; ic = 'crown'; name = w.evo.name; desc = w.evo.desc; }
+    if (l + n >= MAXLV && altOwned(o.id)) { kind = `${w.name} 满级`; rar = 'legend'; rn = '终极形态'; name = '两种终极形态'; desc = `升到 Lv 10 时，在「${w.evo.name}」和「${ALT[o.id].name}」里选一个`; }
+    else if (l + n >= MAXLV) { kind = `${w.name} 满级`; rar = 'legend'; rn = '终极形态'; category = 'ultimates'; name = w.evo.name; desc = w.evo.desc; }
     else if (INF_LV.includes(l + 1)) foot = '<span class="build">升到这一级会注入一次元素</span>';
     else if (l + 2 >= MAXLV) foot = `<span class="build">再升一级变成终极形态「${altOwned(o.id) ? w.evo.name + '」或「' + ALT[o.id].name : w.evo.name}」</span>`;
   } else if (o.kind === 'r') {
     const r = RELICS[o.id], t = TAGS[r.tag]; const evoFor = Object.keys(WEAPONS).find((w) => WEAPONS[w].evo.relic === o.id && W(w));
-    const ra = rarOf(o.id), have = R(o.id); c = ra.c; ic = r.curse ? 'curse' : 'charm'; kind = (r.curse ? '代价饰品' : '饰品') + (t ? ' · ' + t.name : ''); rar = ra.k; rn = ra.n; name = r.name; sub = have ? `已有 ${have} 件，再叠一层` : '可以叠加'; desc = '每件：' + r.desc;
+    const ra = rarOf(o.id), have = R(o.id); c = ra.c; kind = (r.curse ? '代价饰品' : '饰品') + (t ? ' · ' + t.name : ''); rar = ra.k; rn = ra.n; name = r.name; sub = have ? `已有 ${have} 件，再叠一层` : '可以叠加'; desc = '每件：' + r.desc;
     foot = have ? '' : buildLine(r.tag);
-  } else if (o.kind === 'a') { const a = ARTS[o.id]; c = a.c; ic = a.ic; kind = '遗物'; rar = 'legend'; rn = '强力'; name = a.name; desc = a.desc; }
+  } else if (o.kind === 'a') { const a = ARTS[o.id]; c = a.c; kind = '遗物'; rar = 'legend'; rn = '强力'; name = a.name; desc = a.desc; }
   else if (o.kind === 'el') {
     const E = ELEMS[o.id], cur = player.elem[o.w] || [], cb = cur.length ? COMBOS[[cur[0], o.id].sort().join('+')] : null;
-    c = E.c; ic = o.id; kind = WEAPONS[o.w].name; rar = cb ? 'epic' : 'rare'; rn = cb ? '组合' : '元素'; name = cb ? cb[0] : E.name + '元素'; sub = cb ? `${ELEMS[cur[0]].name} + ${E.name}` : ''; desc = cb ? `${cb[1]}。${E.name}：${E.desc}` : E.desc;
+    c = E.c; kind = WEAPONS[o.w].name; rar = cb ? 'epic' : 'rare'; rn = cb ? '组合' : '元素'; name = cb ? cb[0] : E.name + '元素'; sub = cb ? `${ELEMS[cur[0]].name} + ${E.name}` : ''; desc = cb ? `${cb[1]}。${E.name}：${E.desc}` : E.desc;
+    elementIcon = cb
+      ? `<span class="ico element-pair">${illustration('elements', cur[0])}${illustration('elements', o.id)}</span>`
+      : illustratedBadge('elements', o.id, E.c);
     if (!cb) foot = '<span class="build">这个技能到 Lv 8 再注入一次，两种元素会组合</span>';
   } else if (o.kind === 'x') {
-    const w = WEAPONS[o.w], x = SP[o.w].find((q) => q[0] === o.id); c = w.c; ic = o.w; kind = w.name; rar = 'epic'; rn = '特殊升级'; name = x[1]; desc = x[2];
+    const w = WEAPONS[o.w], x = SP[o.w].find((q) => q[0] === o.id); c = w.c; kind = w.name; rar = 'epic'; rn = '特殊升级'; name = x[1]; desc = x[2];
   } else {
     const S = STATS[o.id], v = statVal(o.id, o.tier), after = Math.min(S.max ?? Infinity, player.st[o.id] + v);
-    c = S.c; ic = 's_' + o.id; kind = '通用属性'; rar = 'q' + o.tier; rn = TIER[o.tier].n; stars = o.tier + 1; name = S.name; sub = S.fl;
+    c = S.c; kind = '通用属性'; rar = 'q' + o.tier; rn = TIER[o.tier].n; stars = o.tier + 1; name = S.name; sub = S.fl;
     delta = o.id === 'maxHp' ? deltaHtml(`${S.name} ${Math.round(player.maxHp)} → ${Math.round(player.maxHp + v)}`) : deltaHtml(`${S.name} ${S.show(player.st[o.id]).replace(/（.*/, '')} → ${S.show(after).replace(/（.*/, '')}`);
     if (o.id === 'armor') desc = `受到的伤害 -${Math.round(after / (after + 10) * 100)}%`; else if (S.max != null && S.max < 1) desc = `最高 ${S.show(S.max)}`;
   }
-  return `<button class="card ucard ${rar ? 'r-' + rar : ''}" data-i="${i}" style="--c:${c};--i:${i}"><span class="kind"><i>${kind}</i>${rn ? `<em>${rn}</em>` : ''}</span>${ico(c, ic)}${stars ? `<span class="stars">${'<i></i>'.repeat(stars)}</span>` : ''}<span class="name">${name}</span>${sub ? `<span class="sub">${sub}</span>` : ''}${desc ? `<span class="desc">${desc}</span>` : ''}${delta}${pips}${foot}<kbd>${i + 1}</kbd></button>`;
+  const icon = elementIcon ?? illustratedBadge(category, o.kind === 'x' ? o.w : o.id, c);
+  return `<button class="card ucard ${rar ? 'r-' + rar : ''}" data-i="${i}" style="--c:${c};--i:${i}"><span class="kind"><i>${kind}</i>${rn ? `<em>${rn}</em>` : ''}</span>${icon}${stars ? `<span class="stars">${'<i></i>'.repeat(stars)}</span>` : ''}<span class="name">${name}</span>${sub ? `<span class="sub">${sub}</span>` : ''}${desc ? `<span class="desc">${desc}</span>` : ''}${delta}${pips}${foot}<kbd>${i + 1}</kbd></button>`;
 }
 function applyUpgrade(o) {
   if (o.kind === 'w') player.weapons[o.id] = 1;
   else if (o.kind === 'u') { const u = (player.wup[o.id] = player.wup[o.id] || {}); const l0 = wLevel(o.id); u[o.u] = Math.min(UPS[o.u].max, (u[o.u] || 0) + (o.tier || 0) + 1); const l = (player.weapons[o.id] = wLevel(o.id)); for (const q of INF_LV) if (l0 < q && l >= q && (player.elem[o.id] || []).length + pendingInfuse.filter((w) => w === o.id).length < 2) pendingInfuse.push(o.id);
     if (l >= MAXLV && !player.evo[o.id] && !player.alt[o.id] && altOwned(o.id)) { if (!pendingUlt.includes(o.id)) pendingUlt.push(o.id); }
-    if (l >= MAXLV && !player.evo[o.id] && !player.alt[o.id] && !altOwned(o.id)) { player.evo[o.id] = 1; banner(WEAPONS[o.id].evo.name, '终极形态'); ripple(player.x, player.z, 1.5); spark(player.x, 1, player.z, 0xffc24a, 120, 9, 0.45, 0.9); shake = 0.4; } }
+    if (l >= MAXLV && !player.evo[o.id] && !player.alt[o.id] && !altOwned(o.id)) { player.evo[o.id] = 1; banner(WEAPONS[o.id].evo.name, '终极形态', illustration('ultimates', o.id)); ripple(player.x, player.z, 1.5); spark(player.x, 1, player.z, 0xffc24a, 120, 9, 0.45, 0.9); shake = 0.4; } }
   else if (o.kind === 's') { const v = statVal(o.id, o.tier); if (o.id === 'maxHp') { player.maxHp += v; player.hp += v; } else player.st[o.id] = Math.min(STATS[o.id].max ?? Infinity, player.st[o.id] + v); }
   else if (o.kind === 'r') { player.relics[o.id] = R(o.id) + 1; if (o.id === 'drink') { player.maxHp += 10; player.hp += 10; player.st.regen += 0.05; } if (o.id === 'allnight') { player.maxHp *= 0.9; player.hp = Math.min(player.hp, player.maxHp); } if (o.id === 'glass') { player.maxHp *= 0.85; player.hp = Math.min(player.hp, player.maxHp); } if (o.id === 'slack') { player.st.speed += 0.1; player.magnet *= 1.2; } if (o.id === 'scope') player.st.crit += 0.05; renderItems(); }
   else if (o.kind === 'ult') { if (o.v === 'b') player.alt[o.id] = 1; else player.evo[o.id] = 1; banner(o.v === 'b' ? ALT[o.id].name : WEAPONS[o.id].evo.name, '终极形态'); ripple(player.x, player.z, 1.5); spark(player.x, 1, player.z, 0xffc24a, 120, 9, 0.45, 0.9); shake = 0.4; }
-  else if (o.kind === 'e') { player.evo[o.id] = 1; banner(WEAPONS[o.id].evo.name, '武器进化'); ripple(player.x, player.z, 1.5); spark(player.x, 1, player.z, 0xffc24a, 120, 9, 0.45, 0.9); shake = 0.4; }
-  else if (o.kind === 'd') { player.duos[o.id] = 1; banner(DUOS[o.id].name, '联动'); spark(player.x, 1, player.z, 0x4fe0c0, 80, 8, 0.4, 0.8); }
-  else if (o.kind === 'a') { player.arts[o.id] = 1; if (o.id === 'plate') player.st.armor += 3; if (o.id === 'grant') player.magnet *= 1.5; banner(ARTS[o.id].name, '获得遗物'); spark(player.x, 1, player.z, 0xffc93c, 90, 9, 0.45, 0.9); ripple(player.x, player.z, 1.2); }
+  else if (o.kind === 'e') { player.evo[o.id] = 1; banner(WEAPONS[o.id].evo.name, '武器进化', illustration('ultimates', o.id)); ripple(player.x, player.z, 1.5); spark(player.x, 1, player.z, 0xffc24a, 120, 9, 0.45, 0.9); shake = 0.4; }
+  else if (o.kind === 'd') { player.duos[o.id] = 1; banner(DUOS[o.id].name, '联动', illustration('duos', o.id)); spark(player.x, 1, player.z, 0x4fe0c0, 80, 8, 0.4, 0.8); }
+  else if (o.kind === 'a') { player.arts[o.id] = 1; if (o.id === 'plate') player.st.armor += 3; if (o.id === 'grant') player.magnet *= 1.5; banner(ARTS[o.id].name, '获得遗物', illustration('arts', o.id)); spark(player.x, 1, player.z, 0xffc93c, 90, 9, 0.45, 0.9); ripple(player.x, player.z, 1.2); }
   else if (o.kind === 'x') { (player.sp[o.w] = player.sp[o.w] || {})[o.id] = 1; const x = SP[o.w].find((q) => q[0] === o.id); banner(x[1], WEAPONS[o.w].name + ' · 特殊升级'); spark(player.x, 1, player.z, 0xc9a7ff, 80, 8, 0.4, 0.8); ripple(player.x, player.z, 1); }
   else if (o.kind === 'el') { (player.elem[o.w] = player.elem[o.w] || []).push(o.id); spark(player.x, 1, player.z, +('0x' + ELEMS[o.id].c.slice(1)), 70, 8, 0.4, 0.8); }
   refreshSets(); renderSlots();
@@ -2011,7 +2063,12 @@ function showLevelUp() {
 function showUltPick() {
   state = 'levelup'; const id = pendingUlt[0], w = WEAPONS[id];
   const opts = [{ kind: 'ult', id, v: 'a' }, { kind: 'ult', id, v: 'b' }];
-  const card = (o, i) => { const a = o.v === 'b', n = a ? ALT[id].name : w.evo.name, d = a ? ALT[id].desc : w.evo.desc; return `<button class="card ucard r-legend" data-i="${i}" style="--c:${w.c};--i:${i}"><span class="kind"><i>${w.name} 满级</i><em>${a ? '抽卡得到' : '原版'}</em></span>${ico(w.c, a ? 'sparkle' : 'crown')}<span class="name">${n}</span><span class="desc">${d}</span><kbd>${i + 1}</kbd></button>`; };
+  const card = (o, i) => {
+    const alternate = o.v === 'b';
+    const form = alternate ? ALT[id] : w.evo;
+    const icon = alternate ? ico(w.c, 'sparkle') : illustratedBadge('ultimates', id, w.c);
+    return `<button class="card ucard r-legend" data-i="${i}" style="--c:${w.c};--i:${i}"><span class="kind"><i>${w.name} 满级</i><em>${alternate ? '抽卡得到' : '原版'}</em></span>${icon}<span class="name">${form.name}</span><span class="desc">${form.desc}</span><kbd>${i + 1}</kbd></button>`;
+  };
   show(`${lvHead('选一个终极形态', w.name + ' Lv 10', 'var(--sun2)')}<div class="ucards" style="--n:2">${opts.map(card).join('')}</div>`, 'bare');
   cardPick(opts, (o) => { pendingUlt.shift(); applyUpgrade(o); nextChoice(); });
 }
@@ -2050,7 +2107,7 @@ function openChest(c) {
 }
 function showDeath() {
   state = 'dead'; $('stage').classList.add('dead');
-  if (modeId === 'endless' && T > bestEndless) { bestEndless = T; try { localStorage.setItem('syntara.brawl.best', String(Math.floor(T))); } catch (e) {} }
+  if (modeId === 'endless' && T > bestEndless) { bestEndless = T; try { localStorage.setItem(BEST_KEY, String(Math.floor(T))); } catch (e) {} }
   show(`<div class="eyebrow">${MODES[modeId].name} · ${DF().name}</div><h2>${cls.name}被淹没了</h2>
     <div class="stats"><div style="--i:0"><b>${fmt(T)}</b><small>撑了</small></div><div style="--i:1"><b>${player.kills}</b><small>击倒</small></div><div style="--i:2"><b>${player.lvl}</b><small>等级</small></div><div style="--i:3"><b>${Object.keys(player.arts).length}</b><small>遗物</small></div></div>
     ${modeId === 'endless' ? `<p>无尽最好成绩 ${fmt(bestEndless)}。</p>` : ''}${buildSummary()}
@@ -2069,7 +2126,7 @@ function showWin() {
   state = 'win';
   const gain = settle(true), nxt = null;
   show(`${confetti()}<div class="eyebrow">${MODES[modeId].name} · ${DF().name}</div><h1>通关！</h1>
-    <div class="unlock">${ico('#ffab2e', 'charm')}<div><b>积分 +${gain}</b><small>现在有 ${meta.pts} 积分，可以去图鉴兑换，或者去大鹅抽卡</small></div></div>
+    <div class="unlock">${ico('#ffab2e', 'charm')}<div><b>积分 +${gain}</b><small>现在有 ${meta.pts} 积分，可以去大鹅抽卡${localPreview ? "" : "，也可以去图鉴兑换"}</small></div></div>
     <div class="stats"><div style="--i:0"><b>${fmt(T)}</b><small>用时</small></div><div style="--i:1"><b>${player.kills}</b><small>击倒</small></div><div style="--i:2"><b>${player.lvl}</b><small>等级</small></div><div style="--i:3"><b>${Object.keys(player.arts).length}</b><small>遗物</small></div></div>
     ${buildSummary()}<div class="actions"><button class="primary" id="again">再来一局</button><button id="wbook">去图鉴</button></div>`);
   $('again').onclick = () => wipe(() => { if (nxt) selIdx = CLS_IDS.findIndex((id) => CLASSES[id].tag === nxt); showTitle('prep'); }); $('again').focus(); $('wbook').onclick = () => wipe(() => { showTitle('home'); showCodex(); });
@@ -2089,10 +2146,10 @@ const SPAWN_TABLE = [['sleepy', 0, 5], ['bomber', 30, 0.3], ['chalk', 60, 1.4], 
 function minuteEvent(m) {
   let E = TIMELINE[m]; if (!E) { if (m < TIMELINE.length || modeId === 'std') return; E = [['task'], ['relic'], ['rush']][m % 3]; }
   const k = E[0], ringSpawn = (type, n, rad = 12) => { for (let q = 0; q < n; q++) { const a = q / n * TAU + rnd(0, 0.3); spawn(type, clamp(player.x + Math.cos(a) * rad, -HX + 0.6, HX - 0.6), clamp(player.z + Math.sin(a) * rad, -HZ + 0.6, HZ - 0.6)); } };
-  if (k === 'mon') { const [nm, tip] = MON_INFO[E[1]]; banner('新怪物：' + nm, tip); ringSpawn(E[1], E[1] === 'bomber' ? 1 : E[1] === 'mole' ? 3 : E[1] === 'snail' || E[1] === 'phone' ? 5 : 10, E[1] === 'bomber' ? 9 : 12); }
+  if (k === 'mon') { const [nm, tip] = MON_INFO[E[1]]; banner('新怪物：' + nm, tip, illustration('mons', E[1])); ringSpawn(E[1], E[1] === 'bomber' ? 1 : E[1] === 'mole' ? 3 : E[1] === 'snail' || E[1] === 'phone' ? 5 : 10, E[1] === 'bomber' ? 9 : 12); }
   else if (k === 'task') { if (!task) startTask(); else spawnAltar(); }
   else if (k === 'relic') spawnAltar();
-  else if (k === 'elite') { banner('期中考', '两只 DDL 沙漏人，打倒有机会掉宝箱'); spawnNear('hourglass', 12, 15); spawnNear('hourglass', 12, 15); }
+  else if (k === 'elite') { banner('期中考', '两只 DDL 沙漏人，打倒有机会掉宝箱', illustration('mons', 'hourglass')); spawnNear('hourglass', 12, 15); spawnNear('hourglass', 12, 15); }
   else if (k === 'rush') { banner('考前冲刺', '所有怪一起涌上来'); for (const t of SPAWN_TABLE) if (T >= t[1] && t[0] !== 'bomber') ringSpawn(t[0], 5, rnd(11, 14)); ringSpawn('bomber', 2, 10); }
 }
 function nextEventText() {
@@ -2133,9 +2190,9 @@ function update(dt) {
   const minute = Math.floor(T / EVT);
   if (minute > 0 && !ev['m' + minute] && !boss) { ev['m' + minute] = true; minuteEvent(minute); }
   if (T >= GIANT_T && !ev.giant) { ev.giant = true; banner('大块头来了', '个头很大的怪会挤占你的走位空间'); forceGiant = true; for (const ty of ['sleepy', 'cross', 'sleepy']) spawnNear(ty, 11, 14); forceGiant = false; shake = Math.max(shake, 0.3); }
-  if (T >= nextElite && !boss) { nextElite += DF().elite * 1.8; spawnNear('hourglass', 12, 15); banner('DDL 沙漏人', '打倒它有机会掉宝箱'); }
-  if (T >= nextBoss - 10 && !ev['warn' + nextBoss]) { ev['warn' + nextBoss] = true; banner('期末大魔王', '还有 10 秒'); }
-  if (T >= nextBoss && !boss) { spawnNear('boss', 12, 14); $('bossBar').hidden = false; $('hud').classList.add('boss'); shake = 0.5; banner(bossCount ? `期末大魔王 · 第 ${bossCount + 1} 次` : '期末大魔王'); nextBoss = modeId === 'endless' ? nextBoss + 300 : Infinity; if (task) endTask(false); }
+  if (T >= nextElite && !boss) { nextElite += DF().elite * 1.8; spawnNear('hourglass', 12, 15); banner('DDL 沙漏人', '打倒它有机会掉宝箱', illustration('mons', 'hourglass')); }
+  if (T >= nextBoss - 10 && !ev['warn' + nextBoss]) { ev['warn' + nextBoss] = true; banner('期末大魔王', '还有 10 秒', illustration('mons', 'boss')); }
+  if (T >= nextBoss && !boss) { spawnNear('boss', 12, 14); $('bossBar').hidden = false; $('hud').classList.add('boss'); shake = 0.5; banner(bossCount ? `期末大魔王 · 第 ${bossCount + 1} 次` : '期末大魔王', '', illustration('mons', 'boss')); nextBoss = modeId === 'endless' ? nextBoss + 300 : Infinity; if (task) endTask(false); }
 
   buildGrid(); fire(dt); CW = null; updateSummons(dt); CW = null; updateTask(dt);
   // 流派三阶的全场效果
