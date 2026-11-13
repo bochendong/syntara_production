@@ -1884,9 +1884,9 @@ const ptags = document.createElement('div'); ptags.id = 'ptags'; document.body.a
 let netName = ''; try { netName = localStorage.getItem('syntara.brawl.name') || ''; } catch (e) {}
 const netHp = () => (NET && NET.on && NET.host ? 1 + 0.5 * (NET.n - 1) : 1);
 async function netPost(body) {
-  let r; try { r = await fetch(NET_API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }); } catch (e) { throw new Error('连不上联机服务器。联机要在 Syntara App 里玩'); }
+  let r; try { r = await fetch(NET_API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }); } catch (e) { throw new Error('连不上联机服务器。网页版和 iPad 可以联机，桌面 App 暂时不行'); }
   let j = null; try { j = await r.json(); } catch (e) {}
-  if (!r.ok || !j) throw new Error((j && j.error) || '连不上联机服务器。联机要在 Syntara App 里玩');
+  if (!r.ok || !j) throw new Error((j && j.error) || '连不上联机服务器。网页版和 iPad 可以联机，桌面 App 暂时不行');
   return j;
 }
 const netSend = (m) => { if (NET) netPost({ op: 'send', code: NET.code, key: NET.key, m }).catch(() => {}); };
