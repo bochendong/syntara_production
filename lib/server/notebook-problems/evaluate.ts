@@ -50,6 +50,7 @@ export async function gradeNotebookTextProblem(args: {
   answer: NotebookProblemAttemptAnswer;
   model: LanguageModel;
   language: 'zh-CN' | 'en-US';
+  textPassRatio?: number;
 }): Promise<{
   status: 'pending' | 'passed' | 'failed' | 'partial' | 'error';
   score: number;
@@ -175,7 +176,10 @@ ${referenceBits.length > 0 ? `${args.language === 'zh-CN' ? '可选参考信息'
     }
     const score = Math.round((parsed.score / 100) * args.problem.points * 100) / 100;
     return {
-      status: scoreToStatus(score, args.problem.points),
+      status:
+        args.textPassRatio !== undefined && parsed.score >= args.textPassRatio * 100
+          ? 'passed'
+          : scoreToStatus(score, args.problem.points),
       score,
       result: {
         correct: score >= Math.max(1, Math.round(args.problem.points * 0.8)),
@@ -207,6 +211,7 @@ export async function evaluateNotebookNonCodeProblem(args: {
   problem: NotebookProblemRecord;
   answer: NotebookProblemAttemptAnswer;
   model?: LanguageModel;
+  textPassRatio?: number;
   language: 'zh-CN' | 'en-US';
 }): Promise<{
   status: 'pending' | 'passed' | 'failed' | 'partial' | 'error';
@@ -240,6 +245,7 @@ export async function evaluateNotebookNonCodeProblem(args: {
       answer,
       model: args.model,
       language: args.language,
+      textPassRatio: args.textPassRatio,
     });
   }
 
@@ -411,6 +417,7 @@ export async function evaluateNotebookNonCodeProblem(args: {
       answer,
       model: args.model,
       language: args.language,
+      textPassRatio: args.textPassRatio,
     });
   }
 
@@ -438,6 +445,7 @@ export async function evaluateNotebookMultipartProblem(args: {
   answer: NotebookProblemAttemptAnswer;
   previous?: { answer: NotebookProblemAttemptAnswer; result?: NotebookProblemAttemptResult } | null;
   model?: LanguageModel;
+  textPassRatio?: number;
   language: 'zh-CN' | 'en-US';
   /// 代码小问的隐藏测试（secretJudge.parts）
   secretJudge?: NotebookProblemSecretJudge;
@@ -522,6 +530,7 @@ export async function evaluateNotebookMultipartProblem(args: {
               answer: partAnswer,
               model: args.model,
               language: args.language,
+              textPassRatio: args.textPassRatio,
             });
       if (graded.status === 'error') {
         // 批改失败不算一次提交，保留上次结果

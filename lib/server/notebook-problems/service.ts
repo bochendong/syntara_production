@@ -9,6 +9,7 @@ import { prisma } from '@/lib/server/prisma';
 import { toPrismaJson, toPrismaNullableJson } from '@/lib/server/prisma-json';
 import { problemLayerSql, problemLayerWhere } from '@/lib/server/store-course-layers';
 import { recordProblemAttemptMemorySignal } from '@/lib/server/problem-attempt-memory-signals';
+import { awardBrawlPracticePoints } from '@/lib/server/brawl-practice-points';
 import {
   buildLegacyProblemDraftsFromScene,
   codeDraftReadinessErrors,
@@ -3588,6 +3589,8 @@ export async function createNotebookProblemAttempt(args: {
   timingSource?: string | null;
   /** Ungraded learning snapshots retain the learner's assessed progress and counts. */
   preserveProgress?: boolean;
+  /** A server grader verified the whole submission. */
+  brawlVerified?: boolean;
   /** Set only for a verified submission from a classroom entry. */
   classSessionId?: string | null;
 }): Promise<NotebookProblemAttemptRecord> {
@@ -3609,6 +3612,7 @@ export async function createNotebookProblemAttempt(args: {
         activeDurationMs: args.activeDurationMs ?? null,
         timingSource: args.timingSource ?? null,
         classSessionId: args.classSessionId ?? null,
+        brawlVerified: args.brawlVerified === true,
       },
     });
 
@@ -3642,6 +3646,8 @@ export async function createNotebookProblemAttempt(args: {
     }
 
     if (args.kind !== 'run' && !args.preserveProgress) {
+      if (args.brawlVerified && args.status === 'passed')
+        await awardBrawlPracticePoints(tx, args.userId, args.problemId, attempt.id);
       const problem = await tx.notebookProblem.findUnique({
         where: { id: args.problemId },
         select: { courseId: true, notebookId: true, notebook: { select: { courseId: true } } },

@@ -7,6 +7,7 @@ import { z } from 'zod';
 
 import { classSessionForAttempt } from '@/lib/server/class-session-attempts';
 import { createNotebookProblemAttempt } from '@/lib/server/notebook-problems/service';
+import { verifyNativeBrawlReward } from '@/lib/server/native-brawl-reward-verification';
 import type { PrismaClient } from '@/lib/server/generated-prisma';
 import { resolveCourseNotebookAccess } from '@/lib/server/repositories/course-enrollment-repository';
 import { problemLayerWhere } from '@/lib/server/store-course-layers';
@@ -322,6 +323,16 @@ export async function saveNativeProblemAttempts(
       ),
       kind: 'answer',
       status: attempt.event ? 'pending' : attempt.status,
+      brawlVerified:
+        !attempt.event && attempt.autoGraded === true && attempt.status === 'passed'
+          ? await verifyNativeBrawlReward(
+              prisma,
+              userId,
+              upload.courseId,
+              attempt.problemId,
+              attempt.answer,
+            )
+          : false,
       score: attempt.event ? null : score,
       answer: attempt.answer,
       result: {

@@ -1,5 +1,6 @@
 import { ChevronLeft } from 'lucide-react';
 import { withAppBase } from '../data/app-base';
+import { browserAccountId, browserApp } from '../data/browser-runtime';
 import './game-page.css';
 
 /**
@@ -7,6 +8,10 @@ import './game-page.css';
  * 用 iframe 整页嵌进来，自己管存档（localStorage）。离开页面时 iframe 卸载，这一局就结束了。
  */
 export function GamePage({ onBack }: { onBack: () => void }) {
+  const gameUrl = withAppBase('/games/sandbox-brawl/index.html');
+  const source = browserApp
+    ? `${gameUrl}?account=${encodeURIComponent(browserAccountId())}`
+    : gameUrl;
   return (
     <section className="game-page" aria-label="游戏：沙盒期末战">
       <header className="game-page-bar">
@@ -18,7 +23,7 @@ export function GamePage({ onBack }: { onBack: () => void }) {
       <iframe
         className="game-page-frame"
         title="沙盒期末战"
-        src={withAppBase('/games/sandbox-brawl/index.html')}
+        src={source}
         allow="fullscreen; gamepad"
         allowFullScreen
       />

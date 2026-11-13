@@ -208,6 +208,7 @@ export async function POST(
       kind: loaded.problem.type === 'code' ? 'submit' : 'answer',
       status: evaluated.status,
       score: scored.score,
+      brawlVerified: true,
       answer,
       result: scored.result,
       activeDurationMs: payload.data.activeDurationMs,

@@ -954,12 +954,17 @@ const UNLOCK_ORDER = ['gun', 'magic', 'summon'];   // 通关一次解锁下一�
 // 局外进度：开局有 3 位同学、5 个技能、4 件遗物、6 件饰品
 const localPreview = location.protocol === 'http:' && ['127.0.0.1', 'localhost', '[::1]'].includes(location.hostname);
 const SAVE_PREFIX = localPreview ? 'syntara.brawl.preview' : 'syntara.brawl';
-const META_KEY = `${SAVE_PREFIX}.meta`, BEST_KEY = `${SAVE_PREFIX}.best`;
+let META_KEY = `${SAVE_PREFIX}.meta`;
+let BEST_KEY = `${SAVE_PREFIX}.best`;
+const practicePointsUrl = '/api/native/v1/games/brawl/points';
+const hostedGame = !skillDemoMode && location.pathname.startsWith('/native-web/games/sandbox-brawl/');
+const expectedGameAccount = hostedGame ? new URLSearchParams(location.search).get('account') : null;
 const PRICE = { heroes: 150 }, FREE_SKILLS = ['mop', 'plane'];
 const DEF0 = { heroes: ['brawler', 'scholar', 'jock'], arts: ['vamp', 'mirror', 'plate', 'koi'], relics: ['dumbbell', 'wrist', 'mom', 'bucket', 'scope', 'drink'] };
-const meta = { pts: 0, heroes: [...DEF0.heroes], arts: [...DEF0.arts], relics: [...DEF0.relics], seen: [], ach: [], skins: [], ults: [], weapons: [], top: [], skinOn: {}, growth: {}, fragments: {}, itemLevels: {}, stat: { runs: 0, kills: 0, wins: 0, hardWin: 0, pulls: 0, pity: 0 } };
+const meta = { pts: 0, heroes: [...DEF0.heroes], arts: [...DEF0.arts], relics: [...DEF0.relics], seen: [], ach: [], skins: [], ults: [], weapons: [], top: [], skinOn: {}, growth: {}, fragments: {}, itemLevels: {}, practiceTransfer: '', stat: { runs: 0, kills: 0, wins: 0, hardWin: 0, pulls: 0, pity: 0 } };
 let legacyPreviewUnlocks = false;
-try {
+function loadMeta() {
+  try {
   const saved = skillDemoMode ? null : JSON.parse(localStorage.getItem(META_KEY) || 'null');
   if (saved) {
     legacyPreviewUnlocks = localPreview && !saved.fragments
@@ -970,10 +975,13 @@ try {
       if (legacyPreviewUnlocks && (key === 'arts' || key === 'relics')) continue;
       if (Array.isArray(meta[key])) meta[key] = key === 'top' ? saved[key] : [...new Set([...meta[key], ...saved[key]])];
       else if (typeof meta[key] === 'object') Object.assign(meta[key], saved[key]);
+      else if (key === 'practiceTransfer') meta[key] = typeof saved[key] === 'string' ? saved[key] : '';
       else meta[key] = +saved[key] || 0;
     }
   }
-} catch (e) {}
+  } catch (e) {}
+}
+if (!hostedGame) loadMeta();
 const saveMeta = () => { if (skillDemoMode) return; try { localStorage.setItem(META_KEY, JSON.stringify(meta)); } catch (e) {} };
 const GROWTH_STATS = {
   maxHp: 5,
@@ -988,11 +996,14 @@ const GROWTH_STATS = {
   xp: 0.03,
 };
 const GROWTH_CAP = 5;
-if (meta.growth.armor != null) {
-  meta.growth.points ??= meta.growth.armor;
-  delete meta.growth.armor;
-  saveMeta();
+function migrateGrowth() {
+  if (meta.growth.armor != null) {
+    meta.growth.points ??= meta.growth.armor;
+    delete meta.growth.armor;
+    saveMeta();
+  }
 }
+if (!hostedGame) migrateGrowth();
 const GROWTH_BASE_COST = 20, GROWTH_COST_STEP = 10;
 const growthLevel = (id) => clamp(Math.floor(Number(meta.growth[id]) || 0), 0, GROWTH_CAP);
 const growthBonus = (id, level = growthLevel(id)) => GROWTH_STATS[id] * level;
@@ -1215,7 +1226,11 @@ function gItem(q) {
   const S = SKINS[q.id]; return { name: S.n, sub: `${CLASSES[S.h].name}的皮肤`, ic: CLASSES[S.h].start };
 }
 function buy(kind, id) { if (!PRICE[kind] || meta[kind].includes(id) || achFor(kind, id) || meta.pts < PRICE[kind]) return false; meta.pts -= PRICE[kind]; meta[kind].push(id); saveMeta(); checkAch(false); return true; }
-let bestEndless = 0; try { if (!skillDemoMode) bestEndless = +localStorage.getItem(BEST_KEY) || 0; } catch (e) {}
+let bestEndless = 0;
+function loadBestEndless() {
+  try { if (!skillDemoMode) bestEndless = +localStorage.getItem(BEST_KEY) || 0; } catch (e) {}
+}
+if (!hostedGame) loadBestEndless();
 let state = 'title', T = 0, timeScale = 1, spawnAcc = 0, nextElite = 75, nextBats = 25, nextBomb = 90, nextBoss = BOSS_T, bossCount = 0, boss = null, ev = {};
 let pendingUlt = [], gifts = [], corpses = [], drops = [], altars = [], pendingInfuse = [], CW = null, watchT = 12, shieldT = 10;
 let enemies = [], eid = 0, shots = [], planes = [], gems = [], chests = [], eshots = [], minions = [], lamps = [], ducks = [], slippers = [], books = [], wet = [], blasts = [], pendingLevels = 0;
@@ -3786,5 +3801,83 @@ window.__game = { get chests() { return chests; }, openChest2: openChest, SP, LV
   pick(i) { pickHero(i); }, get NET() { return NET; }, netLobby, renderLobby, ACH, SKINS, ALT, gch, showUltPick, get pendingUlt() { return pendingUlt; }, openGacha, gachaStart, gachaPull, showAch, checkAch, get run() { return run; }, renderHome, renderGacha, showLevelUp, showWin, showDeath, openChest, get step_() { return titleStep; },
   step(s) { for (let k = 0; k < s * 30; k++) { update(1 / 30); realTime += 1 / 30; uTime.value = realTime; draw(1 / 30); if (state !== 'play') break; } },
 };
-if (!skillDemoMode) showTitle();
+function useGameAccount(account) {
+  const accountKey = encodeURIComponent(account);
+  META_KEY = `${SAVE_PREFIX}.meta:${accountKey}`;
+  BEST_KEY = `${SAVE_PREFIX}.best:${accountKey}`;
+}
+
+function loadGameSave() {
+  loadMeta();
+  migrateGrowth();
+  loadBestEndless();
+}
+
+async function syncPracticePoints() {
+  const headers = new Headers();
+  if (expectedGameAccount) {
+    headers.set('X-Syntara-User', expectedGameAccount);
+    useGameAccount(expectedGameAccount);
+  }
+  let data;
+  try {
+    const response = await fetch(practicePointsUrl, { headers, signal: AbortSignal.timeout(8000) });
+    if (response.status === 401 && !expectedGameAccount) {
+      loadGameSave();
+      return 0;
+    }
+    if (!response.ok) throw new Error('积分同步失败');
+    ({ data } = await response.json());
+  } catch (error) {
+    loadGameSave();
+    throw error;
+  }
+  headers.set('X-Syntara-User', data.account);
+  useGameAccount(data.account);
+
+  const transfer = async () => {
+    if (!localStorage.getItem(META_KEY)) {
+      const ownerKey = `${SAVE_PREFIX}.legacyAccount`;
+      const previousOwner = localStorage.getItem(ownerKey);
+      if (!previousOwner || previousOwner === data.account) {
+        const oldSave = localStorage.getItem(`${SAVE_PREFIX}.meta`);
+        const oldBest = localStorage.getItem(`${SAVE_PREFIX}.best`);
+        if (oldSave || oldBest) localStorage.setItem(ownerKey, data.account);
+        if (oldSave) localStorage.setItem(META_KEY, oldSave);
+        if (oldBest) localStorage.setItem(BEST_KEY, oldBest);
+      }
+    }
+    loadGameSave();
+    if (!data.balance && !meta.practiceTransfer) return 0;
+
+    // Save the transfer ID before the request. A lost response can be retried with the same ID.
+    const id = meta.practiceTransfer || crypto.randomUUID();
+    meta.practiceTransfer = id;
+    localStorage.setItem(META_KEY, JSON.stringify(meta));
+    headers.set('Content-Type', 'application/json');
+    const claimed = await fetch(practicePointsUrl, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ id }),
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!claimed.ok) throw new Error('积分同步失败');
+    const { data: { points } } = await claimed.json();
+    const updated = { ...meta, pts: meta.pts + points, practiceTransfer: '' };
+    localStorage.setItem(META_KEY, JSON.stringify(updated));
+    Object.assign(meta, updated);
+    return points;
+  };
+  return navigator.locks ? navigator.locks.request(META_KEY, transfer) : transfer();
+}
+
+if (hostedGame) {
+  syncPracticePoints().then((points) => {
+    showTitle();
+    if (points) banner(`做题积分 +${points}`, `当前有 ${meta.pts} 积分`);
+  }).catch(() => {
+    showTitle();
+    banner('做题积分同步失败', '重新进入游戏后重试');
+  });
+} else if (!skillDemoMode) showTitle();
 requestAnimationFrame(frame);

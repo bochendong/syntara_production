@@ -198,6 +198,7 @@ model User {
   creditsBalance         Int       @default(0)
   computeCreditsBalance  Int       @default(0)
   purchaseCreditsBalance Int       @default(0)
+  brawlPracticePoints    Int       @default(0)
   stripeCustomerId       String?   @unique
   /// 兑换激活码后才能登录 Syntara App（手机端）。
   nativeAppActivatedAt   DateTime?
@@ -241,6 +242,8 @@ model User {
   notebookReviews           NotebookReview[]
   notebookProblemAttempts   NotebookProblemAttempt[]
   notebookProblemProgress   NotebookProblemProgress[]
+  brawlProblemRewards       BrawlProblemReward[]
+  brawlPointTransfers       BrawlPointTransfer[]
   topUpOrders               TopUpOrder[]
   engagementProfile         UserEngagementProfile?
   learningActionLogs        LearningActionLog[]
@@ -1033,6 +1036,8 @@ model NotebookProblemAttempt {
   status           NotebookProblemAttemptStatus @default(pending)
   activeDurationMs Int?
   timingSource     String?                      @db.VarChar(32)
+  /// Null identifies attempts written before game rewards were introduced.
+  brawlVerified    Boolean?
   /// 从课堂入口提交时记下这节课；下课后从课堂入口再交也算这节课。平时做题为空。
   classSessionId   String?
 
@@ -1049,6 +1054,26 @@ model NotebookProblemAttempt {
   @@index([problemId, userId, createdAt(sort: Desc)])
   @@index([userId, createdAt(sort: Desc)])
   @@index([classSessionId, problemId, userId, createdAt(sort: Desc)])
+}
+
+model BrawlProblemReward {
+  userId    String
+  problemId String
+  points    Int
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, problemId])
+}
+
+model BrawlPointTransfer {
+  userId    String
+  id        String
+  points    Int
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, id])
 }
 
 model NotebookProblemProgress {

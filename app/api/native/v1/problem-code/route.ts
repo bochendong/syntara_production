@@ -236,6 +236,7 @@ export async function POST(request: NextRequest) {
       kind: 'submit',
       status: judged.status,
       score: scored.score,
+      brawlVerified: true,
       answer: { code },
       result: scored.result,
       classSessionId: verifiedClassSessionId,
