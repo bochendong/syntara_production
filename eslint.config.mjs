@@ -16,6 +16,8 @@ const eslintConfig = defineConfig([
     'packages/**',
     // Standalone prototypes own their tooling; generated QA/export files are not app source.
     'artifacts/**',
+    // Standalone game page (single-file three.js build + vendored three r160).
+    'apps/native/public/games/**',
     // Claude Code local files:
     '.claude/**',
     '.superpowers/**',

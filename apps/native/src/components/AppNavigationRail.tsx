@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import {
   CalendarDays,
+  Gamepad2,
   GraduationCap,
   Home,
   Radio,
@@ -18,6 +19,7 @@ export function AppNavigationRail({
   onOpenChat,
   onOpenCalendar,
   onOpenStore,
+  onOpenGame,
   onOpenSettings,
   onOpenClassroom,
   onOpenTeach,
@@ -58,6 +60,18 @@ export function AppNavigationRail({
         <CalendarDays size={22} strokeWidth={1.7} aria-hidden />
         <span className="app-navigation-label">日历</span>
       </button>
+      {onOpenGame ? (
+        <button
+          type="button"
+          aria-label="游戏"
+          title="游戏：沙盒期末战"
+          aria-current={active === 'game' ? 'page' : undefined}
+          onClick={onOpenGame}
+        >
+          <Gamepad2 size={22} strokeWidth={1.7} aria-hidden />
+          <span className="app-navigation-label">游戏</span>
+        </button>
+      ) : null}
       {onOpenTeach ? (
         <button
           type="button"

@@ -8,6 +8,7 @@ export type AppNavigationPage =
   | 'teach'
   | 'classroom'
   | 'admin'
+  | 'game'
   | 'settings';
 
 /** 全局页面入口。宽屏放在左侧细导航栏，手机和窄窗口放进抽屉。 */
@@ -16,6 +17,8 @@ export type AppNavigation = {
   avatarUrl?: string;
   onOpenCalendar: () => void;
   onOpenStore: () => void;
+  /** 「游戏」页：沙盒期末战。手机上没有（undefined），iPad、电脑和网页版有。 */
+  onOpenGame?: () => void;
   onOpenSettings: () => void;
   /** 输课堂码 / 班级码。手机上没有（undefined）。 */
   onOpenClassroom?: () => void;

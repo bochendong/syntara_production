@@ -6,6 +6,9 @@ node_modules/
 packages/pptxgenjs/
 packages/mathml2omml/
 
+# Standalone game page (single-file three.js build + vendored three r160)
+apps/native/public/games/
+
 # Build output
 .next/
 out/

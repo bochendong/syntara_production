@@ -42,6 +42,7 @@ import { syncCourseData } from './data/course-sync';
 import { StudentClassroomPage } from './components/StudentClassroomPage';
 import { TeachPage } from './components/TeachPage';
 import { AdminPage } from './components/AdminPage';
+import { GamePage } from './components/GamePage';
 import { OnboardingCoach } from './components/OnboardingCoach';
 import { SpeedupPhoneDialog } from './components/SpeedupPhoneDialog';
 import { readLoginIntent } from './lib/login-intent';
@@ -149,7 +150,15 @@ function AuthenticatedApp() {
   }, []);
   const compactLayout = useCompactLayout();
   const [globalPage, setGlobalPage] = useState<
-    'calendar' | 'profile' | 'store' | 'teach' | 'classroom' | 'student-classroom' | 'admin' | null
+    | 'calendar'
+    | 'profile'
+    | 'store'
+    | 'teach'
+    | 'classroom'
+    | 'student-classroom'
+    | 'admin'
+    | 'game'
+    | null
   >(null);
   const classroom = useClassroomState(classroomEnabled, globalPage === 'student-classroom');
   const refreshClassroom = classroom.refresh;
@@ -377,6 +386,11 @@ function AuthenticatedApp() {
   }, []);
   useBackDismiss(globalPage !== null, () => setGlobalPage(null));
   useBackDismiss(['problem-bank', 'notebook-library'].includes(surface), openChat, 0);
+
+  // 窗口缩到手机宽度时关掉游戏页（手机不提供游戏）。
+  useEffect(() => {
+    if (phoneLayout && globalPage === 'game') setGlobalPage(null);
+  }, [phoneLayout, globalPage]);
 
   useEffect(() => {
     if (globalPage !== 'calendar') return;
@@ -673,10 +687,14 @@ function AuthenticatedApp() {
                 ? 'classroom'
                 : globalPage === 'admin'
                   ? 'admin'
-                  : 'chat',
+                  : globalPage === 'game'
+                    ? 'game'
+                    : 'chat',
     avatarUrl: avatarTheme.avatarUrl,
     onOpenCalendar: () => setGlobalPage('calendar'),
     onOpenStore: () => setGlobalPage('store'),
+    // 手机屏幕太小玩不了，只在 iPad、电脑和网页版放入口。
+    onOpenGame: phoneLayout ? undefined : () => setGlobalPage('game'),
     onOpenSettings: () => setGlobalPage('profile'),
     // 老师从「教学」卡片进入班级；学生保留独立的上课入口。
     onOpenClassroom:
@@ -888,6 +906,8 @@ function AuthenticatedApp() {
               />
             ) : globalPage === 'admin' ? (
               <AdminPage onBack={() => setGlobalPage(null)} />
+            ) : globalPage === 'game' ? (
+              <GamePage onBack={() => setGlobalPage(null)} />
             ) : globalPage === 'store' ? (
               <StorePage
                 onBack={() => setGlobalPage(null)}
