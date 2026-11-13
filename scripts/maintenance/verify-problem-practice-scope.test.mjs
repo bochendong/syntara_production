@@ -157,3 +157,37 @@ test('next never skips a completed question, wraps at the end or expands an unkn
     'first',
   );
 });
+
+test('CSC108 review and renamed papers are independent series with no duplicate legacy labels', () => {
+  const review = 'UTM Term Test 2 Review A';
+  const quiz = 'UTSG Quiz 2 Review B';
+  const mock = 'UTM Term Test 2 Mock A';
+  const original = 'UTM Term Test 2 Original A';
+  const midterm = 'UTSG Fall 2026 Midterm';
+  const practice = 'UTSG Midterm Mock 01';
+  const seriesRows = [
+    { ...rows[0], tags: [review, 'TT2模拟A卷', mock, 'TT2原版模拟A卷', original] },
+    { ...rows[1], tags: [quiz, 'Shared review'] },
+    { ...rows[2], tags: [practice, 'midterm', 'set-01', 'set-02'] },
+    { ...rows[3], tags: [midterm, 'UTSG CSC 108 26F Midterm', 'midterm', 'set-26'] },
+    { ...rows[4], tags: ['TT2模拟A卷', 'UTM Term Test 2 Review'] },
+  ];
+  assert.deepEqual(Object.fromEntries(problemPaperSeries(seriesRows)), {
+    'Midterm Set 02': 1,
+    TT2模拟A卷: 1,
+    [mock]: 1,
+    [original]: 1,
+    [review]: 1,
+    [midterm]: 1,
+    [practice]: 1,
+    [quiz]: 1,
+  });
+  assert.deepEqual(
+    seriesRows.filter((row) => matchesProblemFilters(row, { ...base, series: review })),
+    [seriesRows[0]],
+  );
+  assert.deepEqual(
+    seriesRows.filter((row) => matchesProblemFilters(row, { ...base, series: quiz })),
+    [seriesRows[1]],
+  );
+});
