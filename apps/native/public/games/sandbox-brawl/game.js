@@ -90,6 +90,8 @@ const RELICS = {
   allnight: { name: '通宵',       tag: '', curse: 1, desc: '所有伤害 +15%，生命上限 -10%' },
   slack:    { name: '摸鱼',       tag: '', curse: 1, desc: '移速 +10%，拾取范围 +20%，伤害 -4%' },
   glass:    { name: '玻璃心',     tag: '', curse: 1, desc: '暴击伤害 +50%，生命上限 -15%' },
+  bonusStamp: { name: '加分印章', tag: '', r: 0, icon: 'redpen', pointsRate: 10, desc: '结算积分 +10%，每件叠加' },
+  mealVoucher: { name: '食堂饭票', tag: '', r: 1, icon: 'snack', pointsFlat: 3, desc: '结算额外获得 3 积分，每件叠加' },
 };
 const RAR = [['普通', '#b9ad98', 'q0'], ['稀有', '#3fae5a', 'rare'], ['传奇', '#e0473c', 'legend']], RAR3 = [0xf2ead8, 0x5fd07a, 0xff5a4a];
 const rarOf = (id) => (RELICS[id].curse ? { n: '代价', c: '#4a6ad8', k: 'curse' } : { n: RAR[RELICS[id].r][0], c: RAR[RELICS[id].r][1], k: RAR[RELICS[id].r][2] });
@@ -143,6 +145,8 @@ const ARTS = {
   bubble: { name: '橡皮护盾',   c: '#4ab8ee', ic: 'bubble',  desc: '每 10 秒获得一层护盾，挡掉一次伤害' },
   judge:  { name: '红叉判官',   c: '#c84a4a', ic: 'target',  desc: '小怪血量低于 15% 时直接打倒' },
   fourth: { name: '第四个选项', c: '#3fc98a', ic: 'plus',    desc: '升级时多一张卡可选' },
+  honorRoll: { name: '荣誉证书', c: '#ed9b32', icon: 'grant', pointsRate: 25, desc: '结算积分 +25%' },
+  finalVoucher: { name: '通关奖券', c: '#4aa8ff', icon: 'fourth', pointsWin: 12, desc: '通关时额外获得 12 积分' },
 };
 const MON_INFO = {
   cross: ['小红叉', '跑得快，喜欢成群包围'], bomber: ['自爆闹钟', '靠近 1.5 秒后爆炸，会炸到旁边的怪，还会连锁'], chalk: ['粉笔射手', '站在远处瞄准你，看到红线就横着走'],
@@ -767,6 +771,7 @@ const shCanvas = document.createElement('canvas'); shCanvas.width = shCanvas.hei
 const shadowMesh = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(shCanvas), color: 0x000000, transparent: true, opacity: 0.55, depthWrite: false }), 1400);
 shadowMesh.frustumCulled = false; shadowMesh.count = 0; scene.add(shadowMesh);
 const GZ = -80, GPX = 1.7, gStage = new THREE.Group(); gStage.position.set(0, 0, GZ); gStage.visible = false; scene.add(gStage);
+const GACHA_PILLAR_SCALE = 1.76;
 const gAdd = (geo, c, pos, sc, rot = [0, 0, 0], ol = true, par = gStage) => { const m = solid(geo, c, pos, sc, rot || [0, 0, 0], ol); par.add(m); return m; };
 const GS = {};
 {
@@ -783,7 +788,11 @@ const GS = {};
   for (const sx of [-1, 1]) { gAdd(GEO.cyl, 0xff9a2e, [sx * 0.26, 0.36, 0], [0.12, 0.7, 0.12], 0, true, g); gAdd(GEO.box, 0xff9a2e, [sx * 0.26, 0.05, 0.14], [0.32, 0.08, 0.42], 0, true, g); }
   gAdd(GEO.sph, 0xffffff, [0, 1.05, -0.1], [1.3, 1.0, 1.75], 0, true, g); gAdd(GEO.cone, 0xf0ede6, [0, 1.3, -1.0], [0.55, 0.6, 0.3], [-1.1, 0, 0], true, g);
   GS.wL = gAdd(GEO.sph, 0xefeae0, [-0.6, 1.15, -0.15], [0.26, 0.62, 1.15], 0, true, g); GS.wR = gAdd(GEO.sph, 0xefeae0, [0.6, 1.15, -0.15], [0.26, 0.62, 1.15], 0, true, g);
-  const nk = GS.neck = new THREE.Group(); nk.position.set(0, 1.35, 0.55); g.add(nk); gAdd(GEO.cap, 0xffffff, [0, 0.45, 0.05], [0.36, 0.55, 0.36], [0.2, 0, 0], true, nk);
+  const nk = GS.neck = new THREE.Group();
+  nk.position.set(0, 1.35, 0.55);
+  nk.rotation.order = 'YXZ';
+  g.add(nk);
+  GS.neckMesh = gAdd(GEO.cap, 0xffffff, [0, 0.45, 0.05], [0.36, 0.55, 0.36], [0.2, 0, 0], true, nk);
   const hd = GS.head = new THREE.Group(); hd.position.set(0, 1.0, 0.2); nk.add(hd);
   gAdd(GEO.sph, 0xffffff, [0, 0, 0], [0.62, 0.58, 0.74], 0, true, hd); gAdd(GEO.cone, 0xff9a2e, [0, -0.06, 0.5], [0.28, 0.5, 0.22], [HP_, 0, 0], true, hd); gAdd(GEO.sph, 0xff9a2e, [0, 0.2, 0.3], [0.17, 0.17, 0.17], 0, false, hd);
   for (const sx of [-1, 1]) { gAdd(GEO.sph, 0x2a1a22, [sx * 0.23, 0.1, 0.24], [0.12, 0.15, 0.08], 0, false, hd); gAdd(GEO.box, 0x2a1a22, [sx * 0.21, 0.25, 0.27], [0.24, 0.06, 0.05], [0, 0, sx * -0.45], false, hd); }
@@ -795,6 +804,10 @@ const GS = {};
   for (const sx of [-1, 1]) { gAdd(GEO.cap, 0x8a5a2a, [sx * 0.17, -0.25, 0.1], [0.1, 0.12, 0.1], [0, 0, sx * 0.4], true, wz); gAdd(GEO.cap, 0x8a5a2a, [sx * 0.15, -1.05, 0.06], [0.1, 0.14, 0.1], [0, 0, sx * 0.3], true, wz); }
   gAdd(GEO.cap, 0xa8703a, [0, -1.45, -0.06], [0.16, 0.42, 0.16], [0.15, 0, 0], true, wz); gAdd(GEO.sph, 0x4a2e1a, [0, -1.82, -0.1], [0.2, 0.28, 0.2], 0, false, wz);
 }
+const GACHA_PILLAR_YAW = Math.atan2(
+  GS.pillar.position.x - GS.goose.position.x,
+  GS.pillar.position.z - GS.goose.position.z,
+);
 const podium = new THREE.Group(); { const a = new THREE.Mesh(GEO.cyl, toonOf(0xff8a7a)); a.scale.set(3.0, 0.14, 3.0); a.position.y = 0.07; const b = new THREE.Mesh(GEO.cyl, toonOf(0xfff3d0)); b.scale.set(2.5, 0.1, 2.5); b.position.y = 0.17; const o = new THREE.Mesh(GEO.cyl, outlineMat); o.scale.set(3.14, 0.2, 3.14); o.position.y = 0.06; podium.add(a, b, o); } podium.position.set(TX, 0, TZ - 1); podium.visible = false; scene.add(podium);
 let shN = 0; const SH_ROT = new THREE.Quaternion().setFromEuler(new THREE.Euler(-HP_, 0, 0));
 function shadow(x, z, r) { if (shN >= 1400) return; shadowMesh.setMatrixAt(shN++, WM.compose(wP.set(x, 0.02, z), SH_ROT, wS.set(r * 2.2, r * 2.2, 1))); }
@@ -938,18 +951,33 @@ const MODES = {
 const BOSS_T = 600, EVT = 30;   // 一局 10 分钟，每 30 秒一个事件
 let diffId = 'normal', modeId = 'std'; const DF = () => DIFFS[diffId];
 const UNLOCK_ORDER = ['gun', 'magic', 'summon'];   // 通关一次解锁下一个流派的全部同学
-// 局外进度：开局只有 3 位同学、5 个技能、4 件遗物、6 件饰品，其余用积分兑换
+// 局外进度：开局有 3 位同学、5 个技能、4 件遗物、6 件饰品
 const localPreview = location.protocol === 'http:' && ['127.0.0.1', 'localhost', '[::1]'].includes(location.hostname);
 const SAVE_PREFIX = localPreview ? 'syntara.brawl.preview' : 'syntara.brawl';
 const META_KEY = `${SAVE_PREFIX}.meta`, BEST_KEY = `${SAVE_PREFIX}.best`;
-const PRICE = { heroes: 150, arts: 80, relics: 50 }, FREE_SKILLS = ['mop', 'plane'];
+const PRICE = { heroes: 150 }, FREE_SKILLS = ['mop', 'plane'];
 const DEF0 = { heroes: ['brawler', 'scholar', 'jock'], arts: ['vamp', 'mirror', 'plate', 'koi'], relics: ['dumbbell', 'wrist', 'mom', 'bucket', 'scope', 'drink'] };
-const meta = { pts: 0, heroes: [...DEF0.heroes], arts: [...DEF0.arts], relics: [...DEF0.relics], seen: [], ach: [], skins: [], ults: [], top: [], skinOn: {}, growth: {}, stat: { runs: 0, kills: 0, wins: 0, hardWin: 0, pulls: 0, pity: 0 } };
-try { const m = skillDemoMode ? null : JSON.parse(localStorage.getItem(META_KEY) || 'null'); if (m) for (const k in meta) { if (m[k] == null) continue; if (Array.isArray(meta[k])) meta[k] = k === 'top' ? m[k] : [...new Set([...meta[k], ...m[k]])]; else if (typeof meta[k] === 'object') Object.assign(meta[k], m[k]); else meta[k] = +m[k] || 0; } } catch (e) {}
+const meta = { pts: 0, heroes: [...DEF0.heroes], arts: [...DEF0.arts], relics: [...DEF0.relics], seen: [], ach: [], skins: [], ults: [], weapons: [], top: [], skinOn: {}, growth: {}, fragments: {}, itemLevels: {}, stat: { runs: 0, kills: 0, wins: 0, hardWin: 0, pulls: 0, pity: 0 } };
+let legacyPreviewUnlocks = false;
+try {
+  const saved = skillDemoMode ? null : JSON.parse(localStorage.getItem(META_KEY) || 'null');
+  if (saved) {
+    legacyPreviewUnlocks = localPreview && !saved.fragments
+      && Object.keys(ARTS).filter((id) => !ARTS[id].icon).every((id) => saved.arts?.includes(id))
+      && Object.keys(RELICS).filter((id) => !RELICS[id].icon).every((id) => saved.relics?.includes(id));
+    for (const key in meta) {
+      if (saved[key] == null) continue;
+      if (legacyPreviewUnlocks && (key === 'arts' || key === 'relics')) continue;
+      if (Array.isArray(meta[key])) meta[key] = key === 'top' ? saved[key] : [...new Set([...meta[key], ...saved[key]])];
+      else if (typeof meta[key] === 'object') Object.assign(meta[key], saved[key]);
+      else meta[key] = +saved[key] || 0;
+    }
+  }
+} catch (e) {}
 const saveMeta = () => { if (skillDemoMode) return; try { localStorage.setItem(META_KEY, JSON.stringify(meta)); } catch (e) {} };
 const GROWTH_STATS = {
   maxHp: 5,
-  armor: 1,
+  points: 20,
   regen: 0.05,
   dmg: 0.02,
   crit: 0.01,
@@ -960,12 +988,18 @@ const GROWTH_STATS = {
   xp: 0.03,
 };
 const GROWTH_CAP = 5;
+if (meta.growth.armor != null) {
+  meta.growth.points ??= meta.growth.armor;
+  delete meta.growth.armor;
+  saveMeta();
+}
 const GROWTH_BASE_COST = 20, GROWTH_COST_STEP = 10;
 const growthLevel = (id) => clamp(Math.floor(Number(meta.growth[id]) || 0), 0, GROWTH_CAP);
 const growthBonus = (id, level = growthLevel(id)) => GROWTH_STATS[id] * level;
 function growthBonusLabel(id, level) {
   const bonus = growthBonus(id, level);
-  if (id === 'maxHp' || id === 'armor') return `+${bonus}`;
+  if (id === 'maxHp') return `+${bonus}`;
+  if (id === 'points') return `+${bonus}%`;
   if (id === 'regen') return `+${bonus.toFixed(2)} 生命/秒`;
   const percent = Number((bonus * 100).toFixed(1));
   if (id === 'crit' || id === 'luck') return `+${percent} 个百分点`;
@@ -994,9 +1028,24 @@ function buyGrowth(id) {
   saveMeta();
   return true;
 }
-const skillOpen = (w) => FREE_SKILLS.includes(w) || Object.keys(CLASSES).some((id) => CLASSES[id].start === w && isOpen(id));
+const skillOpen = (w) => FREE_SKILLS.includes(w) || meta.weapons.includes(w)
+  || Object.keys(CLASSES).some((id) => CLASSES[id].start === w && isOpen(id));
 let settled = false;
-const runPoints = (win) => Math.floor(player.kills / 25) + Math.floor(T / 30) + (win ? 45 : 0);
+function runPoints(win) {
+  let base = Math.floor(player.kills / 25) + Math.floor(T / 30) + (win ? 45 : 0);
+  let rate = 100 + growthBonus('points');
+  for (const [id, count] of Object.entries(player.relics)) {
+    const item = RELICS[id];
+    if (item.pointsFlat) base += (item.pointsFlat + itemExtraLevels('relics', id)) * count;
+    if (item.pointsRate) rate += (item.pointsRate + itemExtraLevels('relics', id)) * count;
+  }
+  for (const id of Object.keys(player.arts)) {
+    const item = ARTS[id];
+    if (win && item.pointsWin) base += item.pointsWin + itemExtraLevels('arts', id);
+    if (item.pointsRate) rate += item.pointsRate + itemExtraLevels('arts', id);
+  }
+  return Math.floor(base * rate / 100);
+}
 function settle(win) {
   if (settled) return 0; settled = true; const p = runPoints(win); meta.pts += p;
   const st = meta.stat; st.runs++; st.kills += player.kills; if (win) { st.wins++; if (diffId === 'hard') st.hardWin++; }
@@ -1004,7 +1053,7 @@ function settle(win) {
   saveMeta(); checkAch(true, win ? 'win' : 'lose'); return p;
 }
 /* ---------- 成就 ---------- */
-// get = 达成后送的同学或饰品（这些只能靠成就拿到，不能用积分兑换）；pts = 送积分
+// get = 达成后送的同学或饰品；pts = 送积分
 const ACH = [
   { id: 'first', n: '第一节课', d: '完成任意一局', ic: 'flag', pts: 15 },
   { id: 'pass', n: '期末及格', d: '通关一次标准模式', ic: 'crown', pts: 55, note: '同时解锁无尽模式' },
@@ -1024,6 +1073,12 @@ const ACH = [
   { id: 'class10', n: '全班到齐', d: '拥有 10 位同学', ic: 'grid', pts: 90, goal: () => [meta.heroes.length, 10] },
 ];
 const ACH_LOCK = {}; for (const a of ACH) if (a.get) ACH_LOCK[a.get[0] + ':' + a.get[1]] = a;
+if (legacyPreviewUnlocks) {
+  for (const a of ACH) {
+    if (a.get?.[0] === 'relics' && meta.ach.includes(a.id)) meta.relics.push(a.get[1]);
+  }
+  saveMeta();
+}
 const achFor = (kind, id) => ACH_LOCK[kind + ':' + id];
 const achReward = (a) => a.get ? `${a.get[0] === 'heroes' ? '同学' : '饰品'}「${(a.get[0] === 'heroes' ? CLASSES : RELICS)[a.get[1]].name}」` : `${a.pts} 积分`;
 const liveKills = () => (state === 'play' || state === 'paused' || state === 'dead') && !settled ? player.kills : 0;
@@ -1086,30 +1141,80 @@ function heroRig(h, sk = skinOf(h)) {
   if (!RIGS[key]) RIGS[key] = new Rig(heroSkinParts(h, S), 4);
   return RIGS[key];
 }
-/* ---------- 大鹅抽卡：单抽 30，十连 270；传说 5%，稀有 35%，其余返积分；40 抽必出传说，十连至少一个稀有 ---------- */
-const GACHA = { one: 30, ten: 270, pity: 40, leg: 0.05, rare: 0.35, back: 8, duplicateBack: { 1: 10, 2: 25 } };
+/* ---------- 大鹅抽卡与碎片成长 ---------- */
+const GACHA = { one: 30, ten: 270, pity: 80, legendary: 0.05, rareSkin: 0.05, rareFragment: 0.30, duplicateBack: { 1: 10, 2: 25 } };
 const G_LEG = [...Object.keys(SKINS).filter((k) => SKINS[k].r === 2), ...GACHA_ULT.map((w) => 'ult_' + w)], G_RARE = Object.keys(SKINS).filter((k) => SKINS[k].r === 1);
+const FRAGMENT_POOLS = { skills: WEAPONS, relics: RELICS, arts: ARTS };
+const FRAGMENT_LABEL = { skills: '武器', relics: '饰品', arts: '遗物' };
+const FRAGMENT_UNLOCK = 10, ITEM_MAX_LEVEL = 20, FRAGMENT_REFUND = 2;
+const RELIC_LEVEL_DAMAGE = 0.005, ART_LEVEL_HP = 1;
+const fragmentKey = (kind, id) => `${kind}:${id}`;
+const fragmentCount = (kind, id) => meta.fragments[fragmentKey(kind, id)] || 0;
+const fragmentName = (kind, id) => FRAGMENT_POOLS[kind][id].name;
+const fragmentOwned = (kind, id) => kind === 'skills' ? skillOpen(id) : meta[kind].includes(id);
+const itemLevel = (kind, id) => fragmentOwned(kind, id)
+  ? clamp(Math.floor(Number(meta.itemLevels[fragmentKey(kind, id)])) || 1, 1, ITEM_MAX_LEVEL)
+  : 0;
+const FRAGMENT_COSTS = [FRAGMENT_UNLOCK];
+for (let level = 1; level < ITEM_MAX_LEVEL; level++) {
+  FRAGMENT_COSTS.push(Math.ceil(FRAGMENT_COSTS[level - 1] * 1.2));
+}
+const fragmentCost = (level) => FRAGMENT_COSTS[level];
+const fragmentComplete = (kind, level) => level >= (kind === 'skills' ? 1 : ITEM_MAX_LEVEL);
+const itemExtraLevels = (kind, id) => Math.max(0, itemLevel(kind, id) - 1);
+const relicLevelDamage = (id) => RELICS[id].pointsRate || RELICS[id].pointsFlat ? 0 : itemExtraLevels('relics', id) * RELIC_LEVEL_DAMAGE;
+const artLevelHp = (id) => ARTS[id].pointsRate || ARTS[id].pointsWin ? 0 : itemExtraLevels('arts', id) * ART_LEVEL_HP;
+
+function grantFragments(kind, id, amount) {
+  const key = fragmentKey(kind, id);
+  const from = itemLevel(kind, id);
+  let level = from;
+  let remaining = fragmentCount(kind, id) + amount;
+  while (!fragmentComplete(kind, level) && remaining >= fragmentCost(level)) {
+    remaining -= fragmentCost(level);
+    if (level === 0) meta[kind === 'skills' ? 'weapons' : kind].push(id);
+    level++;
+  }
+  if (kind !== 'skills' && level > from) meta.itemLevels[key] = level;
+  const complete = fragmentComplete(kind, level);
+  const back = complete ? remaining * FRAGMENT_REFUND : 0;
+  meta.fragments[key] = complete ? 0 : remaining;
+  return { kind, id, amount, from, level, remaining: meta.fragments[key], back };
+}
+
 function gachaRoll(atLeastRare) {
-  const st = meta.stat; st.pity = (st.pity || 0) + 1;
-  const r = Math.random(); let tier = r < GACHA.leg ? 2 : r < GACHA.leg + GACHA.rare ? 1 : 0;
-  if (st.pity >= GACHA.pity) tier = 2; if (atLeastRare && tier < 1) tier = 1; if (tier === 2) st.pity = 0;
-  if (!tier) return { tier, id: 'pts', back: GACHA.back };
+  const st = meta.stat;
+  st.pity = clamp(Math.floor(Number(st.pity)) || 0, 0, GACHA.pity - 1) + 1;
+  const roll = Math.random();
+  const legendary = st.pity === GACHA.pity || roll < GACHA.legendary;
+  const rareSkin = roll < GACHA.legendary + GACHA.rareSkin;
+  if (!legendary && !rareSkin) {
+    const rare = atLeastRare || roll < GACHA.legendary + GACHA.rareSkin + GACHA.rareFragment;
+    const categories = Object.keys(FRAGMENT_POOLS);
+    const kind = categories[Math.floor(Math.random() * categories.length)];
+    const ids = Object.keys(FRAGMENT_POOLS[kind]);
+    const id = ids[Math.floor(Math.random() * ids.length)];
+    return { tier: rare ? 1 : 0, ...grantFragments(kind, id, rare ? 8 : 4) };
+  }
+  if (legendary) st.pity = 0;
+  const tier = legendary ? 2 : 1;
   const pool = tier === 2 ? G_LEG : G_RARE, id = pool[Math.floor(Math.random() * pool.length)], ult = id.startsWith('ult_');
   const own = ult ? meta.ults.includes(id.slice(4)) : meta.skins.includes(id);
   if (!own) (ult ? meta.ults : meta.skins).push(ult ? id.slice(4) : id);
   return { tier, id, dup: own, back: own ? GACHA.duplicateBack[tier] : 0 };
 }
 function gachaPull(n) {
+  if (n !== 1 && n !== 10) return null;
   const cost = n === 10 ? GACHA.ten : GACHA.one; if (meta.pts < cost) return null; meta.pts -= cost;
   const res = []; for (let i = 0; i < n; i++) res.push(gachaRoll(n === 10 && i === n - 1 && !res.some((q) => q.tier >= 1)));
   for (const q of res) meta.pts += q.back; meta.stat.pulls += n; saveMeta(); checkAch(false); return res;
 }
 function gItem(q) {
-  if (q.id === 'pts') return { name: `积分 +${q.back}`, sub: '安慰奖', ic: 'sparkle' };
+  if (q.kind) return { name: `${fragmentName(q.kind, q.id)}碎片 ×${q.amount}`, sub: FRAGMENT_LABEL[q.kind], ic: q.id };
   if (q.id.startsWith('ult_')) { const w = WEAPONS[q.id.slice(4)]; return { name: ALT[q.id.slice(4)].name, sub: `${w.name}的第二种终极形态`, ic: q.id.slice(4) }; }
   const S = SKINS[q.id]; return { name: S.n, sub: `${CLASSES[S.h].name}的皮肤`, ic: CLASSES[S.h].start };
 }
-function buy(kind, id) { if (meta[kind].includes(id) || achFor(kind, id) || meta.pts < PRICE[kind]) return false; meta.pts -= PRICE[kind]; meta[kind].push(id); saveMeta(); checkAch(false); return true; }
+function buy(kind, id) { if (!PRICE[kind] || meta[kind].includes(id) || achFor(kind, id) || meta.pts < PRICE[kind]) return false; meta.pts -= PRICE[kind]; meta[kind].push(id); saveMeta(); checkAch(false); return true; }
 let bestEndless = 0; try { if (!skillDemoMode) bestEndless = +localStorage.getItem(BEST_KEY) || 0; } catch (e) {}
 let state = 'title', T = 0, timeScale = 1, spawnAcc = 0, nextElite = 75, nextBats = 25, nextBomb = 90, nextBoss = BOSS_T, bossCount = 0, boss = null, ev = {};
 let pendingUlt = [], gifts = [], corpses = [], drops = [], altars = [], pendingInfuse = [], CW = null, watchT = 12, shieldT = 10;
@@ -1872,7 +1977,7 @@ function renderHome(focusId = 'hGo') {
 function showGrowth() {
   titleEl.hidden = true;
   show(`<div class="chead"><h2>成长</h2><span class="pts" id="growthBalance"></span></div>
-    <p>永久提升所有同学的开局属性。每买一次，下一次升级就贵 ${GROWTH_COST_STEP} 积分。</p>
+    <p>永久提升所有同学的开局属性和对局结算积分。每买一次，下一次升级就贵 ${GROWTH_COST_STEP} 积分。</p>
     <div class="growth-list" aria-label="基础属性"></div>
     <p id="growthResetNote" role="status" hidden></p>
     <div class="actions" id="growthActions">
@@ -1901,14 +2006,15 @@ function showGrowth() {
     $('growthBalance').textContent = `积分 ${meta.pts}`;
     reset.disabled = growthTotal() === 0;
     list.innerHTML = Object.keys(GROWTH_STATS).map((id) => {
-      const stat = STATS[id], level = growthLevel(id), maxed = level >= GROWTH_CAP;
+      const name = id === 'points' ? '积分获取倍率' : STATS[id].name;
+      const level = growthLevel(id), maxed = level >= GROWTH_CAP;
       const current = growthBonusLabel(id, level);
       const next = maxed ? '' : ` → ${growthBonusLabel(id, level + 1)}`;
       const label = maxed ? '已满级' : `${cost} 积分升级`;
       return `<div class="growth-row">
-        ${illustration('stats', id)}
-        <div><b>${stat.name}</b> <small>${level} / ${GROWTH_CAP} 级</small><span>${current}${next}</span></div>
-        <button type="button" data-growth="${id}" aria-label="${stat.name}，${label}" ${maxed || meta.pts < cost ? 'disabled' : ''}>${label}</button>
+        ${id === 'points' ? ico('#ed9b32', 'star', 30) : illustration('stats', id)}
+        <div><b>${name}</b> <small>${level} / ${GROWTH_CAP} 级</small><span>${current}${next}</span></div>
+        <button type="button" data-growth="${id}" aria-label="${name}，${label}" ${maxed || meta.pts < cost ? 'disabled' : ''}>${label}</button>
       </div>`;
     }).join('');
     list.querySelectorAll('[data-growth]').forEach((button) => {
@@ -2005,11 +2111,7 @@ function showAch() {
 const MON_ORDER = ['sleepy', 'bat', 'bomber', 'chalk', 'cross', 'mole', 'clock', 'ink', 'ghost', 'phone', 'snail', 'hourglass', 'boss'];
 const MON_MORE = { sleepy: ['瞌睡团子', '最常见，慢吞吞地围上来'], bat: ['问号蝙蝠', '成群飞过来，不怕桌椅挡路'], hourglass: ['DDL 沙漏人', '精英，血很厚，打倒会掉宝箱'], boss: ['期末大魔王', '10:00 出场，打倒它就通关'] };
 const MON_C = { sleepy: '#a98bd8', bat: '#7a5ad8', bomber: '#e2453a', chalk: '#e88aa0', cross: '#e0473c', mole: '#b8843a', clock: '#e0a800', ink: '#3a3f6a', ghost: '#9aa3b5', phone: '#3f97e8', snail: '#5fb04f', hourglass: '#c98a2e', boss: '#8a2a3a' };
-if (localPreview) {
-  meta.arts = Object.keys(ARTS);
-  meta.relics = Object.keys(RELICS);
-  meta.seen = [...MON_ORDER];
-}
+if (localPreview) meta.seen = [...MON_ORDER];
 
 const ICON_DIRECTORIES = {
   ach: 'achievement-icons',
@@ -2025,14 +2127,14 @@ const ICON_DIRECTORIES = {
   alternateUltimates: 'alternate-ultimate-icons',
 };
 const SKILL_FORM_ICONS = { base: 'skills', evo: 'ultimates', alt: 'alternateUltimates' };
-const illustration = (category, id) => `<img class="item-illustration" src="./${ICON_DIRECTORIES[category]}/${id}.webp" width="48" height="48" alt="">`;
+const illustration = (category, id) => `<img class="item-illustration" src="./${ICON_DIRECTORIES[category]}/${FRAGMENT_POOLS[category]?.[id]?.icon ?? id}.webp" width="48" height="48" alt="">`;
 const illustratedBadge = (category, id, color, size) =>
   `<span class="ico illustrated" style="--c:${color}${size ? `;--s:${size}px` : ''}">${illustration(category, id)}</span>`;
 
 function codexIcon(item, tab) {
   if (tab === 'skills' || tab === 'ach') return `<span class="crelic">${illustration(tab, item.id)}</span>`;
-  if (tab === 'gacha' && item.open && item.id.startsWith('ult_')) {
-    return `<span class="crelic">${illustration('alternateUltimates', item.ic)}</span>`;
+  if (tab === 'gacha') {
+    return `<span class="crelic">${illustration(item.iconCategory, item.ic)}${item.open ? '' : ico('#a89a92', 'lock', 18)}</span>`;
   }
   if (ICON_DIRECTORIES[tab] && (!item.mon || item.open)) {
     return `<span class="crelic">${illustration(tab, item.id)}${item.open ? '' : ico('#a89a92', 'lock', 18)}</span>`;
@@ -2123,16 +2225,52 @@ function heroStats(hero) {
 }
 const howGet = (kind, id) => { const a = achFor(kind, id); return DEF0[kind] && DEF0[kind].includes(id) ? '一开始就有' : a ? `达成成就「${a.n}」：${a.d}` : `用 ${PRICE[kind]} 积分兑换`; };
 const tagOf = (kind, id) => achFor(kind, id) ? '成就' : `${PRICE[kind]} 积分`;
+function itemLevelBonus(kind, id) {
+  const item = FRAGMENT_POOLS[kind][id];
+  if (item.pointsRate || item.pointsFlat || item.pointsWin) {
+    const extra = itemExtraLevels(kind, id);
+    if (!extra) return '';
+    const bonus = item.pointsRate ? `+${extra}% 结算积分` : `+${extra} 积分`;
+    return `${kind === 'relics' ? '每件' : ''}${item.pointsWin ? '通关时' : ''}额外提供 ${bonus}`;
+  }
+  if (kind === 'relics') {
+    const damage = relicLevelDamage(id);
+    return damage ? `每件额外提供 +${Number((damage * 100).toFixed(1))}% 基础伤害` : '';
+  }
+  if (kind === 'arts') {
+    const hp = artLevelHp(id);
+    return hp ? `拾取时额外提供 +${hp} 生命上限` : '';
+  }
+  return '';
+}
+function fragmentProgress(kind, id) {
+  const level = itemLevel(kind, id);
+  const count = fragmentCount(kind, id);
+  const complete = fragmentComplete(kind, level);
+  const next = level ? `升到 Lv ${level + 1}` : '解锁';
+  const bonus = itemLevelBonus(kind, id);
+  return `<div class="fragment-progress">${kind !== 'skills' && level ? `<b>Lv ${level} / ${ITEM_MAX_LEVEL}</b>` : ''}
+    ${complete ? `<span>${kind === 'skills' ? '已解锁' : '已满级'} · 再抽到返 ${FRAGMENT_REFUND} 积分 / 碎片</span>` : `<span>${next} · ${count} / ${fragmentCost(level)} 碎片</span><progress aria-label="${next}所需碎片" value="${count}" max="${fragmentCost(level)}"></progress>`}
+    ${bonus ? `<small>局内${bonus}</small>` : ''}</div>`;
+}
 function codexItems(tab) {
-  if (tab === 'gacha') return [...G_LEG, ...G_RARE].map((id) => { const ult = id.startsWith('ult_'), q = gItem({ id }), r = ult ? 2 : SKINS[id].r, w = ult && WEAPONS[id.slice(4)];
-    return { id, name: q.name, c: RC[r], ic: q.ic, open: ult ? meta.ults.includes(id.slice(4)) : meta.skins.includes(id), tag: RN[r], desc: ult
+  if (tab === 'gacha') {
+    const prizes = [...G_LEG, ...G_RARE].map((id) => { const ult = id.startsWith('ult_'), q = gItem({ id }), r = ult ? 2 : SKINS[id].r, w = ult && WEAPONS[id.slice(4)];
+    return { id, name: q.name, c: RC[r], ic: ult ? q.ic : SKINS[id].h, iconCategory: ult ? 'alternateUltimates' : 'heroes', open: ult ? meta.ults.includes(id.slice(4)) : meta.skins.includes(id), tag: RN[r], desc: ult
       ? `传说 · ${w.name}的第二种终极形态：${ALT[id.slice(4)].desc}。<b>怎么获得：</b>只能在大鹅抽卡里抽到。抽到以后，这个技能升到 Lv 10 时可以在原来的「${w.evo.name}」和它之间二选一。`
       : `${RN[r]}皮肤 · ${CLASSES[SKINS[id].h].name}。${SKINS[id].aura ? '换一套配色，头顶光环，脚下一圈光。' : '换一套配色。'}<b>怎么获得：</b>只能在大鹅抽卡里抽到。抽到后在准备页选这位同学时换上。` }; });
+    const fragments = Object.entries(FRAGMENT_POOLS).flatMap(([kind, pool]) => Object.keys(pool).map((id) => ({
+      id: fragmentKey(kind, id), name: `${fragmentName(kind, id)}碎片`, c: pool[id].c ?? RC[1], ic: id,
+      iconCategory: kind, open: fragmentOwned(kind, id), progress: fragmentProgress(kind, id),
+      desc: `${FRAGMENT_LABEL[kind]}碎片。普通掉落 4 枚，稀有掉落 8 枚。`,
+    })));
+    return [...prizes, ...fragments];
+  }
   if (tab === 'ach') return ACH.map((a) => ({ id: a.id, name: a.n, c: '#ffaa1e', ic: a.ic, open: meta.ach.includes(a.id), mon: true, desc: `${a.d}${a.note ? '，' + a.note : ''}。奖励：${achReward(a)}。${meta.ach.includes(a.id) ? '已达成。' : ''}` }));
   if (tab === 'heroes') return CLS_IDS.map((id) => { const c = CLASSES[id]; const sk = Object.keys(SKINS).filter((k) => SKINS[k].h === id).map((k) => `${SKINS[k].n}（${RN[SKINS[k].r]}）`).join('、'); return { id, name: c.name, short: c.short, c: TAGS[c.tag].c, ic: c.start, open: isOpen(id), kind: achFor('heroes', id) ? null : 'heroes', tag: tagOf('heroes', id), hint: howGet('heroes', id), desc: `${TAGS[c.tag].name} · ${c.desc}。加入后这个技能也会进入技能池。<b>怎么获得：</b>${howGet('heroes', id)}。皮肤（抽卡）：${sk}。` }; });
   if (tab === 'skills') return Object.entries(WEAPONS).map(([id, weapon]) => {
     const open = skillOpen(id);
-    const item = { id, name: weapon.name, c: weapon.c, ic: id, open };
+    const item = { id, name: weapon.name, c: weapon.c, ic: id, open, progress: fragmentProgress('skills', id) };
     if (!open) return item;
     const alt = ALT[id];
     const altDesc = alt && (altOwned(id)
@@ -2140,8 +2278,16 @@ function codexItems(tab) {
       : `第二种终极形态「${alt.name}」可通过大鹅抽卡解锁。`);
     return { ...item, desc: `${TAGS[weapon.tag].name}。${weapon.desc}。每升一级：${LVUP[id][2]}。Lv 4 和 Lv 8 各注入一次元素，Lv 10 变成终极形态「${weapon.evo.name}」：${weapon.evo.desc}。${altDesc || ''}特殊升级（完成地图任务开宝箱拿）：${SP[id].map((x) => x[1]).join('、')}。` };
   });
-  if (tab === 'arts') return Object.keys(ARTS).map((id) => { const a = ARTS[id]; return { id, name: a.name, c: a.c, ic: a.ic, open: meta.arts.includes(id), kind: 'arts', tag: tagOf('arts', id), desc: a.desc + `。对局里在金色光柱下三选一。<b>怎么获得：</b>${howGet('arts', id)}。` }; });
-  if (tab === 'relics') return Object.keys(RELICS).map((id) => { const r = RELICS[id], t = TAGS[r.tag], ev = Object.keys(WEAPONS).find((w) => WEAPONS[w].evo.relic === id); return { id, name: r.name, c: t ? t.c : '#b8433a', ic: r.curse ? 'curse' : 'charm', open: meta.relics.includes(id), kind: achFor('relics', id) ? null : 'relics', tag: tagOf('relics', id), hint: howGet('relics', id), desc: `${rarOf(id).n}${t ? '，' + t.name : ''}。每件：${r.desc}。同一件可以一直叠加。对局里走近怪物掉落的饰品或打开精英宝箱，即可三选一。<b>怎么获得：</b>${howGet('relics', id)}。` }; });
+  if (tab === 'arts' || tab === 'relics') return Object.entries(FRAGMENT_POOLS[tab]).map(([id, item]) => {
+    const level = itemLevel(tab, id);
+    const achievement = achFor(tab, id);
+    const pickup = tab === 'arts' ? '对局里在金色光柱下三选一。' : '对局里通过怪物掉落或精英宝箱三选一。同一件可以叠加。';
+    return {
+      id, name: item.name, c: item.c ?? TAGS[item.tag]?.c ?? '#b8433a', open: level > 0,
+      level, progress: fragmentProgress(tab, id), tag: `${fragmentCount(tab, id)} / ${FRAGMENT_UNLOCK} 碎片`,
+      desc: `${item.desc}。${pickup}${achievement && !level ? `达成成就「${achievement.n}」也能解锁。` : ''}`,
+    };
+  });
   return MON_ORDER.map((id) => { const m = MON_INFO[id] || MON_MORE[id], seen = meta.seen.includes(id); return { id, name: seen ? m[0] : '？？？', c: seen ? MON_C[id] : '#a89a92', ic: seen ? m[0][0] : '?', open: seen, mon: true, desc: seen ? m[1] + '。' : '还没遇到过，对局里见到一次就会记下来。' }; });
 }
 function sendSkillDemo(frame, skill, form) {
@@ -2211,6 +2357,7 @@ function showCodex(tab = cdxTab, sel) {
     while (art.nextElementSibling) art.nextElementSibling.remove();
     art.insertAdjacentHTML('afterend', `<h3>${item.name}${item.open && !item.mon ? '<em>已拥有</em>' : ''}</h3>`);
     detail.scrollTop = 0;
+    if (item.progress) detail.insertAdjacentHTML('beforeend', item.progress);
     if (nameOnly) return;
     detail.insertAdjacentHTML('beforeend', `
       ${cdxTab === 'heroes' ? heroStats(CLASSES[item.id]) : ''}
@@ -2299,7 +2446,7 @@ function showCodex(tab = cdxTab, sel) {
       button.setAttribute('aria-pressed', String(active));
     });
     panel.querySelector('.ctabs span').textContent = `${items.filter((item) => item.open).length} / ${items.length}`;
-    grid.innerHTML = items.map((item) => `<button class="ctile ${item.open ? '' : 'lock'}" data-id="${item.id}" aria-label="${item.name}" aria-pressed="false">${codexIcon(item, category)}<span>${item.short || item.name}</span>${!item.open && item.tag ? `<small>${item.tag}</small>` : ''}</button>`).join('');
+    grid.innerHTML = items.map((item) => `<button class="ctile ${item.open ? '' : 'lock'}" data-id="${item.id}" aria-label="${item.name}${(category === 'arts' || category === 'relics') && !item.open ? '，未解锁' : ''}" aria-pressed="false">${codexIcon(item, category)}<span>${item.short || item.name}</span>${item.level ? `<small>Lv ${item.level}</small>` : !item.open && item.tag ? `<small>${item.tag}</small>` : ''}</button>`).join('');
     grid.scrollTop = 0;
     const tiles = grid.querySelectorAll('.ctile');
     tiles.forEach((tile, index) => tile.onclick = () => select(items[index], tile));
@@ -2322,7 +2469,7 @@ function showHow() {
     ${row('#3fc98a', 'flag', '每 30 秒一个新事件', '新怪物、小任务、地图遗物轮着来，10:00 大魔王出场')}
     ${row('#a98bff', 'move', '四个教室一条走廊', '从走廊的门进出教室，怪也得走门。四个教室最外面的角落会一直出怪')}
     ${row('#ffab2e', 'charm', '去找遗物', '金色光柱下面有遗物，三选一，效果很强')}
-    ${row('#ffaa1e', 'crown', '成就和抽卡', `有些同学和饰品要靠成就拿；皮肤和 ${GACHA_ULT.length} 个技能的第二种终极形态要靠大鹅抽卡。通关一次标准模式才开放无尽`)}
+    ${row('#ffaa1e', 'crown', '成就和抽卡', '大鹅抽卡可获得皮肤、第二种终极形态和碎片。集齐碎片会自动解锁武器、饰品或遗物，饰品和遗物还能继续升级。通关一次标准模式才开放无尽')}
   </div><div class="actions"><button class="primary" id="ok">知道了</button></div>`);
   $('ok').onclick = hide; $('ok').focus();
 }
@@ -2355,7 +2502,10 @@ function renderPrep(fresh) {
   $('pBack').onclick = () => { titleStep = 'home'; renderHome(); };
   $('go').onclick = () => { if (!isOpen(clsId)) { if (buy('heroes', clsId)) { renderPrep(); spark(TX, 1.5, TZ - 1, 0xffd23f, 80, 7, 0.4, 0.8); } return; } wipe(startRun); };
 }
-const gch = { on: false, res: [], i: 0, a: 0, w: 0, t: 0, hitT: 0, cross: 0, endT: 0, n: 1, hero: null, snap: false };
+const GACHA_TURN_TIME = 0.65;
+const GACHA_HIT_PHASE = 0.67;
+const GACHA_HIT_RECOIL = 0.32;
+const gch = { on: false, res: [], i: 0, t: 0, beat: 1, turnFrom: 0, hitT: 0, n: 1, hero: null, snap: false };
 function openGacha(n) { wipe(() => { titleStep = 'gacha'; gch.snap = true; gch.hero = null; renderGacha(); if (n) gachaStart(n); }); }
 function renderGacha() {
   titleEl.className = 'gacha'; titleEl.hidden = false; const p = GACHA.pity - (meta.stat.pity || 0);
@@ -2363,36 +2513,72 @@ function renderGacha() {
     <div class="gTitle">大鹅抽卡</div>
     <div class="gSlots">${gch.on ? gch.res.map((q, i) => `<i class="gs" data-i="${i}"></i>`).join('') : ''}</div>
     <div class="gBot">${gch.on ? '<div class="row"><button id="gSkip">跳过动画</button></div>' : `<div class="row"><button class="big" id="g1" ${meta.pts < GACHA.one ? 'disabled' : ''}>单抽 · ${GACHA.one}</button><button class="primary big" id="g10" ${meta.pts < GACHA.ten ? 'disabled' : ''}>十连 · ${GACHA.ten}</button></div>
-      <div class="row"><small>传说 5% · 稀有 35% · 其余返 ${GACHA.back} 积分 · 十连至少一个稀有 · 再抽 ${p} 次必出传说</small><button id="gPool">看奖池</button></div>`}</div>`;
-  if (gch.on) $('gSkip').onclick = () => { while (gch.i < gch.res.length) gImpact(gch.res[gch.i++], true); gch.w = 0; };
+      <div class="row"><small>传说皮肤或终极形态 ${GACHA.legendary * 100}% · 80 抽保底 · 最多再抽 ${p} 次<br>稀有皮肤 ${GACHA.rareSkin * 100}% · 稀有碎片 ${GACHA.rareFragment * 100}% · 十连至少一张稀有或以上</small><button id="gPool">看奖池</button></div>`}</div>`;
+  if (gch.on) $('gSkip').onclick = () => {
+    if (!gch.on) return;
+    gch.i = gch.res.length;
+    gch.on = false;
+    gch.hitT = 0;
+    showGachaResults();
+  };
   else { $('gBack').onclick = () => wipe(() => { titleStep = 'home'; gch.hero = null; renderHome(); }); $('g1').onclick = () => gachaStart(1); $('g10').onclick = () => gachaStart(10); $('gPool').onclick = () => showCodex('gacha'); }
 }
-function gachaStart(n) { const res = gachaPull(n); if (!res) return; Object.assign(gch, { on: true, res, i: 0, w: 0, t: 0, hitT: 0, endT: 0, n, cross: Math.floor((gch.a - HP_) / TAU) }); renderGacha(); }
-function gachaIcon(reward, item, color) {
-  return reward.id.startsWith('ult_') ? illustratedBadge('alternateUltimates', item.ic, color) : ico(color, item.ic);
+function gachaStart(n) {
+  const res = gachaPull(n);
+  if (!res) return;
+  Object.assign(gch, {
+    on: true, res, i: 0, t: 0, hitT: 0, n, hero: null,
+    beat: n > 1 ? 0.72 : 1.35,
+    turnFrom: GS.goose.rotation.y,
+  });
+  renderGacha();
 }
-function gImpact(q, quiet) {
+function gachaIcon(reward, item, color) {
+  if (reward.kind) return illustratedBadge(reward.kind, reward.id, color);
+  if (reward.id.startsWith('ult_')) return illustratedBadge('alternateUltimates', item.ic, color);
+  return illustratedBadge('heroes', SKINS[reward.id].h, color);
+}
+function gImpact(q) {
   const c = new THREE.Color(RC[q.tier]).getHex(), el = titleEl.querySelector(`.gs[data-i="${gch.i - 1}"]`), it = gItem(q);
   if (el) { el.classList.add('on'); el.style.setProperty('--c', RC[q.tier]); el.innerHTML = gachaIcon(q, it, '#fff'); }
-  if (quiet) return;
-  const x = GPX, z = GZ; spark(x - 0.3, 1.4, z, c, q.tier === 2 ? 150 : q.tier ? 70 : 30, q.tier === 2 ? 10 : 7, 0.45, 0.8); spark(x - 0.3, 1.4, z, 0xffffff, 16, 5, 0.35, 0.5);
+  const x = GPX, y = 2 * GACHA_PILLAR_SCALE, z = GZ;
+  spark(x - 0.3, y, z, c, q.tier === 2 ? 150 : q.tier ? 70 : 30, q.tier === 2 ? 10 : 7, 0.45, 0.8);
+  spark(x - 0.3, y, z, 0xffffff, 16, 5, 0.35, 0.5);
   ringFx(x, z, q.tier === 2 ? 7 : q.tier ? 4.5 : 3, c, 0.5); shake = q.tier === 2 ? 0.5 : 0.25; if (q.tier === 2) { chroma = 0.6; ringFx(x, z, 10, 0xffe07a, 0.8); }
 }
 function updateGacha(dt) {
-  if (gch.freeze) return;
-  if (!gch.on) { gch.w = 0; let d = (TAU - (gch.a % TAU)) % TAU; if (d > PI) d -= TAU; gch.a += d * Math.min(1, dt * 3); return; }
-  gch.t += dt; const top = (gch.n > 1 ? 2.4 : 1.6) * TAU;
-  if (gch.t < 0.7) gch.w = 0; else if (gch.i < gch.res.length) gch.w += (top - gch.w) * Math.min(1, dt * 2.4); else gch.w *= Math.pow(0.08, dt);
-  gch.a += gch.w * dt; gch.hitT = Math.max(0, gch.hitT - dt);
-  const c = Math.floor((gch.a - HP_) / TAU);
-  if (c > gch.cross) { gch.cross = c; if (gch.i < gch.res.length && gch.w > top * 0.6 && gch.t > (gch.n > 1 ? 1.4 : 2.2)) { gch.i++; gImpact(gch.res[gch.i - 1]); gch.w *= 0.55; gch.hitT = 0.32; } }
-  if (gch.i >= gch.res.length && gch.w < 1) { if (!gch.endT) gch.endT = gch.t; if (gch.t - gch.endT > 0.6) { gch.on = false; showGachaResults(); } }
+  if (!gch.on) return;
+  gch.t += dt;
+  gch.hitT = Math.max(0, gch.hitT - dt);
+  const elapsedBeats = (gch.t - GACHA_TURN_TIME) / gch.beat;
+  if (gch.i < gch.res.length && elapsedBeats >= gch.i + GACHA_HIT_PHASE) {
+    gImpact(gch.res[gch.i++]);
+    gch.hitT = GACHA_HIT_RECOIL;
+  }
+  if (elapsedBeats >= gch.res.length + 0.5 && gch.hitT === 0) {
+    gch.on = false;
+    showGachaResults();
+  }
+}
+function gachaResultStatus(reward) {
+  const refund = reward.back ? `<em>返 ${reward.back} 积分</em>` : '';
+  if (!reward.kind) return reward.dup ? refund : '<em class="new">新</em>';
+  const { kind, from, level, remaining } = reward;
+  const change = level > from
+    ? `<em class="new">${from === 0 ? '已解锁' : `Lv ${from} → ${level}`}</em>`
+    : '';
+  const progress = fragmentComplete(kind, level)
+    ? `<small>${kind === 'skills' ? '已解锁' : `Lv ${ITEM_MAX_LEVEL} 已满级`}</small>`
+    : `<small>${level ? `升 Lv ${level + 1}` : '解锁'} · ${remaining} / ${fragmentCost(level)} 碎片</small>`;
+  return change + progress + refund;
 }
 function showGachaResults() {
-  const res = gch.res, best = res.filter((q) => !q.dup && q.id !== 'pts' && !q.id.startsWith('ult_')).sort((a, b) => b.tier - a.tier)[0];
+  const res = gch.res;
+  const best = res.filter((q) => !q.kind && !q.dup && SKINS[q.id]).sort((a, b) => b.tier - a.tier)[0];
+  $('gSkip').hidden = true;
   show(`${res.some((q) => q.tier === 2) ? confetti(30) : ''}<h2>抽到了</h2>
-    <div class="gcards ${res.length === 1 ? 'one' : ''}">${res.map((q, i) => { const it = gItem(q); return `<div class="gcard t${q.tier}" style="--i:${i};--c:${RC[q.tier]}"><span class="rr">${RN[q.tier]}</span>${gachaIcon(q, it, RC[q.tier])}<b>${it.name}</b><small>${it.sub}</small>${q.dup ? `<em>重复 · 返 ${q.back} 积分</em>` : q.id !== 'pts' ? '<em class="new">新</em>' : ''}</div>`; }).join('')}</div>
-    ${res.some((q) => q.id.startsWith('ult_') && !q.dup) ? '<p>终极形态：对局里把这个技能升到 Lv 10 就会变身。</p>' : ''}${best ? '<p>皮肤在准备页选同学时换上。</p>' : ''}
+    <div class="gcards ${res.length === 1 ? 'one' : ''}">${res.map((q, i) => { const it = gItem(q); return `<div class="gcard t${q.tier}" style="--i:${i};--c:${RC[q.tier]}"><span class="rr">${RN[q.tier]}</span>${gachaIcon(q, it, RC[q.tier])}<b>${it.name}</b><small>${it.sub}</small>${gachaResultStatus(q)}</div>`; }).join('')}</div>
+    ${res.some((q) => !q.kind && q.id.startsWith('ult_') && !q.dup) ? '<p>抽到的终极形态可在对局中技能升到 Lv 10 后选择。</p>' : ''}${best ? '<p>皮肤在准备页选同学时换上。</p>' : ''}
     <div class="actions"><button class="primary" id="gOk">收下</button><button id="gAgain" ${meta.pts < (gch.n === 10 ? GACHA.ten : GACHA.one) ? 'disabled' : ''}>再来${gch.n === 10 ? '十连' : '一次'}</button></div>`, 'frame gres');
   if (best) gch.hero = { h: SKINS[best.id].h, sk: best.id, t: 0 };
   $('gOk').onclick = () => { hide(); renderGacha(); }; $('gAgain').onclick = () => { hide(); gachaStart(gch.n); }; $('gOk').focus();
@@ -2599,7 +2785,7 @@ function startRun() {
   const st = classBaseStats(cls);
   const maxHp = cls.hp + growthBonus('maxHp');
   for (const id of Object.keys(GROWTH_STATS)) {
-    if (id !== 'maxHp') st[id] += growthBonus(id);
+    if (id !== 'maxHp' && id !== 'points') st[id] += growthBonus(id);
   }
   Object.assign(player, { x: 0, z: 0, vx: 0, vz: 0, yaw: 0, hp: maxHp, maxHp, speed: cls.spd, magnet: 2.4, lvl: 1, xp: 0, need: 5, kills: 0, weapons: { [cls.start]: 1 }, wup: {}, elem: {}, sp: {}, arts: {}, koi: 0, shield: false, st, relics: {}, evo: {}, alt: {}, duos: {}, spinT: 0, slowT: 0, healAcc: 0, sockHealShown: 0, iframe: 0, ghost: 0, dark: false });
   rerollCost = REROLL_BASE_COST; player.revives = DF().revive; watchT = 12; shieldT = 10; $('rmark').hidden = true;
@@ -2657,7 +2843,7 @@ function showRunItems(selected) {
     ${items.length ? `<ul class="inventory-list" aria-label="本局获得的饰品">${items.map((id) => {
       const item = RELICS[id];
       return `<li id="inventory-${id}" tabindex="-1">${illustration('relics', id)}
-        <div><b>${item.name}<span>×${R(id)}</span></b><small>每件 ${item.desc}</small></div>
+        <div><b>${item.name} Lv ${itemLevel('relics', id)}<span>×${R(id)}</span></b><small>${item.desc}${itemLevelBonus('relics', id) ? '。' + itemLevelBonus('relics', id) : ''}</small></div>
       </li>`;
     }).join('')}</ul>` : '<p>本局还没有获得饰品。</p>'}
     <div class="actions"><button class="primary" id="itemsClose">继续</button></div>`, 'frame inventory');
@@ -2674,7 +2860,7 @@ function renderItems() {
   const strip = $('itemStrip');
   strip.innerHTML = items.map((id) => {
     const item = RELICS[id], count = R(id);
-    const label = `${item.name} ×${count}，每件 ${item.desc}`;
+    const label = `${item.name} Lv ${itemLevel('relics', id)} ×${count}，${item.desc}`;
     return `<button type="button" class="item-chip" data-item="${id}" style="--item-color:${rarOf(id).c}" title="${label}" aria-label="${label}">
       ${illustration('relics', id)}<b class="item-stack" aria-hidden="true">×${count}</b>
     </button>`;
@@ -2770,10 +2956,18 @@ function optionCard(o, i, theme) {
       kind = '技能强化';
     }
   } else if (o.kind === 'r') {
-    const r = RELICS[o.id], t = TAGS[r.tag]; const evoFor = Object.keys(WEAPONS).find((w) => WEAPONS[w].evo.relic === o.id && W(w));
-    const ra = rarOf(o.id), have = R(o.id); c = ra.c; kind = (r.curse ? '代价饰品' : '饰品') + (t ? ' · ' + t.name : ''); rar = ra.k; rn = ra.n; name = r.name; sub = have ? `已有 ${have} 件，再叠一层` : '可以叠加'; desc = '每件：' + r.desc;
+    const r = RELICS[o.id], t = TAGS[r.tag];
+    const ra = rarOf(o.id), have = R(o.id), bonus = itemLevelBonus('relics', o.id);
+    c = ra.c; kind = (r.curse ? '代价饰品' : '饰品') + (t ? ' · ' + t.name : ''); rar = ra.k; rn = ra.n; name = r.name;
+    sub = `Lv ${itemLevel('relics', o.id)} · ${have ? `已有 ${have} 件` : '可以叠加'}`;
+    desc = r.desc + (bonus ? '。' + bonus : '');
     foot = have ? '' : buildLine(r.tag);
-  } else if (o.kind === 'a') { const a = ARTS[o.id]; c = a.c; kind = '遗物'; rar = 'legend'; rn = '强力'; name = a.name; desc = a.desc; }
+  } else if (o.kind === 'a') {
+    const a = ARTS[o.id], bonus = itemLevelBonus('arts', o.id);
+    c = a.c; kind = '遗物'; rar = 'legend'; rn = '强力'; name = a.name;
+    sub = `Lv ${itemLevel('arts', o.id)}`;
+    desc = a.desc + (bonus ? '。' + bonus : '');
+  }
   else if (o.kind === 'el') {
     const E = ELEMS[o.id], cur = player.elem[o.w] || [], cb = cur.length ? COMBOS[[cur[0], o.id].sort().join('+')] : null;
     c = E.c; kind = WEAPONS[o.w].name; rar = cb ? 'epic' : 'rare'; rn = cb ? '组合' : '元素'; name = cb ? cb[0] : E.name + '元素'; sub = cb ? `${ELEMS[cur[0]].name} + ${E.name}` : ''; desc = cb ? `${cb[1]}。${E.name}：${E.desc}` : E.desc;
@@ -2803,7 +2997,7 @@ function applyUpgrade(o) {
     if (l >= MAXLV && !player.evo[o.id] && !player.alt[o.id] && altOwned(o.id)) { if (!pendingUlt.includes(o.id)) pendingUlt.push(o.id); }
     if (l >= MAXLV && !player.evo[o.id] && !player.alt[o.id] && !altOwned(o.id)) { player.evo[o.id] = 1; banner(WEAPONS[o.id].evo.name, '终极形态', illustration('ultimates', o.id)); ripple(player.x, player.z, 1.5); spark(player.x, 1, player.z, 0xffc24a, 120, 9, 0.45, 0.9); shake = 0.4; } }
   else if (o.kind === 's') { const v = statVal(o.id, o.tier); if (o.id === 'maxHp') { player.maxHp += v; player.hp += v; } else player.st[o.id] = Math.min(STATS[o.id].max ?? Infinity, player.st[o.id] + v); }
-  else if (o.kind === 'r') { player.relics[o.id] = R(o.id) + 1; if (o.id === 'drink') { player.maxHp += 10; player.hp += 10; player.st.regen += 0.05; } if (o.id === 'allnight') { player.maxHp *= 0.9; player.hp = Math.min(player.hp, player.maxHp); } if (o.id === 'glass') { player.maxHp *= 0.85; player.hp = Math.min(player.hp, player.maxHp); } if (o.id === 'slack') { player.st.speed += 0.1; player.magnet *= 1.2; } if (o.id === 'scope') player.st.crit += 0.05; renderItems(); }
+  else if (o.kind === 'r') { player.relics[o.id] = R(o.id) + 1; player.st.dmg += relicLevelDamage(o.id); if (o.id === 'drink') { player.maxHp += 10; player.hp += 10; player.st.regen += 0.05; } if (o.id === 'allnight') { player.maxHp *= 0.9; player.hp = Math.min(player.hp, player.maxHp); } if (o.id === 'glass') { player.maxHp *= 0.85; player.hp = Math.min(player.hp, player.maxHp); } if (o.id === 'slack') { player.st.speed += 0.1; player.magnet *= 1.2; } if (o.id === 'scope') player.st.crit += 0.05; renderItems(); }
   else if (o.kind === 'ult') {
     const form = o.v === 'b' ? 'alt' : 'evo';
     const name = form === 'alt' ? ALT[o.id].name : WEAPONS[o.id].evo.name;
@@ -2815,7 +3009,7 @@ function applyUpgrade(o) {
   }
   else if (o.kind === 'e') { player.evo[o.id] = 1; banner(WEAPONS[o.id].evo.name, '武器进化', illustration('ultimates', o.id)); ripple(player.x, player.z, 1.5); spark(player.x, 1, player.z, 0xffc24a, 120, 9, 0.45, 0.9); shake = 0.4; }
   else if (o.kind === 'd') { player.duos[o.id] = 1; banner(DUOS[o.id].name, '联动', illustration('duos', o.id)); spark(player.x, 1, player.z, 0x4fe0c0, 80, 8, 0.4, 0.8); }
-  else if (o.kind === 'a') { player.arts[o.id] = 1; if (o.id === 'plate') player.st.armor += 3; if (o.id === 'grant') player.magnet *= 1.5; banner(ARTS[o.id].name, '获得遗物', illustration('arts', o.id)); spark(player.x, 1, player.z, 0xffc93c, 90, 9, 0.45, 0.9); ripple(player.x, player.z, 1.2); }
+  else if (o.kind === 'a') { player.arts[o.id] = 1; const hpBonus = artLevelHp(o.id); player.maxHp += hpBonus; player.hp += hpBonus; if (o.id === 'plate') player.st.armor += 3; if (o.id === 'grant') player.magnet *= 1.5; banner(ARTS[o.id].name, '获得遗物', illustration('arts', o.id)); spark(player.x, 1, player.z, 0xffc93c, 90, 9, 0.45, 0.9); ripple(player.x, player.z, 1.2); }
   else if (o.kind === 'x') { (player.sp[o.w] = player.sp[o.w] || {})[o.id] = 1; const x = SP[o.w].find((q) => q[0] === o.id); banner(x[1], WEAPONS[o.w].name + ' · 特殊升级'); spark(player.x, 1, player.z, 0xc9a7ff, 80, 8, 0.4, 0.8); ripple(player.x, player.z, 1); }
   else if (o.kind === 'el') { (player.elem[o.w] = player.elem[o.w] || []).push(o.id); spark(player.x, 1, player.z, +('0x' + ELEMS[o.id].c.slice(1)), 70, 8, 0.4, 0.8); }
   refreshSets(); renderSlots();
@@ -2976,7 +3170,7 @@ function showWin() {
   state = 'win';
   const gain = settle(true), nxt = null;
   show(`${confetti()}<div class="eyebrow">${MODES[modeId].name} · ${DF().name}</div><h1>通关！</h1>
-    <div class="unlock">${ico('#ffab2e', 'charm')}<div><b>积分 +${gain}</b><small>现在有 ${meta.pts} 积分，可以去大鹅抽卡${localPreview ? "" : "，也可以去图鉴兑换"}</small></div></div>
+    <div class="unlock">${ico('#ffab2e', 'charm')}<div><b>积分 +${gain}</b><small>现在有 ${meta.pts} 积分，可以去大鹅抽卡或升级成长</small></div></div>
     <div class="stats"><div style="--i:0"><b>${fmt(T)}</b><small>用时</small></div><div style="--i:1"><b>${player.kills}</b><small>击倒</small></div><div style="--i:2"><b>${player.lvl}</b><small>等级</small></div><div style="--i:3"><b>${Object.keys(player.arts).length}</b><small>遗物</small></div></div>
     ${buildSummary()}<div class="actions"><button class="primary" id="again">再来一局</button><button id="wbook">去图鉴</button></div>`);
   $('again').onclick = () => wipe(() => { if (nxt) selIdx = CLS_IDS.findIndex((id) => CLASSES[id].tag === nxt); showTitle('prep'); }); $('again').focus(); $('wbook').onclick = () => wipe(() => { showTitle('home'); showCodex(); });
@@ -3380,16 +3574,33 @@ function update(dt) {
 
 const STILL = { ph: 0, hit: 0, seed: 0, moving: 0 };
 function drawGacha(dt) {
-  if (!gch.freeze) gch.sp = (gch.sp || 0) + (Math.min(1, gch.w / (1.3 * TAU)) - (gch.sp || 0)) * Math.min(1, dt * 6); const spin = gch.sp, h = gch.hitT / 0.32, wind = gch.on && gch.t < 0.7 ? gch.t / 0.7 : 0;
-  GS.goose.rotation.y = gch.a; GS.goose.position.y = Math.abs(Math.sin(realTime * (gch.on ? 9 : 3))) * (gch.on ? 0.06 : 0.04) - wind * 0.12;
-  GS.neck.rotation.x = 0.15 + spin * 0.45 - wind * 0.4 + Math.sin(realTime * 2.2) * 0.05 * (1 - spin);
-  GS.head.rotation.x = -0.1 - spin * 0.25 + (gch.on ? 0 : Math.sin(realTime * 1.7) * 0.08);
-  const fl = gch.on ? 0.5 + spin * 0.6 + Math.sin(realTime * 26) * 0.35 : 0.1 + Math.max(0, Math.sin(realTime * 1.3)) * 0.25; GS.wL.rotation.z = fl; GS.wR.rotation.z = -fl;
-  // 黄鼠狼：0 = 垂着，1 = 甩平；抽到柱子上时往下一砸
-  const th = 0.15 + spin * 1.5 - (h > 0 ? Math.sin((1 - h) * PI) * 0.6 : 0);
-  GS.weasel.rotation.x = -th - GS.neck.rotation.x - GS.head.rotation.x; GS.weasel.rotation.z = gch.on ? Math.sin(realTime * 30) * 0.1 * spin : Math.sin(realTime * 5) * 0.2;
+  const h = gch.hitT / GACHA_HIT_RECOIL;
+  const turn = THREE.MathUtils.smoothstep(gch.t, 0, GACHA_TURN_TIME);
+  if (gch.on) GS.goose.rotation.y = THREE.MathUtils.lerp(gch.turnFrom, GACHA_PILLAR_YAW, turn);
+  else GS.goose.rotation.y *= Math.max(0, 1 - dt * 5);
+
+  // 转身站定后，从脖子根部转一整圈，头和黄鼠狼跟着脖子走。
+  const elapsedBeats = (gch.t - GACHA_TURN_TIME) / gch.beat;
+  const phase = gch.on && elapsedBeats >= 0 && elapsedBeats < gch.res.length ? elapsedBeats % 1 : 0;
+  const windup = THREE.MathUtils.smoothstep(phase, 0, 0.2);
+  const spin = THREE.MathUtils.smootherstep(phase, 0.2, GACHA_HIT_PHASE);
+  const reach = THREE.MathUtils.smoothstep(phase, 0.51, GACHA_HIT_PHASE)
+    * (1 - THREE.MathUtils.smoothstep(phase, GACHA_HIT_PHASE, 0.92));
+  const lean = windup * (1 - THREE.MathUtils.smoothstep(phase, GACHA_HIT_PHASE, 1));
+  GS.neck.rotation.y = TAU * spin - 0.45 * windup * (1 - spin);
+  GS.neck.rotation.x = 0.1 + 0.68 * lean - 0.55 * reach;
+
+  // 碰到柱顶时脖子拉长，黄鼠狼甩平，随后弹回。
+  const neckLength = 1 + 1.55 * reach;
+  GS.neckMesh.position.y = 0.45 * neckLength;
+  GS.neckMesh.scale.y = 0.55 * neckLength;
+  GS.head.position.y = neckLength;
+  GS.weasel.rotation.x = -0.15 - 1.42 * lean - GS.neck.rotation.x;
+  GS.weasel.rotation.z = 0.38 * Math.sin(TAU * spin) * lean + Math.sin(realTime * 5) * 0.12 * (1 - lean);
+  const wing = 0.1 + 0.22 * Math.sin(turn * PI) + 0.24 * h;
+  GS.wL.rotation.z = wing; GS.wR.rotation.z = -wing;
   GS.weasel.scale.set(1 + h * 0.5, 1 - h * 0.35, 1 + h * 0.5);
-  GS.pillar.rotation.z = Math.sin(realTime * 45) * h * 0.08; GS.pillar.scale.y = 0.68 * (1 - h * 0.12);
+  GS.pillar.rotation.z = Math.sin(realTime * 45) * h * 0.08; GS.pillar.scale.y = GACHA_PILLAR_SCALE * (1 - h * 0.12);
   if (gch.hero) { gch.hero.t += dt; const k = Math.min(1, gch.hero.t * 2.5), pseudo = { ph: realTime * 6, hit: 0, seed: 0.3, moving: 0.4, glowMul: 2.4 };
     heroRig(gch.hero.h, gch.hero.sk).push(pseudo, worldM(-3.9, Math.abs(Math.sin(realTime * 4)) * 0.2, GZ + 1.6, 0.5 + Math.sin(realTime * 1.2) * 0.3, 1.3 * (0.4 + 0.6 * k))); shadow(-3.9, GZ + 1.6, 0.7); }
 }
