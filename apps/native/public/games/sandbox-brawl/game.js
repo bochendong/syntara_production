@@ -1,3 +1,4 @@
+import { createGameAudio } from './game-audio.js';
 import { DEATH_TAUNTS } from './death-taunts.js';
 import * as THREE from './vendor/three.module.js';
 import { EffectComposer } from './vendor/addons/postprocessing/EffectComposer.js';
@@ -11,6 +12,22 @@ const rnd = (a, b) => a + Math.random() * (b - a);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const skillDemoMode = window.parent !== window && new URLSearchParams(location.search).has('skill-demo');
+const gameAudio = createGameAudio();
+if (!skillDemoMode) {
+  // 在点击的同步阶段解锁音频，包括会延迟开局的转场和联机大厅。
+  document.addEventListener('click', (event) => {
+    if (event.isTrusted) gameAudio.unlock();
+  }, { capture: true });
+  document.addEventListener('visibilitychange', () => gameAudio.setHidden(document.hidden));
+  addEventListener('pagehide', () => gameAudio.setHidden(true));
+  addEventListener('pageshow', () => gameAudio.setHidden(document.hidden));
+  const audioButton = $('audioBtn');
+  audioButton.onclick = () => {
+    const muted = gameAudio.toggleMute();
+    audioButton.setAttribute('aria-pressed', String(muted));
+    audioButton.title = muted ? '开启声音' : '静音';
+  };
+}
 const HX = 40, HZ = 34, CORR = 5, WT = 1.2, HALF = 34, RCX = 20.3, RCZ = 19.8, TX = -20.3, TZ = -19.8, PI = Math.PI, HP_ = PI / 2, TAU = PI * 2;
 const AZ = PI / 4; // 斜 45° 俯视
 
@@ -927,6 +944,31 @@ const NUMS = []; for (let k = 0; k < 60; k++) { const s = document.createElement
 let numI = 0;
 function dmgNum(x, z, v, cls = '', y = 1.3) { const n = NUMS[numI]; numI = (numI + 1) % NUMS.length; n.x = x + rnd(-0.3, 0.3); n.z = z; n.y = y; n.life = 0.7; n.el.textContent = typeof v === 'number' ? Math.round(v) : v; n.el.className = cls; }
 
+function healFeedback(target, amount) {
+  dmgNum(target.x, target.z, '+' + amount, 'heal', 2.7);
+  spark(target.x, 0.9, target.z, 0x55db91, 8, 1.6, 0.25, 0.45, -2);
+}
+
+function restoreHealth(target, amount) {
+  if (amount <= 0 || target.hp <= 0 || target.ghost) return;
+  const hp = Math.min(target.maxHp, target.hp + amount);
+  if (hp <= target.hp) return;
+  if (!target.healPending) target.healFeedbackAt = realTime + 0.5;
+  target.healPending = (target.healPending || 0) + hp - target.hp;
+  target.hp = hp;
+}
+
+function flushHealFeedback(target) {
+  if (target.hp <= 0 || !target.healPending || realTime < target.healFeedbackAt) return;
+  const amount = Math.max(0.01, Math.round(target.healPending * 100) / 100);
+  target.healPending = 0;
+  healFeedback(target, amount);
+  if (target === player && !skillDemoMode) {
+    bump($('pcard'), 'healing');
+    target.lastHeal = [(target.lastHeal?.[0] || 0) + 1, amount];
+  }
+}
+
 /* ================= 空间网格 ================= */
 const CELL = 1.6; let grid = new Map();
 const key = (cx, cz) => (cx + 4096) * 8192 + (cz + 4096);
@@ -1290,8 +1332,9 @@ function hitEnemy(e, dmg, kx = 0, kz = 0, tag = '', opts = {}) {
   if (xs) { if (xs.exec && e.hp < e.maxHp * 0.3) xm *= 1.8; if (xs.first && e.hp >= e.maxHp) xm *= 1.6; if (xs.elite && elite) xm *= 1.6; if (xs.near && Math.hypot(e.x - player.x, e.z - player.z) < 3) xm *= 1.7; if (xs.kb) { kx *= 2; kz *= 2; } }
   const v = xm * (opts.raw ? dmg : dmg * dmgMul(tag) * (crit ? critX : 1) * (elite ? 1 + 0.1 * R('redpen') : 1)) * (e.stink > 0 ? 1.25 : 1) * (e.acid > 0 ? 1 + (e.acidK || 0.25) : 1);
   e.hp -= v; e.hit = 1; const kr = (e.giant ? 0.25 : 1) * (e.type === 'boss' ? 0.05 : e.type === 'hourglass' || e.type === 'bomber' ? 0.25 : 1) * KNOCK(); e.kx += kx * kr; e.kz += kz * kr;
+  if (state === 'play' && v > 0) gameAudio.play('hit');
   if (Math.random() < 0.5 || crit) dmgNum(e.x, e.z, v, crit ? 'crit' : '', e.r * 2 + 0.6);
-  if (crit && A('vamp')) player.hp = Math.min(player.maxHp, player.hp + Math.min(1, v * 0.008));
+  if (crit && A('vamp')) restoreHealth(player, Math.min(1, v * 0.008));
   if (tag === 'melee' && SL.melee >= 1) { player.healAcc += 0.2; }
   if (tag === 'magic' && SL.magic >= 1) { e.burn = 3; e.burnDps = Math.max(e.burnDps || 0, v * 0.3 * (1 + 0.35 * R('grimoire')) * (1 + 0.1 * R('laundry'))); }
   if (tag === 'gun' && crit && SL.gun >= 2 && !opts.noChain) { boom(e.x, e.z, 1.6, v * 0.6, 'gun', 0xffd27a); }
@@ -1299,7 +1342,7 @@ function hitEnemy(e, dmg, kx = 0, kz = 0, tag = '', opts = {}) {
   if (els && els.length && !e.dead) applyElems(e, v, els);
   if (!elite && !e.dead && e.hp > 0 && A('judge') && e.hp < e.maxHp * 0.15) { e.hp = 0; dmgNum(e.x, e.z, '✗', 'crit', e.r * 2 + 1); }
   if (e.hp <= 0 && !e.dead) { killEnemy(e, tag);
-    if (xs) { if (xs.boom && !opts.noChain) boom(e.x, e.z, 1.9, dmg * 0.6, tag, 0xffb04a); if (xs.leech && Math.random() < 0.08) { player.hp = Math.min(player.maxHp, player.hp + 2); dmgNum(player.x, player.z, '+2', 'tag', 2.6); }
+    if (xs) { if (xs.boom && !opts.noChain) boom(e.x, e.z, 1.9, dmg * 0.6, tag, 0xffb04a); if (xs.leech && Math.random() < 0.08) restoreHealth(player, 2);
       if (xs.gem && Math.random() < 0.2) gems.push({ x: e.x + rnd(-0.4, 0.4), z: e.z + rnd(-0.4, 0.4), v: 1 + Math.floor(T / 90), sz: 0, pull: false, s: 0, ph: Math.random() * 6 }); } }
 }
 // 元素效果：单个元素各管各的，两个元素再叠一层组合效果
@@ -1339,7 +1382,7 @@ function hurtPlayer(v, source) {
   if (player.ghost || (NET && NET.on && state !== 'play')) return false;
   if (Math.random() < Math.min(0.8, player.st.dodge)) {
     dmgNum(player.x, player.z, '闪避', 'tag', 2.2);
-    if (A('mirror')) { const h = Math.min(v, player.maxHp * 0.15); player.hp = Math.min(player.maxHp, player.hp + h); dmgNum(player.x, player.z, '+' + Math.round(h), 'tag', 2.9); }
+    if (A('mirror')) restoreHealth(player, Math.min(v, player.maxHp * 0.15));
     return false;
   }
   if (player.shield) { player.shield = false; shieldT = 10; dmgNum(player.x, player.z, '挡住', 'tag', 2.2); ringFx(player.x, player.z, 1.6, 0x9fe0ff, 0.3); return false; }
@@ -1589,15 +1632,8 @@ const SOCK_ALT_HEAL = 4;
 const SOCK_AURA_TIMEOUT = 600;
 const inSockAura = (target, aura) => (target.x - aura.x) ** 2 + (target.z - aura.z) ** 2 <= aura.radius ** 2;
 function sockSupport(target, auras, dt) {
-  if (target.hp <= 0 || target.hp >= target.maxHp || !auras.some((aura) => inSockAura(target, aura))) return;
-  const healed = Math.min(target.maxHp - target.hp, SOCK_ALT_HEAL * dt);
-  target.hp += healed;
-  target.sockHealShown = (target.sockHealShown || 0) + healed;
-  if (target.sockHealShown >= 2) {
-    dmgNum(target.x, target.z, '+' + Math.floor(target.sockHealShown), 'heal', 2.3);
-    spark(target.x, 0.9, target.z, 0x55db91, 5, 1.6, 0.25, 0.45, -2);
-    target.sockHealShown %= 1;
-  }
+  if (target.hp < target.maxHp && auras.some((aura) => inSockAura(target, aura)))
+    restoreHealth(target, SOCK_ALT_HEAL * dt);
 }
 const sockAuraRadius = () => ws('sock').rad * area('magic') * SOCK_ALT_RADIUS;
 function remoteSockAuras() {
@@ -2640,6 +2676,14 @@ function netPeer(id, p) {
   const radius = [p.x, p.z, p.sockAura].every(Number.isFinite) && p.hp > 0
     ? clamp(p.sockAura, 0, Math.hypot(2 * HX, 2 * HZ)) : 0;
   Object.assign(q, { tx: p.x, tz: p.z, yaw: p.y, mv: p.m, hp: p.hp, mh: p.mh, lv: p.lv, h: p.h, sk: p.sk, dead: !!p.d, name: room.name, radius, sockSeen: performance.now() });
+  if (Array.isArray(p.heal)) {
+    const [sequence, amount] = p.heal;
+    if (Number.isSafeInteger(sequence) && sequence > (q.healSequence || 0) &&
+        Number.isFinite(amount) && amount > 0 && amount <= p.mh) {
+      q.healSequence = sequence;
+      if (!q.dead) healFeedback(q, amount);
+    }
+  }
 }
 // 房主：队友打掉的血
 function netDamage(Dm) {
@@ -2659,6 +2703,7 @@ function netTick(dt) {
   player.dark = !!player.ghost;
   NET.sendT -= dt; if (NET.sendT > 0) return; NET.sendT = 0.1;
   const me = { x: r2(player.x), z: r2(player.z), y: r2(player.yaw), m: r2(player.moving), hp: Math.ceil(player.hp), mh: Math.ceil(player.maxHp), lv: player.lvl, h: clsId, sk: skinOf(clsId), d: player.ghost ? 1 : 0 };
+  if (!player.ghost && player.lastHeal) me.heal = player.lastHeal;
   if (!player.ghost && player.hp > 0 && player.weapons.sock && player.alt.sock &&
       (state === 'play' || state === 'levelup' || state === 'paused')) me.sockAura = r2(sockAuraRadius());
   if (!NET.host) {
@@ -2710,6 +2755,7 @@ function netDie() {
   player.ghost = 1;
   player.ghostT = 12;
   player.hp = 0;
+  player.healPending = 0;
   hide();
   state = 'play';
   deathTaunt = pickDeathTaunt();
@@ -2802,7 +2848,7 @@ function startRun() {
   for (const id of Object.keys(GROWTH_STATS)) {
     if (id !== 'maxHp' && id !== 'points') st[id] += growthBonus(id);
   }
-  Object.assign(player, { x: 0, z: 0, vx: 0, vz: 0, yaw: 0, hp: maxHp, maxHp, speed: cls.spd, magnet: 2.4, lvl: 1, xp: 0, need: 5, kills: 0, weapons: { [cls.start]: 1 }, wup: {}, elem: {}, sp: {}, arts: {}, koi: 0, shield: false, st, relics: {}, evo: {}, alt: {}, duos: {}, spinT: 0, slowT: 0, healAcc: 0, sockHealShown: 0, iframe: 0, ghost: 0, dark: false });
+  Object.assign(player, { x: 0, z: 0, vx: 0, vz: 0, yaw: 0, hp: maxHp, maxHp, speed: cls.spd, magnet: 2.4, lvl: 1, xp: 0, need: 5, kills: 0, weapons: { [cls.start]: 1 }, wup: {}, elem: {}, sp: {}, arts: {}, koi: 0, shield: false, st, relics: {}, evo: {}, alt: {}, duos: {}, spinT: 0, slowT: 0, healAcc: 0, healPending: 0, lastHeal: null, iframe: 0, ghost: 0, dark: false });
   rerollCost = REROLL_BASE_COST; player.revives = DF().revive; watchT = 12; shieldT = 10; $('rmark').hidden = true;
   mctx.clearRect(0, 0, 1024, 1024); marksDirty = true;
   T = 0; spawnAcc = 0; settled = false; run = { tasks: 0, hg: 0, hit: -1 }; achClock = 0; nextElite = DF().elite * 1.8; nextBats = 25; nextBomb = 90; nextBoss = modeId === 'std' ? BOSS_T : 300; bossCount = 0; boss = null; ev = {}; timeScale = 1; pendingLevels = 0; task = null; nextTask = 50;
@@ -3108,7 +3154,7 @@ function showInfuse() {
 }
 function showArts() {
   const pool = shuffle(Object.keys(ARTS).filter((a) => !A(a) && meta.arts.includes(a)));
-  if (!pool.length) { player.hp = player.maxHp; banner('遗物已经拿完了', '生命回满'); return; }
+  if (!pool.length) { restoreHealth(player, player.maxHp); banner('遗物已经拿完了', '生命回满'); return; }
   const opts = pool.slice(0, Math.random() < player.st.luck * 2 ? 4 : 3).map((id) => ({ kind: 'a', id }));
   state = 'levelup'; show(`${lvHead('发现遗物！', '', 'var(--sun2)')}<div class="ucards" style="--n:${opts.length}">${opts.map((option, index) => optionCard(option, index)).join('')}</div>`, 'bare');
   cardPick(opts, (o) => { applyUpgrade(o); nextChoice(); });
@@ -3176,7 +3222,7 @@ function showDeath() {
 }
 function revive() {
   defeatSource = null;
-  player.revives--; player.hp = player.maxHp; player.iframe = 1.5; $('stage').classList.remove('dead');
+  player.revives--; player.hp = player.maxHp; player.healPending = 0; player.iframe = 1.5; $('stage').classList.remove('dead');
   buildGrid(); query(player.x, player.z, 7, (e, dx, dz) => { const L = Math.hypot(dx, dz) || 1; e.kx += dx / L * 20; e.kz += dz / L * 20; hitEnemy(e, 60); });
   eshots = []; ripple(player.x, player.z, 2); spark(player.x, 0.8, player.z, 0xffd23f, 160, 12, 0.45, 1); shake = 0.5; chroma = 0.6; hide(); state = 'play';
 }
@@ -3328,8 +3374,9 @@ function updateMatch(dt) {
   // 回血：回复属性 + 近战一阶吸血（每秒最多 3）
   let heal = player.st.regen * dt;
   if (player.healAcc > 0) { const h = Math.min(player.healAcc, 0.8 * dt); heal += h; player.healAcc = Math.max(0, player.healAcc - h - 2 * dt); }
-  if (!player.ghost) player.hp = Math.min(player.maxHp, player.hp + heal);
+  restoreHealth(player, heal);
   if (NET?.on && !player.ghost) sockSupport(player, remoteSockAuras(), dt);
+  if (!player.ghost) flushHealFeedback(player);
 
   if (!NET || !NET.on || NET.host) {
   // 刷怪：越往后越多越强
@@ -3364,7 +3411,10 @@ function update(dt) {
       query(aura.x, aura.z, aura.radius, (enemy) => { enemy.sockSlow = 1; });
     }
   }
-  if (demoSockAlly) sockSupport(demoSockAlly, [{ x: player.x, z: player.z, radius: sockAuraRadius() }], dt);
+  if (demoSockAlly) {
+    sockSupport(demoSockAlly, [{ x: player.x, z: player.z, radius: sockAuraRadius() }], dt);
+    flushHealFeedback(demoSockAlly);
+  }
   // 流派三阶的全场效果
   if (SL.magic >= 3) { thunderCd -= dt; if (thunderCd <= 0) { thunderCd = 0.5; const e = nearest(player.x + rnd(-6, 6), player.z + rnd(-6, 6), 9); if (e) { zap([{ x: e.x + rnd(-1, 1), y: 12, z: e.z + rnd(-1, 1) }, { x: e.x, y: 0.4, z: e.z }], 0xc9b8ff, 0.18, 0.8); hitEnemy(e, 40, 0, 0, 'magic'); ripple(e.x, e.z, 0.4); spark(e.x, 0.5, e.z, 0xc9b8ff, 14, 5, 0.35, 0.35); } } }
   if (SL.gun >= 3) { ringCd -= dt; if (ringCd <= 0) { ringCd = 1.2; for (let k = 0; k < 16; k++) shoot('staple', player.x, 0.85, player.z, k / 16 * TAU, 20, 0.6, 6 + 2 * W('stapler'), 'gun'); } }
@@ -3793,6 +3843,7 @@ function frame(now) {
     if (NET?.on && state !== 'title') netTick(raw);
     if (state === 'play' || (NET?.on && (state === 'levelup' || state === 'paused'))) update(dt); else if (state === 'title') { titleAmbience(raw); if (titleStep === 'gacha') updateGacha(raw); }
   }
+  if (!skillDemoMode) gameAudio.update(state, !!boss && !boss.dead, player.hp / player.maxHp);
   draw(skillDemoMode || state === 'play' || state === 'title' ? dt : raw * 0.12);
   composer.render(); requestAnimationFrame(frame);
 }

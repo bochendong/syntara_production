@@ -907,7 +907,7 @@ function AuthenticatedApp() {
             ) : globalPage === 'admin' ? (
               <AdminPage onBack={() => setGlobalPage(null)} />
             ) : globalPage === 'game' ? (
-              <GamePage onBack={() => setGlobalPage(null)} />
+              <GamePage onBack={compactLayout ? () => setGlobalPage(null) : undefined} />
             ) : globalPage === 'store' ? (
               <StorePage
                 onBack={() => setGlobalPage(null)}

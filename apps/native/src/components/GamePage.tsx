@@ -7,24 +7,25 @@ import './game-page.css';
  * 「游戏」页：沙盒期末战。游戏是一个独立的 three.js 页面（public/games/sandbox-brawl），
  * 用 iframe 整页嵌进来，自己管存档（localStorage）。离开页面时 iframe 卸载，这一局就结束了。
  */
-export function GamePage({ onBack }: { onBack: () => void }) {
+export function GamePage({ onBack }: { onBack?: () => void }) {
   const gameUrl = withAppBase('/games/sandbox-brawl/index.html');
   const source = browserApp
     ? `${gameUrl}?account=${encodeURIComponent(browserAccountId())}`
     : gameUrl;
   return (
     <section className="game-page" aria-label="游戏：沙盒期末战">
-      <header className="game-page-bar">
-        <button type="button" className="game-page-back" onClick={onBack} aria-label="返回">
-          <ChevronLeft size={20} strokeWidth={2} aria-hidden />
-        </button>
-        <h1>沙盒期末战</h1>
-      </header>
+      {onBack ? (
+        <div className="game-page-controls">
+          <button type="button" className="game-page-back" onClick={onBack} aria-label="返回">
+            <ChevronLeft size={20} strokeWidth={2} aria-hidden />
+          </button>
+        </div>
+      ) : null}
       <iframe
         className="game-page-frame"
         title="沙盒期末战"
         src={source}
-        allow="fullscreen; gamepad"
+        allow="autoplay; fullscreen; gamepad"
         allowFullScreen
       />
     </section>
