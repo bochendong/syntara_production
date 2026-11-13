@@ -1,8 +1,23 @@
 import type { LocalProblem } from '../domain/models';
 
 export function namedMidtermYear(label: string): string | undefined {
-  return /^UT(?:SG|M|SC) [A-Z]{3} \d{3} (\d{2})[FWS] Midterm$/.exec(label)?.[1];
+  return (
+    /^UT(?:SG|M|SC) [A-Z]{3} \d{3} (\d{2})[FWS] Midterm$/.exec(label)?.[1] ??
+    /^UT(?:SG|M|SC) (?:Fall|Winter|Summer) 20(\d{2}) Midterm$/.exec(label)?.[1]
+  );
 }
+
+const reviewPaper = /^(?:UTM Term Test 2 Review [A-C]|UTSG Quiz 2 Review [A-E])$/;
+
+const legacyPaperAliases = new Map([
+  ['TT1原版模拟A卷', 'UTM Fall 2026 Term Test 1'],
+  ['TT2原版模拟A卷', 'UTM Term Test 2 Original A'],
+  ['TT2模拟A卷', 'UTM Term Test 2 Mock A'],
+  ['TT2模拟B卷', 'UTM Term Test 2 Mock B'],
+  ['TT2模拟C卷', 'UTM Term Test 2 Mock C'],
+  ['UTSG CSC 108 26F Midterm', 'UTSG Fall 2026 Midterm'],
+]);
+const renamedPapers = new Set(legacyPaperAliases.values());
 
 /** Only explicit paper tags (including the legacy midterm + set-NN pair) are series. */
 export function paperLabels(tags: readonly string[] = []): string[] {
@@ -11,15 +26,24 @@ export function paperLabels(tags: readonly string[] = []): string[] {
   const namedYears = new Set<string>();
   for (const tag of tags) {
     const year = namedMidtermYear(tag);
-    if (year) {
-      namedYears.add(year);
+    if (year) namedYears.add(year);
+    const renamed = legacyPaperAliases.get(tag);
+    if (renamed && tags.includes(renamed)) continue;
+    if (
+      year ||
+      reviewPaper.test(tag) ||
+      renamedPapers.has(tag) ||
+      /^UTSG Midterm Mock (0[1-9]|10)$/.test(tag)
+    )
       labels.add(tag);
-    }
   }
   for (const tag of tags) {
-    if (/^TT\d+(?:原版)?模拟[A-Z]卷$/.test(tag)) labels.add(tag);
+    const renamed = legacyPaperAliases.get(tag);
+    if (/^TT\d+(?:原版)?模拟[A-Z]卷$/.test(tag) && (!renamed || !labels.has(renamed)))
+      labels.add(tag);
     const set = midterm && /^set-(0[1-9]|[1-9]\d)$/.exec(tag);
-    if (set && !namedYears.has(set[1])) labels.add(`Midterm Set ${set[1]}`);
+    if (set && !namedYears.has(set[1]) && !labels.has(`UTSG Midterm Mock ${set[1]}`))
+      labels.add(`Midterm Set ${set[1]}`);
   }
   return [...labels];
 }
@@ -56,6 +80,7 @@ export function matchesProblemFilters(
     problem.type,
     problem.chapterName ?? '',
     problem.tags.join(' '),
+    paperLabels(problem.tags).join(' '),
     JSON.stringify(problem.publicContent),
   ]
     .join('\n')
