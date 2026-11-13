@@ -1,0 +1,21 @@
+{
+  "status": "deployed",
+  "at": "2026-11-13T22:21:13.677Z",
+  "environment": "staging",
+  "revision": "8f0d1c5ee56c013fc2892fb9abcea5f63e9a64e2",
+  "deploymentId": "1050b46f-3270-4db9-9ebc-b353c9b82e8c",
+  "previousRevision": "bf8c9f1ae308a4210190ace983ec199867bb54a7",
+  "changes": [
+    "Show green healing numbers and particles, flash the local health bar, and show healing to co-op teammates.",
+    "Start background music and hit sounds in an active match, with silence in menus and after leaving the game.",
+    "Remove the desktop game header and keep a back button on compact layouts."
+  ],
+  "verification": {
+    "railwayBuild": true,
+    "healthAndRevision": true,
+    "gameAssets": "159 game files, including the three audio tracks and effects, matched source byte for byte.",
+    "webApp": "Verified the live app bundle includes the compact back control and allows game audio.",
+    "localBrowser": "Verified sound starts in a match and stops after leaving, normal healing indicators, and two-player aura healing indicators on both screens."
+  },
+  "pendingMigrations": 0
+}
