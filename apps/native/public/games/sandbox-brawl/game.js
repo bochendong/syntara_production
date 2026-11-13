@@ -991,7 +991,8 @@ const MODES = {
   endless: { name: '无尽', note: '没有终点，5 分钟起每 5 分钟来一次大魔王，一次比一次强' },
 };
 const BOSS_T = 600, EVT = 30;   // 一局 10 分钟，每 30 秒一个事件
-let diffId = 'normal', modeId = 'std'; const DF = () => DIFFS[diffId];
+const DIFFICULTIES = Object.keys(DIFFS);
+let diffId = 'easy', modeId = 'std'; const DF = () => DIFFS[diffId];
 const UNLOCK_ORDER = ['gun', 'magic', 'summon'];   // 通关一次解锁下一个流派的全部同学
 // 局外进度：开局有 3 位同学、5 个技能、4 件遗物、6 件饰品
 const localPreview = location.protocol === 'http:' && ['127.0.0.1', 'localhost', '[::1]'].includes(location.hostname);
@@ -1003,7 +1004,7 @@ const hostedGame = !skillDemoMode && location.pathname.startsWith('/native-web/g
 const expectedGameAccount = hostedGame ? new URLSearchParams(location.search).get('account') : null;
 const PRICE = { heroes: 150 }, FREE_SKILLS = ['mop', 'plane'];
 const DEF0 = { heroes: ['brawler', 'scholar', 'jock'], arts: ['vamp', 'mirror', 'plate', 'koi'], relics: ['dumbbell', 'wrist', 'mom', 'bucket', 'scope', 'drink'] };
-const meta = { pts: 0, heroes: [...DEF0.heroes], arts: [...DEF0.arts], relics: [...DEF0.relics], seen: [], ach: [], skins: [], ults: [], weapons: [], top: [], skinOn: {}, growth: {}, fragments: {}, itemLevels: {}, practiceTransfer: '', stat: { runs: 0, kills: 0, wins: 0, hardWin: 0, pulls: 0, pity: 0 } };
+const meta = { pts: 0, heroes: [...DEF0.heroes], arts: [...DEF0.arts], relics: [...DEF0.relics], seen: [], ach: [], skins: [], ults: [], weapons: [], top: [], clearedDifficulties: [], skinOn: {}, growth: {}, fragments: {}, itemLevels: {}, practiceTransfer: '', stat: { runs: 0, kills: 0, wins: 0, hardWin: 0, pulls: 0, pity: 0 } };
 let legacyPreviewUnlocks = false;
 function loadMeta() {
   try {
@@ -1015,16 +1016,30 @@ function loadMeta() {
     for (const key in meta) {
       if (saved[key] == null) continue;
       if (legacyPreviewUnlocks && (key === 'arts' || key === 'relics')) continue;
-      if (Array.isArray(meta[key])) meta[key] = key === 'top' ? saved[key] : [...new Set([...meta[key], ...saved[key]])];
+      if (Array.isArray(meta[key])) {
+        if (!Array.isArray(saved[key])) continue;
+        meta[key] = key === 'top' ? saved[key] : [...new Set([...meta[key], ...saved[key]])];
+      }
       else if (typeof meta[key] === 'object') Object.assign(meta[key], saved[key]);
       else if (key === 'practiceTransfer') meta[key] = typeof saved[key] === 'string' ? saved[key] : '';
       else meta[key] = +saved[key] || 0;
     }
+    // Old saves only identify difficulty for confirmed hard-mode wins.
+    if (!Array.isArray(saved.clearedDifficulties) && (meta.stat.hardWin > 0 || meta.ach.includes('hard')))
+      meta.clearedDifficulties = [...DIFFICULTIES];
   }
   } catch (e) {}
 }
 if (!hostedGame) loadMeta();
 const saveMeta = () => { if (skillDemoMode) return; try { localStorage.setItem(META_KEY, JSON.stringify(meta)); } catch (e) {} };
+function difficultyLevel() {
+  const firstUncleared = DIFFICULTIES.findIndex((id) => !meta.clearedDifficulties.includes(id));
+  return firstUncleared < 0 ? DIFFICULTIES.length - 1 : firstUncleared;
+}
+const difficultyOpen = (id, level = difficultyLevel()) => {
+  const index = DIFFICULTIES.indexOf(id);
+  return index >= 0 && index <= level;
+};
 const GROWTH_STATS = {
   maxHp: 5,
   points: 20,
@@ -1102,6 +1117,7 @@ function runPoints(win) {
 function settle(win) {
   if (settled) return 0; settled = true; const p = runPoints(win); meta.pts += p;
   const st = meta.stat; st.runs++; st.kills += player.kills; if (win) { st.wins++; if (diffId === 'hard') st.hardWin++; }
+  if (win && modeId === 'std' && !meta.clearedDifficulties.includes(diffId)) meta.clearedDifficulties.push(diffId);
   if (modeId === 'endless' && T > 30) { meta.top.push({ t: Math.floor(T), h: clsId, d: diffId }); meta.top.sort((a, b) => b.t - a.t); meta.top.length = Math.min(5, meta.top.length); }
   saveMeta(); checkAch(true, win ? 'win' : 'lose'); return p;
 }
@@ -2524,6 +2540,17 @@ function showHow() {
   </div><div class="actions"><button class="primary" id="ok">知道了</button></div>`);
   $('ok').onclick = hide; $('ok').focus();
 }
+function difficultyOptions(level = difficultyLevel()) {
+  if (!difficultyOpen(diffId, level)) diffId = DIFFICULTIES[level];
+  return DIFFICULTIES.map((id, index) => {
+    const locked = !difficultyOpen(id, level);
+    const requirement = difficultyOpen(id) ? '等待队友解锁' : `通关${DIFFS[DIFFICULTIES[index - 1]]?.name ?? ''}解锁`;
+    return `<button class="opt ${id === diffId ? 'on' : ''} ${locked ? 'lk' : ''}" data-d="${id}" style="--c:${['#b8f0cf', '#ffe07a', '#ffb0a8'][index]}" ${locked ? 'disabled' : ''}>
+      <b>${DIFFS[id].name}</b>${locked ? `<small>${requirement}</small>` : `<span class="pep">${DIFFICULTIES.map((_, dot) => `<i class="${dot <= index ? 'on' : ''}"></i>`).join('')}</span>`}
+    </button>`;
+  }).join('');
+}
+
 function renderPrep(fresh) {
   clsId = CLS_IDS[selIdx]; cls = CLASSES[clsId]; if (modeId === 'endless' && !endlessOpen()) modeId = 'std';
   const locked = !isOpen(clsId), t = TAGS[cls.tag], aL = locked && achFor('heroes', clsId), mySk = Object.keys(SKINS).filter((k) => SKINS[k].h === clsId), on = skinOf(clsId);
@@ -2537,7 +2564,7 @@ function renderPrep(fresh) {
     <h3>模式</h3>
     <div class="opts2">${Object.keys(MODES).map((m) => { const lk = m === 'endless' && !endlessOpen(); return `<button class="opt ${m === modeId ? 'on' : ''} ${lk ? 'lk' : ''}" data-m="${m}" ${lk ? 'disabled' : ''}><b>${MODES[m].name}</b><small>${lk ? '通关一次标准模式解锁' : m === 'std' ? '10:00 打倒大魔王' : bestEndless ? `最好 ${fmt(bestEndless)}` : '能撑多久算多久'}</small></button>`; }).join('')}</div>
     <h3>难度</h3>
-    <div class="opts3">${Object.keys(DIFFS).map((d, k) => `<button class="opt ${d === diffId ? 'on' : ''}" data-d="${d}" style="--c:${['#b8f0cf', '#ffe07a', '#ffb0a8'][k]}"><b>${DIFFS[d].name}</b><span class="pep">${[0, 1, 2].map((q) => `<i class="${q <= k ? 'on' : ''}"></i>`).join('')}</span></button>`).join('')}</div>
+    <div class="opts3">${difficultyOptions()}</div>
     <p class="note">${MODES[modeId].note}。${DF().note}。</p>
     <div class="actions"><button id="pBack">返回</button><button class="primary big" id="go" ${locked && (aL || meta.pts < PRICE.heroes) ? 'disabled' : ''}>${aL ? '靠成就加入' : locked ? (meta.pts < PRICE.heroes ? `还差 ${PRICE.heroes - meta.pts} 积分` : `兑换 · ${PRICE.heroes} 积分`) : '出发！'}</button></div>`;
   const plate = `<div class="plate frame ${locked ? 'locked' : ''}"><b>${locked ? '？？？' : cls.name}</b>${locked ? `<small>${aL ? '成就解锁' : PRICE.heroes + ' 积分兑换'}</small>` : `<span class="role" style="--c:${t.c}">${t.name}</span>`}</div>`;
@@ -2650,6 +2677,7 @@ async function netPost(body) {
   return j;
 }
 const netSend = (m) => { if (NET) netPost({ op: 'send', code: NET.code, key: NET.key, m }).catch(() => {}); };
+const roomDifficultyLevel = () => Math.min(difficultyLevel(), ...NET.room.players.map((p) => p.difficultyLevel ?? 0));
 const myHero = () => (isOpen(CLS_IDS[selIdx]) ? CLS_IDS[selIdx] : meta.heroes[0]);
 function netOpen(res, host) {
   if (NET && NET.es) NET.es.close();
@@ -2668,7 +2696,7 @@ function netRecv(ev) {
   if (ev.t !== 'm' || !ev.m) return;
   const m = ev.m, from = ev.from;
   if (m.k === 'p' || m.k === 's') { if (m.p && NET.on) netPeer(from, m.p); if (m.k === 's' && !NET.host && NET.on) netApply(m); if (m.D && NET.host && NET.on) netDamage(m.D); }
-  else if (m.k === 'end' && NET.on && !NET.host) { if (m.win) { if (state !== 'win') showWin(); } else netOver(); }
+  else if (m.k === 'end' && NET.on && !NET.host && from === NET.room.host) { if (m.win) { if (state !== 'win') showWin(); } else netOver(); }
 }
 function netPeer(id, p) {
   const room = NET.room.players.find((q) => q.id === id); if (!room) return;
@@ -2780,7 +2808,7 @@ function drawPeers() {
   for (const el of [...ptags.children]) if (!live.has(el.dataset.id)) el.remove();
 }
 function netBegin(m) {
-  diffId = DIFFS[m.d] ? m.d : 'normal'; modeId = m.mode === 'endless' ? 'endless' : 'std';
+  diffId = DIFFICULTIES.includes(m.d) ? m.d : 'easy'; modeId = m.mode === 'endless' ? 'endless' : 'std';
   const me = NET.room.players.find((p) => p.id === NET.id), hero = me && CLASSES[me.hero] && isOpen(me.hero) ? me.hero : myHero();
   selIdx = CLS_IDS.indexOf(hero); NET.n = NET.room.players.length; NET.on = true; NET.peers = {}; NET.mir.clear(); NET.K = []; NET.used.clear();
   const idx = NET.room.players.findIndex((p) => p.id === NET.id);
@@ -2817,8 +2845,12 @@ function renderLobby(err = '') {
       <p class="err" id="nErr">${err}</p><div class="actions"><button id="nClose">返回</button></div>`, 'frame lobby');
     const nm = () => { netName = $('nName').value.trim().slice(0, 12) || '同学'; try { localStorage.setItem('syntara.brawl.name', netName); } catch (e) {} return netName; };
     const busy = (b) => { $('nCreate').disabled = $('nJoin').disabled = b; };
-    $('nCreate').onclick = async () => { busy(true); try { const h = myHero(); const r = await netPost({ op: 'create', name: nm(), hero: h, skin: skinOf(h) }); netOpen(r, true); renderLobby(); } catch (e) { renderLobby(e.message); } };
-    $('nJoin').onclick = async () => { const code = $('nCode').value.trim().toUpperCase(); if (code.length !== 4) return renderLobby('房间码是 4 位'); busy(true); try { const h = myHero(); const r = await netPost({ op: 'join', code, name: nm(), hero: h, skin: skinOf(h) }); netOpen(r, false); renderLobby(); } catch (e) { renderLobby(e.message); } };
+    const roomPlayer = () => {
+      const hero = myHero();
+      return { name: nm(), hero, skin: skinOf(hero), difficultyLevel: difficultyLevel() };
+    };
+    $('nCreate').onclick = async () => { busy(true); try { const r = await netPost({ op: 'create', ...roomPlayer() }); netOpen(r, true); renderLobby(); } catch (e) { renderLobby(e.message); } };
+    $('nJoin').onclick = async () => { const code = $('nCode').value.trim().toUpperCase(); if (code.length !== 4) return renderLobby('房间码是 4 位'); busy(true); try { const r = await netPost({ op: 'join', code, ...roomPlayer() }); netOpen(r, false); renderLobby(); } catch (e) { renderLobby(e.message); } };
     $('nCode').onkeydown = (e) => { if (e.key === 'Enter') $('nJoin').click(); };
     $('nClose').onclick = () => { hide(); backToTitle(); };
     return;
@@ -2828,18 +2860,19 @@ function renderLobby(err = '') {
   show(`<h2>房间 <span class="code">${R_.code}</span></h2><p>把房间码告诉同学，他们在首页点「联机」输入就能进来。最多 4 人。</p>
     <div class="plist">${R_.players.map(slot).join('')}${Array.from({ length: 4 - R_.players.length }, () => '<div class="pl empty">等人加入</div>').join('')}</div>
     <h3>我用</h3><div class="chips">${CLS_IDS.filter(isOpen).map((id) => `<button class="chip ${id === mine ? 'sel' : ''}" data-h="${id}">${ico(TAGS[CLASSES[id].tag].c, CLASSES[id].start)}${CLASSES[id].short || CLASSES[id].name}</button>`).join('')}</div>
-    ${host ? `<h3>难度</h3><div class="opts3">${Object.keys(DIFFS).map((d, k) => `<button class="opt ${d === diffId ? 'on' : ''}" data-d="${d}" style="--c:${['#b8f0cf', '#ffe07a', '#ffb0a8'][k]}"><b>${DIFFS[d].name}</b></button>`).join('')}</div>
+    ${host ? `<h3>难度</h3><div class="opts3">${difficultyOptions(roomDifficultyLevel())}</div>
       <h3>模式</h3><div class="opts2">${Object.keys(MODES).map((m) => { const lk = m === 'endless' && !endlessOpen(); return `<button class="opt ${m === modeId && !lk ? 'on' : ''} ${lk ? 'lk' : ''}" data-m="${m}" ${lk ? 'disabled' : ''}><b>${MODES[m].name}</b>${lk ? '<small>通关一次标准模式解锁</small>' : ''}</button>`; }).join('')}</div>` : `<p>房主选难度后开局。</p>`}
     <p class="err">${err}</p>
     <div class="actions">${host ? `<button class="primary big" id="nGo" ${R_.started ? 'disabled' : ''}>开局${R_.players.length > 1 ? `（${R_.players.length} 人）` : ''}</button>` : '<button class="primary" disabled>等房主开局…</button>'}<button id="nLeave">离开房间</button></div>`, 'frame lobby');
-  panel.querySelectorAll('[data-h]').forEach((b) => b.onclick = () => { selIdx = CLS_IDS.indexOf(b.dataset.h); netPost({ op: 'hello', code: NET.code, key: NET.key, hero: b.dataset.h, skin: skinOf(b.dataset.h) }).then((r) => { if (NET) { NET.room = r.room; renderLobby(); } }).catch((e) => renderLobby(e.message)); });
+  panel.querySelectorAll('[data-h]').forEach((b) => b.onclick = () => { selIdx = CLS_IDS.indexOf(b.dataset.h); netPost({ op: 'hello', code: NET.code, key: NET.key, hero: b.dataset.h, skin: skinOf(b.dataset.h), difficultyLevel: difficultyLevel() }).then((r) => { if (NET) { NET.room = r.room; renderLobby(); } }).catch((e) => renderLobby(e.message)); });
   panel.querySelectorAll('[data-d]').forEach((b) => b.onclick = () => { diffId = b.dataset.d; renderLobby(); });
   panel.querySelectorAll('[data-m]').forEach((b) => b.onclick = () => { modeId = b.dataset.m; renderLobby(); });
-  if ($('nGo')) $('nGo').onclick = () => { if (modeId === 'endless' && !endlessOpen()) modeId = 'std'; $('nGo').disabled = true; netPost({ op: 'start', code: NET.code, key: NET.key, m: { d: diffId, mode: modeId } }).catch((e) => renderLobby(e.message)); };
+  if ($('nGo')) $('nGo').onclick = () => { if (!difficultyOpen(diffId, roomDifficultyLevel())) return renderLobby(); if (modeId === 'endless' && !endlessOpen()) modeId = 'std'; $('nGo').disabled = true; netPost({ op: 'start', code: NET.code, key: NET.key, m: { d: diffId, mode: modeId } }).catch((e) => renderLobby(e.message)); };
   $('nLeave').onclick = () => netLeave();
 }
 function pickHero(i) { selIdx = i % CLS_IDS.length; if (state === 'title') { titleStep = 'prep'; renderPrep(); } }
 function startRun() {
+  if (!NET?.on && !difficultyOpen(diffId)) diffId = DIFFICULTIES[difficultyLevel()];
   clsId = CLS_IDS[selIdx]; cls = CLASSES[clsId]; if (!isOpen(clsId)) return;
   clearField();
   defeatSource = deathTaunt = null;
@@ -3229,12 +3262,17 @@ function revive() {
 function showWin() {
   if (NET && NET.on && NET.host) netSend({ k: 'end', win: 1 });
   state = 'win';
-  const gain = settle(true), nxt = null;
+  const before = difficultyLevel();
+  const gain = settle(true);
+  const level = difficultyLevel();
+  const unlocked = level > before ? DIFFICULTIES[level] : null;
+  if (unlocked && NET?.on) netPost({ op: 'hello', code: NET.code, key: NET.key, difficultyLevel: level }).catch(() => {});
   show(`${confetti()}<div class="eyebrow">${MODES[modeId].name} · ${DF().name}</div><h1>通关！</h1>
     <div class="unlock">${ico('#ffab2e', 'charm')}<div><b>积分 +${gain}</b><small>现在有 ${meta.pts} 积分，可以去大鹅抽卡或升级成长</small></div></div>
+    ${unlocked ? `<div class="unlock">${ico('#ffab2e', 'star')}<div><b>已解锁${DIFFS[unlocked].name}难度</b></div></div>` : ''}
     <div class="stats"><div style="--i:0"><b>${fmt(T)}</b><small>用时</small></div><div style="--i:1"><b>${player.kills}</b><small>击倒</small></div><div style="--i:2"><b>${player.lvl}</b><small>等级</small></div><div style="--i:3"><b>${Object.keys(player.arts).length}</b><small>遗物</small></div></div>
     ${buildSummary()}<div class="actions"><button class="primary" id="again">再来一局</button><button id="wbook">去图鉴</button></div>`);
-  $('again').onclick = () => wipe(() => { if (nxt) selIdx = CLS_IDS.findIndex((id) => CLASSES[id].tag === nxt); showTitle('prep'); }); $('again').focus(); $('wbook').onclick = () => wipe(() => { showTitle('home'); showCodex(); });
+  $('again').onclick = () => wipe(() => { if (unlocked) diffId = unlocked; showTitle('prep'); }); $('again').focus(); $('wbook').onclick = () => wipe(() => { showTitle('home'); showCodex(); });
   if (NET) { $('again').textContent = '回联机大厅'; $('again').onclick = () => netToLobby(); $('wbook').textContent = '离开房间'; $('wbook').onclick = () => netLeave(); }
 }
 
