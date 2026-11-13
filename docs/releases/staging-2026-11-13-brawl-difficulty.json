@@ -1,0 +1,21 @@
+{
+  "status": "deployed",
+  "at": "2026-11-13T22:50:55.304Z",
+  "environment": "staging",
+  "revision": "bf44832398e19dd5c4ac6a18628d64bd8d754548",
+  "deploymentId": "7618606c-06a7-4522-8d98-aec936cf0988",
+  "previousRevision": "8f0d1c5ee56c013fc2892fb9abcea5f63e9a64e2",
+  "changes": [
+    "Unlock normal after an easy standard clear and hard after a normal standard clear.",
+    "Limit co-op room difficulty to the lowest unlock among current players.",
+    "Honor recorded hard clears in legacy saves."
+  ],
+  "verification": {
+    "railwayBuild": true,
+    "healthAndRevision": true,
+    "gameAssets": "159 files matched source byte for byte.",
+    "localBrowser": "Verified consecutive clears, loss and endless handling, reload persistence, and legacy saves.",
+    "rooms": "Verified all-player progression requirements and difficulty changes between rounds."
+  },
+  "pendingMigrations": 0
+}
