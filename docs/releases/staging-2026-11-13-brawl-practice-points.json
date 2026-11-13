@@ -1,0 +1,23 @@
+{
+  "status": "deployed",
+  "at": "2026-11-13T21:16:13.068Z",
+  "environment": "staging",
+  "revision": "bf8c9f1ae308a4210190ace983ec199867bb54a7",
+  "deploymentId": "32c70447-e83a-40b6-a43e-5703bcfd4f06",
+  "previousRevision": "e5091526461f62319064314a3286c6276ae0f178",
+  "changes": [
+    "Award 3, 5, or 8 points for the first verified full pass of an easy, medium, or hard published course problem.",
+    "Transfer practice points into the account-scoped browser game save on opening the game."
+  ],
+  "verification": {
+    "railwayBuild": true,
+    "migration": "20261113210000_brawl_practice_points",
+    "healthAndRevision": true,
+    "gameAssets": "155 released game files matched source byte for byte.",
+    "stagingApi": "Authenticated balance read and anonymous access rejection.",
+    "localPostgreSQL": "Native whole-problem regrading, reward eligibility, concurrent first pass, transfer and idempotent replay.",
+    "localBrowser": "Lost response recovery, single credit, growth purchase, reload persistence, account isolation.",
+    "existingRegressions": "Code submissions, multi-part grading and attempt synchronization."
+  },
+  "pendingMigrations": 0
+}
