@@ -1,0 +1,20 @@
+{
+  "status": "deployed",
+  "at": "2026-11-13T20:41:10.405Z",
+  "environment": "staging",
+  "revision": "e5091526461f62319064314a3286c6276ae0f178",
+  "deploymentId": "82b07cfa-f015-411b-9197-1fa7cbf00873",
+  "previousRevision": "0aab42fb4b7a4443f438df04673fbfe3e3241b08",
+  "changes": [
+    "Add weapon, accessory and relic fragments, an 80-draw guarantee, and equipment progression through level 20.",
+    "Add points equipment and replace the armor growth upgrade with a run points multiplier.",
+    "Update the goose animation and show locks and fragment progress in the codex."
+  ],
+  "verification": {
+    "railwayBuild": true,
+    "healthAndRevision": true,
+    "gameAssets": "All 155 game HTML, JavaScript and WebP files matched the released source.",
+    "browser": "Checked the guarantee text, locked accessories and relics with fragment progress, and the points multiplier on staging. Draw outcomes and settlement were verified with a disposable local save."
+  },
+  "pendingMigrations": 0
+}
