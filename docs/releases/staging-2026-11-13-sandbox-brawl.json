@@ -1,0 +1,20 @@
+{
+  "status": "deployed",
+  "at": "2026-11-13T19:52:06.304Z",
+  "environment": "staging",
+  "revision": "0aab42fb4b7a4443f438df04673fbfe3e3241b08",
+  "deploymentId": "99107119-702a-41d6-8e3a-dfc9fae0b67a",
+  "previousRevision": "dcfd1f1e1dd634142819be5c6ec84d6ee9bcd26e",
+  "changes": [
+    "Publish the updated Sandbox Brawl game, its illustrations and card art, and the four-player room endpoint."
+  ],
+  "verification": {
+    "formatLintTypes": true,
+    "railwayBuild": true,
+    "healthAndRevision": true,
+    "gameAssets": "All 155 HTML, JavaScript and WebP files matched the released source byte for byte.",
+    "browser": "Opened the deployed game homepage, skill codex with an animated preview, and classmate selection.",
+    "coOp": "Verified four players, the capacity limit, host start and SSE relay in a temporary staging room. A full four-player match was not run."
+  },
+  "pendingMigrations": 0
+}
