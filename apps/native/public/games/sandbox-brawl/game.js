@@ -63,31 +63,41 @@ const WEAPONS = {
   lamp:     { name: '台灯炮台',   tag: 'summon', c: '#d4a000', ch: '灯', ups: ['lv'],     nText: '每次多放一盏', desc: '放下会自动射光束的台灯，原地守点', evo: { relic: 'banner', name: '探照灯', desc: '光束变成一整条，直线上的怪全中' } },
   duck:     { name: '橡皮鸭',     tag: 'summon', c: '#ffd23f', ch: '鸭', ups: ['lv'],     nText: '每次多放一只', funny: 1, desc: '嘎嘎叫，把附近的怪全引过去，时间到了炸成彩带', evo: { relic: 'bath', name: '鸭鸭大军', desc: '每次放 3 倍数量，爆炸范围翻倍' } },
 };
+// 饰品：每件效果都很小，同一件可以一直叠。r = 稀有度（0 普通 / 1 稀有 / 2 传奇），curse = 有代价
 const RELICS = {
-  wrist:    { name: '护腕',       tag: 'melee',  desc: '近战伤害 +25%' },
-  drink:    { name: '运动饮料',   tag: 'melee',  desc: '生命上限 +30，每秒多回 0.15 血' },
-  dumbbell: { name: '哑铃',       tag: 'melee',  desc: '近战范围 +25%' },
-  bucket:   { name: '水桶',       tag: 'melee',  desc: '近战范围 +20%，湿地板多留 2 秒' },
-  sharpener:{ name: '削笔刀',     tag: 'ranged', desc: '远程穿透 +1' },
-  scratch:  { name: '草稿纸',     tag: 'ranged', desc: '铅笔、纸飞机、拖鞋数量 +1' },
-  scope:    { name: '望远镜',     tag: 'ranged', desc: '暴击率 +10%，暴击伤害 +100%' },
-  mom:      { name: '妈妈的怒吼', tag: 'ranged', desc: '所有击退 +50%' },
-  mag:      { name: '大弹匣',     tag: 'gun',    desc: '枪械冷却 -20%' },
-  dual:     { name: '双持',       tag: 'gun',    desc: '订书机枪一次多射一发' },
-  reddot:   { name: '红点瞄具',   tag: 'gun',    desc: '枪械暴击率 +15%' },
-  caffeine: { name: '咖啡因',     tag: 'magic',  desc: '魔法冷却 -20%' },
-  ink:      { name: '荧光墨水',   tag: 'magic',  desc: '魔法范围 +30%，闪电多跳 2 次' },
-  grimoire: { name: '魔导笔记',   tag: 'magic',  desc: '燃烧伤害翻倍' },
-  laundry:  { name: '脏衣篮',     tag: 'magic',  desc: '臭气、法阵、燃烧这些持续伤害 +30%' },
-  redpen:   { name: '红笔',       tag: 'magic',  desc: '对精英和大魔王伤害 +30%' },
-  poster:   { name: '招新海报',   tag: 'summon', desc: '每次多召唤一个' },
-  snack:    { name: '团建零食',   tag: 'summon', desc: '召唤物伤害 +30%' },
-  banner:   { name: '加油横幅',   tag: 'summon', desc: '召唤物攻速 +30%' },
-  bath:     { name: '浴缸',       tag: 'summon', desc: '召唤物存在时间 +30%' },
-  allnight: { name: '通宵',       tag: '', curse: 1, desc: '所有伤害 +40%，生命上限 -30%' },
-  slack:    { name: '摸鱼',       tag: '', curse: 1, desc: '移速 +30%，拾取范围 +60%，伤害 -10%' },
-  glass:    { name: '玻璃心',     tag: '', curse: 1, desc: '暴击伤害 +150%，生命上限 -40%' },
+  wrist:    { name: '护腕',       tag: 'melee',  r: 0, desc: '近战伤害 +8%' },
+  drink:    { name: '运动饮料',   tag: 'melee',  r: 0, desc: '生命上限 +10，每秒多回 0.05 血' },
+  dumbbell: { name: '哑铃',       tag: 'melee',  r: 0, desc: '近战范围 +8%' },
+  bucket:   { name: '水桶',       tag: 'melee',  r: 0, desc: '近战范围 +5%，水渍多留 1 秒' },
+  sharpener:{ name: '削笔刀',     tag: 'ranged', r: 1, desc: '远程穿透 +1' },
+  scratch:  { name: '草稿纸',     tag: 'ranged', r: 2, desc: '铅笔、纸飞机、拖鞋数量 +1' },
+  scope:    { name: '望远镜',     tag: 'ranged', r: 1, desc: '暴击率 +5%，暴击伤害 +20%' },
+  mom:      { name: '妈妈的怒吼', tag: 'ranged', r: 0, desc: '所有击退 +15%' },
+  mag:      { name: '大弹匣',     tag: 'gun',    r: 0, desc: '枪械冷却 -7%' },
+  dual:     { name: '双持',       tag: 'gun',    r: 2, desc: '订书机枪一次多射一发' },
+  reddot:   { name: '红点瞄具',   tag: 'gun',    r: 0, desc: '枪械暴击率 +5%' },
+  caffeine: { name: '咖啡因',     tag: 'magic',  r: 0, desc: '魔法冷却 -7%' },
+  ink:      { name: '荧光墨水',   tag: 'magic',  r: 1, desc: '魔法范围 +10%，闪电多跳 1 次' },
+  grimoire: { name: '魔导笔记',   tag: 'magic',  r: 1, desc: '燃烧伤害 +35%' },
+  laundry:  { name: '脏衣篮',     tag: 'magic',  r: 0, desc: '臭气、旋风、燃烧这些持续伤害 +10%' },
+  redpen:   { name: '红笔',       tag: 'magic',  r: 0, desc: '对精英和大魔王伤害 +10%' },
+  poster:   { name: '招新海报',   tag: 'summon', r: 2, desc: '每次多召唤一个' },
+  snack:    { name: '团建零食',   tag: 'summon', r: 0, desc: '召唤物伤害 +10%' },
+  banner:   { name: '加油横幅',   tag: 'summon', r: 0, desc: '召唤物攻速 +10%' },
+  bath:     { name: '浴缸',       tag: 'summon', r: 0, desc: '召唤物存在时间 +10%' },
+  allnight: { name: '通宵',       tag: '', curse: 1, desc: '所有伤害 +15%，生命上限 -10%' },
+  slack:    { name: '摸鱼',       tag: '', curse: 1, desc: '移速 +10%，拾取范围 +20%，伤害 -4%' },
+  glass:    { name: '玻璃心',     tag: '', curse: 1, desc: '暴击伤害 +50%，生命上限 -15%' },
 };
+const RAR = [['普通', '#b9ad98', 'q0'], ['稀有', '#3fae5a', 'rare'], ['传奇', '#e0473c', 'legend']], RAR3 = [0xf2ead8, 0x5fd07a, 0xff5a4a];
+const rarOf = (id) => (RELICS[id].curse ? { n: '代价', c: '#4a6ad8', k: 'curse' } : { n: RAR[RELICS[id].r][0], c: RAR[RELICS[id].r][1], k: RAR[RELICS[id].r][2] });
+// 按稀有度抽一件解锁过的饰品。w = [普通, 稀有, 传奇] 的权重，curse = 抽到代价饰品的概率
+function rollRelic(w, curse = 0, skip = []) {
+  const open = Object.keys(RELICS).filter((id) => meta.relics.includes(id) && !skip.includes(id));
+  const cur = open.filter((id) => RELICS[id].curse); if (cur.length && Math.random() < curse) return cur[(Math.random() * cur.length) | 0];
+  for (let t = 0; t < 4; t++) { let r = Math.random() * (w[0] + w[1] + w[2]), k = 0; while ((r -= w[k]) > 0 && k < 2) k++; const p = open.filter((id) => !RELICS[id].curse && RELICS[id].r === k); if (p.length) return p[(Math.random() * p.length) | 0]; }
+  const p = open.filter((id) => !RELICS[id].curse); return p.length ? p[(Math.random() * p.length) | 0] : null;
+}
 const DUOS = {
   zapcafe:  { a: 'coffee', b: 'bolt',     name: '电咖啡',   desc: '咖啡旋风会不停电里面的怪' },
   parry:    { a: 'sweep',  b: 'shotgun',  name: '弹反尺',   desc: '每次挥砍向四周弹出 8 块橡皮' },
@@ -200,7 +210,7 @@ function ws(id, extra) {
   const b = WBASE[id], u = Object.assign({}, player.wup[id] || {}, extra || {}), L = u.lv || 0, [ty, st] = LVUP[id], X = player.sp[id] || {};
   const dm = ty === 'dmg' ? 1 + st * L : 1, rt = (ty === 'rate' ? 1 + st * L : 1) * (X.cd ? 1.33 : 1), ar = (ty === 'area' ? 1 + st * L : 1) * (X.big ? 1.3 : 1);
   return { ...b, dmg: b.dmg * dm, cd: b.cd / rt, atk: b.atk ? b.atk / rt : 0, range: (b.range || 0) * ar, rad: (b.rad || 0) * ar, n: (b.n || 0) + (ty === 'n' ? st * L : 0) + (X.two ? 1 : 0),
-    pierce: b.pierce || 0, dur: (b.dur || 0) * (X.long ? 1.5 : 1) * (R('bath') ? 1.3 : 1) };
+    pierce: b.pierce || 0, dur: (b.dur || 0) * (X.long ? 1.5 : 1) * (1 + 0.1 * R('bath')) };
 }
 const wLevel = (id) => 1 + Object.values(player.wup[id] || {}).reduce((a, b) => a + b, 0);
 function upPreview(id, u, n = 1) {
@@ -493,7 +503,7 @@ RIGS_DEF.bomber = RIGS_DEF.clock.map((p) => { const q = p.slice(); if (q[1] === 
 RIGS_DEF.cup = [['cyl', 0xffffff, [0, 0, 0], [0.4, 0.44, 0.4], 0, '', 1], ['cyl', 0x6a3f1e, [0, 0.21, 0], [0.34, 0.04, 0.34], 0, '', 0], ['tor', 0xffffff, [0.24, 0, 0], [0.2, 0.2, 0.3], 0, '', 0]];
 RIGS_DEF.sockP = [['cap', 0xf2f2e6, [0, 0.16, 0], [0.2, 0.42, 0.2], 0, '', 1], ['sph', 0x9ac84a, [0, -0.08, 0.14], [0.22, 0.18, 0.4], 0, '', 1], ['box', 0xe2453a, [0, 0.32, 0], [0.21, 0.06, 0.21], 0, '', 0], ['sph', 0x9ac84a, [0, 0.7, 0], [0.1, 0.16, 0.1], 0, 'hover glow', 0]];
 for (const id in CLASSES) RIGS_DEF['hero_' + id] = heroParts(CLASSES[id].look);
-const RIG_CAP = { cup: 8, sockP: 6, gem2: 420, gem3: 160, sleepy: 260, cross: 300, bat: 220, clock: 120, ink: 260, ghost: 100, phone: 90, snail: 60, hourglass: 6, boss: 1, minion: 24, lamp: 6, pencilP: 400, planeP: 120, staple: 500, eraser: 260, ruler: 48, paper: 100, chest: 6, gem: 600, bomber: 160, slipperP: 40, duck: 12, bookP: 12, chalk: 90, chalkP: 80, mole: 60, mound: 60, vac: 6, altar: 4 };
+const RIG_CAP = { cup: 8, sockP: 6, gem2: 420, gem3: 160, sleepy: 260, cross: 300, bat: 220, clock: 120, ink: 260, ghost: 100, phone: 90, snail: 60, hourglass: 6, boss: 1, minion: 24, lamp: 6, pencilP: 400, planeP: 120, staple: 500, eraser: 260, ruler: 48, paper: 100, chest: 12, gem: 600, bomber: 160, slipperP: 40, duck: 12, bookP: 12, chalk: 90, chalkP: 80, mole: 60, mound: 60, vac: 6, altar: 4 };
 const tP = new THREE.Vector3(), tQ = new THREE.Quaternion(), tS = new THREE.Vector3(), tE = new THREE.Euler();
 const wP = new THREE.Vector3(), wQ = new THREE.Quaternion(), wS = new THREE.Vector3(), wE = new THREE.Euler(0, 0, 0, 'YXZ');
 const PM = new THREE.Matrix4(), WM = new THREE.Matrix4(), CM = new THREE.Matrix4(), OM = new THREE.Matrix4();
@@ -750,6 +760,35 @@ const shCanvas = document.createElement('canvas'); shCanvas.width = shCanvas.hei
 { const c = shCanvas.getContext('2d'); const g = c.createRadialGradient(32, 32, 0, 32, 32, 32); g.addColorStop(0, 'rgba(0,0,0,1)'); g.addColorStop(0.6, 'rgba(0,0,0,.65)'); g.addColorStop(1, 'rgba(0,0,0,0)'); c.fillStyle = g; c.fillRect(0, 0, 64, 64); }
 const shadowMesh = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(shCanvas), color: 0x000000, transparent: true, opacity: 0.55, depthWrite: false }), 1400);
 shadowMesh.frustumCulled = false; shadowMesh.count = 0; scene.add(shadowMesh);
+const GZ = -80, GPX = 1.7, gStage = new THREE.Group(); gStage.position.set(0, 0, GZ); gStage.visible = false; scene.add(gStage);
+const gAdd = (geo, c, pos, sc, rot = [0, 0, 0], ol = true, par = gStage) => { const m = solid(geo, c, pos, sc, rot || [0, 0, 0], ol); par.add(m); return m; };
+const GS = {};
+{
+  gAdd(GEO.cyl, 0xff8a7a, [0, 0.03, 0], [17, 0.06, 17], 0, false); gAdd(GEO.cyl, 0xfff3d0, [0, 0.07, 0], [15.6, 0.06, 15.6], 0, false); gAdd(GEO.cyl, 0xfffbe8, [0.4, 0.11, 0], [7.5, 0.02, 7.5], 0, false);
+  gAdd(GEO.box, 0xc8323a, [0, 4.6, -5.2], [20, 9.2, 0.3], 0, false); for (let x = -9; x <= 9; x += 1.5) gAdd(GEO.cyl, 0xa8262e, [x, 4.6, -5.0], [0.55, 9.2, 0.3], 0, false);
+  gAdd(GEO.box, 0xffc93c, [0, 8.9, -4.8], [20.4, 1.0, 0.5]); for (let x = -9; x <= 9; x += 1.5) gAdd(GEO.sph, 0xffc93c, [x, 8.35, -4.6], [0.5, 0.5, 0.3], 0, false);
+  for (const sx of [-1, 1]) gAdd(GEO.cone, 0xb02a32, [sx * 8.6, 4.4, -3.6], [3.4, 8.8, 0.6], 0, false);
+  const P = GS.pillar = new THREE.Group(); P.position.set(GPX, 0, 0); gStage.add(P);
+  gAdd(GEO.cyl, 0x8d7268, [0, 0.16, 0], [1.5, 0.3, 1.5], 0, true, P); gAdd(GEO.cyl, 0xffffff, [0, 0.95, 0], [1.0, 1.6, 1.0], 0, true, P);
+  for (let k = 0; k < 4; k++) gAdd(GEO.cyl, 0xff5f6a, [0, 0.35 + k * 0.4, 0], [1.03, 0.16, 1.03], 0, false, P);
+  gAdd(GEO.cyl, 0xffc93c, [0, 1.8, 0], [1.25, 0.18, 1.25], 0, true, P); gAdd(GEO.sph, 0xffe07a, [0, 1.92, 0], [0.9, 0.22, 0.9], 0, false, P);
+  // 大鹅：白身子、橙嘴橙脚、凶眉毛
+  const g = GS.goose = new THREE.Group(); g.position.set(-1.0, 0, 0); gStage.add(g);
+  for (const sx of [-1, 1]) { gAdd(GEO.cyl, 0xff9a2e, [sx * 0.26, 0.36, 0], [0.12, 0.7, 0.12], 0, true, g); gAdd(GEO.box, 0xff9a2e, [sx * 0.26, 0.05, 0.14], [0.32, 0.08, 0.42], 0, true, g); }
+  gAdd(GEO.sph, 0xffffff, [0, 1.05, -0.1], [1.3, 1.0, 1.75], 0, true, g); gAdd(GEO.cone, 0xf0ede6, [0, 1.3, -1.0], [0.55, 0.6, 0.3], [-1.1, 0, 0], true, g);
+  GS.wL = gAdd(GEO.sph, 0xefeae0, [-0.6, 1.15, -0.15], [0.26, 0.62, 1.15], 0, true, g); GS.wR = gAdd(GEO.sph, 0xefeae0, [0.6, 1.15, -0.15], [0.26, 0.62, 1.15], 0, true, g);
+  const nk = GS.neck = new THREE.Group(); nk.position.set(0, 1.35, 0.55); g.add(nk); gAdd(GEO.cap, 0xffffff, [0, 0.45, 0.05], [0.36, 0.55, 0.36], [0.2, 0, 0], true, nk);
+  const hd = GS.head = new THREE.Group(); hd.position.set(0, 1.0, 0.2); nk.add(hd);
+  gAdd(GEO.sph, 0xffffff, [0, 0, 0], [0.62, 0.58, 0.74], 0, true, hd); gAdd(GEO.cone, 0xff9a2e, [0, -0.06, 0.5], [0.28, 0.5, 0.22], [HP_, 0, 0], true, hd); gAdd(GEO.sph, 0xff9a2e, [0, 0.2, 0.3], [0.17, 0.17, 0.17], 0, false, hd);
+  for (const sx of [-1, 1]) { gAdd(GEO.sph, 0x2a1a22, [sx * 0.23, 0.1, 0.24], [0.12, 0.15, 0.08], 0, false, hd); gAdd(GEO.box, 0x2a1a22, [sx * 0.21, 0.25, 0.27], [0.24, 0.06, 0.05], [0, 0, sx * -0.45], false, hd); }
+  // 黄鼠狼：被叼着脖子，身子往下垂；转起来就甩平
+  const wz = GS.weasel = new THREE.Group(); wz.position.set(0, -0.12, 0.66); hd.add(wz);
+  gAdd(GEO.sph, 0xa8703a, [0, 0.12, 0.06], [0.44, 0.4, 0.42], 0, true, wz); gAdd(GEO.sph, 0x2a1a22, [0, 0.08, 0.28], [0.08, 0.07, 0.06], 0, false, wz);
+  for (const sx of [-1, 1]) { gAdd(GEO.sph, 0xa8703a, [sx * 0.16, 0.32, 0.02], [0.13, 0.13, 0.08], 0, true, wz); gAdd(GEO.box, 0x2a1a22, [sx * 0.1, 0.16, 0.26], [0.1, 0.025, 0.02], [0, 0, 0.8], false, wz); gAdd(GEO.box, 0x2a1a22, [sx * 0.1, 0.16, 0.26], [0.1, 0.025, 0.02], [0, 0, -0.8], false, wz); }
+  gAdd(GEO.cap, 0xa8703a, [0, -0.62, 0], [0.34, 0.62, 0.3], 0, true, wz); gAdd(GEO.cap, 0xf4dcb4, [0, -0.55, 0.09], [0.24, 0.5, 0.2], 0, false, wz);
+  for (const sx of [-1, 1]) { gAdd(GEO.cap, 0x8a5a2a, [sx * 0.17, -0.25, 0.1], [0.1, 0.12, 0.1], [0, 0, sx * 0.4], true, wz); gAdd(GEO.cap, 0x8a5a2a, [sx * 0.15, -1.05, 0.06], [0.1, 0.14, 0.1], [0, 0, sx * 0.3], true, wz); }
+  gAdd(GEO.cap, 0xa8703a, [0, -1.45, -0.06], [0.16, 0.42, 0.16], [0.15, 0, 0], true, wz); gAdd(GEO.sph, 0x4a2e1a, [0, -1.82, -0.1], [0.2, 0.28, 0.2], 0, false, wz);
+}
 const podium = new THREE.Group(); { const a = new THREE.Mesh(GEO.cyl, toonOf(0xff8a7a)); a.scale.set(3.0, 0.14, 3.0); a.position.y = 0.07; const b = new THREE.Mesh(GEO.cyl, toonOf(0xfff3d0)); b.scale.set(2.5, 0.1, 2.5); b.position.y = 0.17; const o = new THREE.Mesh(GEO.cyl, outlineMat); o.scale.set(3.14, 0.2, 3.14); o.position.y = 0.06; podium.add(a, b, o); } podium.position.set(TX, 0, TZ - 1); podium.visible = false; scene.add(podium);
 let shN = 0; const SH_ROT = new THREE.Quaternion().setFromEuler(new THREE.Euler(-HP_, 0, 0));
 function shadow(x, z, r) { if (shN >= 1400) return; shadowMesh.setMatrixAt(shN++, WM.compose(wP.set(x, 0.02, z), SH_ROT, wS.set(r * 2.2, r * 2.2, 1))); }
@@ -895,23 +934,125 @@ let diffId = 'normal', modeId = 'std'; const DF = () => DIFFS[diffId];
 const UNLOCK_ORDER = ['gun', 'magic', 'summon'];   // 通关一次解锁下一个流派的全部同学
 // 局外进度：开局只有 3 位同学、5 个技能、4 件遗物、6 件饰品，其余用积分兑换
 const META_KEY = 'syntara.brawl.meta', PRICE = { heroes: 150, arts: 80, relics: 50 }, FREE_SKILLS = ['mop', 'plane'];
-const meta = { pts: 0, heroes: ['brawler', 'scholar', 'geo'], arts: ['vamp', 'mirror', 'plate', 'koi'], relics: ['dumbbell', 'wrist', 'scratch', 'bucket', 'scope', 'drink'], seen: [] };
-try { const m = JSON.parse(localStorage.getItem(META_KEY) || 'null'); if (m) for (const k in meta) if (m[k] != null) meta[k] = Array.isArray(meta[k]) ? [...new Set([...meta[k], ...m[k]])] : +m[k] || 0; } catch (e) {}
+const DEF0 = { heroes: ['brawler', 'scholar', 'geo'], arts: ['vamp', 'mirror', 'plate', 'koi'], relics: ['dumbbell', 'wrist', 'mom', 'bucket', 'scope', 'drink'] };
+const meta = { pts: 0, heroes: [...DEF0.heroes], arts: [...DEF0.arts], relics: [...DEF0.relics], seen: [], ach: [], skins: [], ults: [], top: [], skinOn: {}, stat: { runs: 0, kills: 0, wins: 0, hardWin: 0, pulls: 0, pity: 0 } };
+try { const m = JSON.parse(localStorage.getItem(META_KEY) || 'null'); if (m) for (const k in meta) { if (m[k] == null) continue; if (Array.isArray(meta[k])) meta[k] = k === 'top' ? m[k] : [...new Set([...meta[k], ...m[k]])]; else if (typeof meta[k] === 'object') Object.assign(meta[k], m[k]); else meta[k] = +m[k] || 0; } } catch (e) {}
 const saveMeta = () => { try { localStorage.setItem(META_KEY, JSON.stringify(meta)); } catch (e) {} };
 const skillOpen = (w) => FREE_SKILLS.includes(w) || Object.keys(CLASSES).some((id) => CLASSES[id].start === w && isOpen(id));
 let settled = false;
 const runPoints = (win) => Math.floor(player.kills / 15) + Math.floor(T / 30) * 3 + (win ? 80 : 0);
-function settle(win) { if (settled) return 0; settled = true; const p = runPoints(win); meta.pts += p; saveMeta(); return p; }
-function buy(kind, id) { if (meta[kind].includes(id) || meta.pts < PRICE[kind]) return false; meta.pts -= PRICE[kind]; meta[kind].push(id); saveMeta(); return true; }
+function settle(win) {
+  if (settled) return 0; settled = true; const p = runPoints(win); meta.pts += p;
+  const st = meta.stat; st.runs++; st.kills += player.kills; if (win) { st.wins++; if (diffId === 'hard') st.hardWin++; }
+  if (modeId === 'endless' && T > 30) { meta.top.push({ t: Math.floor(T), h: clsId, d: diffId }); meta.top.sort((a, b) => b.t - a.t); meta.top.length = Math.min(5, meta.top.length); }
+  saveMeta(); checkAch(true, win ? 'win' : 'lose'); return p;
+}
+/* ---------- 成就 ---------- */
+// get = 达成后送的同学或饰品（这些只能靠成就拿到，不能用积分兑换）；pts = 送积分
+const ACH = [
+  { id: 'first', n: '第一节课', d: '完成任意一局', ic: 'flag', pts: 50 },
+  { id: 'pass', n: '期末及格', d: '通关一次标准模式', ic: 'crown', pts: 100, note: '同时解锁无尽模式' },
+  { id: 'k500', n: '清扫走廊', d: '一局击倒 500 个怪', ic: 's_dmg', get: ['relics', 'redpen'] },
+  { id: 'task3', n: '热心肠', d: '一局完成 3 个地图任务', ic: 'chest', get: ['relics', 'dual'] },
+  { id: 'ddl3', n: 'DDL 克星', d: '一局打倒 3 个 DDL 沙漏人', ic: 'watch', get: ['relics', 'poster'] },
+  { id: 'clean', n: '毫发无伤', d: '开局 2 分钟内一点伤都没受', ic: 's_armor', get: ['relics', 'sharpener'] },
+  { id: 'stack5', n: '囤囤鼠', d: '一局里同一件饰品叠到 5 件', ic: 'charm', get: ['relics', 'scratch'] },
+  { id: 'elem2', n: '双元素', d: '一个技能注入两种元素', ic: 'fire', pts: 60 },
+  { id: 'lv10', n: '满级', d: '把一个技能升到 Lv 10', ic: 'star', pts: 60 },
+  { id: 'k5000', n: '千人斩', d: '累计击倒 5000 个怪', ic: 'target', get: ['heroes', 'jock'], goal: () => [meta.stat.kills + liveKills(), 5000] },
+  { id: 'hard', n: '学神', d: '困难难度通关一次', ic: 'crown', get: ['heroes', 'monitor'] },
+  { id: 'win3', n: '老油条', d: '累计通关 3 次', ic: 'flag', get: ['relics', 'ink'], goal: () => [meta.stat.wins, 3] },
+  { id: 'e15', n: '熬夜冠军', d: '无尽模式坚持 15 分钟', ic: 'watch', get: ['heroes', 'swimmer'] },
+  { id: 'e20', n: '不眠不休', d: '无尽模式坚持 20 分钟', ic: 'bubble', pts: 200 },
+  { id: 'pull10', n: '大鹅饲养员', d: '抽卡累计 10 次', ic: 'sparkle', pts: 50, goal: () => [meta.stat.pulls, 10] },
+  { id: 'class10', n: '全班到齐', d: '拥有 10 位同学', ic: 'grid', pts: 150, goal: () => [meta.heroes.length, 10] },
+];
+const ACH_LOCK = {}; for (const a of ACH) if (a.get) ACH_LOCK[a.get[0] + ':' + a.get[1]] = a;
+const achFor = (kind, id) => ACH_LOCK[kind + ':' + id];
+const achReward = (a) => a.get ? `${a.get[0] === 'heroes' ? '同学' : '饰品'}「${(a.get[0] === 'heroes' ? CLASSES : RELICS)[a.get[1]].name}」` : `${a.pts} 积分`;
+const liveKills = () => (state === 'play' || state === 'paused' || state === 'dead') && !settled ? player.kills : 0;
+const endlessOpen = () => meta.ach.includes('pass') || meta.stat.wins > 0 || bestEndless > 0;
+let run = { tasks: 0, hg: 0, hit: -1 }, achClock = 0;
+function checkAch(inRun, final) {
+  const P = inRun ? player : null, c = {
+    first: !!final, pass: final === 'win', hard: final === 'win' && diffId === 'hard',
+    k500: P && P.kills >= 500, task3: P && run.tasks >= 3, ddl3: P && run.hg >= 3, clean: P && T >= 120 && run.hit < 0,
+    stack5: P && Object.values(P.relics).some((v) => v >= 5), elem2: P && Object.values(P.elem).some((a) => a.length >= 2), lv10: P && Object.keys(P.weapons).some((w) => wLevel(w) >= MAXLV),
+    e15: P && modeId === 'endless' && T >= 900, e20: P && modeId === 'endless' && T >= 1200,
+    k5000: meta.stat.kills + liveKills() >= 5000, win3: meta.stat.wins >= 3, pull10: meta.stat.pulls >= 10, class10: meta.heroes.length >= 10,
+  };
+  for (const a of ACH) if (c[a.id] && !meta.ach.includes(a.id)) { meta.ach.push(a.id); if (a.pts) meta.pts += a.pts; if (a.get && !meta[a.get[0]].includes(a.get[1])) meta[a.get[0]].push(a.get[1]); saveMeta(); achToast(a); }
+}
+const achEl = document.createElement('div'); achEl.id = 'achT'; document.body.appendChild(achEl); const achQ = []; let achBusy = false;
+function achToast(a) { achQ.push(a); if (!achBusy) nextToast(); }
+function nextToast() { const a = achQ.shift(); if (!a) { achBusy = false; return; } achBusy = true; achEl.innerHTML = `${ico('#ffb21e', a.ic)}<div><b>成就达成：${a.n}</b><small>获得${achReward(a)}${a.note ? '，' + a.note : ''}</small></div>`; achEl.classList.add('on'); setTimeout(() => { achEl.classList.remove('on'); setTimeout(nextToast, 450); }, 2800); }
+/* ---------- 皮肤 + 抽卡才有的终极形态 ---------- */
+// 第二种终极形态：只能抽卡拿到。抽到后技能升到 Lv 10 时，原来的终极形态和它二选一
+const ALT = {
+  sweep:   { name: '地裂斩',     desc: '每次挥砍顺着方向劈出一道地裂，前方 9 米直线上的怪都挨一下' },
+  pencil:  { name: '自动铅笔',   desc: '出手快一倍，每支铅笔多穿透 3 只' },
+  stapler: { name: '订书钉狙击', desc: '改成一次射一枚巨型钉，伤害很高，一路穿到底' },
+  shotgun: { name: '橡皮花洒',   desc: '改成朝四面八方喷一整圈橡皮' },
+  bolt:    { name: '雷劈',       desc: '改成从天上劈下 6 道雷，每道落地炸开一小圈' },
+  coffee:  { name: '三杯连饮',   desc: '一次扔 3 杯，分给 3 个不同的怪' },
+};
+const GACHA_ULT = Object.keys(ALT);
+const altOwned = (w) => !!ALT[w] && meta.ults.includes(w);
+const RC = ['#b9a898', '#4aa8ff', '#ffaa1e'], RN = ['普通', '稀有', '传说'];
+const RARE_SK = {
+  brawler: ['冬季校服', { top: 0x3a6ad8, pants: 0x1e2a44, band: 0xffd23f }], geo: ['毕业照', { top: 0x2a2a3a, pants: 0x2a2a3a, accent: 0xffc93c }], duty: ['樱花值日', { top: 0xffc2d6, pants: 0xd86a8a, scarf: 0xffffff }],
+  scholar: ['夏日海风', { top: 0x9fe0ff, pants: 0x3a8ab8, accent: 0xffd23f }], paper: ['夜跑', { top: 0x2a2a3a, accent: 0xff5f5f, cap: 0xff5f5f }], dorm: ['小熊睡衣', { top: 0xc89a6a, pants: 0xc89a6a, hair: 0x6a4630 }],
+  engineer: ['实验室事故', { top: 0xa8e05a, hair: 0xf4f4f4 }], artist: ['油画', { top: 0x3a6ad8, beret: 0xe2453a, hair: 0x2a1a22 }], poet: ['秋叶', { top: 0xe88a3a, beret: 0x8a3a1e, hair: 0xf2c27a }],
+  owl: ['通宵紫', { top: 0x2a2a4a, hair: 0x8a5ad8 }], jock: ['客场队服', { top: 0xe2453a, pants: 0x2a2a2a }], monitor: ['值周生', { top: 0xffffff, pants: 0x2a3a6e, armband: 0x3fc98a }],
+  captain: ['蓝队应援', { top: 0x4aa8ff, accent: 0xffffff, hair: 0xffd23f }], techie: ['极客黑', { top: 0x2a2a3a, phones: 0x3fe0ff, hair: 0x3fe0ff }], swimmer: ['救生员', { top: 0xff5f5f, swimcap: 0xffd23f }],
+};
+const LEG_SK = {
+  brawler: ['金牌冠军', { top: 0xffc93c, pants: 0xfff3d0, band: 0xff5f5f }, 0xffc93c], scholar: ['星空学霸', { top: 0x2a2a5a, pants: 0x1a1a3a, accent: 0xffe07a, hair: 0x8ab8ff }, 0x8ab8ff],
+  poet: ['花神', { top: 0xffb0d0, hair: 0xffffff, beret: 0xff5f9e }, 0xff8fc8], captain: ['应援偶像', { top: 0xff5f9e, hair: 0xb69cff, accent: 0x7fd3ff }, 0xff5f9e], owl: ['月夜', { top: 0x1e1a3a, hair: 0xe8e8ff, accent: 0xffe07a }, 0x9fb8ff],
+};
+const SKINS = {};
+for (const h in RARE_SK) SKINS[h + '_r'] = { h, n: RARE_SK[h][0], r: 1, over: RARE_SK[h][1] };
+for (const h in LEG_SK) SKINS[h + '_l'] = { h, n: LEG_SK[h][0], r: 2, over: LEG_SK[h][1], aura: LEG_SK[h][2] };
+const skinOf = (h) => { const k = meta.skinOn[h]; return k && SKINS[k] && meta.skins.includes(k) ? k : ''; };
+function heroRig(h, sk = skinOf(h)) {
+  const S = sk && SKINS[sk]; if (!S) return RIGS['hero_' + h];
+  const key = 'hero_' + h + '_' + sk;
+  if (!RIGS[key]) { const P = heroParts({ ...CLASSES[h].look, ...S.over }); if (S.aura) P.push(['tor', S.aura, [0, 2.02, 0], [0.64, 0.64, 0.42], [HP_, 0, 0], 'glow hover', 0], ['tor', S.aura, [0, 0.05, 0], [1.8, 1.8, 0.2], [HP_, 0, 0], 'glow pulse', 0], ['sph', 0xffffff, [0, 2.02, 0.32], [0.1, 0.1, 0.1], 0, 'glow hover', 0]); RIGS[key] = new Rig(P, 1); }
+  return RIGS[key];
+}
+/* ---------- 大鹅抽卡：单抽 30，十连 270；传说 5%，稀有 35%，其余返积分；40 抽必出传说，十连至少一个稀有 ---------- */
+const GACHA = { one: 30, ten: 270, pity: 40, leg: 0.05, rare: 0.35, back: 12 };
+const G_LEG = [...Object.keys(SKINS).filter((k) => SKINS[k].r === 2), ...GACHA_ULT.map((w) => 'ult_' + w)], G_RARE = Object.keys(SKINS).filter((k) => SKINS[k].r === 1);
+function gachaRoll(atLeastRare) {
+  const st = meta.stat; st.pity = (st.pity || 0) + 1;
+  const r = Math.random(); let tier = r < GACHA.leg ? 2 : r < GACHA.leg + GACHA.rare ? 1 : 0;
+  if (st.pity >= GACHA.pity) tier = 2; if (atLeastRare && tier < 1) tier = 1; if (tier === 2) st.pity = 0;
+  if (!tier) return { tier, id: 'pts', back: GACHA.back };
+  const pool = tier === 2 ? G_LEG : G_RARE, id = pool[Math.floor(Math.random() * pool.length)], ult = id.startsWith('ult_');
+  const own = ult ? meta.ults.includes(id.slice(4)) : meta.skins.includes(id);
+  if (!own) (ult ? meta.ults : meta.skins).push(ult ? id.slice(4) : id);
+  return { tier, id, dup: own, back: own ? (tier === 2 ? 60 : 15) : 0 };
+}
+function gachaPull(n) {
+  const cost = n === 10 ? GACHA.ten : GACHA.one; if (meta.pts < cost) return null; meta.pts -= cost;
+  const res = []; for (let i = 0; i < n; i++) res.push(gachaRoll(n === 10 && i === n - 1 && !res.some((q) => q.tier >= 1)));
+  for (const q of res) meta.pts += q.back; meta.stat.pulls += n; saveMeta(); checkAch(false); return res;
+}
+function gItem(q) {
+  if (q.id === 'pts') return { name: `积分 +${q.back}`, sub: '安慰奖', ic: 'sparkle' };
+  if (q.id.startsWith('ult_')) { const w = WEAPONS[q.id.slice(4)]; return { name: ALT[q.id.slice(4)].name, sub: `${w.name}的第二种终极形态`, ic: q.id.slice(4) }; }
+  const S = SKINS[q.id]; return { name: S.n, sub: `${CLASSES[S.h].name}的皮肤`, ic: CLASSES[S.h].start };
+}
+function buy(kind, id) { if (meta[kind].includes(id) || achFor(kind, id) || meta.pts < PRICE[kind]) return false; meta.pts -= PRICE[kind]; meta[kind].push(id); saveMeta(); checkAch(false); return true; }
 let bestEndless = 0; try { bestEndless = +localStorage.getItem('syntara.brawl.best') || 0; } catch (e) {}
 let state = 'title', T = 0, timeScale = 1, spawnAcc = 0, nextElite = 75, nextBats = 25, nextBomb = 90, nextBoss = BOSS_T, bossCount = 0, boss = null, ev = {};
-let corpses = [], drops = [], altars = [], pendingInfuse = [], CW = null, watchT = 12, shieldT = 10;
+let pendingUlt = [], gifts = [], corpses = [], drops = [], altars = [], pendingInfuse = [], CW = null, watchT = 12, shieldT = 10;
 let enemies = [], eid = 0, shots = [], planes = [], gems = [], chests = [], eshots = [], minions = [], lamps = [], ducks = [], slippers = [], books = [], wet = [], blasts = [], pendingLevels = 0;
 let cls = CLASSES.brawler, clsId = 'brawler', selIdx = 0;
 const cds = {};
 const BASE_ST = { dmg: 0, crit: 0.05, critDmg: 1.5, atkSpd: 0, luck: 0, dodge: 0, armor: 0, regen: 0, speed: 0, xp: 0, maxHp: 0 };
-const player = { x: 0, z: 0, vx: 0, vz: 0, yaw: 0, hp: 100, maxHp: 100, speed: 5.4, magnet: 2.4, lvl: 1, xp: 0, need: 6, kills: 0, score: 2, weapons: {}, wup: {}, st: { ...BASE_ST }, relics: {}, evo: {}, duos: {}, elem: {}, sp: {}, arts: {}, revives: 1, koi: 0, shield: false, ph: 0, hit: 0, seed: 0.2, moving: 0, spinT: 0, slowT: 0, stepAcc: 0, stepSide: 1, healAcc: 0, iframe: 0 };
-const R = (id) => !!player.relics[id];
+const player = { x: 0, z: 0, vx: 0, vz: 0, yaw: 0, hp: 100, maxHp: 100, speed: 5.4, magnet: 2.4, lvl: 1, xp: 0, need: 6, kills: 0, score: 2, weapons: {}, wup: {}, st: { ...BASE_ST }, relics: {}, evo: {}, alt: {}, duos: {}, elem: {}, sp: {}, arts: {}, revives: 1, koi: 0, shield: false, ph: 0, hit: 0, seed: 0.2, moving: 0, spinT: 0, slowT: 0, stepAcc: 0, stepSide: 1, healAcc: 0, iframe: 0 };
+const R = (id) => player.relics[id] || 0;
 const A = (id) => !!player.arts[id];
 const W = (id) => player.weapons[id] || 0;
 const tagPts = (tag) => Object.keys(player.weapons).filter((w) => WEAPONS[w].tag === tag).length + Object.keys(player.relics).filter((r) => RELICS[r].tag === tag).length;
@@ -928,37 +1069,37 @@ const tDmg = () => 1 + T / 30 * 0.06 + Math.max(0, T - BOSS_T) / 60 * 0.05;
 const tSpd = () => Math.min(1.4, 1 + T / BOSS_T * 0.35);
 function dmgMul(tag) {
   let m = (1 + player.st.dmg) * (tag === cls.tag ? 1.2 : 1);
-  if (tag === 'melee' && R('wrist')) m *= 1.25;
-  if (tag === 'summon') { if (R('snack')) m *= 1.3; if (SL.summon >= 3) m *= 1.5; }
-  if (R('allnight')) m *= 1.4; if (R('slack')) m *= 0.9;
+  if (tag === 'melee') m *= 1 + 0.08 * R('wrist');
+  if (tag === 'summon') { m *= 1 + 0.1 * R('snack'); if (SL.summon >= 3) m *= 1.5; }
+  m *= (1 + 0.15 * R('allnight')) * Math.pow(0.96, R('slack'));
   if (A('plate')) m *= 1 + Math.max(0, player.st.armor) * 0.01; if (A('last') && player.hp < player.maxHp * 0.35) m *= 1.6;
   return m;
 }
 function cdMul(tag) {
   let m = 1 / (1 + player.st.atkSpd);
-  if (tag === 'gun') { if (R('mag')) m *= 0.8; if (SL.gun >= 1) m *= 0.8; }
-  if (tag === 'magic' && R('caffeine')) m *= 0.8;
-  if (tag === 'summon' && R('banner')) m *= 0.7;
+  if (tag === 'gun') { m *= Math.pow(0.93, R('mag')); if (SL.gun >= 1) m *= 0.8; }
+  if (tag === 'magic') m *= Math.pow(0.93, R('caffeine'));
+  if (tag === 'summon') m /= 1 + 0.1 * R('banner');
   if (tag === 'melee' && SL.melee >= 3) m *= 0.5;
   return m;
 }
-const area = (tag) => (tag === 'melee' ? (R('dumbbell') ? 1.25 : 1) * (R('bucket') ? 1.2 : 1) : 1) * (tag === 'magic' && R('ink') ? 1.3 : 1);
-const KNOCK = () => (R('mom') ? 1.5 : 1);
+const area = (tag) => (tag === 'melee' ? (1 + 0.08 * R('dumbbell') + 0.05 * R('bucket')) : 1) * (tag === 'magic' ? 1 + 0.1 * R('ink') : 1);
+const KNOCK = () => (1 + 0.15 * R('mom'));
 function hitEnemy(e, dmg, kx = 0, kz = 0, tag = '', opts = {}) {
   if (e.dead || e.inv) return;
   const els = !opts.noElem && CW ? player.elem[CW] : null, xs = (!opts.raw && CW && player.sp[CW]) || null;
-  const critRate = (xs && xs.crit ? 0.2 : 0) + player.st.crit + (tag === 'gun' && R('reddot') ? 0.15 : 0) + (e.brittle > 0 ? 0.3 : 0);
+  const critRate = (xs && xs.crit ? 0.2 : 0) + player.st.crit + (tag === 'gun' ? 0.05 * R('reddot') : 0) + (e.brittle > 0 ? 0.3 : 0);
   const crit = !opts.noCrit && Math.random() < critRate;
-  const critX = player.st.critDmg + (R('scope') ? 1 : 0) + (R('glass') ? 1.5 : 0);
+  const critX = player.st.critDmg + 0.2 * R('scope') + 0.5 * R('glass');
   const elite = e.type === 'boss' || e.type === 'hourglass';
   let xm = 1;
   if (xs) { if (xs.exec && e.hp < e.maxHp * 0.3) xm *= 1.8; if (xs.first && e.hp >= e.maxHp) xm *= 1.6; if (xs.elite && elite) xm *= 1.6; if (xs.near && Math.hypot(e.x - player.x, e.z - player.z) < 3) xm *= 1.7; if (xs.kb) { kx *= 2; kz *= 2; } }
-  const v = xm * (opts.raw ? dmg : dmg * dmgMul(tag) * (crit ? critX : 1) * (elite && R('redpen') ? 1.3 : 1)) * (e.stink > 0 ? 1.25 : 1) * (e.acid > 0 ? 1 + (e.acidK || 0.25) : 1);
+  const v = xm * (opts.raw ? dmg : dmg * dmgMul(tag) * (crit ? critX : 1) * (elite ? 1 + 0.1 * R('redpen') : 1)) * (e.stink > 0 ? 1.25 : 1) * (e.acid > 0 ? 1 + (e.acidK || 0.25) : 1);
   e.hp -= v; e.hit = 1; const kr = (e.giant ? 0.25 : 1) * (e.type === 'boss' ? 0.05 : e.type === 'hourglass' || e.type === 'bomber' ? 0.25 : 1) * KNOCK(); e.kx += kx * kr; e.kz += kz * kr;
   if (Math.random() < 0.5 || crit) dmgNum(e.x, e.z, v, crit ? 'crit' : '', e.r * 2 + 0.6);
   if (crit && A('vamp')) player.hp = Math.min(player.maxHp, player.hp + Math.min(1, v * 0.008));
   if (tag === 'melee' && SL.melee >= 1) { player.healAcc += 0.2; }
-  if (tag === 'magic' && SL.magic >= 1) { e.burn = 3; e.burnDps = Math.max(e.burnDps || 0, v * 0.3 * (R('grimoire') ? 2 : 1) * (R('laundry') ? 1.3 : 1)); }
+  if (tag === 'magic' && SL.magic >= 1) { e.burn = 3; e.burnDps = Math.max(e.burnDps || 0, v * 0.3 * (1 + 0.35 * R('grimoire')) * (1 + 0.1 * R('laundry'))); }
   if (tag === 'gun' && crit && SL.gun >= 2 && !opts.noChain) { boom(e.x, e.z, 1.6, v * 0.6, 'gun', 0xffd27a); }
   if (xs) { if (xs.stun && e.type !== 'boss' && Math.random() < 0.15) { e.frz = Math.max(e.frz || 0, 0.8); spark(e.x, e.r * 2 + 0.5, e.z, 0xffe07a, 5, 2, 0.3, 0.5, 0); } if (xs.mark) e.stink = Math.max(e.stink || 0, 3); }
   if (els && els.length && !e.dead) applyElems(e, v, els);
@@ -1006,6 +1147,7 @@ function hurtPlayer(v) {
     return false;
   }
   if (player.shield) { player.shield = false; shieldT = 10; dmgNum(player.x, player.z, '挡住', 'tag', 2.2); ringFx(player.x, player.z, 1.6, 0x9fe0ff, 0.3); return false; }
+  if (run.hit < 0) run.hit = T;
   v *= 10 / (10 + Math.max(0, player.st.armor));
   const big = Math.min(1, v / (player.maxHp * 0.08));
   player.hp -= v; player.hit = 1; player.warn = 1; bump($('pcard'), 'hurt'); $('hurtFx').style.setProperty('--k', (0.5 + big * 0.5).toFixed(2)); bump($('hurtFx'), 'hit'); hurt = Math.min(1, hurt + 0.55 + big * 0.4); chroma = Math.max(chroma, 0.35 + big * 0.4); shake = Math.max(shake, 0.14 + big * 0.22);
@@ -1047,10 +1189,12 @@ function killEnemy(e, tag) {
   if (e.brittle > 0) { ringFx(e.x, e.z, 1.7, 0x9fe0ff, 0.25); spark(e.x, 0.6, e.z, 0xd8f4ff, 12, 7, 0.35, 0.35); query(e.x, e.z, 1.7, (o) => hitEnemy(o, e.maxHp * 0.3, 0, 0, '', RAWK)); }
   // 知识吸取：把全场经验吸过来
   if ((Math.random() < 0.012 || e.type === 'hourglass') && drops.length < 3) drops.push({ x: e.x, z: e.z });
+  if (e.type !== 'boss' && e.type !== 'hourglass' && Math.random() < (e.giant ? 0.06 : 0.005) && gifts.length < 3) { const id = rollRelic([78, 20, 2]); if (id) gifts.push({ x: e.x, z: e.z, id, t: 0 }); }
   if (e.burn > 0 && SL.magic >= 2) { ringFx(e.x, e.z, 2.5, 0xff7a2a, 0.3); spark(e.x, 0.6, e.z, 0xff7a2a, 14, 5, 0.4, 0.4); query(e.x, e.z, 2.5, (o) => { o.burn = 3; o.burnDps = Math.max(o.burnDps || 0, e.burnDps || 5); }); }
   if (tag === 'summon' && player.evo.minion && minions.length < 30) addMinion(3, e.x, e.z);
   if (task && task.type === 'kill' && Math.hypot(e.x - task.x, e.z - task.z) < task.rad) { task.prog++; spark(e.x, 0.8, e.z, 0xff5a5a, 6, 3, 0.3, 0.4); }
   if (e.type === 'snail' || e.type === 'phone' || e.type === 'hourglass') { ripple(e.x, e.z, 0.6); shake = Math.max(shake, 0.12); }
+  if (e.type === 'hourglass') run.hg++;
   if (e.type === 'hourglass' && Math.random() < 0.4) chests.push({ x: e.x, z: e.z });
   if (e.type === 'boss') {
     boss = null; $('bossBar').hidden = true; $('hud').classList.remove('boss'); ripple(e.x, e.z, 1.6); shake = 0.8; chroma = 1; bossCount++;
@@ -1094,8 +1238,8 @@ function shoot(rig, x, y, z, yaw, sp, life, dmg, tag, o = {}) {
   const xs = player.sp[CW]; if (xs) { o = { ...o }; if (xs.pierce) o.pierce = (o.pierce || 0) + (CW === 'shotgun' ? 1 : 2); if (xs.split) o.split = true; if (xs.bounce) o.bounce = Math.max(o.bounce || 0, 2); }
   shots.push(Object.assign({ rig, x, y, z, vx: Math.sin(yaw) * sp, vz: Math.cos(yaw) * sp, life, dmg, tag, pierce: 0, hit: new Set(), r: 0.25, spin: 0, split: false, bounce: 0, boom: false, w: CW }, o));
 }
-const rangedMods = () => ({ pierce: (R('sharpener') ? 1 : 0) + (SL.ranged >= 1 ? 1 : 0), split: SL.ranged >= 2, bounce: SL.ranged >= 3 ? 3 : 0, extra: (R('scratch') ? 1 : 0) + (SL.ranged >= 3 ? 1 : 0) });
-const summonExtra = () => (R('poster') ? 1 : 0) + (SL.summon >= 1 ? 1 : 0);
+const rangedMods = () => ({ pierce: R('sharpener') + (SL.ranged >= 1 ? 1 : 0), split: SL.ranged >= 2, bounce: SL.ranged >= 3 ? 3 : 0, extra: R('scratch') + (SL.ranged >= 3 ? 1 : 0) });
+const summonExtra = () => R('poster') + (SL.summon >= 1 ? 1 : 0);
 const sweepFx = { t: 0, r: 2 };
 const ELC = { fire: 0xff6a2a, ice: 0x7fd4ff, acid: 0x8fd83a, elec: 0x3f9bff }, WHITE_C = new THREE.Color(1, 1, 1), ELT = {};
 const elT = (id, k = 0) => { const c = EC(id, k % 2); return c == null ? null : (ELT[c] || (ELT[c] = new THREE.Color(c))); };
@@ -1135,7 +1279,7 @@ function slash(range, dmg, full, yaw = player.yaw) {
 }
 // 拖把的水渍：留在地上，踩进去的怪减速并持续掉血
 function addWet(x, z, s, evo) {
-  const X = player.sp.mop || {}, life = 4 + (R('bucket') ? 2 : 0) + (X.deep ? 3 : 0);
+  const X = player.sp.mop || {}, life = 4 + R('bucket') + (X.deep ? 3 : 0);
   if (wet.length >= 64) wet.shift();
   wet.push({ x, z, life, max: life, tick: 0, evo, dmg: s.dmg * 0.22 * (evo ? 2.5 : 1), r: (evo ? 1.7 : 1.2) * (X.deep ? 1.35 : 1), rot: rnd(0, TAU) });
 }
@@ -1163,18 +1307,18 @@ function fire(dt) {
     if (id === 'sock') { sockTick(dt, s, evo); continue; }
     if (id === 'mop' && SPX('mop', 'trail') && player.moving > 0.3) { mopTrail -= dt; if (mopTrail <= 0) { mopTrail = 0.3; addWet(player.x, player.z, s, evo); } }
     cds[id] = (cds[id] ?? 0.3) - dt; if (cds[id] > 0) continue;
-    cds[id] = (evo && id === 'sweep' ? 0.3 / (SL.melee >= 3 ? 0.5 : 1) : evo && id === 'coffee' ? s.cd * 0.5 : s.cd) * cdMul(tag); if (A('copier') && Math.random() < 0.2) cds[id] = Math.min(cds[id], 0.12); if (SPX(id, 'twice') && Math.random() < 0.25) cds[id] = Math.min(cds[id], 0.15);
+    cds[id] = (evo && id === 'sweep' ? 0.3 / (SL.melee >= 3 ? 0.5 : 1) : evo && id === 'coffee' ? s.cd * 0.5 : s.cd) * cdMul(tag); if (A('copier') && Math.random() < 0.2) cds[id] = Math.min(cds[id], 0.12); if (SPX(id, 'twice') && Math.random() < 0.25) cds[id] = Math.min(cds[id], 0.15); if (id === 'pencil' && player.alt.pencil) cds[id] *= 0.5;
     if (id === 'sweep') {
       const range = s.range * area('melee') * (evo ? 1.5 : 1);
       const tg = nearest(player.x, player.z, range + 1.5); if (!tg) { cds[id] = 0.1; sweepAgain = 0; continue; }
       const second = sweepAgain === 1; sweepAgain = SPX('sweep', 'again') && !second ? 1 : 0;
-      slash(range, s.dmg * (evo ? 0.8 : 1) * (second ? 0.6 : 1), !!evo, Math.atan2(tg.x - player.x, tg.z - player.z)); if (sweepAgain) cds[id] = Math.min(cds[id], 0.24);
+      slash(range, s.dmg * (evo ? 0.8 : 1) * (second ? 0.6 : 1), !!evo, Math.atan2(tg.x - player.x, tg.z - player.z)); if (player.alt.sweep && !second) quake(Math.atan2(tg.x - player.x, tg.z - player.z), s.dmg); if (sweepAgain) cds[id] = Math.min(cds[id], 0.24);
     } else if (id === 'mop') {
       if (!nearest(player.x, player.z, s.range + 1) && !(task && task.type === 'mop')) { cds[id] = 0.1; continue; }
       mopSwipe(s, evo);
     } else if (id === 'pencil') {
       const used = new Set(), n = s.n + RM.extra;
-      for (let k = 0; k < n; k++) { const e = nearest(h.x, h.z, 14, used) || nearest(h.x, h.z, 14); if (!e) { cds[id] = 0.15; break; } used.add(e); shoot('pencilP', h.x, h.y, h.z, Math.atan2(e.x - h.x, e.z - h.z), 18, 1.1, s.dmg, 'ranged', { pierce: s.pierce + RM.pierce, split: RM.split, bounce: RM.bounce }); }
+      for (let k = 0; k < n; k++) { const e = nearest(h.x, h.z, 14, used) || nearest(h.x, h.z, 14); if (!e) { cds[id] = 0.15; break; } used.add(e); shoot('pencilP', h.x, h.y, h.z, Math.atan2(e.x - h.x, e.z - h.z), 18, 1.1, s.dmg, 'ranged', { pierce: s.pierce + RM.pierce + (player.alt.pencil ? 3 : 0), split: RM.split, bounce: RM.bounce }); }
       if (SPX('pencil', 'back')) { const e0 = nearest(h.x, h.z, 14); if (e0) { const yb = Math.atan2(e0.x - h.x, e0.z - h.z) + PI; for (let k = 0; k < n; k++) shoot('pencilP', h.x, h.y, h.z, yb + (k - (n - 1) / 2) * 0.14, 18, 1.1, s.dmg, 'ranged', { pierce: s.pierce + RM.pierce }); } }
       if (evo) for (let k = 0; k < 10; k++) shoot('pencilP', player.x, 0.85, player.z, k / 10 * TAU + realTime, 16, 0.9, s.dmg * 0.7, 'ranged', { pierce: 1 + RM.pierce, bounce: RM.bounce });
     } else if (id === 'slipper') {
@@ -1182,14 +1326,16 @@ function fire(dt) {
       const n = s.n + RM.extra, yaw0 = Math.atan2(e.x - h.x, e.z - h.z);
       for (let k = 0; k < n; k++) { const yaw = yaw0 + (k - (n - 1) / 2) * 0.35; slippers.push({ x: h.x, z: h.z, vx: Math.sin(yaw) * 17, vz: Math.cos(yaw) * 17, t: 0, out: true, dmg: s.dmg, hit: new Set(), spinA: 0, evo, small: false }); }
     } else if (id === 'stapler') {
+      if (player.alt.stapler) { const e = nearest(h.x, h.z, 18); if (!e) { cds[id] = 0.1; continue; } const yaw = Math.atan2(e.x - h.x, e.z - h.z); shoot('staple', h.x, h.y, h.z, yaw, 32, 1.0, s.dmg * 2.6 * (s.n + R('dual')), 'gun', { sc: 3.2, r: 0.7, pierce: 99 }); cds[id] *= 2.4; shake = Math.max(shake, 0.18); spark(h.x + Math.sin(yaw) * 0.5, h.y, h.z + Math.cos(yaw) * 0.5, 0xffe9a0, 14, 4, 0.3, 0.2, 0); continue; }
       const e = nearest(h.x, h.z, 13);
-      const n = s.n + (R('dual') ? 1 : 0);
+      const n = s.n + R('dual');
       if (e) { const yaw = Math.atan2(e.x - h.x, e.z - h.z); for (let k = 0; k < n; k++) { const big = SPX('stapler', 'heavy') && ++stapleN % 8 === 0; shoot('staple', h.x, h.y, h.z, yaw + (k - (n - 1) / 2) * 0.12 + rnd(-0.06, 0.06), 24, 0.7, s.dmg * (big ? 4 : 1), 'gun', big ? { sc: 2.4, r: 0.5 } : {}); } spark(h.x + Math.sin(yaw) * 0.4, h.y, h.z + Math.cos(yaw) * 0.4, 0xffe9a0, 3, 2, 0.25, 0.1, 0); }
       if (evo) for (let k = 0; k < 4; k++) shoot('staple', player.x, 0.85, player.z, realTime * 3 + k * HP_, 22, 0.8, s.dmg, 'gun');
       if (!e && !evo) cds[id] = 0.1;
     } else if (id === 'shotgun') {
       const e = nearest(h.x, h.z, 9); if (!e) { cds[id] = 0.15; continue; }
       const yaw = Math.atan2(e.x - h.x, e.z - h.z);
+      if (player.alt.shotgun) { const m = s.n * 3; for (let k = 0; k < m; k++) shoot('eraser', h.x, h.y, h.z, yaw + k / m * TAU, rnd(13, 16), 0.5, s.dmg, 'gun', { tint: new THREE.Color([0xff8fb1, 0x8fd3ff, 0xffffff][k % 3]), spin: rnd(5, 12) }); ringFx(player.x, player.z, 3, 0xff8fb1, 0.3); continue; }
       for (let k = 0; k < s.n; k++) shoot('eraser', h.x, h.y, h.z, yaw + (k / (s.n - 1) - 0.5) * 0.9 + rnd(-0.05, 0.05), rnd(14, 18), 0.42, s.dmg, 'gun', { tint: new THREE.Color([0xff8fb1, 0x8fd3ff, 0xffffff][k % 3]), spin: rnd(5, 12), boom: !!evo });
       if (SPX('shotgun', 'back')) for (let k = 0; k < s.n; k++) shoot('eraser', h.x, h.y, h.z, yaw + PI + (k / (s.n - 1) - 0.5) * 0.9 + rnd(-0.05, 0.05), rnd(14, 18), 0.42, s.dmg, 'gun', { tint: new THREE.Color([0xff8fb1, 0x8fd3ff, 0xffffff][k % 3]), spin: rnd(5, 12), boom: !!evo });
       shake = Math.max(shake, 0.1); spark(h.x, h.y, h.z, 0xffffff, 8, 4, 0.3, 0.15, 0);
@@ -1198,10 +1344,11 @@ function fire(dt) {
       for (let k = 0; k < n; k++) planes.push({ x: h.x, y: 1.2, z: h.z, yaw: player.yaw + (k - (n - 1) / 2) * 0.5, sp: 9, life: (evo ? 5 : 3) * (SPX('plane', 'life') ? 1.7 : 1), dmg: s.dmg, target: null, pierce: (evo ? 4 : 0) + (SPX('plane', 'loop') ? 2 : 0), hit: new Set() });
     } else if (id === 'bolt') {
       let cur = nearest(h.x, h.z, SPX('bolt', 'far') ? 16 : 10); if (!cur) { cds[id] = 0.2; continue; }
-      chain({ x: h.x, y: 1.1, z: h.z }, cur, evo ? 14 : s.n + (R('ink') ? 2 : 0), s.dmg, evo);
+      if (player.alt.bolt) thunder(s); else chain({ x: h.x, y: 1.1, z: h.z }, cur, evo ? 14 : s.n + R('ink'), s.dmg, evo);
     } else if (id === 'coffee') {
       const tg = nearest(player.x, player.z, 9); if (!tg) { cds[id] = 0.3; continue; }
       cups.push({ x0: h.x, z0: h.z, x: tg.x, z: tg.z, t: 0, rad: s.rad * area('magic') * (evo ? 1.35 : 1), dmg: s.dmg, evo });
+      if (player.alt.coffee) { const used = new Set([tg]); for (let k = 0; k < 2; k++) { const t2 = nearest(player.x, player.z, 11, used); if (!t2) break; used.add(t2); cups.push({ x0: h.x, z0: h.z, x: t2.x, z: t2.z, t: -0.15 * (k + 1), rad: s.rad * area('magic'), dmg: s.dmg, evo }); } }
       if (SPX('coffee', 'two')) { const t2 = nearest(player.x, player.z, 11, new Set([tg])), a2 = rnd(0, TAU); cups.push({ x0: h.x, z0: h.z, x: t2 ? t2.x : tg.x + Math.cos(a2) * 3, z: t2 ? t2.z : tg.z + Math.sin(a2) * 3, t: -0.25, rad: s.rad * area('magic') * (evo ? 1.35 : 1), dmg: s.dmg, evo }); }
     } else if (id === 'rollcall') {
       const n = evo ? 5 : s.n; if (!rollCall(n, s.dmg, evo)) cds[id] = 0.3;
@@ -1219,6 +1366,17 @@ function fire(dt) {
     }
   }
 }
+function quake(yaw, dmg) {
+  const hit = new Set(), sx = Math.sin(yaw), sz = Math.cos(yaw), c = pc('sweep');
+  for (let k = 1; k <= 5; k++) { const x = player.x + sx * k * 1.8, z = player.z + sz * k * 1.8; if (inWall(x, z)) break; setTimeout(() => { ringFx(x, z, 1.7, 0xd89a4a, 0.3); spark(x, 0.3, z, c, 8, 3, 0.35, 0.4, 2); dust(x, z, 4); }, k * 40);
+    query(x, z, 1.6, (o) => { if (hit.has(o)) return; hit.add(o); hitEnemy(o, dmg * 0.8, sx * 4, sz * 4, 'melee', { noChain: true }); }); }
+}
+function thunder(s) {
+  const cand = shuffle(enemies.filter((e) => !e.dead && !e.inv && e.spawn <= 0 && Math.hypot(e.x - player.x, e.z - player.z) < 12)).slice(0, 6);
+  for (const e of cand) { chain({ x: e.x + rnd(-1, 1), y: 9, z: e.z + rnd(-1, 1) }, e, 1, s.dmg * 1.6, false); ringFx(e.x, e.z, 2.2, EC('bolt') ?? 0x4aa8ff, 0.3); spark(e.x, 0.4, e.z, pc('bolt'), 10, 4, 0.35, 0.35, 0);
+    query(e.x, e.z, 2.2, (o) => { if (o !== e) hitEnemy(o, s.dmg * 0.7, 0, 0, 'magic', { noChain: true }); }); }
+  if (!cand.length) cds.bolt = 0.2;
+}
 function rollCall(n, dmg, evo) {
   const cand = enemies.filter((e) => !e.dead && !e.inv && e.spawn <= 0 && Math.hypot(e.x - player.x, e.z - player.z) < 15).sort((a, b) => b.hp - a.hp).slice(0, n);
   for (const e of cand) { books.push({ x: e.x, z: e.z, target: e, t: 0.45, dmg, evo, done: false, after: 0 }); dmgNum(e.x, e.z, '点名！', 'tag', e.r * 2 + 1.2); }
@@ -1230,7 +1388,7 @@ function sockTick(dt, s, evo) {
   if (Math.random() < dt * 16) { const a = rnd(0, TAU), r = rnd(0.3, rad); spark(player.x + Math.cos(a) * r, rnd(0.2, 0.9), player.z + Math.sin(a) * r, ecRand('sock') ?? (Math.random() < 0.5 ? 0x9ad04a : 0xd0ec7a), 1, 0.4, 0.4, 1.0, -0.6); }
   cds.sock = (cds.sock ?? 0) - dt; if (cds.sock > 0) return; cds.sock = s.cd * cdMul('magic');
   const X = player.sp.sock || {};
-  query(player.x, player.z, rad, (e, dx, dz) => { e.slow = X.linger ? 2 : 0.6; if (evo) e.stink = 1.0; hitEnemy(e, s.dmg * (R('laundry') ? 1.3 : 1) * (X.close ? 1 + 1.5 * Math.max(0, 1 - Math.hypot(dx, dz) / rad) : 1), 0, 0, 'magic', { noCrit: true }); });
+  query(player.x, player.z, rad, (e, dx, dz) => { e.slow = X.linger ? 2 : 0.6; if (evo) e.stink = 1.0; hitEnemy(e, s.dmg * (1 + 0.1 * R('laundry')) * (X.close ? 1 + 1.5 * Math.max(0, 1 - Math.hypot(dx, dz) / rad) : 1), 0, 0, 'magic', { noCrit: true }); });
   if (X.pulse) { sockPulse -= cds.sock; if (sockPulse <= 0) { sockPulse = 3; ringFx(player.x, player.z, rad * 2, EC('sock') ?? 0xa8e04a, 0.45); burst(player.x, 0.5, player.z, EC('sock') ?? 0x9ad04a, 40, rad * 4, 0.5, 0.6, -1); query(player.x, player.z, rad * 2, (e, dx, dz) => { const L = Math.hypot(dx, dz) || 1; hitEnemy(e, s.dmg * 4, dx / L * 5, dz / L * 5, 'magic'); }); } }
 }
 function chain(from, cur, jumps, dmg, splash) {
@@ -1384,7 +1542,7 @@ function startTask(force) {
 function cleanDirt(d) { d.on = false; task.prog++; spark(d.x, 0.3, d.z, 0xffffff, 10, 3.5, 0.32, 0.45); burst(d.x, 0.2, d.z, 0x8fe6ff, 4, 2, 0.3, 0.5, 2); }
 function endTask(ok) {
   const el = $('task'); el.classList.add(ok ? 'done' : 'fail'); el.insertAdjacentHTML('beforeend', `<span class="stamp">${ok ? '完成' : '超时'}</span>`); taskHudT = 1.6; $('tmark').hidden = true;
-  if (ok) { chests.push({ x: task.x, z: task.z, sp: 1 }); for (let k = 0; k < 6; k++) gems.push({ x: task.x + rnd(-1, 1), z: task.z + rnd(-1, 1), v: 3 + Math.floor(T / 90), sz: 1, pull: false, s: 0, ph: Math.random() * 6 }); banner('任务完成', '走过去开宝箱，选一个技能的特殊升级'); spark(task.x, 1, task.z, 0xffd23f, 70, 8, 0.4, 0.9); ringFx(task.x, task.z, task.rad * 1.5, 0xffe07a, 0.5); ripple(task.x, task.z, 1.4); nextTask = T + 70; }
+  if (ok) { run.tasks++; chests.push({ x: task.x, z: task.z, sp: 1 }); for (let k = 0; k < 6; k++) gems.push({ x: task.x + rnd(-1, 1), z: task.z + rnd(-1, 1), v: 3 + Math.floor(T / 90), sz: 1, pull: false, s: 0, ph: Math.random() * 6 }); banner('任务完成', '走过去开宝箱，选一个技能的特殊升级'); spark(task.x, 1, task.z, 0xffd23f, 70, 8, 0.4, 0.9); ringFx(task.x, task.z, task.rad * 1.5, 0xffe07a, 0.5); ripple(task.x, task.z, 1.4); nextTask = T + 70; }
   else { nextTask = T + 55; }
   task = null;
 }
@@ -1556,47 +1714,77 @@ const confetti = (n = 36) => `<div class="confetti">${Array.from({ length: n }, 
 
 /* ---------- 首页 → 准备页 → 开局 ---------- */
 let titleStep = 'home', selF = 0;
-function clearField() { enemies = []; shots = []; planes = []; gems = []; chests = []; eshots = []; minions = []; lamps = []; ducks = []; slippers = []; books = []; wet = []; blasts = []; bolts = []; corpses = []; drops = []; altars = []; pendingInfuse = []; pools.length = 0; cups = []; tele.visible = false; task = null; taskHudT = 0; boss = null; }
+function clearField() { gifts = []; enemies = []; shots = []; planes = []; gems = []; chests = []; eshots = []; minions = []; lamps = []; ducks = []; slippers = []; books = []; wet = []; blasts = []; bolts = []; corpses = []; drops = []; altars = []; pendingInfuse = []; pools.length = 0; cups = []; pendingUlt = []; tele.visible = false; task = null; taskHudT = 0; boss = null; }
 function showTitle(step) {
   if (state !== 'title') { clearField(); camPos.copy(camera.position); camTgt.copy(camLook); }
   if (typeof step === 'string') titleStep = step; else if (state !== 'title') titleStep = 'prep';
   state = 'title'; $('hud').hidden = true; hide(); $('stage').classList.remove('dead'); titleEl.hidden = false;
   if (titleStep === 'home') renderHome(); else renderPrep(true);
 }
+function backToTitle() { titleEl.hidden = false; if (titleStep === 'home') renderHome(); else if (titleStep === 'gacha') renderGacha(); else renderPrep(true); }
 function renderHome() {
-  const n = CLS_IDS.filter(isOpen).length;
+  const n = CLS_IDS.filter(isOpen).length, sk = meta.skins.length + meta.ults.length, eo = endlessOpen();
+  const next = ACH.filter((a) => !meta.ach.includes(a.id)).slice(0, 3);
   titleEl.className = 'home';
-  titleEl.innerHTML = `<div><div class="logo">${[...'沙盒期末战'].map((ch, i) => `<span style="--i:${i}">${ch}</span>`).join('')}</div></div>
-    <div class="tagline" style="justify-self:center;align-self:start">拖延、错题、手机、DDL 都长出了腿</div>
+  titleEl.innerHTML = `<div class="homeTop"><div class="logo">${[...'沙盒期末战'].map((ch, i) => `<span style="--i:${i}">${ch}</span>`).join('')}</div>
+    <div class="tagline">拖延、错题、手机、DDL 都长出了腿</div></div>
+    <aside class="hpanel L frame"><h3>我的进度</h3>
+      <div class="kv"><div><small>积分</small><b>${meta.pts}</b></div><div><small>同学</small><b>${n}/${CLS_IDS.length}</b></div><div><small>成就</small><b>${meta.ach.length}/${ACH.length}</b></div><div><small>抽卡收藏</small><b>${sk}/${G_LEG.length + G_RARE.length}</b></div><div><small>通关</small><b>${meta.stat.wins} 次</b></div><div><small>无尽最好</small><b>${eo ? (bestEndless ? fmt(bestEndless) : '--') : '未解锁'}</b></div></div>
+      ${next.length ? `<h3>下一个成就</h3>${next.map((a) => { const g = a.goal && a.goal(); return `<div class="nach">${ico('#a89a92', a.ic)}<span>${a.n} · <small>${a.d}</small></span>${g ? `<div class="mini"><i style="width:${Math.min(100, g[0] / g[1] * 100)}%"></i></div>` : `<small>奖励${achReward(a)}</small>`}</div>`; }).join('')}` : ''}
+      <div class="hbtns"><button id="hAch">全部成就</button><button id="hHow2">怎么玩</button><button id="hBook2">图鉴</button></div></aside>
+    <aside class="hpanel R frame"><h3>大鹅抽卡</h3>
+      <p class="gdesc">大鹅叼着黄鼠狼往柱子上一抽，掉出同学皮肤，还有 6 个技能的第二种终极形态。</p>
+      <div class="gbtn"><button id="hG1">单抽 · ${GACHA.one}</button><button class="primary" id="hG10">十连 · ${GACHA.ten}</button></div>
+      <p class="gdesc">再抽 ${GACHA.pity - (meta.stat.pity || 0)} 次必出传说</p>
+      <h3>无尽排行</h3>
+      <ol class="lb">${meta.top.length ? meta.top.map((r, i) => `<li><span>${i + 1}. ${CLASSES[r.h] ? CLASSES[r.h].name : '同学'} · ${DIFFS[r.d] ? DIFFS[r.d].name : ''}</span><b>${fmt(r.t)}</b></li>`).join('') : `<li class="none">${eo ? '还没有无尽记录' : '通关一次标准模式后开放无尽'}</li>`}</ol>
+      <span class="soon">全平台排行 · 下一版开放</span></aside>
     <div class="homeBot"><button class="primary big" id="hGo">开始</button>
-      <div class="homeRow"><button id="hHow">怎么玩</button><button id="hBook">图鉴</button><span>积分 ${meta.pts}</span><span>同学 ${n} / ${CLS_IDS.length}</span>${bestEndless ? `<span>无尽最好 ${fmt(bestEndless)}</span>` : ''}</div></div>`;
+      <div class="homeRow"><button class="nar" id="hHow">怎么玩</button><button class="nar" id="hBook">图鉴</button><button class="nar" id="hAch2">成就</button><button class="nar" id="hGacha">抽卡</button><span class="nar">积分 ${meta.pts}</span><span class="nar">同学 ${n} / ${CLS_IDS.length}</span></div></div>`;
   $('hGo').onclick = () => { titleStep = 'prep'; renderPrep(true); };
-  $('hHow').onclick = showHow; $('hBook').onclick = () => showCodex(); $('hGo').focus();
+  $('hHow').onclick = $('hHow2').onclick = showHow; $('hBook').onclick = $('hBook2').onclick = () => showCodex(); $('hAch').onclick = $('hAch2').onclick = showAch;
+  $('hGacha').onclick = () => openGacha(); $('hG1').onclick = () => openGacha(1); $('hG10').onclick = () => openGacha(10);
+  $('hG1').disabled = meta.pts < GACHA.one; $('hG10').disabled = meta.pts < GACHA.ten; $('hGo').focus();
+}
+function showAch() {
+  if (state === 'title') titleEl.hidden = true;
+  show(`<div class="chead"><h2>成就</h2><span class="pts">${meta.ach.length} / ${ACH.length}</span></div>
+    <div class="achs">${ACH.map((a) => { const done = meta.ach.includes(a.id), g = a.goal && a.goal(); return `<div class="ach ${done ? 'done' : ''}">${ico(done ? '#ffaa1e' : '#a89a92', a.ic)}<div><b>${a.n}</b><small>${a.d}${a.note ? '，' + a.note : ''}</small>${g && !done ? `<div class="mini"><i style="width:${Math.min(100, g[0] / g[1] * 100)}%"></i></div><small>${Math.min(g[0], g[1])} / ${g[1]}</small>` : ''}</div><span class="rw">${done ? '已达成' : '奖励'}<br>${achReward(a)}</span></div>`; }).join('')}</div>
+    <p class="note">送同学和饰品的成就，奖励只能这样拿到，积分换不到。</p>
+    <div class="actions"><button class="primary" id="aok">关闭</button></div>`, 'frame codex');
+  $('aok').onclick = () => { hide(); if (state === 'title') backToTitle(); }; $('aok').focus();
 }
 const MON_ORDER = ['sleepy', 'bat', 'bomber', 'chalk', 'cross', 'mole', 'clock', 'ink', 'ghost', 'phone', 'snail', 'hourglass', 'boss'];
 const MON_MORE = { sleepy: ['瞌睡团子', '最常见，慢吞吞地围上来'], bat: ['问号蝙蝠', '成群飞过来，不怕桌椅挡路'], hourglass: ['DDL 沙漏人', '精英，血很厚，打倒会掉宝箱'], boss: ['期末大魔王', '10:00 出场，打倒它就通关'] };
 const MON_C = { sleepy: '#a98bd8', bat: '#7a5ad8', bomber: '#e2453a', chalk: '#e88aa0', cross: '#e0473c', mole: '#b8843a', clock: '#e0a800', ink: '#3a3f6a', ghost: '#9aa3b5', phone: '#3f97e8', snail: '#5fb04f', hourglass: '#c98a2e', boss: '#8a2a3a' };
 let cdxTab = 'heroes';
+const howGet = (kind, id) => { const a = achFor(kind, id); return DEF0[kind] && DEF0[kind].includes(id) ? '一开始就有' : a ? `达成成就「${a.n}」：${a.d}` : `用 ${PRICE[kind]} 积分兑换`; };
+const tagOf = (kind, id) => achFor(kind, id) ? '成就' : `${PRICE[kind]} 积分`;
 function codexItems(tab) {
-  if (tab === 'heroes') return CLS_IDS.map((id) => { const c = CLASSES[id]; return { id, name: c.name, short: c.short, c: TAGS[c.tag].c, ic: c.start, open: isOpen(id), kind: 'heroes', desc: `${TAGS[c.tag].name} · 生命 ${c.hp} · 自带技能「${WEAPONS[c.start].name}」。${c.desc}。兑换后这个技能也会进入技能池。` }; });
-  if (tab === 'skills') return Object.keys(WEAPONS).map((id) => { const w = WEAPONS[id], owner = CLS_IDS.find((h) => CLASSES[h].start === id); return { id, name: w.name, c: w.c, ic: id, open: skillOpen(id), desc: `${TAGS[w.tag].name}。${w.desc}。每升一级：${LVUP[id][2]}。Lv 4 和 Lv 8 各注入一次元素，Lv 10 变成终极形态「${w.evo.name}」：${w.evo.desc}。特殊升级（完成地图任务开宝箱拿）：${SP[id].map((x) => x[1]).join('、')}。`, hint: `兑换同学「${CLASSES[owner].name}」后，这个技能会进入技能池。` }; });
-  if (tab === 'arts') return Object.keys(ARTS).map((id) => { const a = ARTS[id]; return { id, name: a.name, c: a.c, ic: a.ic, open: meta.arts.includes(id), kind: 'arts', desc: a.desc + '。对局里在金色光柱下三选一。' }; });
-  if (tab === 'relics') return Object.keys(RELICS).map((id) => { const r = RELICS[id], t = TAGS[r.tag], ev = Object.keys(WEAPONS).find((w) => WEAPONS[w].evo.relic === id); return { id, name: r.name, c: t ? t.c : '#b8433a', ic: r.curse ? 'curse' : 'charm', open: meta.relics.includes(id), kind: 'relics', desc: `${t ? t.name + '饰品。' : ''}${r.desc}。对局里打倒精英怪掉的宝箱里开出。` }; });
+  if (tab === 'gacha') return [...G_LEG, ...G_RARE].map((id) => { const ult = id.startsWith('ult_'), q = gItem({ id }), r = ult ? 2 : SKINS[id].r, w = ult && WEAPONS[id.slice(4)];
+    return { id, name: q.name, c: RC[r], ic: q.ic, open: ult ? meta.ults.includes(id.slice(4)) : meta.skins.includes(id), tag: RN[r], desc: ult
+      ? `传说 · ${w.name}的第二种终极形态：${ALT[id.slice(4)].desc}。<b>怎么获得：</b>只能在大鹅抽卡里抽到。抽到以后，这个技能升到 Lv 10 时可以在原来的「${w.evo.name}」和它之间二选一。`
+      : `${RN[r]}皮肤 · ${CLASSES[SKINS[id].h].name}。${SKINS[id].aura ? '换一套配色，头顶光环，脚下一圈光。' : '换一套配色。'}<b>怎么获得：</b>只能在大鹅抽卡里抽到。抽到后在准备页选这位同学时换上。` }; });
+  if (tab === 'ach') return ACH.map((a) => ({ id: a.id, name: a.n, c: '#ffaa1e', ic: a.ic, open: meta.ach.includes(a.id), mon: true, desc: `${a.d}${a.note ? '，' + a.note : ''}。奖励：${achReward(a)}。${meta.ach.includes(a.id) ? '已达成。' : ''}` }));
+  if (tab === 'heroes') return CLS_IDS.map((id) => { const c = CLASSES[id]; const sk = Object.keys(SKINS).filter((k) => SKINS[k].h === id).map((k) => `${SKINS[k].n}（${RN[SKINS[k].r]}）`).join('、'); return { id, name: c.name, short: c.short, c: TAGS[c.tag].c, ic: c.start, open: isOpen(id), kind: achFor('heroes', id) ? null : 'heroes', tag: tagOf('heroes', id), hint: howGet('heroes', id), desc: `${TAGS[c.tag].name} · 生命 ${c.hp} · 自带技能「${WEAPONS[c.start].name}」。${c.desc}。加入后这个技能也会进入技能池。<b>怎么获得：</b>${howGet('heroes', id)}。皮肤（抽卡）：${sk}。` }; });
+  if (tab === 'skills') return Object.keys(WEAPONS).map((id) => { const w = WEAPONS[id], owner = CLS_IDS.find((h) => CLASSES[h].start === id); return { id, name: w.name, c: w.c, ic: id, open: skillOpen(id), desc: `${TAGS[w.tag].name}。${w.desc}。每升一级：${LVUP[id][2]}。Lv 4 和 Lv 8 各注入一次元素，Lv 10 变成终极形态「${w.evo.name}」：${w.evo.desc}。${ALT[id] ? `<b>第二种终极形态「${ALT[id].name}」</b>：${ALT[id].desc}。要在大鹅抽卡里抽到${meta.ults.includes(id) ? '（你已经抽到了，Lv 10 时二选一）' : ''}。` : ''}特殊升级（完成地图任务开宝箱拿）：${SP[id].map((x) => x[1]).join('、')}。`, hint: `兑换同学「${CLASSES[owner].name}」后，这个技能会进入技能池。` }; });
+  if (tab === 'arts') return Object.keys(ARTS).map((id) => { const a = ARTS[id]; return { id, name: a.name, c: a.c, ic: a.ic, open: meta.arts.includes(id), kind: 'arts', tag: tagOf('arts', id), desc: a.desc + `。对局里在金色光柱下三选一。<b>怎么获得：</b>${howGet('arts', id)}。` }; });
+  if (tab === 'relics') return Object.keys(RELICS).map((id) => { const r = RELICS[id], t = TAGS[r.tag], ev = Object.keys(WEAPONS).find((w) => WEAPONS[w].evo.relic === id); return { id, name: r.name, c: t ? t.c : '#b8433a', ic: r.curse ? 'curse' : 'charm', open: meta.relics.includes(id), kind: achFor('relics', id) ? null : 'relics', tag: tagOf('relics', id), hint: howGet('relics', id), desc: `${rarOf(id).n}${t ? '，' + t.name : ''}。每件：${r.desc}。同一件可以一直叠加。对局里打怪偶尔掉落，精英宝箱里可以三选一。<b>怎么获得：</b>${howGet('relics', id)}。` }; });
   return MON_ORDER.map((id) => { const m = MON_INFO[id] || MON_MORE[id], seen = meta.seen.includes(id); return { id, name: seen ? m[0] : '？？？', c: seen ? MON_C[id] : '#a89a92', ic: seen ? m[0][0] : '?', open: seen, mon: true, desc: seen ? m[1] + '。' : '还没遇到过，对局里见到一次就会记下来。' }; });
 }
 function showCodex(tab = cdxTab, sel) {
   if (state === 'title') titleEl.hidden = true;
-  cdxTab = tab; const items = codexItems(tab), it = items.find((q) => q.id === sel) || items[0], TABS = { heroes: '同学', skills: '技能', arts: '遗物', relics: '饰品', mons: '怪物' }, price = PRICE[it.kind];
+  cdxTab = tab; const items = codexItems(tab), it = items.find((q) => q.id === sel) || items[0], TABS = { heroes: '同学', skills: '技能', arts: '遗物', relics: '饰品', gacha: '抽卡奖池', ach: '成就', mons: '怪物' }, price = PRICE[it.kind];
   show(`<div class="chead"><h2>图鉴</h2><span class="pts">积分 <b>${meta.pts}</b></span></div>
     <div class="ctabs">${Object.keys(TABS).map((t) => `<button class="${t === tab ? 'on' : ''}" data-t="${t}">${TABS[t]}</button>`).join('')}<span>${items.filter((q) => q.open).length} / ${items.length}</span></div>
-    <div class="cgrid">${items.map((q) => `<button class="ctile ${q.open ? '' : 'lock'} ${q.id === it.id ? 'sel' : ''}" data-id="${q.id}" aria-label="${q.name}">${ico(q.open ? q.c : '#a89a92', q.open || q.mon ? q.ic : 'lock')}<span>${q.short || q.name}</span>${!q.open && PRICE[q.kind] ? `<small>${PRICE[q.kind]} 积分</small>` : ''}</button>`).join('')}</div>
-    <div class="cdetail"><b>${it.name}${it.open && !it.mon ? '<em>已拥有</em>' : ''}</b><p>${it.desc}</p>${!it.open && price ? `<button class="primary" id="cbuy" ${meta.pts < price ? 'disabled' : ''}>${meta.pts < price ? `还差 ${price - meta.pts} 积分` : `兑换 · ${price} 积分`}</button>` : !it.open && it.hint ? `<p>${it.hint}</p>` : ''}</div>
-    <p class="note">每局结束按击倒数和坚持时间给积分，通关另加 80。只有兑换过的遗物和饰品才会在对局里出现。</p>
+    <div class="cgrid">${items.map((q) => `<button class="ctile ${q.open ? '' : 'lock'} ${q.id === it.id ? 'sel' : ''}" data-id="${q.id}" aria-label="${q.name}">${ico(q.open ? q.c : '#a89a92', q.open || q.mon ? q.ic : 'lock')}<span>${q.short || q.name}</span>${!q.open && q.tag ? `<small>${q.tag}</small>` : ''}</button>`).join('')}</div>
+    <div class="cdetail"><b>${it.name}${it.open && !it.mon ? '<em>已拥有</em>' : ''}</b><p>${it.desc}</p>${!it.open && price ? `<button class="primary" id="cbuy" ${meta.pts < price ? 'disabled' : ''}>${meta.pts < price ? `还差 ${price - meta.pts} 积分` : `兑换 · ${price} 积分`}</button>` : !it.open && it.hint && !price ? `<p><b>${it.hint}</b></p>` : ''}</div>
+    <p class="note">东西有四种来路：一开始就有、积分兑换（每局按击倒数和时间给积分，通关另加 80）、达成成就、大鹅抽卡。只有拿到的遗物和饰品才会在对局里出现。</p>
     <div class="actions"><button class="primary" id="cok">关闭</button></div>`, 'frame codex');
   panel.querySelectorAll('[data-t]').forEach((b) => b.onclick = () => showCodex(b.dataset.t));
   panel.querySelectorAll('.ctile').forEach((b) => b.onclick = () => { const sc = panel.querySelector('.cgrid').scrollTop; showCodex(tab, b.dataset.id); panel.querySelector('.cgrid').scrollTop = sc; });
   if ($('cbuy')) $('cbuy').onclick = () => { if (buy(it.kind, it.id)) showCodex(tab, it.id); };
-  $('cok').onclick = () => { hide(); if (state === 'title') { titleEl.hidden = false; if (titleStep === 'home') renderHome(); else renderPrep(true); } };
+  $('cok').onclick = () => { hide(); if (state === 'title') backToTitle(); };
 }
 function showHow() {
   const row = (c, k, a, b) => `<div>${ico(c, k)}<span><b>${a}</b>${b}</span></div>`;
@@ -1606,29 +1794,32 @@ function showHow() {
     ${row('#3fc98a', 'flag', '每 30 秒一个新事件', '新怪物、小任务、地图遗物轮着来，10:00 大魔王出场')}
     ${row('#a98bff', 'move', '四个教室一条走廊', '从走廊的门进出教室，怪也得走门。四个教室最外面的角落会一直出怪')}
     ${row('#ffab2e', 'charm', '去找遗物', '金色光柱下面有遗物，三选一，效果很强')}
+    ${row('#ffaa1e', 'crown', '成就和抽卡', '有些同学和饰品要靠成就拿；皮肤和 6 个技能的第二种终极形态要靠大鹅抽卡。通关一次标准模式才开放无尽')}
   </div><div class="actions"><button class="primary" id="ok">知道了</button></div>`);
   $('ok').onclick = hide; $('ok').focus();
 }
 function renderPrep(fresh) {
-  clsId = CLS_IDS[selIdx]; cls = CLASSES[clsId];
-  const locked = !isOpen(clsId), t = TAGS[cls.tag], w = WEAPONS[cls.start];
+  clsId = CLS_IDS[selIdx]; cls = CLASSES[clsId]; if (modeId === 'endless' && !endlessOpen()) modeId = 'std';
+  const locked = !isOpen(clsId), t = TAGS[cls.tag], w = WEAPONS[cls.start], aL = locked && achFor('heroes', clsId), mySk = Object.keys(SKINS).filter((k) => SKINS[k].h === clsId), on = skinOf(clsId);
   const maxHp = Math.max(...CLS_IDS.map((id) => CLASSES[id].hp)), spdOf = (c) => (c.spd - 4.6) / 1.2;
   const side = `
     <h3>选同学</h3>
     <div class="chips">${CLS_IDS.map((id, i) => { const c = CLASSES[id], lk = !isOpen(id); return `<button class="chip ${i === selIdx ? 'sel' : ''} ${lk ? 'locked' : ''}" data-i="${i}" aria-label="${c.name}">${ico(TAGS[c.tag].c, lk ? 'lock' : c.start)}${c.short || c.name}</button>`; }).join('')}</div>
-    <div class="hinfo"><p>${locked ? '还没加入。用 ${PRICE.heroes} 积分兑换，现在有 ${meta.pts} 积分。每局结束都会拿到积分。' : cls.desc}</p>
+    <div class="hinfo"><p>${aL ? `还没加入。达成成就「${aL.n}」（${aL.d}）后加入。` : locked ? `还没加入。用 ${PRICE.heroes} 积分兑换，现在有 ${meta.pts} 积分。每局结束都会拿到积分。` : cls.desc}</p>
       <div class="hstats" style="--c:${t.c}">
         <div><span>生命</span><div class="mini"><i style="width:${cls.hp / maxHp * 100}%"></i></div><b>${cls.hp}</b></div>
         <div><span>移速</span><div class="mini"><i style="width:${spdOf(cls) * 100}%"></i></div><b>${cls.spd.toFixed(1)}</b></div>
         <div class="wp"><span>武器</span>${ico(w.c, cls.start)}<span>${w.name}</span></div>
       </div></div>
+    <h3>皮肤</h3>
+    <div class="skins"><button class="sk ${on ? '' : 'on'}" data-sk="">${ico(t.c, cls.start)}默认</button>${mySk.map((k) => { const own = meta.skins.includes(k); return `<button class="sk ${on === k ? 'on' : ''} ${own ? '' : 'lk'}" data-sk="${k}" ${own ? '' : 'disabled'}>${ico(own ? RC[SKINS[k].r] : '#a89a92', own ? cls.start : 'lock')}${SKINS[k].n}${own ? '' : ' · 抽卡'}</button>`; }).join('')}</div>
     <h3>模式</h3>
-    <div class="opts2">${Object.keys(MODES).map((m) => `<button class="opt ${m === modeId ? 'on' : ''}" data-m="${m}"><b>${MODES[m].name}</b><small>${m === 'std' ? '10:00 打倒大魔王' : bestEndless ? `最好 ${fmt(bestEndless)}` : '能撑多久算多久'}</small></button>`).join('')}</div>
+    <div class="opts2">${Object.keys(MODES).map((m) => { const lk = m === 'endless' && !endlessOpen(); return `<button class="opt ${m === modeId ? 'on' : ''} ${lk ? 'lk' : ''}" data-m="${m}" ${lk ? 'disabled' : ''}><b>${MODES[m].name}</b><small>${lk ? '通关一次标准模式解锁' : m === 'std' ? '10:00 打倒大魔王' : bestEndless ? `最好 ${fmt(bestEndless)}` : '能撑多久算多久'}</small></button>`; }).join('')}</div>
     <h3>难度</h3>
     <div class="opts3">${Object.keys(DIFFS).map((d, k) => `<button class="opt ${d === diffId ? 'on' : ''}" data-d="${d}" style="--c:${['#b8f0cf', '#ffe07a', '#ffb0a8'][k]}"><b>${DIFFS[d].name}</b><span class="pep">${[0, 1, 2].map((q) => `<i class="${q <= k ? 'on' : ''}"></i>`).join('')}</span></button>`).join('')}</div>
     <p class="note">${MODES[modeId].note}。${DF().note}。</p>
-    <div class="actions"><button id="pBack">返回</button><button class="primary big" id="go" ${locked && meta.pts < PRICE.heroes ? 'disabled' : ''}>${locked ? (meta.pts < PRICE.heroes ? `还差 ${PRICE.heroes - meta.pts} 积分` : `兑换 · ${PRICE.heroes} 积分`) : '出发！'}</button></div>`;
-  const plate = `<div class="plate frame ${locked ? 'locked' : ''}"><b>${locked ? '？？？' : cls.name}</b>${locked ? '<small>${PRICE.heroes} 积分兑换</small>' : `<span class="role" style="--c:${t.c}">${t.name}</span>`}</div>`;
+    <div class="actions"><button id="pBack">返回</button><button class="primary big" id="go" ${locked && (aL || meta.pts < PRICE.heroes) ? 'disabled' : ''}>${aL ? '靠成就加入' : locked ? (meta.pts < PRICE.heroes ? `还差 ${PRICE.heroes - meta.pts} 积分` : `兑换 · ${PRICE.heroes} 积分`) : '出发！'}</button></div>`;
+  const plate = `<div class="plate frame ${locked ? 'locked' : ''}"><b>${locked ? '？？？' : cls.name}</b>${locked ? `<small>${aL ? '成就解锁' : PRICE.heroes + ' 积分兑换'}</small>` : `<span class="role" style="--c:${t.c}">${t.name}</span>`}</div>`;
   if (fresh || titleEl.className !== 'prep') {
     titleEl.className = 'prep';
     titleEl.innerHTML = `<div class="stageUI"><button class="arrow l" id="pl" aria-label="上一位">‹</button><button class="arrow r" id="pr" aria-label="下一位">›</button><div id="plateBox">${plate}</div></div><div class="side frame" id="side">${side}</div>`;
@@ -1637,23 +1828,63 @@ function renderPrep(fresh) {
   titleEl.querySelectorAll('[data-d]').forEach((b) => b.onclick = () => { diffId = b.dataset.d; renderPrep(); });
   titleEl.querySelectorAll('[data-m]').forEach((b) => b.onclick = () => { modeId = b.dataset.m; renderPrep(); });
   titleEl.querySelectorAll('.chip').forEach((b) => b.onclick = () => pickHero(+b.dataset.i));
+  titleEl.querySelectorAll('[data-sk]').forEach((b) => b.onclick = () => { meta.skinOn[clsId] = b.dataset.sk; saveMeta(); renderPrep(); if (b.dataset.sk) spark(TX, 1.5, TZ - 1, 0xffd23f, 50, 6, 0.4, 0.7); });
   $('pBack').onclick = () => { titleStep = 'home'; renderHome(); };
   $('go').onclick = () => { if (!isOpen(clsId)) { if (buy('heroes', clsId)) { renderPrep(); spark(TX, 1.5, TZ - 1, 0xffd23f, 80, 7, 0.4, 0.8); } return; } wipe(startRun); };
+}
+const gch = { on: false, res: [], i: 0, a: 0, w: 0, t: 0, hitT: 0, cross: 0, endT: 0, n: 1, hero: null, snap: false };
+function openGacha(n) { wipe(() => { titleStep = 'gacha'; gch.snap = true; gch.hero = null; renderGacha(); if (n) gachaStart(n); }); }
+function renderGacha() {
+  titleEl.className = 'gacha'; titleEl.hidden = false; const p = GACHA.pity - (meta.stat.pity || 0);
+  titleEl.innerHTML = `<div class="gTop"><button id="gBack" ${gch.on ? 'hidden' : ''}>返回</button><span class="pill">积分 ${meta.pts}</span></div>
+    <div class="gTitle">大鹅抽卡</div>
+    <div class="gSlots">${gch.on ? gch.res.map((q, i) => `<i class="gs" data-i="${i}"></i>`).join('') : ''}</div>
+    <div class="gBot">${gch.on ? '<div class="row"><button id="gSkip">跳过动画</button></div>' : `<div class="row"><button class="big" id="g1" ${meta.pts < GACHA.one ? 'disabled' : ''}>单抽 · ${GACHA.one}</button><button class="primary big" id="g10" ${meta.pts < GACHA.ten ? 'disabled' : ''}>十连 · ${GACHA.ten}</button></div>
+      <div class="row"><small>传说 5% · 稀有 35% · 其余返 ${GACHA.back} 积分 · 十连至少一个稀有 · 再抽 ${p} 次必出传说</small><button id="gPool">看奖池</button></div>`}</div>`;
+  if (gch.on) $('gSkip').onclick = () => { while (gch.i < gch.res.length) gImpact(gch.res[gch.i++], true); gch.w = 0; };
+  else { $('gBack').onclick = () => wipe(() => { titleStep = 'home'; gch.hero = null; renderHome(); }); $('g1').onclick = () => gachaStart(1); $('g10').onclick = () => gachaStart(10); $('gPool').onclick = () => showCodex('gacha'); }
+}
+function gachaStart(n) { const res = gachaPull(n); if (!res) return; Object.assign(gch, { on: true, res, i: 0, w: 0, t: 0, hitT: 0, endT: 0, n, cross: Math.floor((gch.a - HP_) / TAU) }); renderGacha(); }
+function gImpact(q, quiet) {
+  const c = new THREE.Color(RC[q.tier]).getHex(), el = titleEl.querySelector(`.gs[data-i="${gch.i - 1}"]`), it = gItem(q);
+  if (el) { el.classList.add('on'); el.style.setProperty('--c', RC[q.tier]); el.innerHTML = ico('#fff', it.ic); }
+  if (quiet) return;
+  const x = GPX, z = GZ; spark(x - 0.3, 1.4, z, c, q.tier === 2 ? 150 : q.tier ? 70 : 30, q.tier === 2 ? 10 : 7, 0.45, 0.8); spark(x - 0.3, 1.4, z, 0xffffff, 16, 5, 0.35, 0.5);
+  ringFx(x, z, q.tier === 2 ? 7 : q.tier ? 4.5 : 3, c, 0.5); shake = q.tier === 2 ? 0.5 : 0.25; if (q.tier === 2) { chroma = 0.6; ringFx(x, z, 10, 0xffe07a, 0.8); }
+}
+function updateGacha(dt) {
+  if (gch.freeze) return;
+  if (!gch.on) { gch.w = 0; let d = (TAU - (gch.a % TAU)) % TAU; if (d > PI) d -= TAU; gch.a += d * Math.min(1, dt * 3); return; }
+  gch.t += dt; const top = (gch.n > 1 ? 2.4 : 1.6) * TAU;
+  if (gch.t < 0.7) gch.w = 0; else if (gch.i < gch.res.length) gch.w += (top - gch.w) * Math.min(1, dt * 2.4); else gch.w *= Math.pow(0.08, dt);
+  gch.a += gch.w * dt; gch.hitT = Math.max(0, gch.hitT - dt);
+  const c = Math.floor((gch.a - HP_) / TAU);
+  if (c > gch.cross) { gch.cross = c; if (gch.i < gch.res.length && gch.w > top * 0.6 && gch.t > (gch.n > 1 ? 1.4 : 2.2)) { gch.i++; gImpact(gch.res[gch.i - 1]); gch.w *= 0.55; gch.hitT = 0.32; } }
+  if (gch.i >= gch.res.length && gch.w < 1) { if (!gch.endT) gch.endT = gch.t; if (gch.t - gch.endT > 0.6) { gch.on = false; showGachaResults(); } }
+}
+function showGachaResults() {
+  const res = gch.res, best = res.filter((q) => !q.dup && q.id !== 'pts' && !q.id.startsWith('ult_')).sort((a, b) => b.tier - a.tier)[0];
+  show(`${res.some((q) => q.tier === 2) ? confetti(30) : ''}<h2>抽到了</h2>
+    <div class="gcards ${res.length === 1 ? 'one' : ''}">${res.map((q, i) => { const it = gItem(q); return `<div class="gcard t${q.tier}" style="--i:${i};--c:${RC[q.tier]}"><span class="rr">${RN[q.tier]}</span>${ico(RC[q.tier], it.ic)}<b>${it.name}</b><small>${it.sub}</small>${q.dup ? `<em>重复 · 返 ${q.back} 积分</em>` : q.id !== 'pts' ? '<em class="new">新</em>' : ''}</div>`; }).join('')}</div>
+    ${res.some((q) => q.id.startsWith('ult_') && !q.dup) ? '<p>终极形态：对局里把这个技能升到 Lv 10 就会变身。</p>' : ''}${best ? '<p>皮肤在准备页选同学时换上。</p>' : ''}
+    <div class="actions"><button class="primary" id="gOk">收下</button><button id="gAgain" ${meta.pts < (gch.n === 10 ? GACHA.ten : GACHA.one) ? 'disabled' : ''}>再来${gch.n === 10 ? '十连' : '一次'}</button></div>`, 'frame gres');
+  if (best) gch.hero = { h: SKINS[best.id].h, sk: best.id, t: 0 };
+  $('gOk').onclick = () => { hide(); renderGacha(); }; $('gAgain').onclick = () => { hide(); gachaStart(gch.n); }; $('gOk').focus();
 }
 function pickHero(i) { selIdx = i % CLS_IDS.length; if (state === 'title') { titleStep = 'prep'; renderPrep(); } }
 function startRun() {
   clsId = CLS_IDS[selIdx]; cls = CLASSES[clsId]; if (!isOpen(clsId)) return;
   clearField();
-  Object.assign(player, { x: 0, z: 0, vx: 0, vz: 0, yaw: 0, hp: cls.hp, maxHp: cls.hp, speed: cls.spd, magnet: 2.4, lvl: 1, xp: 0, need: 5, kills: 0, weapons: { [cls.start]: 1 }, wup: {}, elem: {}, sp: {}, arts: {}, koi: 0, shield: false, st: { ...BASE_ST, crit: BASE_ST.crit + (cls.crit || 0) }, relics: {}, evo: {}, duos: {}, spinT: 0, slowT: 0, healAcc: 0, iframe: 0 });
+  Object.assign(player, { x: 0, z: 0, vx: 0, vz: 0, yaw: 0, hp: cls.hp, maxHp: cls.hp, speed: cls.spd, magnet: 2.4, lvl: 1, xp: 0, need: 5, kills: 0, weapons: { [cls.start]: 1 }, wup: {}, elem: {}, sp: {}, arts: {}, koi: 0, shield: false, st: { ...BASE_ST, crit: BASE_ST.crit + (cls.crit || 0) }, relics: {}, evo: {}, alt: {}, duos: {}, spinT: 0, slowT: 0, healAcc: 0, iframe: 0 });
   player.score = DF().score; player.revives = DF().revive; watchT = 12; shieldT = 10; $('rmark').hidden = true;
   mctx.clearRect(0, 0, 1024, 1024); marksDirty = true;
-  T = 0; spawnAcc = 0; settled = false; nextElite = DF().elite * 1.8; nextBats = 25; nextBomb = 90; nextBoss = modeId === 'std' ? BOSS_T : 300; bossCount = 0; boss = null; ev = {}; timeScale = 1; pendingLevels = 0; task = null; nextTask = 50;
+  T = 0; spawnAcc = 0; settled = false; run = { tasks: 0, hg: 0, hit: -1 }; achClock = 0; nextElite = DF().elite * 1.8; nextBats = 25; nextBomb = 90; nextBoss = modeId === 'std' ? BOSS_T : 300; bossCount = 0; boss = null; ev = {}; timeScale = 1; pendingLevels = 0; task = null; nextTask = 50;
   for (const k in cds) delete cds[k];
   $('bossBar').hidden = true; $('hud').classList.remove('boss'); $('hud').hidden = false; titleEl.hidden = true; titleEl.innerHTML = ''; hide(); $('stage').classList.remove('dead'); $('task').hidden = true;
   $('who').innerHTML = ico(TAGS[cls.tag].c, cls.start, 40); $('pname').textContent = cls.name; hud.lv = 1; hud.score = player.score; $('lv').textContent = 1; $('score').textContent = player.score;
   camLook.set(0, 0, 0);
   for (let k = 0; k < 6; k++) spawnNear('sleepy', 8, 13);
-  state = 'play'; SL = {}; refreshSets(); renderSlots(); banner('第一波', modeId === 'std' ? '撑到 10:00，期末大魔王会出现' : '无尽模式：撑得越久越好');
+  state = 'play'; SL = {}; refreshSets(); renderSlots(); renderItems(); banner('第一波', modeId === 'std' ? '撑到 10:00，期末大魔王会出现' : '无尽模式：撑得越久越好');
 }
 $('pauseBtn').onclick = () => { if (state === 'play') pause(); };
 function pause() { state = 'paused'; show(`<h2>暂停</h2>${statsHtml()}${buildSummary()}<div class="actions"><button class="primary" id="rs">继续</button><button id="qt">换个同学</button></div>`); $('rs').onclick = resume; $('qt').onclick = () => { settle(false); wipe(() => showTitle('prep')); }; $('rs').focus(); }
@@ -1663,7 +1894,7 @@ function statsHtml() {
 }
 function buildSummary() {
   const rows = Object.keys(TAGS).filter((t) => tagPts(t) > 0).map((t) => `<div><span class="role" style="--c:${TAGS[t].c}">${TAGS[t].name} ${tagPts(t)}</span> ${SL[t] ? SETS[t].slice(0, SL[t]).join('；') : '凑齐 2 件解锁第一阶'}</div>`);
-  const ex = [...Object.keys(player.arts).map((a) => `遗物：${ARTS[a].name}`), ...Object.keys(player.elem).map((w) => `${WEAPONS[w].name}：${player.elem[w].map((e) => ELEMS[e].name).join('+')}`), ...Object.keys(player.evo).map((w) => `终极：${WEAPONS[w].evo.name}`), ...Object.keys(player.sp).flatMap((w) => Object.keys(player.sp[w]).map((k) => `${WEAPONS[w].name}·${SP[w].find((q) => q[0] === k)[1]}`)), ...Object.keys(player.duos).map((d) => `联动：${DUOS[d].name}`)];
+  const ex = [...Object.keys(player.arts).map((a) => `遗物：${ARTS[a].name}`), ...Object.keys(player.relics).map((r) => `${RELICS[r].name}×${R(r)}`), ...Object.keys(player.elem).map((w) => `${WEAPONS[w].name}：${player.elem[w].map((e) => ELEMS[e].name).join('+')}`), ...Object.keys(player.evo).map((w) => `终极：${WEAPONS[w].evo.name}`), ...Object.keys(player.alt).map((w) => `终极：${ALT[w].name}`), ...Object.keys(player.sp).flatMap((w) => Object.keys(player.sp[w]).map((k) => `${WEAPONS[w].name}·${SP[w].find((q) => q[0] === k)[1]}`)), ...Object.keys(player.duos).map((d) => `联动：${DUOS[d].name}`)];
   return `<div class="summary">${rows.join('')}${ex.length ? `<div style="color:#9a5a12;font-weight:800">${ex.join(' · ')}</div>` : ''}</div>`;
 }
 let slotSig = {};
@@ -1671,13 +1902,14 @@ function renderSlots() {
   const ids = Object.keys(player.weapons), sig = {};
   $('slots').innerHTML = Array.from({ length: MAXW }, (_, i) => {
     const id = ids[i]; if (!id) return `<div class="slot empty">${ico('#fff', 'lock')}<span class="wn">Lv ${SKILL_LV[i - 1] ?? ''}</span></div>`;
-    const w = WEAPONS[id], l = wLevel(id), evo = player.evo[id], name = evo ? w.evo.name : w.name;
+    const w = WEAPONS[id], l = wLevel(id), evo = player.evo[id], name = evo ? w.evo.name : player.alt[id] ? ALT[id].name : w.name;
     const els = (player.elem[id] || []).map((e) => `<i style="background:${ELEMS[e].c}"></i>`).join('');
     sig[id] = l + (evo ? 100 : 0) + els.length; const changed = slotSig[id] !== sig[id];
     return `<div class="slot ${evo ? 'evo' : ''}  ${changed ? 'bump' : ''}" title="${name}">${ico(w.c, id)}<b class="lv">${evo ? '★' : l}</b>${els ? `<span class="els">${els}</span>` : ''}<span class="wn">${name}</span></div>`;
   }).join('');
   slotSig = sig;
 }
+function renderItems() { const el = $('items'); if (el) el.innerHTML = Object.keys(player.relics).map((id) => `<div class="ichip" style="--c:${rarOf(id).c}" title="${RELICS[id].name}：每件 ${RELICS[id].desc}"><i></i>${RELICS[id].name}<b>×${R(id)}</b></div>`).join(''); }
 function renderBuilds() {
   $('builds').innerHTML = Object.keys(TAGS).filter((t) => tagPts(t) > 0).map((t) => `<div class="bchip frame" style="--c:${TAGS[t].c}">${TAGS[t].name} ${tagPts(t)}<span class="tiers">${[1, 2, 3].map((k) => `<i class="${SL[t] >= k ? 'on' : ''}"></i>`).join('')}</span></div>`).join('');
 }
@@ -1717,13 +1949,14 @@ function optionCard(o, i) {
     const w = WEAPONS[o.id], k = (player.wup[o.id] || {})[o.u] || 0, l = wLevel(o.id), mx = UPS[o.u].max;
     const n = (o.tier || 0) + 1; c = w.c; ic = o.id; kind = `${w.name} Lv ${l}→${l + n}`; rn = TIER[o.tier || 0].n; rar = 'q' + (o.tier || 0); stars = n; name = LVUP[o.id][2]; sub = ''; rn = ''; rar = ''; stars = 0; delta = deltaHtml(upPreview(o.id, o.u, n));
     pips = `<span class="pips">${Array.from({ length: mx }, (_, q) => `<i class="${q < k ? 'on' : q < k + n ? 'new' : ''}"></i>`).join('')}</span>`;
-    if (l + 1 >= MAXLV) { kind = `${w.name} 满级`; rar = 'legend'; rn = '终极形态'; ic = 'crown'; name = w.evo.name; desc = w.evo.desc; }
+    if (l + 1 >= MAXLV && altOwned(o.id)) { kind = `${w.name} 满级`; rar = 'legend'; rn = '终极形态'; ic = 'crown'; name = '两种终极形态'; desc = `升到 Lv 10 时，在「${w.evo.name}」和「${ALT[o.id].name}」里选一个`; }
+    else if (l + 1 >= MAXLV) { kind = `${w.name} 满级`; rar = 'legend'; rn = '终极形态'; ic = 'crown'; name = w.evo.name; desc = w.evo.desc; }
     else if (INF_LV.includes(l + 1)) foot = '<span class="build">升到这一级会注入一次元素</span>';
-    else if (l + 2 >= MAXLV) foot = `<span class="build">再升一级变成终极形态「${w.evo.name}」</span>`;
+    else if (l + 2 >= MAXLV) foot = `<span class="build">再升一级变成终极形态「${altOwned(o.id) ? w.evo.name + '」或「' + ALT[o.id].name : w.evo.name}」</span>`;
   } else if (o.kind === 'r') {
     const r = RELICS[o.id], t = TAGS[r.tag]; const evoFor = Object.keys(WEAPONS).find((w) => WEAPONS[w].evo.relic === o.id && W(w));
-    c = t ? t.c : '#b8433a'; ic = r.curse ? 'curse' : 'charm'; kind = r.curse ? '代价饰品' : '饰品'; rar = r.curse ? 'curse' : 'epic'; rn = r.curse ? '有代价' : t.name; name = r.name; desc = r.desc;
-    foot = buildLine(r.tag);
+    const ra = rarOf(o.id), have = R(o.id); c = ra.c; ic = r.curse ? 'curse' : 'charm'; kind = (r.curse ? '代价饰品' : '饰品') + (t ? ' · ' + t.name : ''); rar = ra.k; rn = ra.n; name = r.name; sub = have ? `已有 ${have} 件，再叠一层` : '可以叠加'; desc = '每件：' + r.desc;
+    foot = have ? '' : buildLine(r.tag);
   } else if (o.kind === 'a') { const a = ARTS[o.id]; c = a.c; ic = a.ic; kind = '遗物'; rar = 'legend'; rn = '强力'; name = a.name; desc = a.desc; }
   else if (o.kind === 'el') {
     const E = ELEMS[o.id], cur = player.elem[o.w] || [], cb = cur.length ? COMBOS[[cur[0], o.id].sort().join('+')] : null;
@@ -1742,9 +1975,11 @@ function optionCard(o, i) {
 function applyUpgrade(o) {
   if (o.kind === 'w') player.weapons[o.id] = 1;
   else if (o.kind === 'u') { const u = (player.wup[o.id] = player.wup[o.id] || {}); const l0 = wLevel(o.id); u[o.u] = Math.min(UPS[o.u].max, (u[o.u] || 0) + (o.tier || 0) + 1); const l = (player.weapons[o.id] = wLevel(o.id)); for (const q of INF_LV) if (l0 < q && l >= q && (player.elem[o.id] || []).length + pendingInfuse.filter((w) => w === o.id).length < 2) pendingInfuse.push(o.id);
-    if (l >= MAXLV && !player.evo[o.id]) { player.evo[o.id] = 1; banner(WEAPONS[o.id].evo.name, '终极形态'); ripple(player.x, player.z, 1.5); spark(player.x, 1, player.z, 0xffc24a, 120, 9, 0.45, 0.9); shake = 0.4; } }
+    if (l >= MAXLV && !player.evo[o.id] && !player.alt[o.id] && altOwned(o.id)) { if (!pendingUlt.includes(o.id)) pendingUlt.push(o.id); }
+    if (l >= MAXLV && !player.evo[o.id] && !player.alt[o.id] && !altOwned(o.id)) { player.evo[o.id] = 1; banner(WEAPONS[o.id].evo.name, '终极形态'); ripple(player.x, player.z, 1.5); spark(player.x, 1, player.z, 0xffc24a, 120, 9, 0.45, 0.9); shake = 0.4; } }
   else if (o.kind === 's') { const v = statVal(o.id, o.tier); if (o.id === 'maxHp') { player.maxHp += v; player.hp += v; } else player.st[o.id] = Math.min(STATS[o.id].max ?? Infinity, player.st[o.id] + v); }
-  else if (o.kind === 'r') { player.relics[o.id] = 1; if (o.id === 'drink') { player.maxHp += 30; player.hp += 30; player.st.regen += 0.15; } if (o.id === 'allnight') { player.maxHp *= 0.7; player.hp = Math.min(player.hp, player.maxHp); } if (o.id === 'glass') { player.maxHp *= 0.6; player.hp = Math.min(player.hp, player.maxHp); } if (o.id === 'slack') { player.st.speed += 0.3; player.magnet *= 1.6; } if (o.id === 'scope') player.st.crit += 0.1; }
+  else if (o.kind === 'r') { player.relics[o.id] = R(o.id) + 1; if (o.id === 'drink') { player.maxHp += 10; player.hp += 10; player.st.regen += 0.05; } if (o.id === 'allnight') { player.maxHp *= 0.9; player.hp = Math.min(player.hp, player.maxHp); } if (o.id === 'glass') { player.maxHp *= 0.85; player.hp = Math.min(player.hp, player.maxHp); } if (o.id === 'slack') { player.st.speed += 0.1; player.magnet *= 1.2; } if (o.id === 'scope') player.st.crit += 0.05; renderItems(); }
+  else if (o.kind === 'ult') { if (o.v === 'b') player.alt[o.id] = 1; else player.evo[o.id] = 1; banner(o.v === 'b' ? ALT[o.id].name : WEAPONS[o.id].evo.name, '终极形态'); ripple(player.x, player.z, 1.5); spark(player.x, 1, player.z, 0xffc24a, 120, 9, 0.45, 0.9); shake = 0.4; }
   else if (o.kind === 'e') { player.evo[o.id] = 1; banner(WEAPONS[o.id].evo.name, '武器进化'); ripple(player.x, player.z, 1.5); spark(player.x, 1, player.z, 0xffc24a, 120, 9, 0.45, 0.9); shake = 0.4; }
   else if (o.kind === 'd') { player.duos[o.id] = 1; banner(DUOS[o.id].name, '联动'); spark(player.x, 1, player.z, 0x4fe0c0, 80, 8, 0.4, 0.8); }
   else if (o.kind === 'a') { player.arts[o.id] = 1; if (o.id === 'plate') player.st.armor += 3; if (o.id === 'grant') player.magnet *= 1.5; banner(ARTS[o.id].name, '获得遗物'); spark(player.x, 1, player.z, 0xffc93c, 90, 9, 0.45, 0.9); ripple(player.x, player.z, 1.2); }
@@ -1761,7 +1996,7 @@ function cardPick(opts, done) {
   });
   const first = panel.querySelector('.ucard'); if (first) first.focus({ preventScroll: true });
 }
-function nextChoice() { if (pendingInfuse.length) showInfuse(); else if (pendingLevels > 0) showLevelUp(); else { hide(); state = 'play'; } }
+function nextChoice() { if (pendingUlt.length) showUltPick(); else if (pendingInfuse.length) showInfuse(); else if (pendingLevels > 0) showLevelUp(); else { hide(); state = 'play'; } }
 const lvHead = (text, small, bg) => `<div class="lvhead"><div class="sunburst"></div><div class="ribbon"${bg ? ` style="background:${bg}"` : ''}>${text}${small ? `<small>${small}</small>` : ''}</div></div>`;
 function showLevelUp() {
   state = 'levelup'; const L = player.lvl - pendingLevels + 1, skill = SKILL_LV.includes(L) && Object.keys(player.weapons).length < MAXW;
@@ -1772,6 +2007,13 @@ function showLevelUp() {
     <div class="lvfoot"><button id="rr" ${player.score < 1 ? 'disabled' : ''}>重抽（剩 ${player.score} 次）</button><details class="statsBox"><summary>当前属性</summary>${statsHtml()}</details></div>`, 'bare');
   cardPick(opts, (o) => { applyUpgrade(o); spark(player.x, 1, player.z, 0xffd23f, 30, 6, 0.35, 0.6); ripple(player.x, player.z, 0.8); pendingLevels--; nextChoice(); });
   $('rr').onclick = () => { if (player.score < 1) return; player.score--; showLevelUp(); };
+}
+function showUltPick() {
+  state = 'levelup'; const id = pendingUlt[0], w = WEAPONS[id];
+  const opts = [{ kind: 'ult', id, v: 'a' }, { kind: 'ult', id, v: 'b' }];
+  const card = (o, i) => { const a = o.v === 'b', n = a ? ALT[id].name : w.evo.name, d = a ? ALT[id].desc : w.evo.desc; return `<button class="card ucard r-legend" data-i="${i}" style="--c:${w.c};--i:${i}"><span class="kind"><i>${w.name} 满级</i><em>${a ? '抽卡得到' : '原版'}</em></span>${ico(w.c, a ? 'sparkle' : 'crown')}<span class="name">${n}</span><span class="desc">${d}</span><kbd>${i + 1}</kbd></button>`; };
+  show(`${lvHead('选一个终极形态', w.name + ' Lv 10', 'var(--sun2)')}<div class="ucards" style="--n:2">${opts.map(card).join('')}</div>`, 'bare');
+  cardPick(opts, (o) => { pendingUlt.shift(); applyUpgrade(o); nextChoice(); });
 }
 function showInfuse() {
   state = 'levelup'; const id = pendingInfuse[0], opts = Object.keys(ELEMS).map((el) => ({ kind: 'el', id: el, w: id }));
@@ -1796,7 +2038,8 @@ function openChest(c) {
   if (c && c.sp) { const o = specialOptions(Math.random() < player.st.luck * 2 ? 4 : 3);
     if (o.length) { state = 'levelup'; show(`${lvHead('特殊升级！', '任务奖励', 'var(--lilac)')}<div class="ucards" style="--n:${o.length}">${o.map(optionCard).join('')}</div>`, 'bare'); cardPick(o, (x) => { applyUpgrade(x); nextChoice(); }); return; } }
   const luckN = Math.random() < player.st.luck * 2 ? 4 : 3;
-  const relics = Object.keys(RELICS).filter((r) => !R(r) && meta.relics.includes(r)).sort((a, b) => (tagPts(RELICS[b].tag) - tagPts(RELICS[a].tag)) + rnd(-1.5, 1.5)).slice(0, luckN).map((id) => ({ kind: 'r', id }));
+  const pick = []; for (let k = 0; k < luckN; k++) { const id = rollRelic([50, 40, 10], k === 0 ? 0.12 : 0, pick); if (id) pick.push(id); }
+  const relics = pick.map((id) => ({ kind: 'r', id }));
   if (!relics.length) {
     let o = c && c.sp ? [] : specialOptions(luckN), head = lvHead('特殊升级！', '宝箱', 'var(--lilac)');
     if (!o.length) { o = shuffle(Object.keys(STATS).filter((id) => STATS[id].max == null || player.st[id] < STATS[id].max - 1e-6)).slice(0, luckN).map((id) => ({ kind: 's', id, tier: 2 })); head = lvHead('宝箱开了！', '', 'var(--sun2)'); }
@@ -1826,7 +2069,7 @@ function showWin() {
   state = 'win';
   const gain = settle(true), nxt = null;
   show(`${confetti()}<div class="eyebrow">${MODES[modeId].name} · ${DF().name}</div><h1>通关！</h1>
-    <div class="unlock">${ico('#ffab2e', 'charm')}<div><b>积分 +${gain}</b><small>现在有 ${meta.pts} 积分，可以去图鉴兑换新同学、遗物和饰品</small></div></div>
+    <div class="unlock">${ico('#ffab2e', 'charm')}<div><b>积分 +${gain}</b><small>现在有 ${meta.pts} 积分，可以去图鉴兑换，或者去大鹅抽卡</small></div></div>
     <div class="stats"><div style="--i:0"><b>${fmt(T)}</b><small>用时</small></div><div style="--i:1"><b>${player.kills}</b><small>击倒</small></div><div style="--i:2"><b>${player.lvl}</b><small>等级</small></div><div style="--i:3"><b>${Object.keys(player.arts).length}</b><small>遗物</small></div></div>
     ${buildSummary()}<div class="actions"><button class="primary" id="again">再来一局</button><button id="wbook">去图鉴</button></div>`);
   $('again').onclick = () => wipe(() => { if (nxt) selIdx = CLS_IDS.findIndex((id) => CLASSES[id].tag === nxt); showTitle('prep'); }); $('again').focus(); $('wbook').onclick = () => wipe(() => { showTitle('home'); showCodex(); });
@@ -1859,6 +2102,7 @@ function nextEventText() {
 }
 let thunderCd = 0, ringCd = 0;
 function update(dt) {
+  achClock += dt; if (achClock > 0.5) { achClock = 0; checkAch(true); }
   T += dt;
   let mx = (keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0);
   let mz = (keys.KeyS || keys.ArrowDown ? 1 : 0) - (keys.KeyW || keys.ArrowUp ? 1 : 0);
@@ -1913,7 +2157,7 @@ function update(dt) {
     c.t += dt / 0.5; if (c.t < 1) { if (c.t > 0 && Math.random() < dt * 40) puff('coffee', c.x0 + (c.x - c.x0) * c.t, 0.9 + Math.sin(c.t * PI) * 3, c.z0 + (c.z - c.z0) * c.t, 1, 0.5, 0.32, 0.4); continue; } c.done = true; const CX = player.sp.coffee || {};
     elemBurst('coffee', c.x, c.z, c.rad); ringFx(c.x, c.z, c.rad, EC('coffee') ?? 0xc08040, 0.4); burst(c.x, 0.3, c.z, 0x5a3418, 20, c.rad * 2, 0.35, 0.5, 9); ringMark(c.x, c.z, c.rad * 0.9, 'rgba(45,25,10,.35)', 5); shake = Math.max(shake, 0.05);
     query(c.x, c.z, c.rad, (e) => { e.slow = 2; hitEnemy(e, c.dmg, 0, 0, 'magic'); });
-    if (pools.length >= POOL_MAX) pools.shift(); pools.push({ x: c.x, z: c.z, rad: c.rad, life: (c.evo ? 5 : 3.2) + (CX.long ? 2.5 : 0), max: (c.evo ? 5 : 3.2) + (CX.long ? 2.5 : 0), dmg: c.dmg * 0.4 * (R('laundry') ? 1.3 : 1), tick: 0, zap: !!player.duos.zapcafe, pull: (c.evo ? 3.5 : 1.2) * (CX.pull ? 2.6 : 1) });
+    if (pools.length >= POOL_MAX) pools.shift(); pools.push({ x: c.x, z: c.z, rad: c.rad, life: (c.evo ? 5 : 3.2) + (CX.long ? 2.5 : 0), max: (c.evo ? 5 : 3.2) + (CX.long ? 2.5 : 0), dmg: c.dmg * 0.4 * (1 + 0.1 * R('laundry')), tick: 0, zap: !!player.duos.zapcafe, pull: (c.evo ? 3.5 : 1.2) * (CX.pull ? 2.6 : 1) });
   }
   cups = cups.filter((c) => !c.done);
   for (const p of pools) {
@@ -2088,6 +2332,8 @@ function update(dt) {
   for (const c of chests) if (Math.hypot(player.x - c.x, player.z - c.z) < 1.3) { chests = chests.filter((q) => q !== c); openChest(c); break; }
   for (const d of drops) if (Math.hypot(player.x - d.x, player.z - d.z) < 1.1) { d.got = true; for (const g of gems) { g.pull = true; g.vac = true; } ringFx(player.x, player.z, 9, 0x7fe0ff, 0.6); ripple(player.x, player.z, 1.2); banner('知识吸取', '全场经验都飞过来了'); }
   drops = drops.filter((d) => !d.got);
+  for (const g of gifts) { g.t += dt; if (g.t > 40) g.got = true; else if (Math.hypot(player.x - g.x, player.z - g.z) < 1.1) { g.got = true; applyUpgrade({ kind: 'r', id: g.id }); const ra = rarOf(g.id); banner(`${RELICS[g.id].name} ×${R(g.id)}`, `${ra.n}饰品 · ${RELICS[g.id].desc}`); spark(g.x, 1, g.z, RELICS[g.id].curse ? 0x6a8aff : RAR3[RELICS[g.id].r], 40, 6, 0.4, 0.7); ripple(g.x, g.z, 0.7); } }
+  gifts = gifts.filter((g) => !g.got);
   for (const a of altars) { a.age += dt; if (state === 'play' && Math.hypot(player.x - a.x, player.z - a.z) < 1.6) { altars = altars.filter((q) => q !== a); showArts(); break; } }
   if (A('watch')) { watchT -= dt; if (watchT <= 0) { watchT = 12; for (const e of enemies) if (e.type !== 'boss' && !e.inv) e.frz = 1.5; ringFx(player.x, player.z, 12, 0x9fe0ff, 0.6); dmgNum(player.x, player.z, '时停！', 'tag', 2.6); } }
   if (A('bubble')) { if (!player.shield) { shieldT -= dt; if (shieldT <= 0) { player.shield = true; spark(player.x, 1, player.z, 0x9fe0ff, 20, 3, 0.3, 0.6, 0); } } else if (Math.random() < 0.4) spark(player.x + Math.cos(realTime * 5) * 0.8, 0.9, player.z + Math.sin(realTime * 5) * 0.8, 0x9fe0ff, 1, 0.2, 0.3, 0.4, 0); }
@@ -2096,12 +2342,26 @@ function update(dt) {
 }
 
 const STILL = { ph: 0, hit: 0, seed: 0, moving: 0 };
+function drawGacha(dt) {
+  if (!gch.freeze) gch.sp = (gch.sp || 0) + (Math.min(1, gch.w / (1.3 * TAU)) - (gch.sp || 0)) * Math.min(1, dt * 6); const spin = gch.sp, h = gch.hitT / 0.32, wind = gch.on && gch.t < 0.7 ? gch.t / 0.7 : 0;
+  GS.goose.rotation.y = gch.a; GS.goose.position.y = Math.abs(Math.sin(realTime * (gch.on ? 9 : 3))) * (gch.on ? 0.06 : 0.04) - wind * 0.12;
+  GS.neck.rotation.x = 0.15 + spin * 0.45 - wind * 0.4 + Math.sin(realTime * 2.2) * 0.05 * (1 - spin);
+  GS.head.rotation.x = -0.1 - spin * 0.25 + (gch.on ? 0 : Math.sin(realTime * 1.7) * 0.08);
+  const fl = gch.on ? 0.5 + spin * 0.6 + Math.sin(realTime * 26) * 0.35 : 0.1 + Math.max(0, Math.sin(realTime * 1.3)) * 0.25; GS.wL.rotation.z = fl; GS.wR.rotation.z = -fl;
+  // 黄鼠狼：0 = 垂着，1 = 甩平；抽到柱子上时往下一砸
+  const th = 0.15 + spin * 1.5 - (h > 0 ? Math.sin((1 - h) * PI) * 0.6 : 0);
+  GS.weasel.rotation.x = -th - GS.neck.rotation.x - GS.head.rotation.x; GS.weasel.rotation.z = gch.on ? Math.sin(realTime * 30) * 0.1 * spin : Math.sin(realTime * 5) * 0.2;
+  GS.weasel.scale.set(1 + h * 0.5, 1 - h * 0.35, 1 + h * 0.5);
+  GS.pillar.rotation.z = Math.sin(realTime * 45) * h * 0.08; GS.pillar.scale.y = 0.68 * (1 - h * 0.12);
+  if (gch.hero) { gch.hero.t += dt; const k = Math.min(1, gch.hero.t * 2.5), pseudo = { ph: realTime * 6, hit: 0, seed: 0.3, moving: 0.4, glowMul: 2.4 };
+    heroRig(gch.hero.h, gch.hero.sk).push(pseudo, worldM(-3.9, Math.abs(Math.sin(realTime * 4)) * 0.2, GZ + 1.6, 0.5 + Math.sin(realTime * 1.2) * 0.3, 1.3 * (0.4 + 0.6 * k))); shadow(-3.9, GZ + 1.6, 0.7); }
+}
 let fireClock = 0;
 function draw(dt) {
   shN = 0;
   if (state !== 'title') {
     player.glowMul = 2.4; const yaw = player.yaw + (player.spinT > 0 ? (1 - player.spinT) * TAU : 0);
-    RIGS['hero_' + clsId].push(player, worldM(player.x, 0, player.z, yaw, 1, 1 + Math.sin(player.ph * 2) * 0.02 * player.moving)); shadow(player.x, player.z, 0.55);
+    heroRig(clsId).push(player, worldM(player.x, 0, player.z, yaw, 1, 1 + Math.sin(player.ph * 2) * 0.02 * player.moving)); shadow(player.x, player.z, 0.55);
     if (sweepFx.t > 0) { sweepFx.t -= dt * 4.2; const p = 1 - sweepFx.t, arc = sweepFx.arc || TAU, a0 = HP_ - (sweepFx.yaw || 0) + arc / 2, r = sweepFx.r, sc = r / 1.6; STILL.etint = elT('sweep');
       // 尺子本体加几道残影，注入元素后本体和残影都变成元素的颜色
       for (let g = 0; g < 4; g++) { const pp = p - g * 0.08; if (pp < 0) break; const a = a0 - pp * arc, k = 1 - g * 0.17; if (g) STILL.etint = elT('sweep', g) || STILL.etint; RIGS.ruler.push(STILL, worldM(player.x + Math.cos(a) * r * 0.52, 0.8 - g * 0.03, player.z + Math.sin(a) * r * 0.52, -a, sc * k, 1.6 * k, sc * 0.8 * k)); }
@@ -2110,16 +2370,17 @@ function draw(dt) {
   } else {
     const port = innerWidth < 860, prep = titleStep === 'prep'; selF += (selIdx - selF) * Math.min(1, dt * 9);
     podium.visible = prep;
-    CLS_IDS.forEach((id, i) => {
+    if (titleStep === 'gacha') drawGacha(dt); else CLS_IDS.forEach((id, i) => {
       const lk = !isOpen(id), sel = prep && i === selIdx; let x, z, sc, yaw, y = 0, base = 0;
-      if (!prep) { const col = Math.floor(i / 3), row = i % 3, sp = port ? 1.15 : 2.0; x = (col - 2 + (row === 1 ? 0.5 : 0)) * sp * (1 + row * 0.06); z = -0.2 - row * 1.5; base = row * 0.62; sc = port ? 0.95 : 1.0; yaw = Math.sin(realTime * 0.8 + i) * 0.25; y = Math.pow(Math.max(0, Math.sin(realTime * 2.4 - i * 0.8)), 10) * 0.6; }
+      if (!prep) { const col = Math.floor(i / 3), row = i % 3, sp = port ? 1.15 : 1.6; x = (col - 2 + (row === 1 ? 0.5 : 0)) * sp * (1 + row * 0.06); z = -0.2 - row * 1.5; base = row * 0.62; sc = port ? 0.95 : 1.0; yaw = Math.sin(realTime * 0.8 + i) * 0.25; y = Math.pow(Math.max(0, Math.sin(realTime * 2.4 - i * 0.8)), 10) * 0.6; }
       else if (Math.abs(i - selF) > 2.6) return;
       else { const a = (i - selF) * 0.6, f = Math.max(0, 1 - Math.abs(i - selF)); x = Math.sin(a) * 3.6; z = -1 - (1 - Math.cos(a)) * 5; sc = 0.9 + 0.6 * f; yaw = f > 0.5 ? Math.sin(realTime * 1.3) * 0.4 : -a * 0.5; y = f * 0.22 + (sel && !lk ? Math.abs(Math.sin(realTime * 4.5)) * 0.22 : 0); }
       const pseudo = { ph: sel && !lk ? realTime * 8 : 0, hit: 0, seed: i * 0.13, moving: sel && !lk ? 0.6 : 0, glowMul: 2.4, dark: lk && prep };
-      RIGS['hero_' + id].push(pseudo, worldM(x + TX, y + base, z + TZ, yaw, sc)); if (!base) shadow(x + TX, z + TZ, 0.55 * sc);
+      heroRig(id).push(pseudo, worldM(x + TX, y + base, z + TZ, yaw, sc)); if (!base) shadow(x + TX, z + TZ, 0.55 * sc);
     });
   }
   if (state !== 'title') podium.visible = false;
+  gStage.visible = state === 'title' && titleStep === 'gacha';
   let fi = 0;
   for (const e of enemies) {
     if (e.type === 'mole' && e.inv) { const pk = e.ms === 'pop' ? 1 - e.pop / 0.65 : 0; RIGS.mound.push(e, worldM(e.x + (pk ? Math.sin(realTime * 50) * 0.05 : 0), 0, e.z, e.seed * 6, 1 + pk * 0.5, 1 + pk * 0.9, 1 + pk * 0.5)); continue; }
@@ -2154,6 +2415,7 @@ function draw(dt) {
     if (state === 'play' && EC('spin') != null && Math.random() < dt * 2.5) { ringFx(player.x, player.z, rr + 0.8, ecRand('spin'), 0.45, 0.6); if (elOf('spin').includes('elec')) elemBurst('spin', player.x, player.z, rr + 0.8); }
   }
   for (const c of chests) { RIGS.chest.push({ ph: 0, hit: 0, seed: 0.5, moving: 0 }, worldM(c.x, Math.abs(Math.sin(realTime * 3)) * 0.2, c.z, realTime * 0.8, 1)); shadow(c.x, c.z, 0.7); if (Math.random() < 0.4) spark(c.x, 1, c.z, 0xffd23f, 1, 1.2, 0.35, 0.9, -2); }
+  for (const g of gifts) { const col = RELICS[g.id].curse ? 0x6a8aff : RAR3[RELICS[g.id].r], bl = g.t > 34 ? (Math.sin(realTime * 20) > 0 ? 1 : 0.3) : 1; RIGS.chest.push({ ph: 0, hit: 0, seed: 0.5, moving: 0 }, worldM(g.x, 0.15 + Math.abs(Math.sin(realTime * 4 + g.x)) * 0.15, g.z, realTime * 1.6, 0.5 * bl)); shadow(g.x, g.z, 0.35); if (Math.random() < 0.5) spark(g.x + rnd(-0.2, 0.2), 0.7, g.z + rnd(-0.2, 0.2), col, 1, 1, 0.4, 0.8, -3); }
   for (const d of drops) { RIGS.vac.push({ ph: 0, hit: 0, seed: 0.3, moving: 0, glowMul: 2.4 }, worldM(d.x, 0.2 + Math.sin(realTime * 3) * 0.12, d.z, realTime * 1.5, 1.1)); shadow(d.x, d.z, 0.5); }
   for (const a of altars) { RIGS.altar.push({ ph: 0, hit: 0, seed: 0.1, moving: 0, glowMul: 2.6 }, worldM(a.x, 0, a.z, realTime * 0.6, Math.min(1, a.age * 2))); shadow(a.x, a.z, 0.9); if (Math.random() < 0.3) spark(a.x, 1.6, a.z, 0xffd23f, 1, 1.2, 0.3, 0.9, -2); }
   drawAltarMark(); drawPortals(dt);
@@ -2192,8 +2454,9 @@ function draw(dt) {
     if (titleStep === 'home') { tV.set(Math.sin(realTime * 0.15) * 0.8, port ? 6 : 3.0, port ? 29 : 12.5); tL.set(0, port ? 3.4 : 1.6, -1); }
     else if (!port) { tV.set(2.2, 2.4, 8); tL.set(2.2, 1.3, -1); } else { tV.set(0, 3, 20); tL.set(0, -2.0, -1); }
     tV.x += TX; tV.z += TZ; tL.x += TX; tL.z += TZ;
+    if (titleStep === 'gacha') { tV.set(0.2 + rnd(-shk, shk) * 0.4, port ? 4.6 : 3.4, GZ + (port ? 19 : 11)); tL.set(port ? -0.4 : -0.4, port ? 1.3 : 1.8, GZ); if (gch.snap) { gch.snap = false; camPos.copy(tV); camTgt.copy(tL); } }
     const ck = Math.min(1, dt * 4); camPos.lerp(tV, ck); camTgt.lerp(tL, ck); camera.position.copy(camPos); camera.lookAt(camTgt);
-    torch.position.set(TX, 4.2, TZ + 4.5); sandMat.uniforms.uPlayer.value.set(TX, 0, TZ);
+    if (titleStep === 'gacha') torch.position.set(0.2, 4.6, GZ + 4); else torch.position.set(TX, 4.2, TZ + 4.5); sandMat.uniforms.uPlayer.value.set(TX, 0, TZ);
   } else {
     camLook.lerp(v3.set(player.x, 0, player.z), Math.min(1, dt * 6));
     const D = 17.5 * camK, H = 18.5 * camK;
@@ -2229,13 +2492,13 @@ function frame(now) {
   const raw = Math.min(0.05, (now - last) / 1000); last = now;
   realTime += raw; uTime.value = realTime;
   const dt = raw * timeScale;
-  if (state === 'play') update(dt); else if (state === 'title') titleAmbience(raw);
+  if (state === 'play') update(dt); else if (state === 'title') { titleAmbience(raw); if (titleStep === 'gacha') updateGacha(raw); }
   draw(state === 'play' || state === 'title' ? dt : raw * 0.12);
   composer.render(); requestAnimationFrame(frame);
 }
 window.__game = { get chests() { return chests; }, openChest2: openChest, SP, LVUP, WALLS, regionOf, inWall, HX, HZ, portalWave, PORTALS, get gems() { return gems; }, hurtPlayer, TIER, CLS_IDS, minuteEvent, spawnAltar, showArts, get altars() { return altars; }, get drops() { return drops; }, infuse(id) { pendingInfuse.push(id); showInfuse(); },
   get state() { return state; }, startRun, setDiff(d) { diffId = d; }, setMode(m) { modeId = m; }, unlockAll() { meta.heroes = [...CLS_IDS]; meta.arts = Object.keys(ARTS); meta.relics = Object.keys(RELICS); }, meta, showCodex, settle, get cups() { return cups; }, get pools() { return pools; }, get bolts() { return bolts; }, startTask, get task() { return task; }, get enemies() { return enemies; }, spawn, upgradeOptions, get boss() { return boss; }, get T() { return T; }, set T(v) { T = v; }, player, applyUpgrade, showTitle,
-  pick(i) { pickHero(i); }, showLevelUp, showWin, showDeath, openChest, get step_() { return titleStep; },
+  pick(i) { pickHero(i); }, ACH, SKINS, ALT, gch, showUltPick, get pendingUlt() { return pendingUlt; }, openGacha, gachaStart, gachaPull, showAch, checkAch, get run() { return run; }, renderHome, renderGacha, showLevelUp, showWin, showDeath, openChest, get step_() { return titleStep; },
   step(s) { for (let k = 0; k < s * 30; k++) { update(1 / 30); realTime += 1 / 30; uTime.value = realTime; draw(1 / 30); if (state !== 'play') break; } },
 };
 showTitle();
