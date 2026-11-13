@@ -1,3 +1,4 @@
+import { DEATH_TAUNTS } from './death-taunts.js';
 import * as THREE from './vendor/three.module.js';
 import { EffectComposer } from './vendor/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from './vendor/addons/postprocessing/RenderPass.js';
@@ -9,6 +10,7 @@ const $ = (id) => document.getElementById(id);
 const rnd = (a, b) => a + Math.random() * (b - a);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const skillDemoMode = window.parent !== window && new URLSearchParams(location.search).has('skill-demo');
 const HX = 40, HZ = 34, CORR = 5, WT = 1.2, HALF = 34, RCX = 20.3, RCZ = 19.8, TX = -20.3, TZ = -19.8, PI = Math.PI, HP_ = PI / 2, TAU = PI * 2;
 const AZ = PI / 4; // 斜 45° 俯视
 
@@ -32,7 +34,7 @@ const CLASSES = {
   brawler:  { name: '体育委员', tag: 'melee',  hp: 150, spd: 5.7, start: 'sweep',   desc: '血厚腿长，原地抡一圈大尺子，周围全砍', look: { style: 'spiky', outfit: 'track', skin: 0xf2c49a, hair: 0x2b1d18, top: 0xd8423a, pants: 0x2b3a5c, iris: 0x7a3a22, item: 'bat', band: 0xffffff, big: true } },
   geo:      { name: '数学课代表', short: '课代表', tag: 'melee', hp: 120, spd: 5.4, start: 'spin', desc: '三角尺绕着自己转，站着不动也在算账', look: { style: 'bob', outfit: 'vest', hair: 0x3a2a20, top: 0xfaf8f2, pants: 0x4a5568, iris: 0x4a6a8a, accent: 0x3f7ad8, item: 'tri', glasses: true } },
   duty:     { name: '值日生',   tag: 'melee',  hp: 130, spd: 5.5, start: 'mop',     desc: '拖把一拖一大片，地板湿了怪就打滑', look: { style: 'bun', outfit: 'apron', girl: true, hair: 0x6a4630, top: 0x7cc8e8, pants: 0x3a6a9a, iris: 0x3a8ab8, accent: 0xffffff, scarf: 0xff8fa8, item: 'mop' } },
-  scholar:  { name: '学霸',     tag: 'ranged', hp: 95,  spd: 5.3, start: 'pencil',  desc: '铅笔百发百中，暴击率更高', crit: 0.12, look: { style: 'long', outfit: 'sailor', girl: true, hair: 0x1e1a2e, top: 0xfaf8f2, pants: 0x2c3a6e, iris: 0x3a6ad8, accent: 0xe2453a, item: 'pencil', glasses: true } },
+  scholar:  { name: '学霸',     tag: 'ranged', hp: 95,  spd: 5.3, start: 'pencil',  desc: '铅笔百发百中，开局暴击率 12%，基础攻速和伤害各低 20%', crit: 0.07, baseDmg: -0.20, baseAtkSpd: -0.20, look: { style: 'long', outfit: 'sailor', girl: true, hair: 0x1e1a2e, top: 0xfaf8f2, pants: 0x2c3a6e, iris: 0x3a6ad8, accent: 0xe2453a, item: 'pencil', glasses: true } },
   paper:    { name: '后排同学', tag: 'ranged', hp: 100, spd: 5.8, start: 'plane',   desc: '上课折的纸飞机会自己追怪，跑得还最快', look: { style: 'messy', outfit: 'hoodie', hair: 0x4a3426, top: 0x38b2c9, pants: 0x3a3f4a, iris: 0x2a8aa0, accent: 0xffffff, cap: 0xf2f2f2, item: 'plane' } },
   dorm:     { name: '住校生',   tag: 'ranged', hp: 115, spd: 5.2, start: 'slipper', desc: '穿着睡衣就来了，拖鞋扔出去还会飞回来', look: { style: 'bun2', outfit: 'pajama', girl: true, hair: 0xe8a0b8, top: 0xffd9e4, pants: 0xffd9e4, iris: 0xd85a8a, accent: 0xff7a5a, mask: 0x8a7ad8, item: 'slipper' } },
   engineer: { name: '理科生',   tag: 'gun',    hp: 110, spd: 5.2, start: 'stapler', desc: '订书机枪高速连发，越升级射得越快', look: { style: 'messy', outfit: 'labcoat', hair: 0x2e3a48, top: 0x3faa6a, pants: 0x34495e, iris: 0x2a8a6a, item: 'gun', goggles: true } },
@@ -41,8 +43,8 @@ const CLASSES = {
   owl:      { name: '夜猫子',   tag: 'magic',  hp: 100, spd: 5.0, start: 'coffee',  desc: '咖啡不离手，扔出去就是一个旋风，又伤又减速', look: { style: 'messy', outfit: 'hoodie', hair: 0x24202e, top: 0x6a4a3a, pants: 0x2e2a36, iris: 0xb8742a, accent: 0xf5e6c8, tired: true, item: 'mug' } },
   jock:     { name: '体育生',   tag: 'magic',  hp: 140, spd: 5.6, start: 'sock',    desc: '训练完没换袜子，怪一靠近就被熏到', look: { style: 'buzz', outfit: 'jersey', skin: 0xe8b88a, hair: 0x2a2a2a, top: 0x5fb04f, pants: 0xffffff, iris: 0x3a5a2a, band2: 0xff5f5f, item: 'sock', big: true } },
   monitor:  { name: '班长',     tag: 'magic',  hp: 105, spd: 5.2, start: 'rollcall', desc: '点到谁谁倒霉，专挑血最厚的砸', look: { style: 'pony', outfit: 'sailor', girl: true, hair: 0x3a2618, top: 0xfaf8f2, pants: 0x8a2a3a, iris: 0xb83a4a, accent: 0xffc93c, armband: 0xe2453a, item: 'book' } },
-  captain:  { name: '社团长',   tag: 'summon', hp: 105, spd: 5.4, start: 'minion',  desc: '自己不太能打，招一群便利贴小人替你冲', look: { style: 'twin', outfit: 'cheer', girl: true, hair: 0xf08a3a, top: 0xffb22a, pants: 0xffffff, iris: 0xe0602a, accent: 0xff5f9e, item: 'flag' } },
-  techie:   { name: '电教委员', tag: 'summon', hp: 100, spd: 5.2, start: 'lamp',    desc: '放下台灯就是炮台，适合守一块地方', look: { style: 'bob', outfit: 'hoodie', hair: 0x5a6a7a, top: 0xffd84d, pants: 0x3a4658, iris: 0xc89a00, accent: 0x3a3f4a, phones: 0x3a3f4a, item: 'lamp' } },
+  captain:  { name: '社团长',   tag: 'summon', hp: 105, spd: 5.4, start: 'minion',  desc: '招一群便利贴小人替你冲，基础攻速低 15%，开局暴击率 3%', crit: -0.02, baseAtkSpd: -0.15, look: { style: 'twin', outfit: 'cheer', girl: true, hair: 0xf08a3a, top: 0xffb22a, pants: 0xffffff, iris: 0xe0602a, accent: 0xff5f9e, item: 'flag' } },
+  techie:   { name: '电教委员', tag: 'summon', hp: 100, spd: 5.2, start: 'lamp',    desc: '放下台灯就是炮台，基础攻速低 20%，开局暴击率 2%', crit: -0.03, baseAtkSpd: -0.20, look: { style: 'bob', outfit: 'hoodie', hair: 0x5a6a7a, top: 0xffd84d, pants: 0x3a4658, iris: 0xc89a00, accent: 0x3a3f4a, phones: 0x3a3f4a, item: 'lamp' } },
   swimmer:  { name: '游泳队员', tag: 'summon', hp: 115, spd: 5.5, start: 'duck',    desc: '带着橡皮鸭下水，怪全被鸭子引走', look: { style: 'pony', outfit: 'track', girl: true, hair: 0x2a4a6a, top: 0x4aa8ff, pants: 0x2a3a6a, iris: 0x2a8ad8, accent: 0xffd23f, swimcap: 0xffffff, goggles2: true, item: 'duck' } },
 };
 const isOpen = (id) => meta.heroes.includes(id);
@@ -221,11 +223,15 @@ function upPreview(id, u, n = 1) {
   return `数量 ${a.n} → ${b.n}`;
 }
 // 通用属性
+const signedPercent = (value) => {
+  const percent = Math.round(value * 100);
+  return `${percent >= 0 ? '+' : ''}${percent}%`;
+};
 const STATS = {
-  dmg:     { name: '基础伤害', fl: '熬夜刷题', c: '#e0473c', ch: '力', step: 0.04, show: (v) => `+${Math.round(v * 100)}%` },
+  dmg:     { name: '基础伤害', fl: '熬夜刷题', c: '#e0473c', ch: '力', step: 0.04, show: signedPercent },
   crit:    { name: '暴击率',   fl: '灵光一闪', c: '#ffb020', ch: '暴', step: 0.01, max: 1, show: (v) => `${Math.round(v * 100)}%` },
   critDmg: { name: '暴击伤害', fl: '满分卷子', c: '#ff7a3a', ch: '伤', step: 0.08, show: (v) => `×${v.toFixed(1)}` },
-  atkSpd:  { name: '攻速',     fl: '手速',     c: '#3f97e8', ch: '速', step: 0.04, show: (v) => `+${Math.round(v * 100)}%` },
+  atkSpd:  { name: '攻速',     fl: '手速',     c: '#3f97e8', ch: '速', step: 0.04, show: signedPercent },
   luck:    { name: '幸运',     fl: '锦鲤',     c: '#ff6fa8', ch: '运', step: 0.01, max: 0.2, show: (v) => `${Math.round(v * 100)}%` },
   dodge:   { name: '闪避',     fl: '溜得快',   c: '#38b2c9', ch: '闪', step: 0.02, max: 0.8, show: (v) => `${Math.round(v * 100)}%` },
   armor:   { name: '护甲',     fl: '厚外套',   c: '#7a8394', ch: '甲', step: 1, show: (v) => `${Math.round(v)}（受伤 -${Math.round(v / (v + 10) * 100)}%）` },
@@ -564,7 +570,7 @@ class Rig {
     this.n = 0;
   }
 }
-const RIGS = {}; for (const id in RIGS_DEF) RIGS[id] = new Rig(RIGS_DEF[id], RIG_CAP[id] ?? 1);
+const RIGS = {}; for (const id in RIGS_DEF) RIGS[id] = new Rig(RIGS_DEF[id], RIG_CAP[id] ?? (id.startsWith('hero_') ? 4 : 1));
 const RIG_OF = (type) => type === 'inkmini' ? 'ink' : type;
 function worldM(x, y, z, yaw, sx, sy = sx, sz = sx, pitch = 0, roll = 0) { wE.set(pitch, yaw, roll, 'YXZ'); wQ.setFromEuler(wE); return WM.compose(wP.set(x, y, z), wQ, wS.set(sx, sy, sz)); }
 
@@ -921,9 +927,9 @@ function pushOutProps(o, r) { for (const p of PROPS) { const dx = o.x - p.x, dz 
 
 /* ================= 状态 + 流派计算 ================= */
 const DIFFS = {
-  easy:   { name: '简单', hp: 0.85, dmg: 0.8,  rate: 0.9,  boss: 32000, cd: 4.2, enrage: false, storm: false, score: 3, revive: 2, elite: 90, note: '大魔王会砸地、叫小怪和冲撞。每局 3 次重抽、2 次复活' },
-  normal: { name: '中等', hp: 1,    dmg: 1,    rate: 1,    boss: 48000, cd: 3.6, enrage: true,  storm: false, score: 2, revive: 1, elite: 75, note: '大魔王半血后发怒，多一招卷子雨。每局 2 次重抽、1 次复活' },
-  hard:   { name: '困难', hp: 1.35, dmg: 1.35, rate: 1.25, boss: 72000, cd: 3.0, enrage: true,  storm: true,  score: 1, revive: 1, elite: 60, note: '怪多血厚，大魔王一开场就下卷子雨。每局 1 次重抽、1 次复活' },
+  easy:   { name: '简单', hp: 0.85, dmg: 0.8,  rate: 0.9,  boss: 32000, cd: 4.2, enrage: false, storm: false, revive: 2, elite: 90, note: '大魔王会砸地、叫小怪和冲撞。每局 2 次复活' },
+  normal: { name: '中等', hp: 1,    dmg: 1,    rate: 1,    boss: 48000, cd: 3.6, enrage: true,  storm: false, revive: 1, elite: 75, note: '大魔王半血后发怒，多一招卷子雨。每局 1 次复活' },
+  hard:   { name: '困难', hp: 1.35, dmg: 1.35, rate: 1.25, boss: 72000, cd: 3.0, enrage: true,  storm: true, revive: 1, elite: 60, note: '怪多血厚，大魔王一开场就下卷子雨。每局 1 次复活' },
 };
 const MODES = {
   std:     { name: '标准', note: '每 30 秒一个新事件，10:00 期末大魔王出场，打倒它通关' },
@@ -937,13 +943,60 @@ const localPreview = location.protocol === 'http:' && ['127.0.0.1', 'localhost',
 const SAVE_PREFIX = localPreview ? 'syntara.brawl.preview' : 'syntara.brawl';
 const META_KEY = `${SAVE_PREFIX}.meta`, BEST_KEY = `${SAVE_PREFIX}.best`;
 const PRICE = { heroes: 150, arts: 80, relics: 50 }, FREE_SKILLS = ['mop', 'plane'];
-const DEF0 = { heroes: ['brawler', 'scholar', 'geo'], arts: ['vamp', 'mirror', 'plate', 'koi'], relics: ['dumbbell', 'wrist', 'mom', 'bucket', 'scope', 'drink'] };
-const meta = { pts: 0, heroes: [...DEF0.heroes], arts: [...DEF0.arts], relics: [...DEF0.relics], seen: [], ach: [], skins: [], ults: [], top: [], skinOn: {}, stat: { runs: 0, kills: 0, wins: 0, hardWin: 0, pulls: 0, pity: 0 } };
-try { const m = JSON.parse(localStorage.getItem(META_KEY) || 'null'); if (m) for (const k in meta) { if (m[k] == null) continue; if (Array.isArray(meta[k])) meta[k] = k === 'top' ? m[k] : [...new Set([...meta[k], ...m[k]])]; else if (typeof meta[k] === 'object') Object.assign(meta[k], m[k]); else meta[k] = +m[k] || 0; } } catch (e) {}
-const saveMeta = () => { try { localStorage.setItem(META_KEY, JSON.stringify(meta)); } catch (e) {} };
+const DEF0 = { heroes: ['brawler', 'scholar', 'jock'], arts: ['vamp', 'mirror', 'plate', 'koi'], relics: ['dumbbell', 'wrist', 'mom', 'bucket', 'scope', 'drink'] };
+const meta = { pts: 0, heroes: [...DEF0.heroes], arts: [...DEF0.arts], relics: [...DEF0.relics], seen: [], ach: [], skins: [], ults: [], top: [], skinOn: {}, growth: {}, stat: { runs: 0, kills: 0, wins: 0, hardWin: 0, pulls: 0, pity: 0 } };
+try { const m = skillDemoMode ? null : JSON.parse(localStorage.getItem(META_KEY) || 'null'); if (m) for (const k in meta) { if (m[k] == null) continue; if (Array.isArray(meta[k])) meta[k] = k === 'top' ? m[k] : [...new Set([...meta[k], ...m[k]])]; else if (typeof meta[k] === 'object') Object.assign(meta[k], m[k]); else meta[k] = +m[k] || 0; } } catch (e) {}
+const saveMeta = () => { if (skillDemoMode) return; try { localStorage.setItem(META_KEY, JSON.stringify(meta)); } catch (e) {} };
+const GROWTH_STATS = {
+  maxHp: 5,
+  armor: 1,
+  regen: 0.05,
+  dmg: 0.02,
+  crit: 0.01,
+  critDmg: 0.05,
+  atkSpd: 0.02,
+  speed: 0.015,
+  luck: 0.01,
+  xp: 0.03,
+};
+const GROWTH_CAP = 5;
+const GROWTH_BASE_COST = 20, GROWTH_COST_STEP = 10;
+const growthLevel = (id) => clamp(Math.floor(Number(meta.growth[id]) || 0), 0, GROWTH_CAP);
+const growthBonus = (id, level = growthLevel(id)) => GROWTH_STATS[id] * level;
+function growthBonusLabel(id, level) {
+  const bonus = growthBonus(id, level);
+  if (id === 'maxHp' || id === 'armor') return `+${bonus}`;
+  if (id === 'regen') return `+${bonus.toFixed(2)} 生命/秒`;
+  const percent = Number((bonus * 100).toFixed(1));
+  if (id === 'crit' || id === 'luck') return `+${percent} 个百分点`;
+  return `+${percent}%`;
+}
+const growthTotal = () => Object.keys(GROWTH_STATS).reduce((total, id) => total + growthLevel(id), 0);
+const growthCost = () => GROWTH_BASE_COST + GROWTH_COST_STEP * growthTotal();
+function growthRefund() {
+  const levels = growthTotal();
+  return levels * GROWTH_BASE_COST + GROWTH_COST_STEP * levels * (levels - 1) / 2;
+}
+function resetGrowth() {
+  const refund = growthRefund();
+  if (!refund) return 0;
+  meta.pts += refund;
+  meta.growth = {};
+  saveMeta();
+  return refund;
+}
+function buyGrowth(id) {
+  if (!Object.hasOwn(GROWTH_STATS, id)) return false;
+  const level = growthLevel(id), cost = growthCost();
+  if (level >= GROWTH_CAP || meta.pts < cost) return false;
+  meta.pts -= cost;
+  meta.growth[id] = level + 1;
+  saveMeta();
+  return true;
+}
 const skillOpen = (w) => FREE_SKILLS.includes(w) || Object.keys(CLASSES).some((id) => CLASSES[id].start === w && isOpen(id));
 let settled = false;
-const runPoints = (win) => Math.floor(player.kills / 15) + Math.floor(T / 30) * 3 + (win ? 80 : 0);
+const runPoints = (win) => Math.floor(player.kills / 25) + Math.floor(T / 30) + (win ? 45 : 0);
 function settle(win) {
   if (settled) return 0; settled = true; const p = runPoints(win); meta.pts += p;
   const st = meta.stat; st.runs++; st.kills += player.kills; if (win) { st.wins++; if (diffId === 'hard') st.hardWin++; }
@@ -953,29 +1006,29 @@ function settle(win) {
 /* ---------- 成就 ---------- */
 // get = 达成后送的同学或饰品（这些只能靠成就拿到，不能用积分兑换）；pts = 送积分
 const ACH = [
-  { id: 'first', n: '第一节课', d: '完成任意一局', ic: 'flag', pts: 50 },
-  { id: 'pass', n: '期末及格', d: '通关一次标准模式', ic: 'crown', pts: 100, note: '同时解锁无尽模式' },
+  { id: 'first', n: '第一节课', d: '完成任意一局', ic: 'flag', pts: 15 },
+  { id: 'pass', n: '期末及格', d: '通关一次标准模式', ic: 'crown', pts: 55, note: '同时解锁无尽模式' },
   { id: 'k500', n: '清扫走廊', d: '一局击倒 500 个怪', ic: 's_dmg', get: ['relics', 'redpen'] },
   { id: 'task3', n: '热心肠', d: '一局完成 3 个地图任务', ic: 'chest', get: ['relics', 'dual'] },
   { id: 'ddl3', n: 'DDL 克星', d: '一局打倒 3 个 DDL 沙漏人', ic: 'watch', get: ['relics', 'poster'] },
   { id: 'clean', n: '毫发无伤', d: '开局 2 分钟内一点伤都没受', ic: 's_armor', get: ['relics', 'sharpener'] },
   { id: 'stack5', n: '囤囤鼠', d: '一局里同一件饰品叠到 5 件', ic: 'charm', get: ['relics', 'scratch'] },
-  { id: 'elem2', n: '双元素', d: '一个技能注入两种元素', ic: 'fire', pts: 60 },
-  { id: 'lv10', n: '满级', d: '把一个技能升到 Lv 10', ic: 'star', pts: 60 },
-  { id: 'k5000', n: '千人斩', d: '累计击倒 5000 个怪', ic: 'target', get: ['heroes', 'jock'], goal: () => [meta.stat.kills + liveKills(), 5000] },
+  { id: 'elem2', n: '双元素', d: '一个技能注入两种元素', ic: 'fire', pts: 35 },
+  { id: 'lv10', n: '满级', d: '把一个技能升到 Lv 10', ic: 'star', pts: 40 },
+  { id: 'k5000', n: '千人斩', d: '累计击倒 5000 个怪', ic: 'target', pts: 90, goal: () => [meta.stat.kills + liveKills(), 5000] },
   { id: 'hard', n: '学神', d: '困难难度通关一次', ic: 'crown', get: ['heroes', 'monitor'] },
   { id: 'win3', n: '老油条', d: '累计通关 3 次', ic: 'flag', get: ['relics', 'ink'], goal: () => [meta.stat.wins, 3] },
   { id: 'e15', n: '熬夜冠军', d: '无尽模式坚持 15 分钟', ic: 'watch', get: ['heroes', 'swimmer'] },
-  { id: 'e20', n: '不眠不休', d: '无尽模式坚持 20 分钟', ic: 'bubble', pts: 200 },
-  { id: 'pull10', n: '大鹅饲养员', d: '抽卡累计 10 次', ic: 'sparkle', pts: 50, goal: () => [meta.stat.pulls, 10] },
-  { id: 'class10', n: '全班到齐', d: '拥有 10 位同学', ic: 'grid', pts: 150, goal: () => [meta.heroes.length, 10] },
+  { id: 'e20', n: '不眠不休', d: '无尽模式坚持 20 分钟', ic: 'bubble', pts: 120 },
+  { id: 'pull10', n: '大鹅饲养员', d: '抽卡累计 10 次', ic: 'sparkle', pts: 30, goal: () => [meta.stat.pulls, 10] },
+  { id: 'class10', n: '全班到齐', d: '拥有 10 位同学', ic: 'grid', pts: 90, goal: () => [meta.heroes.length, 10] },
 ];
 const ACH_LOCK = {}; for (const a of ACH) if (a.get) ACH_LOCK[a.get[0] + ':' + a.get[1]] = a;
 const achFor = (kind, id) => ACH_LOCK[kind + ':' + id];
 const achReward = (a) => a.get ? `${a.get[0] === 'heroes' ? '同学' : '饰品'}「${(a.get[0] === 'heroes' ? CLASSES : RELICS)[a.get[1]].name}」` : `${a.pts} 积分`;
 const liveKills = () => (state === 'play' || state === 'paused' || state === 'dead') && !settled ? player.kills : 0;
 const endlessOpen = () => meta.ach.includes('pass') || meta.stat.wins > 0 || bestEndless > 0;
-let run = { tasks: 0, hg: 0, hit: -1 }, achClock = 0;
+let run = { tasks: 0, hg: 0, hit: -1 }, achClock = 0, NET = null;
 function checkAch(inRun, final) {
   const P = inRun ? player : null, c = {
     first: !!final, pass: final === 'win', hard: final === 'win' && diffId === 'hard',
@@ -988,7 +1041,7 @@ function checkAch(inRun, final) {
 }
 const achEl = document.createElement('div'); achEl.id = 'achT'; document.body.appendChild(achEl); const achQ = []; let achBusy = false;
 function achToast(a) { achQ.push(a); if (!achBusy) nextToast(); }
-function nextToast() { const a = achQ.shift(); if (!a) { achBusy = false; return; } achBusy = true; achEl.innerHTML = `${ico('#ffb21e', a.ic)}<div><b>成就达成：${a.n}</b><small>获得${achReward(a)}${a.note ? '，' + a.note : ''}</small></div>`; achEl.classList.add('on'); setTimeout(() => { achEl.classList.remove('on'); setTimeout(nextToast, 450); }, 2800); }
+function nextToast() { const a = achQ.shift(); if (!a) { achBusy = false; return; } achBusy = true; achEl.innerHTML = `${illustration('ach', a.id)}<div><b>成就达成：${a.n}</b><small>获得${achReward(a)}${a.note ? '，' + a.note : ''}</small></div>`; achEl.classList.add('on'); setTimeout(() => { achEl.classList.remove('on'); setTimeout(nextToast, 450); }, 2800); }
 /* ---------- 皮肤 + 抽卡才有的终极形态 ---------- */
 // 第二种终极形态：只能抽卡拿到。抽到后技能升到 Lv 10 时，原来的终极形态和它二选一
 const ALT = {
@@ -998,6 +1051,7 @@ const ALT = {
   shotgun: { name: '橡皮花洒',   desc: '改成朝四面八方喷一整圈橡皮' },
   bolt:    { name: '雷劈',       desc: '改成从天上劈下 6 道雷，每道落地炸开一小圈' },
   coffee:  { name: '三杯连饮',   desc: '一次扔 3 杯，分给 3 个不同的怪' },
+  sock:    { name: '臭气加倍',   desc: '身边多出一层臭气圈。圈内怪物减速 75%，离开后仍减速 1 秒。圈内其他队友每秒回复 4 点生命' },
 };
 const GACHA_ULT = Object.keys(ALT);
 const altOwned = (w) => !!ALT[w] && meta.ults.includes(w);
@@ -1017,14 +1071,23 @@ const SKINS = {};
 for (const h in RARE_SK) SKINS[h + '_r'] = { h, n: RARE_SK[h][0], r: 1, over: RARE_SK[h][1] };
 for (const h in LEG_SK) SKINS[h + '_l'] = { h, n: LEG_SK[h][0], r: 2, over: LEG_SK[h][1], aura: LEG_SK[h][2] };
 const skinOf = (h) => { const k = meta.skinOn[h]; return k && SKINS[k] && meta.skins.includes(k) ? k : ''; };
+function heroSkinParts(hero, skin) {
+  const parts = heroParts({ ...CLASSES[hero].look, ...skin.over });
+  if (skin.aura) parts.push(
+    ['tor', skin.aura, [0, 2.02, 0], [0.64, 0.64, 0.42], [HP_, 0, 0], 'glow hover', 0],
+    ['tor', skin.aura, [0, 0.05, 0], [1.8, 1.8, 0.2], [HP_, 0, 0], 'glow pulse', 0],
+    ['sph', 0xffffff, [0, 2.02, 0.32], [0.1, 0.1, 0.1], 0, 'glow hover', 0],
+  );
+  return parts;
+}
 function heroRig(h, sk = skinOf(h)) {
   const S = sk && SKINS[sk]; if (!S) return RIGS['hero_' + h];
   const key = 'hero_' + h + '_' + sk;
-  if (!RIGS[key]) { const P = heroParts({ ...CLASSES[h].look, ...S.over }); if (S.aura) P.push(['tor', S.aura, [0, 2.02, 0], [0.64, 0.64, 0.42], [HP_, 0, 0], 'glow hover', 0], ['tor', S.aura, [0, 0.05, 0], [1.8, 1.8, 0.2], [HP_, 0, 0], 'glow pulse', 0], ['sph', 0xffffff, [0, 2.02, 0.32], [0.1, 0.1, 0.1], 0, 'glow hover', 0]); RIGS[key] = new Rig(P, 1); }
+  if (!RIGS[key]) RIGS[key] = new Rig(heroSkinParts(h, S), 4);
   return RIGS[key];
 }
 /* ---------- 大鹅抽卡：单抽 30，十连 270；传说 5%，稀有 35%，其余返积分；40 抽必出传说，十连至少一个稀有 ---------- */
-const GACHA = { one: 30, ten: 270, pity: 40, leg: 0.05, rare: 0.35, back: 12 };
+const GACHA = { one: 30, ten: 270, pity: 40, leg: 0.05, rare: 0.35, back: 8, duplicateBack: { 1: 10, 2: 25 } };
 const G_LEG = [...Object.keys(SKINS).filter((k) => SKINS[k].r === 2), ...GACHA_ULT.map((w) => 'ult_' + w)], G_RARE = Object.keys(SKINS).filter((k) => SKINS[k].r === 1);
 function gachaRoll(atLeastRare) {
   const st = meta.stat; st.pity = (st.pity || 0) + 1;
@@ -1034,7 +1097,7 @@ function gachaRoll(atLeastRare) {
   const pool = tier === 2 ? G_LEG : G_RARE, id = pool[Math.floor(Math.random() * pool.length)], ult = id.startsWith('ult_');
   const own = ult ? meta.ults.includes(id.slice(4)) : meta.skins.includes(id);
   if (!own) (ult ? meta.ults : meta.skins).push(ult ? id.slice(4) : id);
-  return { tier, id, dup: own, back: own ? (tier === 2 ? 60 : 15) : 0 };
+  return { tier, id, dup: own, back: own ? GACHA.duplicateBack[tier] : 0 };
 }
 function gachaPull(n) {
   const cost = n === 10 ? GACHA.ten : GACHA.one; if (meta.pts < cost) return null; meta.pts -= cost;
@@ -1047,14 +1110,22 @@ function gItem(q) {
   const S = SKINS[q.id]; return { name: S.n, sub: `${CLASSES[S.h].name}的皮肤`, ic: CLASSES[S.h].start };
 }
 function buy(kind, id) { if (meta[kind].includes(id) || achFor(kind, id) || meta.pts < PRICE[kind]) return false; meta.pts -= PRICE[kind]; meta[kind].push(id); saveMeta(); checkAch(false); return true; }
-let bestEndless = 0; try { bestEndless = +localStorage.getItem(BEST_KEY) || 0; } catch (e) {}
+let bestEndless = 0; try { if (!skillDemoMode) bestEndless = +localStorage.getItem(BEST_KEY) || 0; } catch (e) {}
 let state = 'title', T = 0, timeScale = 1, spawnAcc = 0, nextElite = 75, nextBats = 25, nextBomb = 90, nextBoss = BOSS_T, bossCount = 0, boss = null, ev = {};
 let pendingUlt = [], gifts = [], corpses = [], drops = [], altars = [], pendingInfuse = [], CW = null, watchT = 12, shieldT = 10;
 let enemies = [], eid = 0, shots = [], planes = [], gems = [], chests = [], eshots = [], minions = [], lamps = [], ducks = [], slippers = [], books = [], wet = [], blasts = [], pendingLevels = 0;
 let cls = CLASSES.brawler, clsId = 'brawler', selIdx = 0;
 const cds = {};
 const BASE_ST = { dmg: 0, crit: 0.05, critDmg: 1.5, atkSpd: 0, luck: 0, dodge: 0, armor: 0, regen: 0, speed: 0, xp: 0, maxHp: 0 };
-const player = { x: 0, z: 0, vx: 0, vz: 0, yaw: 0, hp: 100, maxHp: 100, speed: 5.4, magnet: 2.4, lvl: 1, xp: 0, need: 6, kills: 0, score: 2, weapons: {}, wup: {}, st: { ...BASE_ST }, relics: {}, evo: {}, alt: {}, duos: {}, elem: {}, sp: {}, arts: {}, revives: 1, koi: 0, shield: false, ph: 0, hit: 0, seed: 0.2, moving: 0, spinT: 0, slowT: 0, stepAcc: 0, stepSide: 1, healAcc: 0, iframe: 0 };
+function classBaseStats(hero) {
+  return {
+    ...BASE_ST,
+    dmg: BASE_ST.dmg + (hero.baseDmg ?? 0),
+    atkSpd: BASE_ST.atkSpd + (hero.baseAtkSpd ?? 0),
+    crit: BASE_ST.crit + (hero.crit ?? 0),
+  };
+}
+const player = { x: 0, z: 0, vx: 0, vz: 0, yaw: 0, hp: 100, maxHp: 100, speed: 5.4, magnet: 2.4, lvl: 1, xp: 0, need: 6, kills: 0, weapons: {}, wup: {}, st: { ...BASE_ST }, relics: {}, evo: {}, alt: {}, duos: {}, elem: {}, sp: {}, arts: {}, revives: 1, koi: 0, shield: false, ph: 0, hit: 0, seed: 0.2, moving: 0, spinT: 0, slowT: 0, stepAcc: 0, stepSide: 1, healAcc: 0, iframe: 0 };
 const R = (id) => player.relics[id] || 0;
 const A = (id) => !!player.arts[id];
 const W = (id) => player.weapons[id] || 0;
@@ -1143,7 +1214,9 @@ function boom(x, z, rad, dmg, tag, color) {
   query(x, z, rad, (o, dx, dz) => { const L = Math.hypot(dx, dz) || 1; hitEnemy(o, dmg, dx / L * 5, dz / L * 5, tag, { noCrit: true, noChain: true }); });
 }
 // 受伤：先判闪避（最高 80%），再看护盾，再按护甲减伤
-function hurtPlayer(v) {
+let defeatSource = null, deathTaunt = null;
+function hurtPlayer(v, source) {
+  if (player.ghost || (NET && NET.on && state !== 'play')) return false;
   if (Math.random() < Math.min(0.8, player.st.dodge)) {
     dmgNum(player.x, player.z, '闪避', 'tag', 2.2);
     if (A('mirror')) { const h = Math.min(v, player.maxHp * 0.15); player.hp = Math.min(player.maxHp, player.hp + h); dmgNum(player.x, player.z, '+' + Math.round(h), 'tag', 2.9); }
@@ -1153,7 +1226,10 @@ function hurtPlayer(v) {
   if (run.hit < 0) run.hit = T;
   v *= 10 / (10 + Math.max(0, player.st.armor));
   const big = Math.min(1, v / (player.maxHp * 0.08));
-  player.hp -= v; player.hit = 1; player.warn = 1; bump($('pcard'), 'hurt'); $('hurtFx').style.setProperty('--k', (0.5 + big * 0.5).toFixed(2)); bump($('hurtFx'), 'hit'); hurt = Math.min(1, hurt + 0.55 + big * 0.4); chroma = Math.max(chroma, 0.35 + big * 0.4); shake = Math.max(shake, 0.14 + big * 0.22);
+  const wasStanding = player.hp > 0;
+  player.hp -= v;
+  if (wasStanding && player.hp <= 0) defeatSource = source || null;
+  player.hit = 1; player.warn = 1; bump($('pcard'), 'hurt'); $('hurtFx').style.setProperty('--k', (0.5 + big * 0.5).toFixed(2)); bump($('hurtFx'), 'hit'); hurt = Math.min(1, hurt + 0.55 + big * 0.4); chroma = Math.max(chroma, 0.35 + big * 0.4); shake = Math.max(shake, 0.14 + big * 0.22);
   dmgNum(player.x, player.z, '-' + Math.max(1, Math.round(v)), 'hurt', 2.5); spark(player.x, 1, player.z, 0xff4a58, 10 + Math.round(big * 14), 6, 0.35, 0.4); ringFx(player.x, player.z, 1.3 + big, 0xff4a58, 0.25);
   if (A('thorn')) { const cw = CW; CW = null; ringFx(player.x, player.z, 3, 0x6fd04a, 0.3); query(player.x, player.z, 3, (o, dx, dz) => { const L = Math.hypot(dx, dz) || 1; hitEnemy(o, v * 3, dx / L * 8, dz / L * 8, '', { noCrit: true }); }); CW = cw; }
   return true;
@@ -1164,7 +1240,7 @@ function explodeAt(x, z) {
   ringFx(x, z, BLAST_R, 0xff6a2a, 0.4); ringFx(x, z, BLAST_R * 0.55, 0xfff1a8, 0.28);
   spark(x, 0.8, z, 0xff8a3a, 70, 11, 0.5, 0.7); spark(x, 0.8, z, 0xfff1a8, 26, 7, 0.4, 0.45); burst(x, 0.5, z, 0x5a4a44, 26, 7, 0.45, 0.8, 6);
   ripple(x, z, 1.5); shake = Math.max(shake, 0.45); chroma = Math.max(chroma, 0.5); blot(x, z, 1.8, 'rgba(60,40,30,.28)', 5, 1.2);
-  if (Math.hypot(player.x - x, player.z - z) < BLAST_R) hurtPlayer(34 * tDmg() * DF().dmg);
+  if (Math.hypot(player.x - x, player.z - z) < BLAST_R) hurtPlayer(34 * tDmg() * DF().dmg, 'bomber');
   query(x, z, BLAST_R, (o, dx, dz) => {
     if (o.dead) return;
     if (o.type === 'bomber') { if (!(o.fuse > 0) || o.fuse > 0.35) { o.fuse = 0.35; o.fuseMax = 0.35; } return; }
@@ -1174,12 +1250,12 @@ function explodeAt(x, z) {
 }
 const RIMC = { sleepy: 0xc9b8ff, cross: 0xff4d5e, bat: 0x6a4cff, clock: 0xffc83d, ink: 0x5b6cf0, inkmini: 0x5b6cf0, ghost: 0xf7f4ea, phone: 0x5fd3ff, snail: 0x9fd38a, hourglass: 0xf2c46d, bomber: 0xff6a2a, boss: 0x8b1e3f, chalk: 0xfafafa, mole: 0x9a8272 };
 function killEnemy(e, tag) {
-  e.dead = true; player.kills++;
+  e.dead = true; player.kills++; if (NET && NET.on && NET.host) NET.K.push(e.id);
   if (e.type !== 'boss' && corpses.length < 90) corpses.push({ type: e.type, x: e.x, z: e.z, yaw: Math.atan2(player.x - e.x, player.z - e.z), size: e.size, seed: e.seed, t: 0 });
   const big = e.type === 'boss' ? 260 : e.type === 'hourglass' ? 70 : 14;
   burst(e.x, 0.6, e.z, RIMC[e.type], big, e.r * 6 + 3, e.r * 0.4 + 0.25, 0.8);
   spark(e.x, 0.6, e.z, 0xffd9a0, 5, 4, 0.3, 0.3);
-  if (gems.length < 580) gems.push({ x: e.x, z: e.z, v: e.xp, sz: gemSize(e.xp), pull: false, s: 0, ph: Math.random() * 6 }); else { const g = gems[(Math.random() * gems.length) | 0]; g.v += e.xp; g.sz = Math.max(g.sz, gemSize(g.v)); }
+  if (gems.length < 580) gems.push({ x: e.x, z: e.z, v: e.xp * (NET && NET.on && NET.n > 1 ? 0.75 : 1), sz: gemSize(e.xp), pull: false, s: 0, ph: Math.random() * 6 }); else { const g = gems[(Math.random() * gems.length) | 0]; g.v += e.xp; g.sz = Math.max(g.sz, gemSize(g.v)); }
   if (e.type === 'ink') { blot(e.x, e.z, 0.9, 'rgba(70,84,220,.5)', 5, 0.9); for (const s of [-1, 1]) { const m = spawn('inkmini', e.x + s * 0.4, e.z); if (m) { m.spawn = 0; m.kx = s * 6; m.kz = rnd(-3, 3); } } }
   else if (e.type === 'snail') blot(e.x, e.z, 1.2, 'rgba(90,140,80,.6)', 4, 1);
   else if (e.type === 'bomber') blasts.push({ x: e.x, z: e.z, t: e.fuse === -1 ? 0 : 0.2 });
@@ -1210,13 +1286,14 @@ const gemSize = (v) => (v >= 10 ? 2 : v >= 3 ? 1 : 0);
 const GIANT_OK = ['sleepy', 'cross', 'ink', 'snail', 'clock'], GIANT_T = 420; let forceGiant = false;
 function spawn(type, x, z) {
   if (enemies.length >= 460) return null;
+  if (NET && NET.on && !NET.host && !NET.mirroring) return null;
   if (state === 'play' && !meta.seen.includes(type)) meta.seen.push(type);
-  const t = ET[type], hpMul = tHp() * DF().hp;
+  const t = ET[type], hpMul = tHp() * DF().hp * netHp();
   const e = { id: eid++, type, x, z, r: t.r, size: t.size, hp: t.hp * hpMul, maxHp: t.hp * hpMul, spd: t.spd * rnd(0.9, 1.1) * tSpd(), dps: t.dps * DF().dmg * tDmg(), xp: t.xp, fly: t.fly, hit: 0, seed: Math.random(), slow: 0, kx: 0, kz: 0, cdA: rnd(1, 3), ringing: 0, dash: 0, dx: 0, dz: 0, ph: Math.random() * 6, moving: 1, spawn: 1, dead: false, sleep: 0, burn: 0, burnDps: 0, burnTick: 0, stink: 0, fuse: 0, acid: 0, frz: 0, fb: 0, brittle: 0, warn: 0 };
   if (type === 'mole') { e.ms = 'walk'; e.mcd = rnd(0.8, 2); }
   // 7 分钟后开始混进大块头：个头是 2.4 倍，血厚、走得慢、推不太动，专门挤占走位空间
-  if (GIANT_OK.includes(type) && state === 'play' && (forceGiant || (T >= GIANT_T && Math.random() < 0.08 && enemies.filter((q) => q.giant && !q.dead).length < 7))) { e.giant = 1; e.size *= 2.4; e.r *= 2.4; e.hp = e.maxHp = e.hp * 9; e.spd *= 0.6; e.dps *= 1.6; e.xp *= 6; }
-  if (type === 'boss') { e.hp = e.maxHp = DF().boss * (1 + bossCount * 0.7); e.spd = t.spd; e.atk = 0; e.enraged = false; boss = e; }
+  if (GIANT_OK.includes(type) && state === 'play' && (forceGiant || (!(NET && NET.mirroring) && T >= GIANT_T && Math.random() < 0.08 && enemies.filter((q) => q.giant && !q.dead).length < 7))) { e.giant = 1; e.size *= 2.4; e.r *= 2.4; e.hp = e.maxHp = e.hp * 9; e.spd *= 0.6; e.dps *= 1.6; e.xp *= 6; }
+  if (type === 'boss') { e.hp = e.maxHp = DF().boss * (1 + bossCount * 0.7) * netHp(); e.spd = t.spd; e.atk = 0; e.enraged = false; boss = e; }
   enemies.push(e); return e;
 }
 function spawnNear(type, minR = 10, maxR = 17) {
@@ -1371,7 +1448,8 @@ function fire(dt) {
 }
 function quake(yaw, dmg) {
   const hit = new Set(), sx = Math.sin(yaw), sz = Math.cos(yaw), c = pc('sweep');
-  for (let k = 1; k <= 5; k++) { const x = player.x + sx * k * 1.8, z = player.z + sz * k * 1.8; if (inWall(x, z)) break; setTimeout(() => { ringFx(x, z, 1.7, 0xd89a4a, 0.3); spark(x, 0.3, z, c, 8, 3, 0.35, 0.4, 2); dust(x, z, 4); }, k * 40);
+  const demoRound = skillDemoRound;
+  for (let k = 1; k <= 5; k++) { const x = player.x + sx * k * 1.8, z = player.z + sz * k * 1.8; if (inWall(x, z)) break; setTimeout(() => { if (skillDemoMode && demoRound !== skillDemoRound) return; ringFx(x, z, 1.7, 0xd89a4a, 0.3); spark(x, 0.3, z, c, 8, 3, 0.35, 0.4, 2); dust(x, z, 4); }, k * 40);
     query(x, z, 1.6, (o) => { if (hit.has(o)) return; hit.add(o); hitEnemy(o, dmg * 0.8, sx * 4, sz * 4, 'melee', { noChain: true }); }); }
 }
 function thunder(s) {
@@ -1385,10 +1463,38 @@ function rollCall(n, dmg, evo) {
   for (const e of cand) { books.push({ x: e.x, z: e.z, target: e, t: 0.45, dmg, evo, done: false, after: 0 }); dmgNum(e.x, e.z, '点名！', 'tag', e.r * 2 + 1.2); }
   return cand.length > 0;
 }
+const SOCK_ALT_RADIUS = 1.35;
+const SOCK_ALT_SPEED = 0.25;
+const SOCK_ALT_HEAL = 4;
+const SOCK_AURA_TIMEOUT = 600;
+const inSockAura = (target, aura) => (target.x - aura.x) ** 2 + (target.z - aura.z) ** 2 <= aura.radius ** 2;
+function sockSupport(target, auras, dt) {
+  if (target.hp <= 0 || target.hp >= target.maxHp || !auras.some((aura) => inSockAura(target, aura))) return;
+  const healed = Math.min(target.maxHp - target.hp, SOCK_ALT_HEAL * dt);
+  target.hp += healed;
+  target.sockHealShown = (target.sockHealShown || 0) + healed;
+  if (target.sockHealShown >= 2) {
+    dmgNum(target.x, target.z, '+' + Math.floor(target.sockHealShown), 'heal', 2.3);
+    spark(target.x, 0.9, target.z, 0x55db91, 5, 1.6, 0.25, 0.45, -2);
+    target.sockHealShown %= 1;
+  }
+}
+const sockAuraRadius = () => ws('sock').rad * area('magic') * SOCK_ALT_RADIUS;
+function remoteSockAuras() {
+  if (!NET?.on || state === 'title') return [];
+  const now = performance.now();
+  return Object.values(NET.peers).filter((peer) => !peer.dead && peer.radius > 0 && now - peer.sockSeen <= SOCK_AURA_TIMEOUT);
+}
 let sockR = 0;
 function sockTick(dt, s, evo) {
   const rad = s.rad * area('magic') * (evo ? 1.6 : 1); sockR = rad;
+  const doubleStink = player.alt.sock;
   if (Math.random() < dt * 16) { const a = rnd(0, TAU), r = rnd(0.3, rad); spark(player.x + Math.cos(a) * r, rnd(0.2, 0.9), player.z + Math.sin(a) * r, ecRand('sock') ?? (Math.random() < 0.5 ? 0x9ad04a : 0xd0ec7a), 1, 0.4, 0.4, 1.0, -0.6); }
+  if (doubleStink) {
+    query(player.x, player.z, rad * SOCK_ALT_RADIUS, (enemy) => {
+      enemy.sockSlow = 1;
+    });
+  }
   cds.sock = (cds.sock ?? 0) - dt; if (cds.sock > 0) return; cds.sock = s.cd * cdMul('magic');
   const X = player.sp.sock || {};
   query(player.x, player.z, rad, (e, dx, dz) => { e.slow = X.linger ? 2 : 0.6; if (evo) e.stink = 1.0; hitEnemy(e, s.dmg * (1 + 0.1 * R('laundry')) * (X.close ? 1 + 1.5 * Math.max(0, 1 - Math.hypot(dx, dz) / rad) : 1), 0, 0, 'magic', { noCrit: true }); });
@@ -1524,6 +1630,14 @@ const plateMeshes = PLATE_C.map((c, k) => {
 });
 const sockRing = new THREE.Mesh(new THREE.CircleGeometry(1, 48), new THREE.MeshBasicMaterial({ map: stinkTex, transparent: true, opacity: 0.7, depthWrite: false }));
 sockRing.rotation.x = -HP_; sockRing.position.y = 0.035; sockRing.visible = false; scene.add(sockRing);
+const outerSockMaterial = new THREE.MeshBasicMaterial({ map: stinkTex, color: 0xc1f05c, transparent: true, depthWrite: false });
+const sockAuraMeshes = Array.from({ length: 4 }, () => {
+  const mesh = new THREE.Mesh(sockRing.geometry, outerSockMaterial);
+  mesh.rotation.x = -HP_;
+  mesh.visible = false;
+  scene.add(mesh);
+  return mesh;
+});
 const SYM = ['○', '△', '□', '☆'];
 function taskHud() {
   const D = TASKS[task.type], el = $('task'), c = hex(D.c);
@@ -1643,6 +1757,11 @@ function drawAltarMark() {
 const keys = {};
 addEventListener('keydown', (e) => {
   keys[e.code] = true;
+  if (e.code === 'Tab' && state === 'play' && ov.hidden && !e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey) {
+    e.preventDefault();
+    if (!e.repeat) showRunItems();
+    return;
+  }
   if (e.code === 'Escape' || e.code === 'KeyP') { if (state === 'play') pause(); else if (state === 'paused') resume(); }
   if (state === 'title' && titleStep === 'prep' && ov.hidden && (e.code === 'ArrowRight' || e.code === 'ArrowLeft')) pickHero(selIdx + (e.code === 'ArrowRight' ? 1 : 4));
 });
@@ -1654,7 +1773,7 @@ const endJoy = () => { joy = null; joyEl.hidden = true; }; cv.addEventListener('
 document.addEventListener('visibilitychange', () => { if (document.hidden && state === 'play') pause(); });
 
 /* ================= 界面 ================= */
-const hud = { lv: 1, score: 0 };
+const hud = { lv: 1, points: 0 };
 const ov = $('ov'), panel = $('panel'), titleEl = $('title');
 // 线条小图标：武器、属性、杂项都画成一套
 const IC = {
@@ -1706,7 +1825,7 @@ const ico = (c, key, s) => `<span class="ico" style="--c:${c}${s ? `;--s:${s}px`
 const STAR = `<svg viewBox="0 0 24 24" fill="#ffc93c" stroke="#3a2228" stroke-width="2" stroke-linejoin="round"><path d="${IC.star.slice(9, -3)}"/></svg>`;
 const bump = (el, c) => { if (!el) return; el.classList.remove(c); void el.offsetWidth; el.classList.add(c); };
 function show(html, cls = '') { panel.className = 'panel ' + (cls || 'frame'); panel.innerHTML = html; ov.hidden = false; panel.style.animation = 'none'; void panel.offsetWidth; panel.style.animation = ''; }
-function hide() { ov.hidden = true; }
+function hide() { panel.querySelector('.codex-skill-preview')?.remove(); ov.hidden = true; }
 const wipeEl = $('wipe');
 function wipe(fn) { if (REDUCED) return fn(); wipeEl.classList.add('close'); setTimeout(() => { fn(); requestAnimationFrame(() => requestAnimationFrame(() => wipeEl.classList.remove('close'))); }, 420); }
 let bannerT = 0;
@@ -1725,49 +1844,175 @@ function showTitle(step) {
   if (titleStep === 'home') renderHome(); else renderPrep(true);
 }
 function backToTitle() { titleEl.hidden = false; if (titleStep === 'home') renderHome(); else if (titleStep === 'gacha') renderGacha(); else renderPrep(true); }
-function renderHome() {
-  const n = CLS_IDS.filter(isOpen).length, sk = meta.skins.length + meta.ults.length, eo = endlessOpen();
-  const next = ACH.filter((a) => !meta.ach.includes(a.id)).slice(0, 3);
+function renderHome(focusId = 'hGo') {
   titleEl.className = 'home';
-  titleEl.innerHTML = `<div class="homeTop"><div class="logo">${[...'沙盒期末战'].map((ch, i) => `<span style="--i:${i}">${ch}</span>`).join('')}</div>
+  titleEl.innerHTML = `<div class="homeTop"><div class="logo" role="heading" aria-level="1" aria-label="${document.title}">${[...document.title].map((ch, i) => `<span aria-hidden="true" style="--i:${i}">${ch}</span>`).join('')}</div>
     <div class="tagline">拖延、错题、手机、DDL 都长出了腿</div></div>
-    <aside class="hpanel L frame"><h3>我的进度</h3>
-      <div class="kv"><div><small>积分</small><b>${meta.pts}</b></div><div><small>同学</small><b>${n}/${CLS_IDS.length}</b></div><div><small>成就</small><b>${meta.ach.length}/${ACH.length}</b></div><div><small>抽卡收藏</small><b>${sk}/${G_LEG.length + G_RARE.length}</b></div><div><small>通关</small><b>${meta.stat.wins} 次</b></div><div><small>无尽最好</small><b>${eo ? (bestEndless ? fmt(bestEndless) : '--') : '未解锁'}</b></div></div>
-      ${next.length ? `<h3>下一个成就</h3>${next.map((a) => { const g = a.goal && a.goal(); return `<div class="nach">${ico('#a89a92', a.ic)}<span>${a.n} · <small>${a.d}</small></span>${g ? `<div class="mini"><i style="width:${Math.min(100, g[0] / g[1] * 100)}%"></i></div>` : `<small>奖励${achReward(a)}</small>`}</div>`; }).join('')}` : ''}
-      <div class="hbtns"><button id="hAch">全部成就</button><button id="hHow2">怎么玩</button><button id="hBook2">图鉴</button></div></aside>
-    <aside class="hpanel R frame"><h3>大鹅抽卡</h3>
-      <p class="gdesc">大鹅叼着黄鼠狼往柱子上一抽，掉出同学皮肤，还有 6 个技能的第二种终极形态。</p>
-      <div class="gbtn"><button id="hG1">单抽 · ${GACHA.one}</button><button class="primary" id="hG10">十连 · ${GACHA.ten}</button></div>
-      <p class="gdesc">再抽 ${GACHA.pity - (meta.stat.pity || 0)} 次必出传说</p>
-      <h3>无尽排行</h3>
-      <ol class="lb">${meta.top.length ? meta.top.map((r, i) => `<li><span>${i + 1}. ${CLASSES[r.h] ? CLASSES[r.h].name : '同学'} · ${DIFFS[r.d] ? DIFFS[r.d].name : ''}</span><b>${fmt(r.t)}</b></li>`).join('') : `<li class="none">${eo ? '还没有无尽记录' : '通关一次标准模式后开放无尽'}</li>`}</ol>
-      <span class="soon">全平台排行 · 下一版开放</span></aside>
-    <div class="homeBot"><button class="primary big" id="hGo">开始</button>
-      <div class="homeRow"><button class="nar" id="hHow">怎么玩</button><button class="nar" id="hBook">图鉴</button><button class="nar" id="hAch2">成就</button><button class="nar" id="hGacha">抽卡</button><span class="nar">积分 ${meta.pts}</span><span class="nar">同学 ${n} / ${CLS_IDS.length}</span></div></div>`;
+    <button class="homeHelp" id="hHow">怎么玩</button>
+    <nav class="homeLinks homeLinksLeft" aria-label="成就和图鉴">
+      <button id="hAch">${ico('#eaa43a', 'star')}成就</button>
+      <button id="hBook">${ico('#5289dc', 'rollcall')}图鉴</button>
+    </nav>
+    <nav class="homeLinks homeLinksRight" aria-label="排行、抽卡和成长">
+      <button id="hRank">${ico('#36a680', 'crown')}排行</button>
+      <button id="hGacha">${ico('#d86f93', 'sparkle')}抽卡</button>
+      <button id="hGrowth">${illustratedBadge('stats', 'xp', STATS.xp.c)}成长</button>
+    </nav>
+    <div class="homeBot"><button class="primary big" id="hGo">开始</button><button id="hNet">联机</button></div>`;
   $('hGo').onclick = () => { titleStep = 'prep'; renderPrep(true); };
-  $('hHow').onclick = $('hHow2').onclick = showHow; $('hBook').onclick = $('hBook2').onclick = () => showCodex(); $('hAch').onclick = $('hAch2').onclick = showAch;
-  $('hGacha').onclick = () => openGacha(); $('hG1').onclick = () => openGacha(1); $('hG10').onclick = () => openGacha(10);
-  $('hG1').disabled = meta.pts < GACHA.one; $('hG10').disabled = meta.pts < GACHA.ten; $('hGo').focus();
+  $('hNet').onclick = netLobby;
+  $('hHow').onclick = showHow;
+  $('hBook').onclick = () => showCodex();
+  $('hAch').onclick = showAch;
+  $('hRank').onclick = showRanking;
+  $('hGacha').onclick = () => openGacha();
+  $('hGrowth').onclick = showGrowth;
+  $(focusId).focus({ preventScroll: true });
+}
+function showGrowth() {
+  titleEl.hidden = true;
+  show(`<div class="chead"><h2>成长</h2><span class="pts" id="growthBalance"></span></div>
+    <p>永久提升所有同学的开局属性。每买一次，下一次升级就贵 ${GROWTH_COST_STEP} 积分。</p>
+    <div class="growth-list" aria-label="基础属性"></div>
+    <p id="growthResetNote" role="status" hidden></p>
+    <div class="actions" id="growthActions">
+      <button class="primary" id="growthClose">关闭</button>
+      <button id="growthReset">重置</button>
+    </div>
+    <div class="actions" id="growthConfirm" hidden>
+      <button id="growthCancel">取消</button>
+      <button class="primary" id="growthApplyReset">确认重置</button>
+    </div>`, 'frame growth');
+  const list = panel.querySelector('.growth-list');
+  const close = $('growthClose');
+  const reset = $('growthReset');
+  const note = $('growthResetNote');
+  const actions = $('growthActions');
+  const confirm = $('growthConfirm');
+  const cancel = $('growthCancel');
+  function showResetConfirmation(open) {
+    actions.hidden = open;
+    confirm.hidden = !open;
+    note.hidden = !open;
+    list.inert = open;
+  }
+  function renderGrowth() {
+    const cost = growthCost();
+    $('growthBalance').textContent = `积分 ${meta.pts}`;
+    reset.disabled = growthTotal() === 0;
+    list.innerHTML = Object.keys(GROWTH_STATS).map((id) => {
+      const stat = STATS[id], level = growthLevel(id), maxed = level >= GROWTH_CAP;
+      const current = growthBonusLabel(id, level);
+      const next = maxed ? '' : ` → ${growthBonusLabel(id, level + 1)}`;
+      const label = maxed ? '已满级' : `${cost} 积分升级`;
+      return `<div class="growth-row">
+        ${illustration('stats', id)}
+        <div><b>${stat.name}</b> <small>${level} / ${GROWTH_CAP} 级</small><span>${current}${next}</span></div>
+        <button type="button" data-growth="${id}" aria-label="${stat.name}，${label}" ${maxed || meta.pts < cost ? 'disabled' : ''}>${label}</button>
+      </div>`;
+    }).join('');
+    list.querySelectorAll('[data-growth]').forEach((button) => {
+      button.onclick = () => {
+        const id = button.dataset.growth;
+        if (!buyGrowth(id)) return;
+        note.hidden = true;
+        renderGrowth();
+        const next = list.querySelector(`[data-growth="${id}"]:enabled`) || close;
+        next.focus({ preventScroll: true });
+      };
+    });
+  }
+  reset.onclick = () => {
+    note.textContent = `重置会清空所有成长等级，返还 ${growthRefund()} 积分。`;
+    showResetConfirmation(true);
+    cancel.focus({ preventScroll: true });
+  };
+  cancel.onclick = () => {
+    showResetConfirmation(false);
+    reset.focus({ preventScroll: true });
+  };
+  $('growthApplyReset').onclick = () => {
+    const refund = resetGrowth();
+    showResetConfirmation(false);
+    renderGrowth();
+    note.textContent = `已返还 ${refund} 积分。`;
+    note.hidden = false;
+    close.focus({ preventScroll: true });
+  };
+  close.onclick = () => { hide(); titleEl.hidden = false; renderHome('hGrowth'); };
+  renderGrowth();
+  close.focus({ preventScroll: true });
+}
+function showRanking() {
+  const rows = meta.top.map(({ h, d, t }, index) => {
+    const hero = CLASSES[h]?.name || '同学';
+    const difficulty = DIFFS[d]?.name;
+    return `<li><span>${index + 1}. ${hero}${difficulty ? ` · ${difficulty}` : ''}</span><b>${fmt(t)}</b></li>`;
+  });
+  const empty = endlessOpen() ? '还没有无尽记录' : '通关一次标准模式后开放无尽';
+  titleEl.hidden = true;
+  show(`<h2>无尽排行</h2>
+    ${rows.length ? `<ol class="lb">${rows.join('')}</ol>` : `<p>${empty}</p>`}
+    <div class="actions"><button class="primary" id="rankClose">关闭</button></div>`, 'frame ranking');
+  $('rankClose').onclick = () => { hide(); titleEl.hidden = false; renderHome('hRank'); };
+  $('rankClose').focus();
 }
 function showAch() {
   if (state === 'title') titleEl.hidden = true;
-  show(`<div class="chead"><h2>成就</h2><span class="pts">${meta.ach.length} / ${ACH.length}</span></div>
-    <div class="achs">${ACH.map((a) => { const done = meta.ach.includes(a.id), g = a.goal && a.goal(); return `<div class="ach ${done ? 'done' : ''}">${ico(done ? '#ffaa1e' : '#a89a92', a.ic)}<div><b>${a.n}</b><small>${a.d}${a.note ? '，' + a.note : ''}</small>${g && !done ? `<div class="mini"><i style="width:${Math.min(100, g[0] / g[1] * 100)}%"></i></div><small>${Math.min(g[0], g[1])} / ${g[1]}</small>` : ''}</div><span class="rw">${done ? '已达成' : '奖励'}<br>${achReward(a)}</span></div>`; }).join('')}</div>
-    <p class="note">送同学和饰品的成就，奖励只能这样拿到，积分换不到。</p>
-    <div class="actions"><button class="primary" id="aok">关闭</button></div>`, 'frame codex');
-  $('aok').onclick = () => { hide(); if (state === 'title') backToTitle(); }; $('aok').focus();
+  const doneCount = ACH.filter((a) => meta.ach.includes(a.id)).length;
+  show(`<div class="chead"><h2>成就</h2><span class="pts">已达成 ${doneCount} / ${ACH.length}</span></div>
+    <div class="codex-columns ach-columns">
+      <section class="cgrid" aria-label="选择成就">${ACH.map((a) => {
+        const done = meta.ach.includes(a.id);
+        return `<button type="button" class="ctile${done ? '' : ' lock'}" aria-pressed="false" aria-controls="achDetail">
+          <span class="crelic">${illustration('ach', a.id)}</span><span>${a.n}</span>
+        </button>`;
+      }).join('')}</section>
+      <section id="achDetail" class="cdetail ach-detail" aria-label="成就详情" aria-live="polite" tabindex="0"></section>
+    </div>
+    <div class="actions"><button class="primary" id="aok">关闭</button></div>`, 'frame codex achievements');
+  const tiles = panel.querySelectorAll('.ctile');
+  const detail = $('achDetail');
+  let selected = -1;
+  function select(index) {
+    if (index === selected) return;
+    if (selected >= 0) {
+      tiles[selected].classList.remove('sel');
+      tiles[selected].setAttribute('aria-pressed', 'false');
+    }
+    selected = index;
+    tiles[index].classList.add('sel');
+    tiles[index].setAttribute('aria-pressed', 'true');
+    const a = ACH[index];
+    const done = meta.ach.includes(a.id);
+    const goal = !done && a.goal?.();
+    const progress = goal ? Math.min(goal[0], goal[1]) : 0;
+    detail.innerHTML = `
+      <div class="codex-art ach-art${done ? '' : ' locked'}">${illustration('ach', a.id)}</div>
+      <div class="ach-detail-head"><h3>${a.n}</h3><span class="ach-status${done ? ' done' : ''}">${done ? '已达成' : '未达成'}</span></div>
+      <dl class="ach-facts">
+        <div><dt>达成条件</dt><dd>${a.d}${goal ? `
+          <div class="ach-progress"><div class="mini" role="progressbar" aria-label="成就进度" aria-valuenow="${progress}" aria-valuemax="${goal[1]}"><i style="width:${progress / goal[1] * 100}%"></i></div><small>${progress} / ${goal[1]}</small></div>` : ''}</dd></div>
+        <div><dt>奖励</dt><dd>${achReward(a)}${a.note ? `<small>${a.note}</small>` : ''}</dd></div>
+      </dl>`;
+    detail.scrollTop = 0;
+  }
+  tiles.forEach((tile, index) => tile.onclick = () => select(index));
+  select(0);
+  $('aok').onclick = () => { hide(); if (state === 'title') { backToTitle(); $('hAch')?.focus(); } };
+  tiles[0].focus({ preventScroll: true });
 }
 const MON_ORDER = ['sleepy', 'bat', 'bomber', 'chalk', 'cross', 'mole', 'clock', 'ink', 'ghost', 'phone', 'snail', 'hourglass', 'boss'];
 const MON_MORE = { sleepy: ['瞌睡团子', '最常见，慢吞吞地围上来'], bat: ['问号蝙蝠', '成群飞过来，不怕桌椅挡路'], hourglass: ['DDL 沙漏人', '精英，血很厚，打倒会掉宝箱'], boss: ['期末大魔王', '10:00 出场，打倒它就通关'] };
 const MON_C = { sleepy: '#a98bd8', bat: '#7a5ad8', bomber: '#e2453a', chalk: '#e88aa0', cross: '#e0473c', mole: '#b8843a', clock: '#e0a800', ink: '#3a3f6a', ghost: '#9aa3b5', phone: '#3f97e8', snail: '#5fb04f', hourglass: '#c98a2e', boss: '#8a2a3a' };
 if (localPreview) {
-  meta.heroes = [...CLS_IDS];
   meta.arts = Object.keys(ARTS);
   meta.relics = Object.keys(RELICS);
   meta.seen = [...MON_ORDER];
 }
 
 const ICON_DIRECTORIES = {
+  ach: 'achievement-icons',
   heroes: 'classmate-icons',
   skills: 'skill-icons',
   arts: 'art-icons',
@@ -1777,19 +2022,105 @@ const ICON_DIRECTORIES = {
   elements: 'element-icons',
   duos: 'duo-icons',
   ultimates: 'ultimate-icons',
+  alternateUltimates: 'alternate-ultimate-icons',
 };
+const SKILL_FORM_ICONS = { base: 'skills', evo: 'ultimates', alt: 'alternateUltimates' };
 const illustration = (category, id) => `<img class="item-illustration" src="./${ICON_DIRECTORIES[category]}/${id}.webp" width="48" height="48" alt="">`;
 const illustratedBadge = (category, id, color, size) =>
   `<span class="ico illustrated" style="--c:${color}${size ? `;--s:${size}px` : ''}">${illustration(category, id)}</span>`;
 
 function codexIcon(item, tab) {
+  if (tab === 'skills' || tab === 'ach') return `<span class="crelic">${illustration(tab, item.id)}</span>`;
+  if (tab === 'gacha' && item.open && item.id.startsWith('ult_')) {
+    return `<span class="crelic">${illustration('alternateUltimates', item.ic)}</span>`;
+  }
   if (ICON_DIRECTORIES[tab] && (!item.mon || item.open)) {
     return `<span class="crelic">${illustration(tab, item.id)}${item.open ? '' : ico('#a89a92', 'lock', 18)}</span>`;
   }
   return ico(item.open ? item.c : '#a89a92', item.open || item.mon ? item.ic : 'lock');
 }
 
+const skinPortraits = new Map();
+function skinPortrait(hero, skinId) {
+  const key = skinId || hero;
+  if (skinPortraits.has(key)) return skinPortraits.get(key);
+
+  const parts = skinId ? heroSkinParts(hero, SKINS[skinId]) : RIGS_DEF['hero_' + hero];
+  const portrait = new THREE.Scene();
+  const model = new THREE.Group();
+  const materials = new Map();
+  for (const [shape, color, position, scale, rotation, effect, outlined] of parts) {
+    const glow = effect.includes('glow');
+    const materialKey = glow ? color + 0x1000000 : color;
+    if (!materials.has(materialKey)) materials.set(materialKey, glow ? new THREE.MeshBasicMaterial({ color }) : toonOf(color));
+    const part = new THREE.Mesh(GEO[shape], materials.get(materialKey));
+    part.position.fromArray(position);
+    part.scale.fromArray(scale);
+    if (rotation) part.rotation.fromArray(rotation);
+    if (outlined) {
+      const outline = new THREE.Mesh(part.geometry, outlineMat);
+      outline.scale.setScalar(1.15);
+      part.add(outline);
+    }
+    model.add(part);
+  }
+  portrait.add(model, new THREE.AmbientLight(0xfff4e6, 1.35));
+  const light = new THREE.DirectionalLight(0xfff0d8, 1.7);
+  light.position.set(-3, 6, 5);
+  portrait.add(light);
+  const view = new THREE.OrthographicCamera(-1.3, 1.3, 1.3, -1.3, 0.1, 20);
+  view.position.set(1.6, 2, 5);
+  view.lookAt(0, 1.04, 0);
+
+  const size = 256;
+  const target = new THREE.WebGLRenderTarget(size, size);
+  const previousTarget = renderer.getRenderTarget();
+  const previousColor = renderer.getClearColor(new THREE.Color());
+  const previousAlpha = renderer.getClearAlpha();
+  const pixels = new Uint8Array(size * size * 4);
+  try {
+    renderer.setRenderTarget(target);
+    renderer.setClearColor(0, 0);
+    renderer.render(portrait, view);
+    renderer.readRenderTargetPixels(target, 0, 0, size, size, pixels);
+  } finally {
+    renderer.setRenderTarget(previousTarget);
+    renderer.setClearColor(previousColor, previousAlpha);
+    target.dispose();
+    materials.forEach((material) => material.dispose());
+  }
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = size;
+  const context = canvas.getContext('2d');
+  const image = context.createImageData(size, size);
+  const srgb = Uint8ClampedArray.from({ length: 256 }, (_, channel) => {
+    const value = channel / 255;
+    return 255 * (value <= 0.0031308 ? value * 12.92 : 1.055 * value ** (1 / 2.4) - 0.055);
+  });
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const from = ((size - 1 - y) * size + x) * 4;
+      const to = (y * size + x) * 4;
+      image.data.set([srgb[pixels[from]], srgb[pixels[from + 1]], srgb[pixels[from + 2]], pixels[from + 3]], to);
+    }
+  }
+  context.putImageData(image, 0, 0);
+  const url = canvas.toDataURL();
+  skinPortraits.set(key, url);
+  return url;
+}
+
 let cdxTab = 'heroes';
+function heroStats(hero) {
+  const maxHp = Math.max(...CLS_IDS.map((id) => CLASSES[id].hp));
+  const speedFill = (hero.spd - 4.6) / 1.2;
+  const weapon = WEAPONS[hero.start];
+  return `<div class="hstats" style="--c:${TAGS[hero.tag].c}">
+    <div><span>生命</span><div class="mini"><i style="width:${hero.hp / maxHp * 100}%"></i></div><b>${hero.hp}</b></div>
+    <div><span>移速</span><div class="mini"><i style="width:${speedFill * 100}%"></i></div><b>${hero.spd.toFixed(1)}</b></div>
+    <div class="wp"><span>武器</span>${illustratedBadge('skills', hero.start, weapon.c)}<span>${weapon.name}</span></div>
+  </div>`;
+}
 const howGet = (kind, id) => { const a = achFor(kind, id); return DEF0[kind] && DEF0[kind].includes(id) ? '一开始就有' : a ? `达成成就「${a.n}」：${a.d}` : `用 ${PRICE[kind]} 积分兑换`; };
 const tagOf = (kind, id) => achFor(kind, id) ? '成就' : `${PRICE[kind]} 积分`;
 function codexItems(tab) {
@@ -1798,24 +2129,189 @@ function codexItems(tab) {
       ? `传说 · ${w.name}的第二种终极形态：${ALT[id.slice(4)].desc}。<b>怎么获得：</b>只能在大鹅抽卡里抽到。抽到以后，这个技能升到 Lv 10 时可以在原来的「${w.evo.name}」和它之间二选一。`
       : `${RN[r]}皮肤 · ${CLASSES[SKINS[id].h].name}。${SKINS[id].aura ? '换一套配色，头顶光环，脚下一圈光。' : '换一套配色。'}<b>怎么获得：</b>只能在大鹅抽卡里抽到。抽到后在准备页选这位同学时换上。` }; });
   if (tab === 'ach') return ACH.map((a) => ({ id: a.id, name: a.n, c: '#ffaa1e', ic: a.ic, open: meta.ach.includes(a.id), mon: true, desc: `${a.d}${a.note ? '，' + a.note : ''}。奖励：${achReward(a)}。${meta.ach.includes(a.id) ? '已达成。' : ''}` }));
-  if (tab === 'heroes') return CLS_IDS.map((id) => { const c = CLASSES[id]; const sk = Object.keys(SKINS).filter((k) => SKINS[k].h === id).map((k) => `${SKINS[k].n}（${RN[SKINS[k].r]}）`).join('、'); return { id, name: c.name, short: c.short, c: TAGS[c.tag].c, ic: c.start, open: isOpen(id), kind: achFor('heroes', id) ? null : 'heroes', tag: tagOf('heroes', id), hint: howGet('heroes', id), desc: `${TAGS[c.tag].name} · 生命 ${c.hp} · 自带技能「${WEAPONS[c.start].name}」。${c.desc}。加入后这个技能也会进入技能池。<b>怎么获得：</b>${howGet('heroes', id)}。皮肤（抽卡）：${sk}。` }; });
-  if (tab === 'skills') return Object.keys(WEAPONS).map((id) => { const w = WEAPONS[id], owner = CLS_IDS.find((h) => CLASSES[h].start === id); return { id, name: w.name, c: w.c, ic: id, open: skillOpen(id), desc: `${TAGS[w.tag].name}。${w.desc}。每升一级：${LVUP[id][2]}。Lv 4 和 Lv 8 各注入一次元素，Lv 10 变成终极形态「${w.evo.name}」：${w.evo.desc}。${ALT[id] ? `<b>第二种终极形态「${ALT[id].name}」</b>：${ALT[id].desc}。要在大鹅抽卡里抽到${meta.ults.includes(id) ? '（你已经抽到了，Lv 10 时二选一）' : ''}。` : ''}特殊升级（完成地图任务开宝箱拿）：${SP[id].map((x) => x[1]).join('、')}。`, hint: `兑换同学「${CLASSES[owner].name}」后，这个技能会进入技能池。` }; });
+  if (tab === 'heroes') return CLS_IDS.map((id) => { const c = CLASSES[id]; const sk = Object.keys(SKINS).filter((k) => SKINS[k].h === id).map((k) => `${SKINS[k].n}（${RN[SKINS[k].r]}）`).join('、'); return { id, name: c.name, short: c.short, c: TAGS[c.tag].c, ic: c.start, open: isOpen(id), kind: achFor('heroes', id) ? null : 'heroes', tag: tagOf('heroes', id), hint: howGet('heroes', id), desc: `${TAGS[c.tag].name} · ${c.desc}。加入后这个技能也会进入技能池。<b>怎么获得：</b>${howGet('heroes', id)}。皮肤（抽卡）：${sk}。` }; });
+  if (tab === 'skills') return Object.entries(WEAPONS).map(([id, weapon]) => {
+    const open = skillOpen(id);
+    const item = { id, name: weapon.name, c: weapon.c, ic: id, open };
+    if (!open) return item;
+    const alt = ALT[id];
+    const altDesc = alt && (altOwned(id)
+      ? `<b>第二种终极形态「${alt.name}」</b>：${alt.desc}。Lv 10 时二选一。`
+      : `第二种终极形态「${alt.name}」可通过大鹅抽卡解锁。`);
+    return { ...item, desc: `${TAGS[weapon.tag].name}。${weapon.desc}。每升一级：${LVUP[id][2]}。Lv 4 和 Lv 8 各注入一次元素，Lv 10 变成终极形态「${weapon.evo.name}」：${weapon.evo.desc}。${altDesc || ''}特殊升级（完成地图任务开宝箱拿）：${SP[id].map((x) => x[1]).join('、')}。` };
+  });
   if (tab === 'arts') return Object.keys(ARTS).map((id) => { const a = ARTS[id]; return { id, name: a.name, c: a.c, ic: a.ic, open: meta.arts.includes(id), kind: 'arts', tag: tagOf('arts', id), desc: a.desc + `。对局里在金色光柱下三选一。<b>怎么获得：</b>${howGet('arts', id)}。` }; });
-  if (tab === 'relics') return Object.keys(RELICS).map((id) => { const r = RELICS[id], t = TAGS[r.tag], ev = Object.keys(WEAPONS).find((w) => WEAPONS[w].evo.relic === id); return { id, name: r.name, c: t ? t.c : '#b8433a', ic: r.curse ? 'curse' : 'charm', open: meta.relics.includes(id), kind: achFor('relics', id) ? null : 'relics', tag: tagOf('relics', id), hint: howGet('relics', id), desc: `${rarOf(id).n}${t ? '，' + t.name : ''}。每件：${r.desc}。同一件可以一直叠加。对局里打怪偶尔掉落，精英宝箱里可以三选一。<b>怎么获得：</b>${howGet('relics', id)}。` }; });
+  if (tab === 'relics') return Object.keys(RELICS).map((id) => { const r = RELICS[id], t = TAGS[r.tag], ev = Object.keys(WEAPONS).find((w) => WEAPONS[w].evo.relic === id); return { id, name: r.name, c: t ? t.c : '#b8433a', ic: r.curse ? 'curse' : 'charm', open: meta.relics.includes(id), kind: achFor('relics', id) ? null : 'relics', tag: tagOf('relics', id), hint: howGet('relics', id), desc: `${rarOf(id).n}${t ? '，' + t.name : ''}。每件：${r.desc}。同一件可以一直叠加。对局里走近怪物掉落的饰品或打开精英宝箱，即可三选一。<b>怎么获得：</b>${howGet('relics', id)}。` }; });
   return MON_ORDER.map((id) => { const m = MON_INFO[id] || MON_MORE[id], seen = meta.seen.includes(id); return { id, name: seen ? m[0] : '？？？', c: seen ? MON_C[id] : '#a89a92', ic: seen ? m[0][0] : '?', open: seen, mon: true, desc: seen ? m[1] + '。' : '还没遇到过，对局里见到一次就会记下来。' }; });
 }
+function sendSkillDemo(frame, skill, form) {
+  const origin = location.origin === 'null' ? '*' : location.origin;
+  frame.contentWindow?.postMessage({ type: 'sandbox-brawl:skill-demo', skill, form }, origin);
+}
+
 function showCodex(tab = cdxTab, sel) {
   if (state === 'title') titleEl.hidden = true;
-  cdxTab = tab; const items = codexItems(tab), it = items.find((q) => q.id === sel) || items[0], TABS = { heroes: '同学', skills: '技能', arts: '遗物', relics: '饰品', gacha: '抽卡奖池', ach: '成就', mons: '怪物' }, price = PRICE[it.kind];
+  const tabs = { heroes: '同学', skills: '技能', arts: '遗物', relics: '饰品', gacha: '抽卡奖池', ach: '成就', mons: '怪物' };
   show(`<div class="chead"><h2>图鉴</h2><span class="pts">积分 <b>${meta.pts}</b></span></div>
-    <div class="ctabs">${Object.keys(TABS).map((t) => `<button class="${t === tab ? 'on' : ''}" data-t="${t}">${TABS[t]}</button>`).join('')}<span>${items.filter((q) => q.open).length} / ${items.length}</span></div>
-    <div class="cgrid">${items.map((q) => `<button class="ctile ${q.open ? '' : 'lock'} ${q.id === it.id ? 'sel' : ''}" data-id="${q.id}" aria-label="${q.name}">${codexIcon(q, tab)}<span>${q.short || q.name}</span>${!q.open && q.tag ? `<small>${q.tag}</small>` : ''}</button>`).join('')}</div>
-    <div class="cdetail"><b>${it.name}${it.open && !it.mon ? '<em>已拥有</em>' : ''}</b><p>${it.desc}</p>${!it.open && price ? `<button class="primary" id="cbuy" ${meta.pts < price ? 'disabled' : ''}>${meta.pts < price ? `还差 ${price - meta.pts} 积分` : `兑换 · ${price} 积分`}</button>` : !it.open && it.hint && !price ? `<p><b>${it.hint}</b></p>` : ''}</div>
-    <p class="note">东西有四种来路：一开始就有、积分兑换（每局按击倒数和时间给积分，通关另加 80）、达成成就、大鹅抽卡。只有拿到的遗物和饰品才会在对局里出现。</p>
+    <div class="codex-columns">
+      <section class="codex-selection" aria-label="图鉴选择">
+        <div class="ctabs">${Object.entries(tabs).map(([key, name]) => `<button data-t="${key}" aria-pressed="false">${name}</button>`).join('')}<span></span></div>
+        <div class="cgrid"></div>
+      </section>
+      <section class="cdetail" aria-label="图鉴预览" tabindex="0">
+        <div class="codex-art"></div>
+      </section>
+    </div>
     <div class="actions"><button class="primary" id="cok">关闭</button></div>`, 'frame codex');
-  panel.querySelectorAll('[data-t]').forEach((b) => b.onclick = () => showCodex(b.dataset.t));
-  panel.querySelectorAll('.ctile').forEach((b) => b.onclick = () => { const sc = panel.querySelector('.cgrid').scrollTop; showCodex(tab, b.dataset.id); panel.querySelector('.cgrid').scrollTop = sc; });
-  if ($('cbuy')) $('cbuy').onclick = () => { if (buy(it.kind, it.id)) showCodex(tab, it.id); };
+  const tabButtons = panel.querySelectorAll('[data-t]');
+  const grid = panel.querySelector('.cgrid');
+  const detail = panel.querySelector('.cdetail');
+  const art = detail.querySelector('.codex-art');
+  let previewFrame = null;
+  let previewSkill = null;
+  let previewForm = 'base';
+
+  function select(item, tile) {
+    const previous = grid.querySelector('.ctile.sel');
+    if (previous === tile) return;
+    previous?.classList.remove('sel');
+    previous?.setAttribute('aria-pressed', 'false');
+    tile.classList.add('sel');
+    tile.setAttribute('aria-pressed', 'true');
+
+    const price = PRICE[item.kind];
+    const nameOnly = cdxTab === 'skills' && !item.open;
+    const canPreviewSkill = cdxTab === 'skills' && item.open;
+    const animateSkill = canPreviewSkill && !REDUCED;
+    previewForm = 'base';
+    art.hidden = nameOnly;
+    art.classList.toggle('locked', !item.open);
+    art.style.setProperty('--preview-color', item.c);
+    if (animateSkill) {
+      previewSkill = item.id;
+      if (!previewFrame) {
+        previewFrame = document.createElement('iframe');
+        previewFrame.className = 'codex-skill-preview';
+        previewFrame.src = './index.html?skill-demo';
+        previewFrame.tabIndex = -1;
+        const frame = previewFrame;
+        frame.onload = () => {
+          if (frame === previewFrame && frame.isConnected) sendSkillDemo(frame, previewSkill, previewForm);
+        };
+        art.replaceChildren(previewFrame);
+      } else {
+        sendSkillDemo(previewFrame, previewSkill, previewForm);
+      }
+      previewFrame.title = `${item.name}技能动画`;
+    } else {
+      previewFrame = null;
+      previewSkill = null;
+      art.innerHTML = nameOnly ? '' : codexIcon(item, cdxTab);
+    }
+    while (art.nextElementSibling) art.nextElementSibling.remove();
+    art.insertAdjacentHTML('afterend', `<h3>${item.name}${item.open && !item.mon ? '<em>已拥有</em>' : ''}</h3>`);
+    detail.scrollTop = 0;
+    if (nameOnly) return;
+    detail.insertAdjacentHTML('beforeend', `
+      ${cdxTab === 'heroes' ? heroStats(CLASSES[item.id]) : ''}
+      <p>${item.desc}</p>${!item.open && price ? `<button class="primary" id="cbuy" ${meta.pts < price ? 'disabled' : ''}>${meta.pts < price ? `还差 ${price - meta.pts} 积分` : `兑换 · ${price} 积分`}</button>` : !item.open && item.hint ? `<p><b>${item.hint}</b></p>` : ''}`);
+    if (canPreviewSkill) {
+      const weapon = WEAPONS[item.id];
+      const forms = { base: { name: '基础形态', desc: item.desc }, evo: weapon.evo };
+      if (ALT[item.id]) forms.alt = ALT[item.id];
+      const description = detail.querySelector('p');
+      const controls = document.createElement('div');
+      controls.className = 'skins codex-skins codex-forms';
+      controls.setAttribute('role', 'group');
+      controls.setAttribute('aria-label', '预览技能形态');
+      controls.innerHTML = Object.entries(forms).map(([key, form]) => {
+        const isBase = key === 'base';
+        const icon = illustration(SKILL_FORM_ICONS[key], item.id);
+        const locked = key === 'alt' && !altOwned(item.id);
+        return `<button type="button" class="sk${isBase ? ' on' : ''}" data-form="${key}" aria-pressed="${isBase}"${locked ? ' disabled' : ''}>${icon}<span>${form.name}</span></button>`;
+      }).join('');
+      detail.append(controls);
+      const buttons = controls.querySelectorAll('button');
+      buttons.forEach((button) => button.onclick = () => {
+        const key = button.dataset.form;
+        if (previewForm === key) return;
+        previewForm = key;
+        const form = forms[key];
+        buttons.forEach((candidate) => {
+          const active = candidate === button;
+          candidate.classList.toggle('on', active);
+          candidate.setAttribute('aria-pressed', String(active));
+        });
+        description.innerHTML = key === 'base' ? form.desc : `<b>终极形态 · ${form.name}</b>。${form.desc}。`;
+        if (previewFrame) {
+          previewFrame.title = `${key === 'base' ? item.name : form.name}技能动画`;
+          sendSkillDemo(previewFrame, item.id, key);
+        } else if (key !== 'base') {
+          art.innerHTML = `<span class="crelic">${illustration(SKILL_FORM_ICONS[key], item.id)}</span>`;
+        } else {
+          art.innerHTML = codexIcon(item, cdxTab);
+        }
+      });
+    }
+    if (cdxTab === 'heroes') {
+      const choices = ['', ...Object.keys(SKINS).filter((id) => SKINS[id].h === item.id)];
+      const controls = document.createElement('div');
+      controls.className = 'skins codex-skins';
+      controls.setAttribute('role', 'group');
+      controls.setAttribute('aria-label', '预览皮肤');
+      controls.innerHTML = choices.map((id) => {
+        const skin = SKINS[id];
+        const locked = skin && !meta.skins.includes(id);
+        return `<button type="button" class="sk" data-skin="${id}" aria-pressed="false"${locked ? ' disabled' : ''}>${skin?.n || '默认'}</button>`;
+      }).join('');
+      detail.append(controls);
+      const buttons = controls.querySelectorAll('button');
+      const preview = (button) => {
+        if (button.classList.contains('on')) return;
+        const skinId = button.dataset.skin;
+        const name = SKINS[skinId]?.n || '默认';
+        art.innerHTML = `<img class="codex-skin-model" src="${skinPortrait(item.id, skinId)}" alt="${item.name} · ${name}">`;
+        buttons.forEach((candidate) => {
+          const active = candidate === button;
+          candidate.classList.toggle('on', active);
+          candidate.setAttribute('aria-pressed', String(active));
+        });
+      };
+      buttons.forEach((button) => button.onclick = () => preview(button));
+      preview(buttons[0]);
+    }
+    const buyButton = $('cbuy');
+    if (buyButton) buyButton.onclick = () => {
+      if (!buy(item.kind, item.id)) return;
+      const scroll = grid.scrollTop;
+      panel.querySelector('.pts b').textContent = meta.pts;
+      renderCategory(cdxTab, item.id).focus({ preventScroll: true });
+      grid.scrollTop = scroll;
+    };
+  }
+
+  function renderCategory(category, selectedId) {
+    cdxTab = category;
+    const items = codexItems(category);
+    tabButtons.forEach((button) => {
+      const active = button.dataset.t === category;
+      button.classList.toggle('on', active);
+      button.setAttribute('aria-pressed', String(active));
+    });
+    panel.querySelector('.ctabs span').textContent = `${items.filter((item) => item.open).length} / ${items.length}`;
+    grid.innerHTML = items.map((item) => `<button class="ctile ${item.open ? '' : 'lock'}" data-id="${item.id}" aria-label="${item.name}" aria-pressed="false">${codexIcon(item, category)}<span>${item.short || item.name}</span>${!item.open && item.tag ? `<small>${item.tag}</small>` : ''}</button>`).join('');
+    grid.scrollTop = 0;
+    const tiles = grid.querySelectorAll('.ctile');
+    tiles.forEach((tile, index) => tile.onclick = () => select(items[index], tile));
+    const index = Math.max(0, items.findIndex((item) => item.id === selectedId));
+    select(items[index], tiles[index]);
+    return tiles[index];
+  }
+
+  tabButtons.forEach((button) => button.onclick = () => {
+    if (button.dataset.t !== cdxTab) renderCategory(button.dataset.t);
+  });
+  renderCategory(tab, sel);
   $('cok').onclick = () => { hide(); if (state === 'title') backToTitle(); };
 }
 function showHow() {
@@ -1826,23 +2322,18 @@ function showHow() {
     ${row('#3fc98a', 'flag', '每 30 秒一个新事件', '新怪物、小任务、地图遗物轮着来，10:00 大魔王出场')}
     ${row('#a98bff', 'move', '四个教室一条走廊', '从走廊的门进出教室，怪也得走门。四个教室最外面的角落会一直出怪')}
     ${row('#ffab2e', 'charm', '去找遗物', '金色光柱下面有遗物，三选一，效果很强')}
-    ${row('#ffaa1e', 'crown', '成就和抽卡', '有些同学和饰品要靠成就拿；皮肤和 6 个技能的第二种终极形态要靠大鹅抽卡。通关一次标准模式才开放无尽')}
+    ${row('#ffaa1e', 'crown', '成就和抽卡', `有些同学和饰品要靠成就拿；皮肤和 ${GACHA_ULT.length} 个技能的第二种终极形态要靠大鹅抽卡。通关一次标准模式才开放无尽`)}
   </div><div class="actions"><button class="primary" id="ok">知道了</button></div>`);
   $('ok').onclick = hide; $('ok').focus();
 }
 function renderPrep(fresh) {
   clsId = CLS_IDS[selIdx]; cls = CLASSES[clsId]; if (modeId === 'endless' && !endlessOpen()) modeId = 'std';
-  const locked = !isOpen(clsId), t = TAGS[cls.tag], w = WEAPONS[cls.start], aL = locked && achFor('heroes', clsId), mySk = Object.keys(SKINS).filter((k) => SKINS[k].h === clsId), on = skinOf(clsId);
-  const maxHp = Math.max(...CLS_IDS.map((id) => CLASSES[id].hp)), spdOf = (c) => (c.spd - 4.6) / 1.2;
+  const locked = !isOpen(clsId), t = TAGS[cls.tag], aL = locked && achFor('heroes', clsId), mySk = Object.keys(SKINS).filter((k) => SKINS[k].h === clsId), on = skinOf(clsId);
   const side = `
     <h3>选同学</h3>
     <div class="chips">${CLS_IDS.map((id, i) => { const c = CLASSES[id], lk = !isOpen(id); return `<button class="chip ${i === selIdx ? 'sel' : ''} ${lk ? 'locked' : ''}" data-i="${i}" aria-label="${c.name}">${lk ? ico(TAGS[c.tag].c, 'lock') : illustration('heroes', id)}${c.short || c.name}</button>`; }).join('')}</div>
     <div class="hinfo"><p>${aL ? `还没加入。达成成就「${aL.n}」（${aL.d}）后加入。` : locked ? `还没加入。用 ${PRICE.heroes} 积分兑换，现在有 ${meta.pts} 积分。每局结束都会拿到积分。` : cls.desc}</p>
-      <div class="hstats" style="--c:${t.c}">
-        <div><span>生命</span><div class="mini"><i style="width:${cls.hp / maxHp * 100}%"></i></div><b>${cls.hp}</b></div>
-        <div><span>移速</span><div class="mini"><i style="width:${spdOf(cls) * 100}%"></i></div><b>${cls.spd.toFixed(1)}</b></div>
-        <div class="wp"><span>武器</span>${illustratedBadge('skills', cls.start, w.c)}<span>${w.name}</span></div>
-      </div></div>
+      ${heroStats(cls)}</div>
     <h3>皮肤</h3>
     <div class="skins"><button class="sk ${on ? '' : 'on'}" data-sk="">${ico(t.c, cls.start)}默认</button>${mySk.map((k) => { const own = meta.skins.includes(k); return `<button class="sk ${on === k ? 'on' : ''} ${own ? '' : 'lk'}" data-sk="${k}" ${own ? '' : 'disabled'}>${ico(own ? RC[SKINS[k].r] : '#a89a92', own ? cls.start : 'lock')}${SKINS[k].n}${own ? '' : ' · 抽卡'}</button>`; }).join('')}</div>
     <h3>模式</h3>
@@ -1877,9 +2368,12 @@ function renderGacha() {
   else { $('gBack').onclick = () => wipe(() => { titleStep = 'home'; gch.hero = null; renderHome(); }); $('g1').onclick = () => gachaStart(1); $('g10').onclick = () => gachaStart(10); $('gPool').onclick = () => showCodex('gacha'); }
 }
 function gachaStart(n) { const res = gachaPull(n); if (!res) return; Object.assign(gch, { on: true, res, i: 0, w: 0, t: 0, hitT: 0, endT: 0, n, cross: Math.floor((gch.a - HP_) / TAU) }); renderGacha(); }
+function gachaIcon(reward, item, color) {
+  return reward.id.startsWith('ult_') ? illustratedBadge('alternateUltimates', item.ic, color) : ico(color, item.ic);
+}
 function gImpact(q, quiet) {
   const c = new THREE.Color(RC[q.tier]).getHex(), el = titleEl.querySelector(`.gs[data-i="${gch.i - 1}"]`), it = gItem(q);
-  if (el) { el.classList.add('on'); el.style.setProperty('--c', RC[q.tier]); el.innerHTML = ico('#fff', it.ic); }
+  if (el) { el.classList.add('on'); el.style.setProperty('--c', RC[q.tier]); el.innerHTML = gachaIcon(q, it, '#fff'); }
   if (quiet) return;
   const x = GPX, z = GZ; spark(x - 0.3, 1.4, z, c, q.tier === 2 ? 150 : q.tier ? 70 : 30, q.tier === 2 ? 10 : 7, 0.45, 0.8); spark(x - 0.3, 1.4, z, 0xffffff, 16, 5, 0.35, 0.5);
   ringFx(x, z, q.tier === 2 ? 7 : q.tier ? 4.5 : 3, c, 0.5); shake = q.tier === 2 ? 0.5 : 0.25; if (q.tier === 2) { chroma = 0.6; ringFx(x, z, 10, 0xffe07a, 0.8); }
@@ -1897,29 +2391,230 @@ function updateGacha(dt) {
 function showGachaResults() {
   const res = gch.res, best = res.filter((q) => !q.dup && q.id !== 'pts' && !q.id.startsWith('ult_')).sort((a, b) => b.tier - a.tier)[0];
   show(`${res.some((q) => q.tier === 2) ? confetti(30) : ''}<h2>抽到了</h2>
-    <div class="gcards ${res.length === 1 ? 'one' : ''}">${res.map((q, i) => { const it = gItem(q); return `<div class="gcard t${q.tier}" style="--i:${i};--c:${RC[q.tier]}"><span class="rr">${RN[q.tier]}</span>${ico(RC[q.tier], it.ic)}<b>${it.name}</b><small>${it.sub}</small>${q.dup ? `<em>重复 · 返 ${q.back} 积分</em>` : q.id !== 'pts' ? '<em class="new">新</em>' : ''}</div>`; }).join('')}</div>
+    <div class="gcards ${res.length === 1 ? 'one' : ''}">${res.map((q, i) => { const it = gItem(q); return `<div class="gcard t${q.tier}" style="--i:${i};--c:${RC[q.tier]}"><span class="rr">${RN[q.tier]}</span>${gachaIcon(q, it, RC[q.tier])}<b>${it.name}</b><small>${it.sub}</small>${q.dup ? `<em>重复 · 返 ${q.back} 积分</em>` : q.id !== 'pts' ? '<em class="new">新</em>' : ''}</div>`; }).join('')}</div>
     ${res.some((q) => q.id.startsWith('ult_') && !q.dup) ? '<p>终极形态：对局里把这个技能升到 Lv 10 就会变身。</p>' : ''}${best ? '<p>皮肤在准备页选同学时换上。</p>' : ''}
     <div class="actions"><button class="primary" id="gOk">收下</button><button id="gAgain" ${meta.pts < (gch.n === 10 ? GACHA.ten : GACHA.one) ? 'disabled' : ''}>再来${gch.n === 10 ? '十连' : '一次'}</button></div>`, 'frame gres');
   if (best) gch.hero = { h: SKINS[best.id].h, sk: best.id, t: 0 };
   $('gOk').onclick = () => { hide(); renderGacha(); }; $('gAgain').onclick = () => { hide(); gachaStart(gch.n); }; $('gOk').focus();
 }
+/* ================= 联机：最多 4 人，同一张地图 =================
+ * 房主跑整局（刷怪、怪的走位、大魔王、时间线），每 0.1 秒把怪、怪的子弹、击倒名单发给队友。
+ * 每个人自己的技能在自己这边打：打掉的血每 0.1 秒报给房主。经验、宝箱、遗物各拿各的。
+ * 倒下后 12 秒在原地复活（还有队友站着时）；全员倒下这局结束。 */
+const NET_API = (new URLSearchParams(location.search).get('api') || '/api/native/v1/games/brawl') + '/room';
+const NET_TYPES = Object.keys(ET), NET_TI = Object.fromEntries(NET_TYPES.map((t, i) => [t, i]));
+const ptags = document.createElement('div'); ptags.id = 'ptags'; document.body.appendChild(ptags);
+let netName = ''; try { netName = localStorage.getItem('syntara.brawl.name') || ''; } catch (e) {}
+const netHp = () => (NET && NET.on && NET.host ? 1 + 0.5 * (NET.n - 1) : 1);
+async function netPost(body) {
+  let r; try { r = await fetch(NET_API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }); } catch (e) { throw new Error('连不上联机服务器。网页版和 iPad 可以联机，桌面 App 暂时不行'); }
+  let j = null; try { j = await r.json(); } catch (e) {}
+  if (!r.ok || !j) throw new Error((j && j.error) || '连不上联机服务器。网页版和 iPad 可以联机，桌面 App 暂时不行');
+  return j;
+}
+const netSend = (m) => { if (NET) netPost({ op: 'send', code: NET.code, key: NET.key, m }).catch(() => {}); };
+const myHero = () => (isOpen(CLS_IDS[selIdx]) ? CLS_IDS[selIdx] : meta.heroes[0]);
+function netOpen(res, host) {
+  if (NET && NET.es) NET.es.close();
+  NET = { code: res.code, key: res.key, id: res.id, host, room: res.room, on: false, n: 1, peers: {}, mir: new Map(), K: [], used: new Set(), sendT: 0, sid: 0 };
+  const es = new EventSource(`${NET_API}?code=${encodeURIComponent(res.code)}&key=${encodeURIComponent(res.key)}`);
+  es.onmessage = (ev) => { try { netRecv(JSON.parse(ev.data)); } catch (e) { console.warn(e); } };
+  es.onerror = () => { if (es.readyState === 2) netLost('和房间的连接断了'); };
+  NET.es = es;
+}
+addEventListener('pagehide', () => { if (NET) { try { navigator.sendBeacon(NET_API, JSON.stringify({ op: 'leave', code: NET.code, key: NET.key })); } catch (e) {} } });
+function netRecv(ev) {
+  if (!NET) return;
+  if (ev.t === 'closed') return netLost(ev.reason || '房间关闭了');
+  if (ev.t === 'room') { const gone = NET.room.players.filter((p) => !ev.room.players.some((q) => q.id === p.id)); NET.room = ev.room; if (NET.on) for (const p of gone) { delete NET.peers[p.id]; banner(p.name + ' 离开了'); } else if (lobbyOpen()) renderLobby(); return; }
+  if (ev.t === 'start') { NET.room = ev.room; return netBegin(ev.m || {}); }
+  if (ev.t !== 'm' || !ev.m) return;
+  const m = ev.m, from = ev.from;
+  if (m.k === 'p' || m.k === 's') { if (m.p && NET.on) netPeer(from, m.p); if (m.k === 's' && !NET.host && NET.on) netApply(m); if (m.D && NET.host && NET.on) netDamage(m.D); }
+  else if (m.k === 'end' && NET.on && !NET.host) { if (m.win) { if (state !== 'win') showWin(); } else netOver(); }
+}
+function netPeer(id, p) {
+  const room = NET.room.players.find((q) => q.id === id); if (!room) return;
+  let q = NET.peers[id]; if (!q) q = NET.peers[id] = { id, name: room.name, x: p.x, z: p.z, ps: { ph: 0, hit: 0, seed: Math.random(), moving: 0, glowMul: 2.4 } };
+  const radius = [p.x, p.z, p.sockAura].every(Number.isFinite) && p.hp > 0
+    ? clamp(p.sockAura, 0, Math.hypot(2 * HX, 2 * HZ)) : 0;
+  Object.assign(q, { tx: p.x, tz: p.z, yaw: p.y, mv: p.m, hp: p.hp, mh: p.mh, lv: p.lv, h: p.h, sk: p.sk, dead: !!p.d, name: room.name, radius, sockSeen: performance.now() });
+}
+// 房主：队友打掉的血
+function netDamage(Dm) {
+  const by = new Map(); for (const e of enemies) if (!e.dead) by.set(e.id, e);
+  for (let i = 0; i < Dm.length; i += 2) { const e = by.get(Dm[i]); if (!e || e.dead) continue; e.hp -= Dm[i + 1]; e.hit = 1; if (e.hp <= 0) killEnemy(e, ''); }
+}
+// 怪追最近的、还站着的玩家
+function netTarget(e) {
+  let best = player.ghost ? null : player, bd = best ? (player.x - e.x) ** 2 + (player.z - e.z) ** 2 : Infinity;
+  for (const id in NET.peers) { const p = NET.peers[id]; if (p.dead || p.x == null) continue; const d = (p.x - e.x) ** 2 + (p.z - e.z) ** 2; if (d < bd) { bd = d; best = p; } }
+  return best || player;
+}
+const r1 = (v) => Math.round(v * 10), r2 = (v) => Math.round(v * 100) / 100;
+function netTick(dt) {
+  if (!NET || !NET.on) return;
+  for (const id in NET.peers) { const p = NET.peers[id]; if (p.tx == null) continue; const k = Math.min(1, dt * 10), dx = p.tx - p.x, dz = p.tz - p.z; if (Math.hypot(dx, dz) > 8) { p.x = p.tx; p.z = p.tz; } else { p.x += dx * k; p.z += dz * k; } p.ps.moving = p.mv || 0; p.ps.ph += (p.mv || 0) * dt * 14; p.ps.dark = p.dead; }
+  player.dark = !!player.ghost;
+  NET.sendT -= dt; if (NET.sendT > 0) return; NET.sendT = 0.1;
+  const me = { x: r2(player.x), z: r2(player.z), y: r2(player.yaw), m: r2(player.moving), hp: Math.ceil(player.hp), mh: Math.ceil(player.maxHp), lv: player.lvl, h: clsId, sk: skinOf(clsId), d: player.ghost ? 1 : 0 };
+  if (!player.ghost && player.hp > 0 && player.weapons.sock && player.alt.sock &&
+      (state === 'play' || state === 'levelup' || state === 'paused')) me.sockAura = r2(sockAuraRadius());
+  if (!NET.host) {
+    const Dm = []; for (const [nid, e] of NET.mir) { const d = e.base - e.hp; if (d > 0.5) { Dm.push(nid, Math.round(d)); e.base = e.hp; } if (e.dead && !e.gone) { e.gone = 1; e.deadAt = realTime; } }
+    return netSend({ k: 'p', p: me, D: Dm });
+  }
+  const E = []; for (const e of enemies) { if (e.dead) continue; E.push(e.id, NET_TI[e.type], r1(e.x), r1(e.z), Math.max(1, Math.round(e.hp / e.maxHp * 1000)), (e.giant ? 1 : 0) | (e.inv ? 2 : 0), e.fuse > 0 ? r1(e.fuse) : 0); }
+  const S = []; for (const b of eshots) { if (!b.nid) b.nid = ++NET.sid; S.push(b.nid, r1(b.x), r1(b.z), r1(b.vx), r1(b.vz), r1(b.life), b.rig === 'chalkP' ? 1 : b.source === 'boss' ? 2 : 0, b.dmg || 8); }
+  const B = boss && !boss.dead ? [boss.id, boss.atkN || 0, r2(boss.slam || 0), r2(boss.rushW || 0), r2(boss.rushT || 0), r2(boss.ax || 0), r2(boss.az || 0), boss.enraged ? 1 : 0] : null;
+  netSend({ k: 's', p: me, T: r2(T), E, S, B, K: NET.K.splice(0) });
+  // 全员倒下：这局结束
+  if (player.ghost && Object.values(NET.peers).every((p) => p.dead)) { netSend({ k: 'end', win: 0 }); netOver(); }
+}
+// 队友：用房主发来的快照更新本地的怪
+function netApply(m) {
+  if (state === 'win' || state === 'dead') return;
+  if (Math.abs(T - m.T) > 0.4) T = m.T;
+  const E = m.E || [], seen = new Set();
+  for (let i = 0; i < E.length; i += 7) {
+    const nid = E[i], x = E[i + 2] / 10, z = E[i + 3] / 10; seen.add(nid);
+    let e = NET.mir.get(nid);
+    if (e && e.dead && (!e.deadAt || realTime - e.deadAt > 1.5)) { NET.mir.delete(nid); e = null; }
+    if (!e) { NET.mirroring = true; e = spawn(NET_TYPES[E[i + 1]], x, z); NET.mirroring = false; if (!e) continue; e.nid = nid; e.spawn = 0; if (E[i + 5] & 1) { e.giant = 1; e.size *= 2.4; e.r *= 2.4; } e.hp = e.maxHp * E[i + 4] / 1000; e.base = e.hp; NET.mir.set(nid, e); }
+    if (e.dead) continue;
+    const hostHp = e.maxHp * E[i + 4] / 1000, unsent = Math.max(0, e.base - e.hp); e.hp = Math.min(e.hp, hostHp - unsent); e.base = e.hp + unsent;
+    e.nx = x; e.nz = z; e.inv = !!(E[i + 5] & 2); e.under = e.inv; if (E[i + 6]) { e.fuse = E[i + 6] / 10; e.fuseMax = e.fuseMax || FUSE; } else e.fuse = 0;
+  }
+  for (const nid of m.K || []) { const e = NET.mir.get(nid); if (e && !e.dead) killEnemy(e, ''); }
+  for (const [nid, e] of NET.mir) if (!seen.has(nid)) { if (!e.dead) e.dead = true; NET.mir.delete(nid); }
+  const B = m.B; if (B) { const e = NET.mir.get(B[0]); if (e && !e.dead) { boss = e; $('bossBar').hidden = false; $('hud').classList.add('boss'); if (B[1] !== e.atkN) { e.atkN = B[1]; e.slam = B[2]; e.rushW = B[3]; e.rushT = B[4]; e.ax = B[5]; e.az = B[6]; e.rushHit = false; } e.enraged = !!B[7]; } }
+  else if (boss && !boss.dead) { boss = null; $('bossBar').hidden = true; $('hud').classList.remove('boss'); }
+  const S = m.S || [], out = [];
+  for (let i = 0; i < S.length; i += 8) { if (NET.used.has(S[i])) continue; const old = eshots.find((b) => b.nid === S[i]); const b = old || { nid: S[i] }; Object.assign(b, { x: S[i + 1] / 10, y: 1, z: S[i + 2] / 10, vx: S[i + 3] / 10, vz: S[i + 4] / 10, life: S[i + 5] / 10, rig: S[i + 6] === 1 ? 'chalkP' : undefined, dmg: S[i + 7], source: S[i + 6] === 1 ? 'chalk' : S[i + 6] === 2 ? 'boss' : 'ghost' }); out.push(b); }
+  for (const b of eshots) if (b.life <= 0 && b.nid) NET.used.add(b.nid);
+  eshots = out; if (NET.used.size > 4000) NET.used.clear();
+}
+// 队友这边的怪：平滑跟到房主给的位置；大魔王的砸地和冲撞在本地按时间结算
+function netMirrorStep(e, dt) {
+  if (e.nx != null) { const dx = e.nx - e.x, dz = e.nz - e.z, d = Math.hypot(dx, dz); if (d > 6) { e.x = e.nx; e.z = e.nz; } else { const k = Math.min(1, dt * 10); e.x += dx * k; e.z += dz * k; } e.moving = d > 0.05 ? 1 : 0; e.ph += Math.min(d, 1) * dt * 30; }
+  if (e.fuse > 0) e.fuse = Math.max(0.01, e.fuse - dt);
+  if (e.type !== 'boss') return;
+  const pd = Math.hypot(player.x - e.x, player.z - e.z);
+  if (e.slam > 0) { e.slam -= dt; tele.visible = true; tele.position.set(e.x, 0.05, e.z); tele.scale.setScalar(6.8 * (1 - e.slam / 0.9) + 0.5); tele.material.opacity = 0.15 + 0.25 * (1 - e.slam / 0.9);
+    if (e.slam <= 0) { tele.visible = false; ripple(e.x, e.z, 1.8); shake = 0.6; dust(e.x, e.z, 50, 9); ringFx(e.x, e.z, 7, 0xff5a4a, 0.4); if (pd < 7.2) hurtPlayer(32 * DF().dmg * tDmg(), e.type); } }
+  if (e.rushW > 0) { e.rushW -= dt; if (e.rushW <= 0) e.rushT = 0.75; }
+  else if (e.rushT > 0) { e.rushT -= dt; dust(e.x, e.z, 3, 5); if (!e.rushHit && pd < e.r + 1) { e.rushHit = true; hurtPlayer(34 * DF().dmg * tDmg(), e.type); } }
+}
+function netDie() {
+  player.ghost = 1;
+  player.ghostT = 12;
+  player.hp = 0;
+  hide();
+  state = 'play';
+  deathTaunt = pickDeathTaunt();
+  const reviveHint = '队友还站着的话，12 秒后原地复活';
+  banner('你倒下了', deathTaunt
+    ? `<span class="down-taunt">${deathTaunt.speaker}：「${deathTaunt.line}」</span>${reviveHint}`
+    : reviveHint);
+}
+function netGhostStep(dt) {
+  player.ghostT -= dt;
+  if (player.ghostT <= 0 && Object.values(NET.peers).some((p) => !p.dead)) { player.ghost = 0; player.dark = false; deathTaunt = null; defeatSource = null; player.hp = player.maxHp * 0.5; player.iframe = 2; ripple(player.x, player.z, 1.4); spark(player.x, 0.8, player.z, 0xffd23f, 90, 9, 0.45, 0.9); banner('复活了'); }
+}
+function drawPeers() {
+  const W_ = innerWidth, H_ = innerHeight, live = new Set();
+  for (const id in NET.peers) {
+    const p = NET.peers[id]; if (p.x == null || !CLASSES[p.h]) continue; live.add(id);
+    heroRig(p.h, SKINS[p.sk] ? p.sk : '').push(p.ps, worldM(p.x, 0, p.z, p.yaw || 0, 1, 1 + Math.sin(p.ps.ph * 2) * 0.02 * (p.mv || 0))); shadow(p.x, p.z, 0.55);
+    let el = ptags.querySelector(`[data-id="${id}"]`); if (!el) { el = document.createElement('span'); el.dataset.id = id; el.innerHTML = '<em></em><i><b></b></i>'; ptags.appendChild(el); }
+    el.firstChild.textContent = `${p.name} · Lv ${p.lv || 1}`; el.querySelector('b').style.width = (p.mh ? Math.max(0, p.hp / p.mh) * 100 : 0) + '%'; el.classList.toggle('dead', p.dead);
+    v3.set(p.x, 2.9, p.z).project(camera); el.style.transform = `translate(${(v3.x * 0.5 + 0.5) * W_}px, ${(-v3.y * 0.5 + 0.5) * H_}px) translate(-50%, -100%)`;
+  }
+  for (const el of [...ptags.children]) if (!live.has(el.dataset.id)) el.remove();
+}
+function netBegin(m) {
+  diffId = DIFFS[m.d] ? m.d : 'normal'; modeId = m.mode === 'endless' ? 'endless' : 'std';
+  const me = NET.room.players.find((p) => p.id === NET.id), hero = me && CLASSES[me.hero] && isOpen(me.hero) ? me.hero : myHero();
+  selIdx = CLS_IDS.indexOf(hero); NET.n = NET.room.players.length; NET.on = true; NET.peers = {}; NET.mir.clear(); NET.K = []; NET.used.clear();
+  const idx = NET.room.players.findIndex((p) => p.id === NET.id);
+  hide(); titleEl.hidden = true;
+  wipe(() => { startRun(); player.ghost = 0; player.dark = false; player.x = (idx - (NET.n - 1) / 2) * 1.8; banner(NET.n > 1 ? `${NET.n} 人联机` : '联机（一个人）', modeId === 'std' ? '一起撑到 10:00，打倒期末大魔王' : '无尽模式：一起撑得越久越好'); });
+}
+function netOver() {
+  if (state === 'dead' || state === 'win') return;
+  state = 'dead'; $('stage').classList.add('dead'); const gain = settle(false);
+  show(`<div class="eyebrow">联机 · ${MODES[modeId].name} · ${DF().name}</div><h2>全员倒下了</h2>
+    ${deathTauntCard(deathTaunt)}
+    <div class="stats"><div style="--i:0"><b>${fmt(T)}</b><small>撑了</small></div><div style="--i:1"><b>${player.kills}</b><small>击倒</small></div><div style="--i:2"><b>${player.lvl}</b><small>等级</small></div><div style="--i:3"><b>+${gain}</b><small>积分</small></div></div>
+    ${buildSummary()}<div class="actions"><button class="primary" id="nback">回联机大厅</button><button id="nhome">离开房间</button></div>`);
+  $('nback').onclick = () => netToLobby(); $('nhome').onclick = () => netLeave();
+}
+function netToLobby() { if (NET) { NET.on = false; NET.peers = {}; if (NET.host) netPost({ op: 'reset', code: NET.code, key: NET.key }).catch(() => {}); } wipe(() => { showTitle('home'); netLobby(); }); }
+function netLeave() {
+  const was = NET; NET = null; if (was) { was.es && was.es.close(); netPost({ op: 'leave', code: was.code, key: was.key }).catch(() => {}); }
+  if (state !== 'title') { settle(false); wipe(() => showTitle('home')); } else { hide(); backToTitle(); }
+}
+function netLost(reason) {
+  const was = NET; if (!was) return; NET = null; was.es && was.es.close();
+  const inRun = state !== 'title';
+  show(`<h2>联机断开了</h2><p>${reason}。</p><div class="actions"><button class="primary" id="nlok">回首页</button></div>`);
+  $('nlok').onclick = () => { hide(); if (inRun) { settle(false); wipe(() => showTitle('home')); } else backToTitle(); };
+}
+const lobbyOpen = () => !ov.hidden && panel.classList.contains('lobby');
+function netLobby() { if (state === 'title') titleEl.hidden = true; renderLobby(); }
+function renderLobby(err = '') {
+  if (!NET) {
+    show(`<h2>联机</h2><p>最多 4 人一起打同一局。房主负责刷怪和大魔王，大家的技能各打各的，经验都能拿到。</p>
+      <div class="nrow"><input id="nName" maxlength="12" placeholder="你的名字" value="${netName.replace(/"/g, '')}"><button class="primary" id="nCreate">建房间</button></div>
+      <div class="nrow"><input id="nCode" maxlength="4" placeholder="房间码" autocomplete="off"><button id="nJoin">加入</button></div>
+      <p class="err" id="nErr">${err}</p><div class="actions"><button id="nClose">返回</button></div>`, 'frame lobby');
+    const nm = () => { netName = $('nName').value.trim().slice(0, 12) || '同学'; try { localStorage.setItem('syntara.brawl.name', netName); } catch (e) {} return netName; };
+    const busy = (b) => { $('nCreate').disabled = $('nJoin').disabled = b; };
+    $('nCreate').onclick = async () => { busy(true); try { const h = myHero(); const r = await netPost({ op: 'create', name: nm(), hero: h, skin: skinOf(h) }); netOpen(r, true); renderLobby(); } catch (e) { renderLobby(e.message); } };
+    $('nJoin').onclick = async () => { const code = $('nCode').value.trim().toUpperCase(); if (code.length !== 4) return renderLobby('房间码是 4 位'); busy(true); try { const h = myHero(); const r = await netPost({ op: 'join', code, name: nm(), hero: h, skin: skinOf(h) }); netOpen(r, false); renderLobby(); } catch (e) { renderLobby(e.message); } };
+    $('nCode').onkeydown = (e) => { if (e.key === 'Enter') $('nJoin').click(); };
+    $('nClose').onclick = () => { hide(); backToTitle(); };
+    return;
+  }
+  const R_ = NET.room, me = R_.players.find((p) => p.id === NET.id), host = NET.id === R_.host, mine = me ? me.hero : myHero();
+  const slot = (p) => { const c = CLASSES[p.hero] || CLASSES.brawler; return `<div class="pl ${p.id === NET.id ? 'me' : ''}">${ico(TAGS[c.tag].c, c.start)}<div>${p.name}${p.id === R_.host ? '（房主）' : ''}<small>${c.name}${SKINS[p.skin] ? ' · ' + SKINS[p.skin].n : ''}</small></div></div>`; };
+  show(`<h2>房间 <span class="code">${R_.code}</span></h2><p>把房间码告诉同学，他们在首页点「联机」输入就能进来。最多 4 人。</p>
+    <div class="plist">${R_.players.map(slot).join('')}${Array.from({ length: 4 - R_.players.length }, () => '<div class="pl empty">等人加入</div>').join('')}</div>
+    <h3>我用</h3><div class="chips">${CLS_IDS.filter(isOpen).map((id) => `<button class="chip ${id === mine ? 'sel' : ''}" data-h="${id}">${ico(TAGS[CLASSES[id].tag].c, CLASSES[id].start)}${CLASSES[id].short || CLASSES[id].name}</button>`).join('')}</div>
+    ${host ? `<h3>难度</h3><div class="opts3">${Object.keys(DIFFS).map((d, k) => `<button class="opt ${d === diffId ? 'on' : ''}" data-d="${d}" style="--c:${['#b8f0cf', '#ffe07a', '#ffb0a8'][k]}"><b>${DIFFS[d].name}</b></button>`).join('')}</div>
+      <h3>模式</h3><div class="opts2">${Object.keys(MODES).map((m) => { const lk = m === 'endless' && !endlessOpen(); return `<button class="opt ${m === modeId && !lk ? 'on' : ''} ${lk ? 'lk' : ''}" data-m="${m}" ${lk ? 'disabled' : ''}><b>${MODES[m].name}</b>${lk ? '<small>通关一次标准模式解锁</small>' : ''}</button>`; }).join('')}</div>` : `<p>房主选难度后开局。</p>`}
+    <p class="err">${err}</p>
+    <div class="actions">${host ? `<button class="primary big" id="nGo" ${R_.started ? 'disabled' : ''}>开局${R_.players.length > 1 ? `（${R_.players.length} 人）` : ''}</button>` : '<button class="primary" disabled>等房主开局…</button>'}<button id="nLeave">离开房间</button></div>`, 'frame lobby');
+  panel.querySelectorAll('[data-h]').forEach((b) => b.onclick = () => { selIdx = CLS_IDS.indexOf(b.dataset.h); netPost({ op: 'hello', code: NET.code, key: NET.key, hero: b.dataset.h, skin: skinOf(b.dataset.h) }).then((r) => { if (NET) { NET.room = r.room; renderLobby(); } }).catch((e) => renderLobby(e.message)); });
+  panel.querySelectorAll('[data-d]').forEach((b) => b.onclick = () => { diffId = b.dataset.d; renderLobby(); });
+  panel.querySelectorAll('[data-m]').forEach((b) => b.onclick = () => { modeId = b.dataset.m; renderLobby(); });
+  if ($('nGo')) $('nGo').onclick = () => { if (modeId === 'endless' && !endlessOpen()) modeId = 'std'; $('nGo').disabled = true; netPost({ op: 'start', code: NET.code, key: NET.key, m: { d: diffId, mode: modeId } }).catch((e) => renderLobby(e.message)); };
+  $('nLeave').onclick = () => netLeave();
+}
 function pickHero(i) { selIdx = i % CLS_IDS.length; if (state === 'title') { titleStep = 'prep'; renderPrep(); } }
 function startRun() {
   clsId = CLS_IDS[selIdx]; cls = CLASSES[clsId]; if (!isOpen(clsId)) return;
   clearField();
-  Object.assign(player, { x: 0, z: 0, vx: 0, vz: 0, yaw: 0, hp: cls.hp, maxHp: cls.hp, speed: cls.spd, magnet: 2.4, lvl: 1, xp: 0, need: 5, kills: 0, weapons: { [cls.start]: 1 }, wup: {}, elem: {}, sp: {}, arts: {}, koi: 0, shield: false, st: { ...BASE_ST, crit: BASE_ST.crit + (cls.crit || 0) }, relics: {}, evo: {}, alt: {}, duos: {}, spinT: 0, slowT: 0, healAcc: 0, iframe: 0 });
-  player.score = DF().score; player.revives = DF().revive; watchT = 12; shieldT = 10; $('rmark').hidden = true;
+  defeatSource = deathTaunt = null;
+  const st = classBaseStats(cls);
+  const maxHp = cls.hp + growthBonus('maxHp');
+  for (const id of Object.keys(GROWTH_STATS)) {
+    if (id !== 'maxHp') st[id] += growthBonus(id);
+  }
+  Object.assign(player, { x: 0, z: 0, vx: 0, vz: 0, yaw: 0, hp: maxHp, maxHp, speed: cls.spd, magnet: 2.4, lvl: 1, xp: 0, need: 5, kills: 0, weapons: { [cls.start]: 1 }, wup: {}, elem: {}, sp: {}, arts: {}, koi: 0, shield: false, st, relics: {}, evo: {}, alt: {}, duos: {}, spinT: 0, slowT: 0, healAcc: 0, sockHealShown: 0, iframe: 0, ghost: 0, dark: false });
+  rerollCost = REROLL_BASE_COST; player.revives = DF().revive; watchT = 12; shieldT = 10; $('rmark').hidden = true;
   mctx.clearRect(0, 0, 1024, 1024); marksDirty = true;
   T = 0; spawnAcc = 0; settled = false; run = { tasks: 0, hg: 0, hit: -1 }; achClock = 0; nextElite = DF().elite * 1.8; nextBats = 25; nextBomb = 90; nextBoss = modeId === 'std' ? BOSS_T : 300; bossCount = 0; boss = null; ev = {}; timeScale = 1; pendingLevels = 0; task = null; nextTask = 50;
   for (const k in cds) delete cds[k];
   $('bossBar').hidden = true; $('hud').classList.remove('boss'); $('hud').hidden = false; titleEl.hidden = true; titleEl.innerHTML = ''; hide(); $('stage').classList.remove('dead'); $('task').hidden = true;
-  $('who').innerHTML = illustratedBadge('heroes', clsId, TAGS[cls.tag].c, 40); $('pname').textContent = cls.name; hud.lv = 1; hud.score = player.score; $('lv').textContent = 1; $('score').textContent = player.score;
+  $('who').innerHTML = illustratedBadge('heroes', clsId, TAGS[cls.tag].c, 40); $('pname').textContent = cls.name; hud.lv = 1; hud.points = meta.pts; $('lv').textContent = 1; $('score').textContent = meta.pts;
   camLook.set(0, 0, 0);
   for (let k = 0; k < 6; k++) spawnNear('sleepy', 8, 13);
   state = 'play'; SL = {}; refreshSets(); renderSlots(); renderItems(); banner('第一波', modeId === 'std' ? '撑到 10:00，期末大魔王会出现' : '无尽模式：撑得越久越好');
 }
 $('pauseBtn').onclick = () => { if (state === 'play') pause(); };
-function pause() { state = 'paused'; show(`<h2>暂停</h2>${statsHtml()}${buildSummary()}<div class="actions"><button class="primary" id="rs">继续</button><button id="qt">换个同学</button></div>`); $('rs').onclick = resume; $('qt').onclick = () => { settle(false); wipe(() => showTitle('prep')); }; $('rs').focus(); }
+function pause() {
+  if (NET && NET.on) { state = 'paused'; show(`<h2>暂停</h2><p>联机时世界不会停，怪也不会打你，但别离开太久。</p>${statsHtml()}${buildSummary()}<div class="actions"><button class="primary" id="rs">继续</button><button id="qt">离开联机</button></div>`); $('rs').onclick = resume; $('qt').onclick = () => netLeave(); $('rs').focus(); return; } state = 'paused'; show(`<h2>暂停</h2>${statsHtml()}${buildSummary()}<div class="actions"><button class="primary" id="rs">继续</button><button id="qt">换个同学</button></div>`); $('rs').onclick = resume; $('qt').onclick = () => { settle(false); wipe(() => showTitle('prep')); }; $('rs').focus(); }
 function resume() { hide(); state = 'play'; }
 function statsHtml() {
   return `<div class="stats-grid">${Object.keys(STATS).map((id) => `<div>${illustratedBadge('stats', id, STATS[id].c)}<span>${STATS[id].name}</span><b>${STATS[id].show(player.st[id])}</b></div>`).join('')}</div>`;
@@ -1948,12 +2643,45 @@ function renderSlots() {
     const label = elements.length ? `${name} · ${elements.map((element) => ELEMS[element].name).join(' + ')}` : name;
     sig[id] = `${l}:${evo ? 'base' : alt ? 'alt' : ''}:${elements.join('+')}`;
     const changed = slotSig[id] !== sig[id];
-    return `<div class="slot ${evo || alt ? 'evo' : ''}  ${changed ? 'bump' : ''}" title="${label}">${illustratedBadge(evo ? 'ultimates' : 'skills', id, w.c)}<b class="lv">${evo || alt ? '★' : l}</b>${badges ? `<span class="els" role="img" aria-label="${label}">${badges}</span>` : ''}<span class="wn">${name}</span></div>`;
+    const form = evo ? 'evo' : alt ? 'alt' : 'base';
+    return `<div class="slot ${evo || alt ? 'evo' : ''}  ${changed ? 'bump' : ''}" title="${label}">${illustratedBadge(SKILL_FORM_ICONS[form], id, w.c)}<b class="lv">${evo || alt ? '★' : l}</b>${badges ? `<span class="els" role="img" aria-label="${label}">${badges}</span>` : ''}<span class="wn">${name}</span></div>`;
   }).join('');
   slotSig = sig;
 }
+function showRunItems(selected) {
+  if (state !== 'play' || !ov.hidden) return;
+  state = 'paused';
+  endJoy();
+  const items = Object.keys(player.relics);
+  show(`<div class="chead"><h2>本局饰品</h2><span class="pts">${items.length} 种</span></div>
+    ${items.length ? `<ul class="inventory-list" aria-label="本局获得的饰品">${items.map((id) => {
+      const item = RELICS[id];
+      return `<li id="inventory-${id}" tabindex="-1">${illustration('relics', id)}
+        <div><b>${item.name}<span>×${R(id)}</span></b><small>每件 ${item.desc}</small></div>
+      </li>`;
+    }).join('')}</ul>` : '<p>本局还没有获得饰品。</p>'}
+    <div class="actions"><button class="primary" id="itemsClose">继续</button></div>`, 'frame inventory');
+  const close = $('itemsClose');
+  close.onclick = resume;
+  // The room keeps running while the local player is paused.
+  if (NET?.on) close.insertAdjacentHTML('beforebegin', '<small>联机时，房间仍在进行。</small>');
+  ($('inventory-' + selected) || close).focus();
+}
+$('itemsOpen').onclick = () => showRunItems();
 function renderItems() {
-  $('items').innerHTML = Object.keys(player.relics).map((id) => `<div class="ichip" title="${RELICS[id].name}：每件 ${RELICS[id].desc}">${illustration('relics', id)}${RELICS[id].name}<b>×${R(id)}</b></div>`).join('');
+  const items = Object.keys(player.relics);
+  $('items').hidden = !items.length;
+  const strip = $('itemStrip');
+  strip.innerHTML = items.map((id) => {
+    const item = RELICS[id], count = R(id);
+    const label = `${item.name} ×${count}，每件 ${item.desc}`;
+    return `<button type="button" class="item-chip" data-item="${id}" style="--item-color:${rarOf(id).c}" title="${label}" aria-label="${label}">
+      ${illustration('relics', id)}<b class="item-stack" aria-hidden="true">×${count}</b>
+    </button>`;
+  }).join('');
+  strip.querySelectorAll('[data-item]').forEach((button) => {
+    button.onclick = () => showRunItems(button.dataset.item);
+  });
 }
 function renderBuilds() {
   $('builds').innerHTML = Object.keys(TAGS).filter((t) => tagPts(t) > 0).map((t) => `<div class="bchip frame" style="--c:${TAGS[t].c}">${TAGS[t].name} ${tagPts(t)}<span class="tiers">${[1, 2, 3].map((k) => `<i class="${SL[t] >= k ? 'on' : ''}"></i>`).join('')}</span></div>`).join('');
@@ -1986,7 +2714,42 @@ function buildLine(tag) {
 }
 const deltaHtml = (s) => { const m = s.match(/^(.*?)\s*(\S+) → (.+)$/); return m ? `<span class="delta">${m[1]} <s>${m[2]}</s><em>→</em><b>${m[3]}</b></span>` : `<span class="delta">${s}</span>`; };
 const OPTION_ICON_CATEGORIES = { w: 'skills', u: 'skills', e: 'ultimates', d: 'duos', x: 'skills', r: 'relics', a: 'arts', s: 'stats' };
-function optionCard(o, i) {
+// 饰品和特殊升级使用固定的展示品质，保留原有的效果和掉落权重。
+const EPIC_CHEST_RELICS = new Set(['grimoire', 'ink']);
+const SPECIAL_CARD_TIERS = {
+  sweep:    [2, 3, 2, 0, 0, 1, 1, 1],
+  spin:     [1, 2, 3, 0, 1, 0, 2, 1],
+  mop:      [3, 2, 1, 0, 0, 0, 1, 2],
+  pencil:   [3, 2, 3, 1, 0, 1, 0, 2],
+  plane:    [3, 2, 2, 0, 0, 1, 0, 1],
+  slipper:  [1, 3, 2, 0, 1, 0, 0, 2],
+  stapler:  [1, 2, 3, 0, 1, 0, 0, 2],
+  shotgun:  [3, 1, 2, 0, 1, 0, 2, 0],
+  bolt:     [3, 2, 2, 1, 0, 0, 1, 0],
+  coffee:   [3, 1, 2, 0, 0, 1, 0, 2],
+  sock:     [3, 2, 1, 0, 0, 1, 2, 0],
+  rollcall: [2, 2, 1, 3, 0, 0, 1, 2],
+  minion:   [2, 1, 3, 2, 0, 0, 0, 1],
+  lamp:     [3, 1, 1, 2, 0, 0, 1, 0],
+  duck:     [2, 1, 3, 2, 1, 0, 0, 0],
+};
+function choiceCardTier(option, rarity) {
+  if (option.kind === 'r') {
+    const relic = RELICS[option.id];
+    if (relic.r === 2) return 3;
+    if (relic.curse || EPIC_CHEST_RELICS.has(option.id)) return 2;
+    return relic.r;
+  }
+  if (option.kind === 'x') {
+    const index = SP[option.w].findIndex(([id]) => id === option.id);
+    return SPECIAL_CARD_TIERS[option.w][index];
+  }
+  if (rarity === 'legend') return 3;
+  if (rarity === 'duo') return 2;
+  if (option.kind === 'w') return 1;
+  return option.tier ?? 0;
+}
+function optionCard(o, i, theme) {
   let c, kind, rar = '', rn = '', stars = 0, name, sub = '', desc = '', delta = '', pips = '', foot = '';
   let elementIcon;
   let category = OPTION_ICON_CATEGORIES[o.kind];
@@ -2001,6 +2764,11 @@ function optionCard(o, i) {
     else if (l + n >= MAXLV) { kind = `${w.name} 满级`; rar = 'legend'; rn = '终极形态'; category = 'ultimates'; name = w.evo.name; desc = w.evo.desc; }
     else if (INF_LV.includes(l + 1)) foot = '<span class="build">升到这一级会注入一次元素</span>';
     else if (l + 2 >= MAXLV) foot = `<span class="build">再升一级变成终极形态「${altOwned(o.id) ? w.evo.name + '」或「' + ALT[o.id].name : w.evo.name}」</span>`;
+    if (theme === 'upgrade') {
+      sub = rar === 'legend' ? kind : `Lv ${l} → ${l + n} · ${name}`;
+      if (rar !== 'legend') name = w.name;
+      kind = '技能强化';
+    }
   } else if (o.kind === 'r') {
     const r = RELICS[o.id], t = TAGS[r.tag]; const evoFor = Object.keys(WEAPONS).find((w) => WEAPONS[w].evo.relic === o.id && W(w));
     const ra = rarOf(o.id), have = R(o.id); c = ra.c; kind = (r.curse ? '代价饰品' : '饰品') + (t ? ' · ' + t.name : ''); rar = ra.k; rn = ra.n; name = r.name; sub = have ? `已有 ${have} 件，再叠一层` : '可以叠加'; desc = '每件：' + r.desc;
@@ -2022,7 +2790,12 @@ function optionCard(o, i) {
     if (o.id === 'armor') desc = `受到的伤害 -${Math.round(after / (after + 10) * 100)}%`; else if (S.max != null && S.max < 1) desc = `最高 ${S.show(S.max)}`;
   }
   const icon = elementIcon ?? illustratedBadge(category, o.kind === 'x' ? o.w : o.id, c);
-  return `<button class="card ucard ${rar ? 'r-' + rar : ''}" data-i="${i}" style="--c:${c};--i:${i}"><span class="kind"><i>${kind}</i>${rn ? `<em>${rn}</em>` : ''}</span>${icon}${stars ? `<span class="stars">${'<i></i>'.repeat(stars)}</span>` : ''}<span class="name">${name}</span>${sub ? `<span class="sub">${sub}</span>` : ''}${desc ? `<span class="desc">${desc}</span>` : ''}${delta}${pips}${foot}<kbd>${i + 1}</kbd></button>`;
+  const tier = theme ? choiceCardTier(o, rar) : null;
+  const themeAttr = theme ? ` data-card-tier="${tier}"` : '';
+  const upgradeType = theme === 'upgrade' ? (o.kind === 's' ? 'stat' : 'skill') : '';
+  const typeAttr = upgradeType ? ` data-upgrade-type="${upgradeType}"` : '';
+  if (theme) rn = TIER[tier].n;
+  return `<button class="card ucard ${rar ? 'r-' + rar : ''}" data-i="${i}"${themeAttr}${typeAttr} style="--c:${c};--i:${i}"><span class="kind"><i>${kind}</i>${rn ? `<em>${rn}</em>` : ''}</span>${icon}${stars ? `<span class="stars">${'<i></i>'.repeat(stars)}</span>` : ''}<span class="name">${name}</span>${sub ? `<span class="sub">${sub}</span>` : ''}${desc ? `<span class="desc">${desc}</span>` : ''}${delta}${pips}${foot}<kbd>${i + 1}</kbd></button>`;
 }
 function applyUpgrade(o) {
   if (o.kind === 'w') player.weapons[o.id] = 1;
@@ -2031,7 +2804,15 @@ function applyUpgrade(o) {
     if (l >= MAXLV && !player.evo[o.id] && !player.alt[o.id] && !altOwned(o.id)) { player.evo[o.id] = 1; banner(WEAPONS[o.id].evo.name, '终极形态', illustration('ultimates', o.id)); ripple(player.x, player.z, 1.5); spark(player.x, 1, player.z, 0xffc24a, 120, 9, 0.45, 0.9); shake = 0.4; } }
   else if (o.kind === 's') { const v = statVal(o.id, o.tier); if (o.id === 'maxHp') { player.maxHp += v; player.hp += v; } else player.st[o.id] = Math.min(STATS[o.id].max ?? Infinity, player.st[o.id] + v); }
   else if (o.kind === 'r') { player.relics[o.id] = R(o.id) + 1; if (o.id === 'drink') { player.maxHp += 10; player.hp += 10; player.st.regen += 0.05; } if (o.id === 'allnight') { player.maxHp *= 0.9; player.hp = Math.min(player.hp, player.maxHp); } if (o.id === 'glass') { player.maxHp *= 0.85; player.hp = Math.min(player.hp, player.maxHp); } if (o.id === 'slack') { player.st.speed += 0.1; player.magnet *= 1.2; } if (o.id === 'scope') player.st.crit += 0.05; renderItems(); }
-  else if (o.kind === 'ult') { if (o.v === 'b') player.alt[o.id] = 1; else player.evo[o.id] = 1; banner(o.v === 'b' ? ALT[o.id].name : WEAPONS[o.id].evo.name, '终极形态'); ripple(player.x, player.z, 1.5); spark(player.x, 1, player.z, 0xffc24a, 120, 9, 0.45, 0.9); shake = 0.4; }
+  else if (o.kind === 'ult') {
+    const form = o.v === 'b' ? 'alt' : 'evo';
+    const name = form === 'alt' ? ALT[o.id].name : WEAPONS[o.id].evo.name;
+    player[form][o.id] = 1;
+    banner(name, '终极形态', illustration(SKILL_FORM_ICONS[form], o.id));
+    ripple(player.x, player.z, 1.5);
+    spark(player.x, 1, player.z, 0xffc24a, 120, 9, 0.45, 0.9);
+    shake = 0.4;
+  }
   else if (o.kind === 'e') { player.evo[o.id] = 1; banner(WEAPONS[o.id].evo.name, '武器进化', illustration('ultimates', o.id)); ripple(player.x, player.z, 1.5); spark(player.x, 1, player.z, 0xffc24a, 120, 9, 0.45, 0.9); shake = 0.4; }
   else if (o.kind === 'd') { player.duos[o.id] = 1; banner(DUOS[o.id].name, '联动', illustration('duos', o.id)); spark(player.x, 1, player.z, 0x4fe0c0, 80, 8, 0.4, 0.8); }
   else if (o.kind === 'a') { player.arts[o.id] = 1; if (o.id === 'plate') player.st.armor += 3; if (o.id === 'grant') player.magnet *= 1.5; banner(ARTS[o.id].name, '获得遗物', illustration('arts', o.id)); spark(player.x, 1, player.z, 0xffc93c, 90, 9, 0.45, 0.9); ripple(player.x, player.z, 1.2); }
@@ -2041,24 +2822,63 @@ function applyUpgrade(o) {
 }
 // 三选一：点了以后被选中的卡放大，其余收走，再回到游戏
 function cardPick(opts, done) {
-  const wrap = panel.querySelector('.ucards'); let busy = false;
+  const wrap = panel.querySelector('.ucards');
+  const first = wrap.querySelector('.ucard');
+  let busy = false;
   panel.querySelectorAll('.ucard').forEach((b) => b.onclick = () => {
     if (busy) return; busy = true; b.classList.add('picked'); wrap.classList.add('picking');
-    setTimeout(() => done(opts[+b.dataset.i]), REDUCED ? 0 : 300);
+    const reroll = panel.querySelector('#rr');
+    if (reroll) reroll.disabled = true;
+    setTimeout(() => {
+      if (wrap.isConnected && state === 'levelup') done(opts[+b.dataset.i]);
+    }, REDUCED ? 0 : 300);
   });
-  const first = panel.querySelector('.ucard'); if (first) first.focus({ preventScroll: true });
+  first?.focus({ preventScroll: true });
+}
+function illustratedChoiceCards(options, theme) {
+  const cards = options.map((option, index) => optionCard(option, index, theme)).join('');
+  return `<div class="ucards" data-card-theme="${theme}" style="--n:${options.length}">${cards}</div>`;
 }
 function nextChoice() { if (pendingUlt.length) showUltPick(); else if (pendingInfuse.length) showInfuse(); else if (pendingLevels > 0) showLevelUp(); else { hide(); state = 'play'; } }
 const lvHead = (text, small, bg) => `<div class="lvhead"><div class="sunburst"></div><div class="ribbon"${bg ? ` style="background:${bg}"` : ''}>${text}${small ? `<small>${small}</small>` : ''}</div></div>`;
-function showLevelUp() {
+const REROLL_BASE_COST = 100;
+let rerollCost = REROLL_BASE_COST;
+const rerollFooter = (extra = '') => `<div class="lvfoot">
+  <button id="rr" ${meta.pts < rerollCost || !Number.isSafeInteger(rerollCost) ? 'disabled' : ''}>刷新 · ${rerollCost} 积分</button>
+  <span id="rrBalance" role="status">持有 ${meta.pts} 积分</span>${extra}
+</div>`;
+function bindReroll(options, roll, render) {
+  const key = (cards) => cards.map(({ kind, id, w, u, tier }) =>
+    [kind, id, kind === 'x' ? w : '', u, tier].join(':')).sort().join('|');
+  const previous = key(options);
+  $('rr').onclick = () => {
+    if (state !== 'levelup' || !Number.isSafeInteger(rerollCost) || meta.pts < rerollCost) return;
+    for (let attempt = 0; attempt < 12; attempt++) {
+      const next = roll();
+      if (!next.length || key(next) === previous) continue;
+      meta.pts -= rerollCost;
+      rerollCost = Math.ceil(rerollCost * 1.5);
+      saveMeta();
+      render(next);
+      return;
+    }
+    $('rrBalance').textContent = `没有刷出新选项，持有 ${meta.pts} 积分`;
+  };
+}
+function showLevelUp(replacement) {
   state = 'levelup'; const L = player.lvl - pendingLevels + 1, skill = SKILL_LV.includes(L) && Object.keys(player.weapons).length < MAXW;
-  const opts = skill ? weaponOptions() : upgradeOptions();
+  const roll = () => {
+    const weapons = skill ? weaponOptions() : [];
+    return weapons.length ? weapons : upgradeOptions();
+  };
+  const opts = replacement ?? roll();
   if (!skill && A('koi')) { const add = Math.min(opts.filter((o) => o.kind === 's' && o.tier === 0).length, 10 - player.koi); if (add > 0) { player.koi += add; player.st.luck = Math.min(STATS.luck.max, player.st.luck + add * 0.01); } }
-  show(`${lvHead(skill ? '新技能！' : '升级！', `Lv ${L}`, skill ? 'var(--coral)' : '')}
-    <div class="ucards" style="--n:${opts.length}">${opts.map(optionCard).join('')}</div>
-    <div class="lvfoot"><button id="rr" ${player.score < 1 ? 'disabled' : ''}>重抽（剩 ${player.score} 次）</button><details class="statsBox"><summary>当前属性</summary>${statsHtml()}</details></div>`, 'bare');
+  const learningSkill = opts.some((o) => o.kind === 'w');
+  show(`${lvHead(learningSkill ? '选一个新技能' : '选择升级', `Lv ${L}`, learningSkill ? '#a53e31' : '')}
+    ${illustratedChoiceCards(opts, 'upgrade')}
+    ${rerollFooter(`<details class="statsBox"><summary>当前属性</summary>${statsHtml()}</details>`)}`, 'bare');
   cardPick(opts, (o) => { applyUpgrade(o); spark(player.x, 1, player.z, 0xffd23f, 30, 6, 0.35, 0.6); ripple(player.x, player.z, 0.8); pendingLevels--; nextChoice(); });
-  $('rr').onclick = () => { if (player.score < 1) return; player.score--; showLevelUp(); };
+  bindReroll(opts, roll, showLevelUp);
 }
 function showUltPick() {
   state = 'levelup'; const id = pendingUlt[0], w = WEAPONS[id];
@@ -2066,7 +2886,7 @@ function showUltPick() {
   const card = (o, i) => {
     const alternate = o.v === 'b';
     const form = alternate ? ALT[id] : w.evo;
-    const icon = alternate ? ico(w.c, 'sparkle') : illustratedBadge('ultimates', id, w.c);
+    const icon = illustratedBadge(SKILL_FORM_ICONS[alternate ? 'alt' : 'evo'], id, w.c);
     return `<button class="card ucard r-legend" data-i="${i}" style="--c:${w.c};--i:${i}"><span class="kind"><i>${w.name} 满级</i><em>${alternate ? '抽卡得到' : '原版'}</em></span>${icon}<span class="name">${form.name}</span><span class="desc">${form.desc}</span><kbd>${i + 1}</kbd></button>`;
   };
   show(`${lvHead('选一个终极形态', w.name + ' Lv 10', 'var(--sun2)')}<div class="ucards" style="--n:2">${opts.map(card).join('')}</div>`, 'bare');
@@ -2074,14 +2894,14 @@ function showUltPick() {
 }
 function showInfuse() {
   state = 'levelup'; const id = pendingInfuse[0], opts = Object.keys(ELEMS).map((el) => ({ kind: 'el', id: el, w: id }));
-  show(`${lvHead('元素注入', `${WEAPONS[id].name} Lv ${wLevel(id)}`, 'var(--lilac)')}<div class="ucards" style="--n:4">${opts.map(optionCard).join('')}</div>`, 'bare');
+  show(`${lvHead('元素注入', `${WEAPONS[id].name} Lv ${wLevel(id)}`, 'var(--lilac)')}<div class="ucards" style="--n:4">${opts.map((option, index) => optionCard(option, index)).join('')}</div>`, 'bare');
   cardPick(opts, (o) => { const cur = player.elem[id] || [], cb = cur.length ? COMBOS[[cur[0], o.id].sort().join('+')] : null; pendingInfuse.shift(); applyUpgrade(o); banner(cb ? cb[0] : ELEMS[o.id].name + '元素', WEAPONS[id].name); nextChoice(); });
 }
 function showArts() {
   const pool = shuffle(Object.keys(ARTS).filter((a) => !A(a) && meta.arts.includes(a)));
   if (!pool.length) { player.hp = player.maxHp; banner('遗物已经拿完了', '生命回满'); return; }
   const opts = pool.slice(0, Math.random() < player.st.luck * 2 ? 4 : 3).map((id) => ({ kind: 'a', id }));
-  state = 'levelup'; show(`${lvHead('发现遗物！', '', 'var(--sun2)')}<div class="ucards" style="--n:${opts.length}">${opts.map(optionCard).join('')}</div>`, 'bare');
+  state = 'levelup'; show(`${lvHead('发现遗物！', '', 'var(--sun2)')}<div class="ucards" style="--n:${opts.length}">${opts.map((option, index) => optionCard(option, index)).join('')}</div>`, 'bare');
   cardPick(opts, (o) => { applyUpgrade(o); nextChoice(); });
 }
 addEventListener('keydown', (e) => { if (state === 'levelup' && /^[1-4]$/.test(e.key)) { const b = panel.querySelectorAll('.ucard')[+e.key - 1]; if (b) b.click(); } });
@@ -2091,24 +2911,52 @@ function specialOptions(n = 3) {
   for (let r = 0; r < 8 && out.length < n; r++) for (const q of by) if (q[r] && out.length < n) out.push(q[r]);
   return out;
 }
-function openChest(c) {
-  if (c && c.sp) { const o = specialOptions(Math.random() < player.st.luck * 2 ? 4 : 3);
-    if (o.length) { state = 'levelup'; show(`${lvHead('特殊升级！', '任务奖励', 'var(--lilac)')}<div class="ucards" style="--n:${o.length}">${o.map(optionCard).join('')}</div>`, 'bare'); cardPick(o, (x) => { applyUpgrade(x); nextChoice(); }); return; } }
-  const luckN = Math.random() < player.st.luck * 2 ? 4 : 3;
-  const pick = []; for (let k = 0; k < luckN; k++) { const id = rollRelic([50, 40, 10], k === 0 ? 0.12 : 0, pick); if (id) pick.push(id); }
-  const relics = pick.map((id) => ({ kind: 'r', id }));
-  if (!relics.length) {
-    let o = c && c.sp ? [] : specialOptions(luckN), head = lvHead('特殊升级！', '宝箱', 'var(--lilac)');
-    if (!o.length) { o = shuffle(Object.keys(STATS).filter((id) => STATS[id].max == null || player.st[id] < STATS[id].max - 1e-6)).slice(0, luckN).map((id) => ({ kind: 's', id, tier: 2 })); head = lvHead('宝箱开了！', '', 'var(--sun2)'); }
-    state = 'levelup'; show(`${head}<div class="ucards" style="--n:${o.length}">${o.map(optionCard).join('')}</div>`, 'bare'); cardPick(o, (x) => { applyUpgrade(x); nextChoice(); }); return; }
+function chestOptions(special, gift, firstRelic) {
+  const options = special ? specialOptions(3) : [];
+  const relicIds = firstRelic ? [firstRelic] : [];
+  if (firstRelic) options.push({ kind: 'r', id: firstRelic });
+  const weights = gift ? [78, 20, 2] : [50, 40, 10];
+  while (options.length < 3) {
+    const id = rollRelic(weights, gift || relicIds.length ? 0 : 0.12, relicIds);
+    if (!id) break;
+    relicIds.push(id);
+    options.push({ kind: 'r', id });
+  }
+  if (!special && options.length < 3) options.push(...specialOptions(3 - options.length));
+  const stats = shuffle(Object.keys(STATS).filter((id) => STATS[id].max == null || player.st[id] < STATS[id].max - 1e-6));
+  for (const id of stats.slice(0, 3 - options.length)) options.push({ kind: 's', id, tier: 2 });
+  return options;
+}
+function openChest(chest, replacement) {
   state = 'levelup';
-  show(`${lvHead('宝箱开了！', '', 'var(--sun2)')}<div class="ucards" style="--n:${relics.length}">${relics.map(optionCard).join('')}</div>`, 'bare');
-  cardPick(relics, (o) => { applyUpgrade(o); nextChoice(); });
+  const special = !!chest?.sp;
+  const gift = chest?.relic;
+  const roll = () => chestOptions(special, gift);
+  const options = replacement ?? chestOptions(special, gift, gift);
+  show(`${lvHead(gift ? '发现饰品！' : '宝箱开了！', special ? '任务奖励' : '三选一', special ? 'var(--lilac)' : 'var(--sun2)')}
+    ${illustratedChoiceCards(options, special ? 'task' : 'chest')}${rerollFooter()}`, 'bare');
+  cardPick(options, (o) => { applyUpgrade(o); nextChoice(); });
+  bindReroll(options, roll, (next) => openChest(chest, next));
+}
+function pickDeathTaunt() {
+  const type = defeatSource === 'inkmini' ? 'ink' : defeatSource;
+  const speaker = (MON_INFO[type] || MON_MORE[type])?.[0];
+  const lines = DEATH_TAUNTS[clsId];
+  if (!speaker || !lines?.length) return null;
+  return { type, speaker, line: lines[Math.floor(Math.random() * lines.length)] };
+}
+function deathTauntCard(taunt) {
+  if (!taunt) return '';
+  return `<figure class="death-taunt">
+    ${illustration('mons', taunt.type)}
+    <div><figcaption>${taunt.speaker}</figcaption><blockquote>「${taunt.line}」</blockquote></div>
+  </figure>`;
 }
 function showDeath() {
   state = 'dead'; $('stage').classList.add('dead');
   if (modeId === 'endless' && T > bestEndless) { bestEndless = T; try { localStorage.setItem(BEST_KEY, String(Math.floor(T))); } catch (e) {} }
   show(`<div class="eyebrow">${MODES[modeId].name} · ${DF().name}</div><h2>${cls.name}被淹没了</h2>
+    ${deathTauntCard(pickDeathTaunt())}
     <div class="stats"><div style="--i:0"><b>${fmt(T)}</b><small>撑了</small></div><div style="--i:1"><b>${player.kills}</b><small>击倒</small></div><div style="--i:2"><b>${player.lvl}</b><small>等级</small></div><div style="--i:3"><b>${Object.keys(player.arts).length}</b><small>遗物</small></div></div>
     ${modeId === 'endless' ? `<p>无尽最好成绩 ${fmt(bestEndless)}。</p>` : ''}${buildSummary()}
     <p>现在结束可以拿到 ${runPoints(false)} 积分。</p>
@@ -2118,11 +2966,13 @@ function showDeath() {
   (player.revives > 0 ? $('rv') : $('again')).focus();
 }
 function revive() {
+  defeatSource = null;
   player.revives--; player.hp = player.maxHp; player.iframe = 1.5; $('stage').classList.remove('dead');
   buildGrid(); query(player.x, player.z, 7, (e, dx, dz) => { const L = Math.hypot(dx, dz) || 1; e.kx += dx / L * 20; e.kz += dz / L * 20; hitEnemy(e, 60); });
   eshots = []; ripple(player.x, player.z, 2); spark(player.x, 0.8, player.z, 0xffd23f, 160, 12, 0.45, 1); shake = 0.5; chroma = 0.6; hide(); state = 'play';
 }
 function showWin() {
+  if (NET && NET.on && NET.host) netSend({ k: 'end', win: 1 });
   state = 'win';
   const gain = settle(true), nxt = null;
   show(`${confetti()}<div class="eyebrow">${MODES[modeId].name} · ${DF().name}</div><h1>通关！</h1>
@@ -2130,6 +2980,7 @@ function showWin() {
     <div class="stats"><div style="--i:0"><b>${fmt(T)}</b><small>用时</small></div><div style="--i:1"><b>${player.kills}</b><small>击倒</small></div><div style="--i:2"><b>${player.lvl}</b><small>等级</small></div><div style="--i:3"><b>${Object.keys(player.arts).length}</b><small>遗物</small></div></div>
     ${buildSummary()}<div class="actions"><button class="primary" id="again">再来一局</button><button id="wbook">去图鉴</button></div>`);
   $('again').onclick = () => wipe(() => { if (nxt) selIdx = CLS_IDS.findIndex((id) => CLASSES[id].tag === nxt); showTitle('prep'); }); $('again').focus(); $('wbook').onclick = () => wipe(() => { showTitle('home'); showCodex(); });
+  if (NET) { $('again').textContent = '回联机大厅'; $('again').onclick = () => netToLobby(); $('wbook').textContent = '离开房间'; $('wbook').onclick = () => netLeave(); }
 }
 
 /* ================= 主循环 ================= */
@@ -2141,6 +2992,95 @@ function resize() {
   PART.mat.uniforms.uScale.value = GLOW.mat.uniforms.uScale.value = h * 0.9;
 }
 addEventListener('resize', resize); resize();
+
+// Run the real combat and renderer in a repeatable encounter, isolated from
+// the player's match and progression by the preview frame.
+let demoSkill = null;
+let demoForm = 'base';
+let demoSockAlly = null;
+let skillDemoRound = 0;
+const DEMO_X = RCX - 2, DEMO_Z = RCZ;
+const DEMO_TARGETS = {
+  sweep: [[2.2, -.65], [2.4, .8]],
+  spin: [[2.4, .2], [-2.4, -.4]],
+  mop: [[2.7, .1], [3.1, -1.1]],
+  pencil: [[3.2, -.3], [5.7, -.3], [8.1, -.3]],
+  plane: [[4.9, -3.1], [7.2, .1]],
+  shotgun: [[2.9, -.5], [3.7, .1], [4.7, 1]],
+  bolt: [[3.1, -.8], [5.5, .8], [8, -.7]],
+  rollcall: [[3.4, .65], [5.7, -.8], [7.7, 0, 'hourglass']],
+  duck: [[5.5, -.7], [6.5, 0], [8.2, -1.1]],
+};
+const DEMO_DURATION = { coffee: 5, rollcall: 4.5, minion: 6, lamp: 6, duck: 6.3 };
+const DEMO_ULT_TARGETS = {
+  sweep: [[2.3, -.7], [3.3, .8], [-2.5, -.2], [.3, -3]],
+  shotgun: [[2.4, 0], [0, 2.4], [-2.4, 0], [0, -2.4]],
+  bolt: [[2.5, -2], [3.1, .2], [3, 2.2], [5.7, -2.4], [5.8, 0], [6.3, 2.1]],
+  rollcall: [[2.2, -2], [3.1, .5], [4.2, 2], [5.2, -1.5], [6.6, 0, 'hourglass']],
+};
+const DEMO_ALT_TARGETS = {
+  sweep: [[2.4, 0], [4.8, 0], [7.1, 0]],
+  shotgun: DEMO_ULT_TARGETS.shotgun,
+  bolt: DEMO_ULT_TARGETS.bolt,
+  sock: [[2.9, -.6], [4.7, 1], [-4.6, -.8], [.1, -4.5]],
+};
+
+function resetSkillDemo() {
+  skillDemoRound++;
+  clearField();
+  for (const id of Object.keys(cds)) delete cds[id];
+  for (const effect of slashes) effect.t = 1.6;
+  for (const effect of rings) effect.t = 1;
+  for (const particles of [PART, GLOW]) particles.life.fill(0);
+  for (const number of NUMS) { number.life = 0; number.el.style.opacity = 0; }
+  sripStart.fill(-99);
+  for (const rip of RIPS) rip.z = -100;
+  mctx.clearRect(0, 0, 1024, 1024);
+  marksDirty = true;
+  shake = chroma = hurt = sweepFx.t = 0;
+  T = 0;
+  state = 'demo';
+  const level = demoForm === 'base' ? 1 : MAXLV;
+  demoSockAlly = demoSkill === 'sock' && demoForm === 'alt'
+    ? { x: DEMO_X - 2.3, z: DEMO_Z + 1.2, hp: 60, maxHp: 100 }
+    : null;
+  Object.assign(player, {
+    x: DEMO_X, z: DEMO_Z, yaw: HP_, hp: cls.hp, maxHp: cls.hp,
+    weapons: { [demoSkill]: level },
+    wup: { [demoSkill]: { lv: level - 1 } },
+    evo: demoForm === 'evo' ? { [demoSkill]: 1 } : {},
+    alt: demoForm === 'alt' ? { [demoSkill]: 1 } : {},
+    st: classBaseStats(cls),
+    kills: 0, hit: 0, spinT: 0, moving: 0,
+  });
+  const formTargets = demoForm === 'evo' ? DEMO_ULT_TARGETS : demoForm === 'alt' ? DEMO_ALT_TARGETS : {};
+  const targets = formTargets[demoSkill] || DEMO_TARGETS[demoSkill] || [[5.2, -.45], [7.3, -1.3], [8.6, .5]];
+  for (const [x, z, type = 'sleepy'] of targets) {
+    const enemy = spawn(type, DEMO_X + x, DEMO_Z + z);
+    enemy.spawn = 0;
+    enemy.dps = 0;
+    enemy.cdA = 4;
+    enemy.spd *= demoSkill === 'duck' || (demoSkill === 'sock' && demoForm === 'alt') ? .9 : .45;
+    if (type === 'sleepy') enemy.hp = enemy.maxHp *= demoForm === 'base' ? 4 : 12;
+  }
+}
+
+if (skillDemoMode) {
+  document.body.classList.add('skill-demo');
+  addEventListener('message', (event) => {
+    if (event.source !== window.parent || event.origin !== location.origin) return;
+    if (event.data?.type !== 'sandbox-brawl:skill-demo') return;
+    const { skill, form } = event.data;
+    if (typeof skill !== 'string' || !Object.hasOwn(WEAPONS, skill)) return;
+    if (form !== 'base' && form !== 'evo' && !(form === 'alt' && Object.hasOwn(ALT, skill))) return;
+    if (skill === demoSkill && form === demoForm) return;
+    demoSkill = skill;
+    demoForm = form;
+    clsId = CLS_IDS.find((id) => CLASSES[id].start === skill);
+    cls = CLASSES[clsId];
+    resetSkillDemo();
+  });
+}
 const SPAWN_TABLE = [['sleepy', 0, 5], ['bomber', 30, 0.3], ['chalk', 60, 1.4], ['cross', 120, 4], ['mole', 180, 0.5], ['clock', 240, 2], ['ink', 330, 2], ['ghost', 390, 1.5], ['phone', 450, 1.1], ['snail', 510, 0.9]];
 // 每分钟一个事件：新怪物登场、任务、地图遗物、期中考、考前冲刺
 function minuteEvent(m) {
@@ -2158,12 +3098,14 @@ function nextEventText() {
   return E ? `下一个：${E[0] === 'boss' ? '大魔王' : EV_NAME[E[0]]} ${fmt(left)}` : `${MODES[modeId].name} · ${DF().name}`;
 }
 let thunderCd = 0, ringCd = 0;
-function update(dt) {
+function updateMatch(dt) {
   achClock += dt; if (achClock > 0.5) { achClock = 0; checkAch(true); }
   T += dt;
   let mx = (keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0);
   let mz = (keys.KeyS || keys.ArrowDown ? 1 : 0) - (keys.KeyW || keys.ArrowUp ? 1 : 0);
   if (joy) { mx = joy.dx; mz = joy.dy; }
+  if (state !== 'play') mx = mz = 0;
+  if (player.ghost) netGhostStep(dt);
   const L = Math.hypot(mx, mz); if (L > 1) { mx /= L; mz /= L; }
   const wx = mx * Math.cos(AZ) + mz * Math.sin(AZ), wz = -mx * Math.sin(AZ) + mz * Math.cos(AZ);
   player.slowT -= dt; player.iframe -= dt;
@@ -2177,24 +3119,43 @@ function update(dt) {
   // 回血：回复属性 + 近战一阶吸血（每秒最多 3）
   let heal = player.st.regen * dt;
   if (player.healAcc > 0) { const h = Math.min(player.healAcc, 0.8 * dt); heal += h; player.healAcc = Math.max(0, player.healAcc - h - 2 * dt); }
-  player.hp = Math.min(player.maxHp, player.hp + heal);
+  if (!player.ghost) player.hp = Math.min(player.maxHp, player.hp + heal);
+  if (NET?.on && !player.ghost) sockSupport(player, remoteSockAuras(), dt);
 
+  if (!NET || !NET.on || NET.host) {
   // 刷怪：越往后越多越强
-  const rate = (1.6 + Math.min(T, 1500) * 0.011) * DF().rate * (boss ? 0.5 : 1);
+  const rate = (1.6 + Math.min(T, 1500) * 0.011) * DF().rate * (boss ? 0.5 : 1) * (NET && NET.on ? 1 + 0.4 * (NET.n - 1) : 1);
   spawnAcc += dt * rate;
   const table = SPAWN_TABLE.filter((s) => T >= s[1]), tw = table.reduce((a, b) => a + b[2], 0);
   while (spawnAcc > 1) { spawnAcc--; let r = Math.random() * tw, i = 0; while ((r -= table[i][2]) > 0) i++; let ty = table[i][0]; const capN = { bomber: 3, chalk: 10, mole: 3 }[ty]; if (capN && enemies.filter((q) => q.type === ty && !q.dead).length >= capN) ty = T >= 60 && Math.random() < 0.4 ? 'cross' : 'sleepy'; spawnNear(ty); }
   if (T >= nextBats && !boss) { nextBats += 25; const a = Math.random() * TAU; for (let k = 0; k < 7; k++) { const e = spawn('bat', clamp(player.x + Math.cos(a) * 15 + rnd(-1.5, 1.5), -HX + 0.6, HX - 0.6), clamp(player.z + Math.sin(a) * 15 + rnd(-1.5, 1.5), -HZ + 0.6, HZ - 0.6)); if (e) e.spawn = 0; } }
   flowT -= dt; if (flowT <= 0) { flowT = 0.2; buildFlow(player.x, player.z); }
   portalAcc += dt; if (portalAcc >= (T < 20 ? 20 : 7) && !boss) { portalAcc = 0; if (!ev.portal) { ev.portal = true; banner('角落的洞开了', '怪会从四个角落一队一队走出来'); } portalWave(); }
+  }
   const minute = Math.floor(T / EVT);
   if (minute > 0 && !ev['m' + minute] && !boss) { ev['m' + minute] = true; minuteEvent(minute); }
+  if (!NET || !NET.on || NET.host) {
   if (T >= GIANT_T && !ev.giant) { ev.giant = true; banner('大块头来了', '个头很大的怪会挤占你的走位空间'); forceGiant = true; for (const ty of ['sleepy', 'cross', 'sleepy']) spawnNear(ty, 11, 14); forceGiant = false; shake = Math.max(shake, 0.3); }
   if (T >= nextElite && !boss) { nextElite += DF().elite * 1.8; spawnNear('hourglass', 12, 15); banner('DDL 沙漏人', '打倒它有机会掉宝箱', illustration('mons', 'hourglass')); }
   if (T >= nextBoss - 10 && !ev['warn' + nextBoss]) { ev['warn' + nextBoss] = true; banner('期末大魔王', '还有 10 秒', illustration('mons', 'boss')); }
   if (T >= nextBoss && !boss) { spawnNear('boss', 12, 14); $('bossBar').hidden = false; $('hud').classList.add('boss'); shake = 0.5; banner(bossCount ? `期末大魔王 · 第 ${bossCount + 1} 次` : '期末大魔王', '', illustration('mons', 'boss')); nextBoss = modeId === 'endless' ? nextBoss + 300 : Infinity; if (task) endTask(false); }
+  }
+}
 
-  buildGrid(); fire(dt); CW = null; updateSummons(dt); CW = null; updateTask(dt);
+function update(dt) {
+  if (skillDemoMode) {
+    T += dt;
+    player.spinT = Math.max(0, player.spinT - dt * 5);
+  } else {
+    updateMatch(dt);
+  }
+  buildGrid(); if (!player.ghost) fire(dt); CW = null; updateSummons(dt); CW = null; updateTask(dt);
+  if (NET?.on && NET.host) {
+    for (const aura of remoteSockAuras()) {
+      query(aura.x, aura.z, aura.radius, (enemy) => { enemy.sockSlow = 1; });
+    }
+  }
+  if (demoSockAlly) sockSupport(demoSockAlly, [{ x: player.x, z: player.z, radius: sockAuraRadius() }], dt);
   // 流派三阶的全场效果
   if (SL.magic >= 3) { thunderCd -= dt; if (thunderCd <= 0) { thunderCd = 0.5; const e = nearest(player.x + rnd(-6, 6), player.z + rnd(-6, 6), 9); if (e) { zap([{ x: e.x + rnd(-1, 1), y: 12, z: e.z + rnd(-1, 1) }, { x: e.x, y: 0.4, z: e.z }], 0xc9b8ff, 0.18, 0.8); hitEnemy(e, 40, 0, 0, 'magic'); ripple(e.x, e.z, 0.4); spark(e.x, 0.5, e.z, 0xc9b8ff, 14, 5, 0.35, 0.35); } } }
   if (SL.gun >= 3) { ringCd -= dt; if (ringCd <= 0) { ringCd = 1.2; for (let k = 0; k < 16; k++) shoot('staple', player.x, 0.85, player.z, k / 16 * TAU, 20, 0.6, 6 + 2 * W('stapler'), 'gun'); } }
@@ -2267,24 +3228,31 @@ function update(dt) {
   books = books.filter((b) => !b.done || b.after < 0.5);
 
   CW = null;
-  let touching = 0;
+  let touching = 0, contactSource = null;
+  function addContact(enemy) {
+    touching += enemy.dps;
+    if (!contactSource || enemy.dps > contactSource.dps) contactSource = enemy;
+  }
   for (const e of enemies) {
     if (e.dead) continue;
     e.hit = Math.max(0, e.hit - dt * 7); e.slow -= dt; e.spinCd = (e.spinCd || 0) - dt; e.stink -= dt;
+    if (e.sockSlow > 0) e.sockSlow -= dt;
     if (e.burn > 0) { e.burn -= dt; e.burnTick -= dt; if (e.burnTick <= 0) { e.burnTick = 0.5; e.hp -= e.burnDps * 0.5; if (Math.random() < 0.4) dmgNum(e.x, e.z, e.burnDps * 0.5, 'burn', e.r * 2 + 0.3); spark(e.x, e.r + 0.4, e.z, 0xff7a2a, 3, 1, 0.35, 0.5, -2); if (e.hp <= 0) { killEnemy(e, 'magic'); continue; } } }
     e.acid -= dt; e.brittle -= dt; e.chill = (e.chill || 0) - dt;
     if (e.burn > 0 && Math.random() < dt * 10) spark(e.x + rnd(-0.3, 0.3), e.r + 0.5, e.z + rnd(-0.3, 0.3), Math.random() < 0.5 ? 0xff7a2a : 0xffd23f, 1, 1.2, 0.46, 0.45, -4);
     if (e.acid > 0 && Math.random() < dt * 8) { spark(e.x + rnd(-0.4, 0.4), e.r + 0.7, e.z + rnd(-0.4, 0.4), 0x9be03a, 1, 0.6, 0.42, 0.5, 5); if (Math.random() < 0.2) blot(e.x + rnd(-0.3, 0.3), e.z + rnd(-0.3, 0.3), 0.22, 'rgba(120,190,40,.4)'); }
     if (e.chill > 0 && Math.random() < dt * 6) spark(e.x + rnd(-0.4, 0.4), e.r + 0.8, e.z + rnd(-0.4, 0.4), 0xd8f2ff, 1, 0.5, 0.32, 0.6, 2);
+    if (NET && NET.on && !NET.host) { netMirrorStep(e, dt); if (!e.inv && !player.ghost && e.spawn <= 0 && Math.hypot(player.x - e.x, player.z - e.z) < e.r + 0.45) addContact(e); continue; }
     if (e.fb > 0) { e.fb -= dt; e.hp -= e.fbDps * dt; if (Math.random() < dt * 3) spark(e.x, e.r + 0.3, e.z, 0x9fe0ff, 1, 1, 0.3, 0.5, -1); if (e.hp <= 0) { killEnemy(e, ''); continue; } }
     if (e.frz > 0) { e.frz -= dt; e.moving = 0; continue; }
     if (e.spawn > 0) { e.spawn -= dt * 1.7; if (Math.random() < 0.3 && !e.fly) dust(e.x, e.z, 2, 2); if (e.spawn > 0) continue; }
-    const pdx = player.x - e.x, pdz = player.z - e.z, pd = Math.hypot(pdx, pdz) || 1;
+    const tg = NET && NET.on ? netTarget(e) : player, pdx = tg.x - e.x, pdz = tg.z - e.z, pd = Math.hypot(pdx, pdz) || 1;
     // 橡皮鸭会把附近的怪吸引过去（大魔王不吃这一套）
-    let tx = player.x, tz = player.z;
+    let tx = tg.x, tz = tg.z;
     if (ducks.length && e.type !== 'boss') { let bd = SPX('duck', 'lure') ? 196 : 81; for (const dk of ducks) { const q = (dk.x - e.x) ** 2 + (dk.z - e.z) ** 2; if (q < bd) { bd = q; tx = dk.x; tz = dk.z; } } }
     const dx = tx - e.x, dz = tz - e.z, d = Math.hypot(dx, dz) || 1;
-    let s = e.spd * (e.slow > 0 ? 0.45 : 1), ux = dx / d, uz = dz / d;
+    const sockSlowed = e.sockSlow > 0;
+    let s = e.spd * (!sockSlowed && e.slow > 0 ? 0.45 : 1), ux = dx / d, uz = dz / d;
     if (!e.fly && (regionOf(e.x, e.z) !== regionOf(tx, tz) || (d > 2.5 && lineBlocked(e.x, e.z, tx, tz))) && flowDir(e)) { ux = FD[0]; uz = FD[1]; }
     e.cdA -= dt;
     switch (e.type) {
@@ -2295,7 +3263,7 @@ function update(dt) {
         else if (e.ringing > 0) { e.ringing -= dt; s = 0; if (e.ringing <= 0) { e.dash = 0.45; e.dx = ux; e.dz = uz; } }
         else if (e.cdA <= 0 && d < 9) { e.cdA = 3.5; e.ringing = 0.7; dmgNum(e.x, e.z, '叮铃!', 'tag', 1.6); }
         break;
-      case 'ghost': if (pd < 6) { ux = -pdx / pd; uz = -pdz / pd; s *= 0.6; } if (e.cdA <= 0 && pd < 12) { e.cdA = 2.6; eshots.push({ x: e.x, y: 1.0, z: e.z, vx: pdx / pd * 8, vz: pdz / pd * 8, life: 2.2 }); } break;
+      case 'ghost': if (pd < 6) { ux = -pdx / pd; uz = -pdz / pd; s *= 0.6; } if (e.cdA <= 0 && pd < 12) { e.cdA = 2.6; eshots.push({ x: e.x, y: 1.0, z: e.z, vx: pdx / pd * 8, vz: pdz / pd * 8, life: 2.2, source: e.type }); } break;
       case 'phone': if (pd < 4) { player.slowT = 0.3; if (Math.random() < 0.02) dmgNum(player.x, player.z, '分心', 'tag', 2.2); } break;
       case 'snail': if (Math.random() < dt * 3) blot(e.x, e.z, 0.5, 'rgba(90,140,80,.4)'); break;
       case 'bomber':
@@ -2306,7 +3274,7 @@ function update(dt) {
         } else if (pd < 3.2) { e.fuse = e.fuseMax = FUSE; dmgNum(e.x, e.z, '要炸了！', 'tag', 3.6); ripple(e.x, e.z, 0.5); }
         break;
       case 'chalk':
-        if (e.aim > 0) { s = 0; e.aim -= dt; if (e.aim <= 0) { eshots.push({ x: e.x + e.ax * 0.5, y: 0.9, z: e.z + e.az * 0.5, vx: e.ax * 13, vz: e.az * 13, life: 1.5, rig: 'chalkP', dmg: 10 }); e.cdA = 2.6; spark(e.x + e.ax * 0.5, 0.9, e.z + e.az * 0.5, 0xffffff, 6, 3, 0.3, 0.2, 0); } }
+        if (e.aim > 0) { s = 0; e.aim -= dt; if (e.aim <= 0) { eshots.push({ x: e.x + e.ax * 0.5, y: 0.9, z: e.z + e.az * 0.5, vx: e.ax * 13, vz: e.az * 13, life: 1.5, rig: 'chalkP', dmg: 10, source: e.type }); e.cdA = 2.6; spark(e.x + e.ax * 0.5, 0.9, e.z + e.az * 0.5, 0xffffff, 6, 3, 0.3, 0.2, 0); } }
         else if (pd < 5) { ux = -pdx / pd; uz = -pdz / pd; }
         else if (pd < 10.5) { if (pd < 8.5) s = 0; if (e.cdA <= 0) { e.aim = 0.75; e.ax = pdx / pd; e.az = pdz / pd; zap([{ x: e.x, y: 0.9, z: e.z }, { x: e.x + e.ax * 11, y: 0.9, z: e.z + e.az * 11 }], 0xff4a4a, 0.75, 0); } }
         break;
@@ -2317,7 +3285,7 @@ function update(dt) {
           if (pd < 1.1 || e.ut <= 0) { e.ms = 'pop'; e.pop = 0.65; ringFx(e.x, e.z, 1.7, 0xffb04a, 0.65, 0.8); ringFx(e.x, e.z, 1.7, 0xff5a4a, 0.3, 0.6); }
         } else if (e.ms === 'pop') {
           s = 0; e.pop -= dt;
-          if (e.pop <= 0) { e.inv = false; e.ms = 'dizzy'; e.dz = 2.4; e.up = 4; dust(e.x, e.z, 22, 6); ripple(e.x, e.z, 0.6); shake = Math.max(shake, 0.12); if (pd < 1.6) hurtPlayer(11 * DF().dmg * tDmg()); }
+          if (e.pop <= 0) { e.inv = false; e.ms = 'dizzy'; e.dz = 2.4; e.up = 4; dust(e.x, e.z, 22, 6); ripple(e.x, e.z, 0.6); shake = Math.max(shake, 0.12); if (pd < 1.6) hurtPlayer(11 * DF().dmg * tDmg(), e.type); }
         } else if (e.ms === 'dizzy') {
           s = 0; e.dz -= dt; e.up -= dt; if (Math.random() < dt * 9) { const a = realTime * 6 + Math.random(); spark(e.x + Math.cos(a) * 0.5, e.r * 2 + 0.55, e.z + Math.sin(a) * 0.5, 0xffe07a, 1, 0.3, 0.3, 0.45, 0); }
           if (e.dz <= 0) { e.ms = 'walk'; e.mcd = 8; }
@@ -2325,35 +3293,36 @@ function update(dt) {
         break;
       case 'boss':
         if (e.rushW > 0) { e.rushW -= dt; s = 0; if (Math.random() < dt * 30) dust(e.x, e.z, 2, 4); if (e.rushW <= 0) { e.rushT = 0.75; e.rushHit = false; shake = Math.max(shake, 0.3); } }
-        else if (e.rushT > 0) { e.rushT -= dt; s = 17; ux = e.ax; uz = e.az; dust(e.x, e.z, 3, 5); if (!e.rushHit && pd < e.r + 1) { e.rushHit = true; hurtPlayer(34 * DF().dmg * tDmg()); } }
+        else if (e.rushT > 0) { e.rushT -= dt; s = 17; ux = e.ax; uz = e.az; dust(e.x, e.z, 3, 5); if (!e.rushHit && pd < e.r + 1) { e.rushHit = true; hurtPlayer(34 * DF().dmg * tDmg(), e.type); } }
         else if (e.slam > 0) { e.slam -= dt; s = 0; tele.visible = true; tele.position.set(e.x, 0.05, e.z); tele.scale.setScalar(6.8 * (1 - e.slam / 0.9) + 0.5); tele.material.opacity = 0.15 + 0.25 * (1 - e.slam / 0.9);
-          if (e.slam <= 0) { tele.visible = false; ripple(e.x, e.z, 1.8); shake = 0.6; chroma = 0.5; dust(e.x, e.z, 50, 9); ringMark(e.x, e.z, 6.2, 'rgba(20,10,5,.5)', 12); ringFx(e.x, e.z, 7, 0xff5a4a, 0.4); if (pd < 7.2) hurtPlayer(32 * DF().dmg * tDmg()); } }
+          if (e.slam <= 0) { tele.visible = false; ripple(e.x, e.z, 1.8); shake = 0.6; chroma = 0.5; dust(e.x, e.z, 50, 9); ringMark(e.x, e.z, 6.2, 'rgba(20,10,5,.5)', 12); ringFx(e.x, e.z, 7, 0xff5a4a, 0.4); if (pd < 7.2) hurtPlayer(32 * DF().dmg * tDmg(), e.type); } }
         else if (e.cdA <= 0) {
           if (!e.enraged && DF().enrage && e.hp < e.maxHp * 0.5) { e.enraged = true; banner('大魔王发怒了', '攻击更快，招式更多'); shake = 0.6; chroma = 0.8; ripple(e.x, e.z, 2); spark(e.x, 2, e.z, 0xff3a4a, 90, 9, 0.4, 0.9); }
-          const nAtk = (DF().storm || e.enraged) ? 4 : 3; e.atk = (e.atk + 1) % nAtk;
+          const nAtk = (DF().storm || e.enraged) ? 4 : 3; e.atk = (e.atk + 1) % nAtk; e.atkN = (e.atkN || 0) + 1;
           if (e.atk === nAtk - 1) { e.rushW = 0.85; e.ax = pdx / pd; e.az = pdz / pd; dmgNum(e.x, e.z, '冲撞!', 'tag', 5); zap([{ x: e.x, y: 0.6, z: e.z }, { x: e.x + e.ax * 13, y: 0.6, z: e.z + e.az * 13 }], 0xff4a4a, 0.85, 0, 4); }
           else if (e.atk === 0) e.slam = 0.9;
           else if (e.atk === 1) { const usePhone = diffId === 'hard' && e.enraged, cnt = diffId === 'easy' ? 6 : 10; for (let k = 0; k < cnt; k++) { const a = k / cnt * TAU; const n = spawn(k % 2 && usePhone ? 'phone' : 'cross', clamp(e.x + Math.cos(a) * 4.6, -HX + 0.6, HX - 0.6), clamp(e.z + Math.sin(a) * 4.6, -HZ + 0.6, HZ - 0.6)); if (n) n.spawn = 0.4; } ripple(e.x, e.z, 1); }
           else { // 卷子雨：两圈纸团往外飞，第二圈错开半格
             const n = diffId === 'hard' ? 18 : 14; dmgNum(e.x, e.z, '卷子雨!', 'tag', 3.2);
-            for (let w = 0; w < 2; w++) setTimeout(() => { if (!boss) return; for (let k = 0; k < n; k++) { const a = (k + w * 0.5) / n * TAU; eshots.push({ x: e.x, y: 1.2, z: e.z, vx: Math.cos(a) * 7, vz: Math.sin(a) * 7, life: 3 }); } ripple(e.x, e.z, 0.8); }, w * 450);
+            for (let w = 0; w < 2; w++) setTimeout(() => { if (!boss) return; for (let k = 0; k < n; k++) { const a = (k + w * 0.5) / n * TAU; eshots.push({ x: e.x, y: 1.2, z: e.z, vx: Math.cos(a) * 7, vz: Math.sin(a) * 7, life: 3, source: e.type }); } ripple(e.x, e.z, 0.8); }, w * 450);
           }
           e.cdA = DF().cd * (e.enraged ? 0.7 : 1);
         }
         break;
     }
+    if (sockSlowed) s *= SOCK_ALT_SPEED;
     let ax = ux * s, az = uz * s;
     query(e.x, e.z, e.r * 0.9, (o, ox, oz) => { if (o === e || o.fly !== e.fly) return; const L2 = Math.hypot(ox, oz) || 0.01, push = (e.r + o.r - L2) * 2.4; if (push > 0) { ax -= ox / L2 * push; az -= oz / L2 * push; } });
     e.x += (ax + e.kx) * dt; e.z += (az + e.kz) * dt; e.kx *= Math.pow(0.02, dt); e.kz *= Math.pow(0.02, dt);
     if (!e.fly) pushOutProps(e, e.r); else { e.x = clamp(e.x, -HX, HX); e.z = clamp(e.z, -HZ, HZ); }
     e.moving = s > 0 ? 1 : 0; e.ph += s * dt * 3.2;
-    if (pd < e.r + 0.45 && !e.inv) touching += e.dps;
+    if (tg === player && pd < e.r + 0.45 && !e.inv) addContact(e);
   }
   // 贴身伤害按 0.45 秒结算一次，每次都能闪避
-  if (touching && player.iframe <= 0) { player.iframe = 0.45; hurtPlayer(touching * 0.45); }
-  for (const b of eshots) { b.x += b.vx * dt; b.z += b.vz * dt; b.life -= dt; if (b.life > 0 && inWall(b.x, b.z, 0.05)) { b.life = 0; burst(b.x, 1, b.z, 0xf7f4ea, 8, 3, 0.28, 0.3); dust(b.x, b.z, 3, 2); } else if (Math.hypot(b.x - player.x, b.z - player.z) < 0.6) { b.life = 0; hurtPlayer((b.dmg || 8) * DF().dmg * tDmg()); burst(b.x, 1, b.z, 0xf7f4ea, 10, 3, 0.3, 0.3); } }
+  if (touching && player.iframe <= 0) { player.iframe = 0.45; hurtPlayer(touching * 0.45, contactSource.type); }
+  for (const b of eshots) { b.x += b.vx * dt; b.z += b.vz * dt; b.life -= dt; if (b.life > 0 && inWall(b.x, b.z, 0.05)) { b.life = 0; burst(b.x, 1, b.z, 0xf7f4ea, 8, 3, 0.28, 0.3); dust(b.x, b.z, 3, 2); } else if (Math.hypot(b.x - player.x, b.z - player.z) < 0.6) { b.life = 0; hurtPlayer((b.dmg || 8) * DF().dmg * tDmg(), b.source); burst(b.x, 1, b.z, 0xf7f4ea, 10, 3, 0.3, 0.3); } }
   eshots = eshots.filter((b) => b.life > 0);
-  if (player.hp <= 0) { player.hp = 0; burst(player.x, 0.8, player.z, 0xd8423a, 60, 7, 0.35, 0.8); showDeath(); return; }
+  if (player.hp <= 0 && !player.ghost) { player.hp = 0; burst(player.x, 0.8, player.z, 0xd8423a, 60, 7, 0.35, 0.8); if (NET && NET.on) netDie(); else { showDeath(); return; } }
 
   // 我方子弹：穿透、分裂、弹射、爆炸
   const born = [];
@@ -2383,14 +3352,25 @@ function update(dt) {
       if (--p.pierce < 0) p.life = 0; else p.target = null; });
   }
   planes = planes.filter((p) => p.life > 0).concat(bornP); CW = null;
+  if (skillDemoMode) {
+    enemies = enemies.filter((e) => !e.dead);
+    return;
+  }
   for (const g of gems) { const dx = player.x - g.x, dz = player.z - g.z, d = Math.hypot(dx, dz) || 0.01; if (d < player.magnet) g.pull = true; if (g.pull) { g.s = Math.min(g.s + dt * 40, g.vac ? 48 : 22); g.x += dx / d * g.s * dt; g.z += dz / d * g.s * dt; } if (d < 0.6) { g.got = true; player.xp += g.v * (1 + player.st.xp) * (A('grant') ? 1.3 : 1); } }
   gems = gems.filter((g) => !g.got);
   while (player.xp >= player.need) { player.xp -= player.need; player.lvl++; player.need = Math.round(3 + player.lvl * 2 + 0.2 * Math.pow(player.lvl, 2.25)); pendingLevels++; }
-  for (const c of chests) if (Math.hypot(player.x - c.x, player.z - c.z) < 1.3) { chests = chests.filter((q) => q !== c); openChest(c); break; }
+  if (state === 'play') for (const c of chests) if (Math.hypot(player.x - c.x, player.z - c.z) < 1.3) { chests = chests.filter((q) => q !== c); openChest(c); break; }
   for (const d of drops) if (Math.hypot(player.x - d.x, player.z - d.z) < 1.1) { d.got = true; for (const g of gems) { g.pull = true; g.vac = true; } ringFx(player.x, player.z, 9, 0x7fe0ff, 0.6); ripple(player.x, player.z, 1.2); banner('知识吸取', '全场经验都飞过来了'); }
   drops = drops.filter((d) => !d.got);
-  for (const g of gifts) { g.t += dt; if (g.t > 40) g.got = true; else if (Math.hypot(player.x - g.x, player.z - g.z) < 1.1) { g.got = true; applyUpgrade({ kind: 'r', id: g.id }); const ra = rarOf(g.id); banner(`${RELICS[g.id].name} ×${R(g.id)}`, `${ra.n}饰品 · ${RELICS[g.id].desc}`); spark(g.x, 1, g.z, RELICS[g.id].curse ? 0x6a8aff : RAR3[RELICS[g.id].r], 40, 6, 0.4, 0.7); ripple(g.x, g.z, 0.7); } }
-  gifts = gifts.filter((g) => !g.got);
+  for (const g of gifts) g.t += dt;
+  gifts = gifts.filter((g) => g.t <= 40);
+  if (state === 'play') {
+    const gift = gifts.findIndex((g) => Math.hypot(player.x - g.x, player.z - g.z) < 1.1);
+    if (gift !== -1) {
+      const [pickup] = gifts.splice(gift, 1);
+      openChest({ relic: pickup.id });
+    }
+  }
   for (const a of altars) { a.age += dt; if (state === 'play' && Math.hypot(player.x - a.x, player.z - a.z) < 1.6) { altars = altars.filter((q) => q !== a); showArts(); break; } }
   if (A('watch')) { watchT -= dt; if (watchT <= 0) { watchT = 12; for (const e of enemies) if (e.type !== 'boss' && !e.inv) e.frz = 1.5; ringFx(player.x, player.z, 12, 0x9fe0ff, 0.6); dmgNum(player.x, player.z, '时停！', 'tag', 2.6); } }
   if (A('bubble')) { if (!player.shield) { shieldT -= dt; if (shieldT <= 0) { player.shield = true; spark(player.x, 1, player.z, 0x9fe0ff, 20, 3, 0.3, 0.6, 0); } } else if (Math.random() < 0.4) spark(player.x + Math.cos(realTime * 5) * 0.8, 0.9, player.z + Math.sin(realTime * 5) * 0.8, 0x9fe0ff, 1, 0.2, 0.3, 0.4, 0); }
@@ -2437,6 +3417,12 @@ function draw(dt) {
     });
   }
   if (state !== 'title') podium.visible = false;
+  if (state !== 'title' && NET && NET.on) drawPeers(); else if (ptags.childElementCount) ptags.innerHTML = '';
+  if (demoSockAlly) {
+    const { x, z } = demoSockAlly;
+    heroRig('scholar', '').push(STILL, worldM(x, 0, z, HP_, 1));
+    shadow(x, z, 0.55);
+  }
   gStage.visible = state === 'title' && titleStep === 'gacha';
   let fi = 0;
   for (const e of enemies) {
@@ -2457,6 +3443,19 @@ function draw(dt) {
   STILL.etint = elT('rollcall'); for (const bk of books) { const y = bk.done ? 0.13 : bk.t / 0.45 * 7 + 0.13; RIGS.bookP.push(STILL, worldM(bk.x, y, bk.z, bk.x * 3, 1.2, 1.2, 1.2, bk.done ? 0 : bk.t * 6)); if (!bk.done) shadow(bk.x, bk.z, 0.6 * Math.max(0, 1 - bk.t)); }
   STILL.etint = null;
   sockRing.visible = !!player.weapons.sock && state !== 'title';
+  const auras = remoteSockAuras();
+  if (sockRing.visible && player.alt.sock && !player.ghost && player.hp > 0)
+    auras.unshift({ x: player.x, z: player.z, radius: sockAuraRadius() });
+  outerSockMaterial.opacity = 0.64 + 0.16 * Math.sin(realTime * 3);
+  sockAuraMeshes.forEach((mesh, i) => {
+    const aura = auras[i];
+    mesh.visible = !!aura;
+    if (aura) {
+      mesh.position.set(aura.x, 0.032, aura.z);
+      mesh.scale.setScalar(aura.radius * 1.12);
+      mesh.rotation.z -= dt * 0.65;
+    }
+  });
   if (sockRing.visible) { const R0 = sockR || 2; sockRing.position.set(player.x, 0.04, player.z); sockRing.scale.setScalar(R0 * 1.12 * (1 + 0.04 * Math.sin(realTime * 4))); sockRing.rotation.z += dt * 0.5; sockRing.material.opacity = 0.62 + 0.14 * Math.sin(realTime * 3); sockRing.material.color.set(EC('sock') ?? 0xa8e04a); if (EC('sock') != null && state === 'play' && Math.random() < dt * 1.4) elemBurst('sock', player.x, player.z, R0);
     const nS = player.evo.sock ? 4 : 3; for (let k = 0; k < nS; k++) { const a = -realTime * 1.6 + k / nS * TAU; RIGS.sockP.push({ ph: realTime * 3 + k, hit: 0, seed: k * 0.3, moving: 0, glowMul: 2, etint: elT('sock', k) }, worldM(player.x + Math.cos(a) * R0 * 0.78, 0.75 + Math.sin(realTime * 3 + k * 2) * 0.18, player.z + Math.sin(a) * R0 * 0.78, a + realTime * 2, 1.25)); }
     if (state === 'play' && Math.random() < dt * 16) { const a = rnd(0, TAU), r = rnd(0.4, 1) * R0; spark(player.x + Math.cos(a) * r, 0.3, player.z + Math.sin(a) * r, ecRand('sock') ?? (Math.random() < 0.7 ? 0xa8d84a : 0xd8f08a), 1, 0.8, 0.42, 0.7, -2.5); } }
@@ -2514,6 +3513,17 @@ function draw(dt) {
     if (titleStep === 'gacha') { tV.set(0.2 + rnd(-shk, shk) * 0.4, port ? 4.6 : 3.4, GZ + (port ? 19 : 11)); tL.set(port ? -0.4 : -0.4, port ? 1.3 : 1.8, GZ); if (gch.snap) { gch.snap = false; camPos.copy(tV); camTgt.copy(tL); } }
     const ck = Math.min(1, dt * 4); camPos.lerp(tV, ck); camTgt.lerp(tL, ck); camera.position.copy(camPos); camera.lookAt(camTgt);
     if (titleStep === 'gacha') torch.position.set(0.2, 4.6, GZ + 4); else torch.position.set(TX, 4.2, TZ + 4.5); sandMat.uniforms.uPlayer.value.set(TX, 0, TZ);
+  } else if (skillDemoMode) {
+    const closeRange = ['sweep', 'mop', 'spin', 'sock'].includes(demoSkill) &&
+      !(demoForm === 'alt' && demoSkill === 'sweep') &&
+      !(demoForm !== 'base' && demoSkill === 'sock');
+    const targetX = DEMO_X + (closeRange ? .8 : 3.1);
+    const zoom = Math.max(1, 1.65 / camera.aspect);
+    const distance = closeRange && demoForm === 'base' ? .78 : 1;
+    camera.position.set(targetX + 8 * zoom * distance, 13 * zoom * distance, DEMO_Z + 10 * zoom * distance);
+    camera.lookAt(targetX, .8, DEMO_Z - .6);
+    torch.position.set(player.x, 3.2, player.z);
+    sandMat.uniforms.uPlayer.value.set(player.x, 0, player.z);
   } else {
     camLook.lerp(v3.set(player.x, 0, player.z), Math.min(1, dt * 6));
     const D = 17.5 * camK, H = 18.5 * camK;
@@ -2524,10 +3534,10 @@ function draw(dt) {
   shake = Math.max(0, shake - dt * 1.8); chroma = Math.max(0, chroma - dt * 2.2); hurt = Math.max(0, hurt - dt * 1.4); player.warn = Math.max(0, (player.warn || 0) - dt * 4.5); $('hurtFx').classList.toggle('low', state === 'play' && player.hp < player.maxHp * 0.3);
   finalPass.uniforms.uChroma.value = REDUCED ? chroma * 0.3 : chroma; finalPass.uniforms.uHurt.value = hurt;
   for (let i = 0; i < 6; i++) SCREEN_RIPS[i].z = sripStart[i] < 0 ? -1 : realTime - sripStart[i];
-  if (state !== 'title') {
+  if (state !== 'title' && !skillDemoMode) {
     $('hpFill').style.width = (player.hp / player.maxHp * 100) + '%'; $('hpText').textContent = Math.ceil(player.hp);
     $('xpFill').style.width = (player.xp / player.need * 100) + '%'; $('clock').textContent = fmt(T); $('wave').textContent = boss ? (boss.enraged ? '大魔王发怒' : '首领战') : nextEventText();
-    if (hud.score !== player.score) { hud.score = player.score; $('score').textContent = player.score; bump($('scPill'), 'pop'); }
+    if (hud.points !== meta.pts) { hud.points = meta.pts; $('score').textContent = meta.pts; bump($('scPill'), 'pop'); }
     if (hud.lv !== player.lvl) { hud.lv = player.lvl; $('lv').textContent = player.lvl; bump($('lvb'), 'pop'); }
     $('kills').textContent = player.kills; $('hpGhost').style.width = (player.hp / player.maxHp * 100) + '%'; $('pcard').classList.toggle('low', player.hp < player.maxHp * 0.3);
     if (boss) $('bossFill').style.width = (Math.max(0, boss.hp) / boss.maxHp * 100) + '%';
@@ -2549,14 +3559,21 @@ function frame(now) {
   const raw = Math.min(0.05, (now - last) / 1000); last = now;
   realTime += raw; uTime.value = realTime;
   const dt = raw * timeScale;
-  if (state === 'play') update(dt); else if (state === 'title') { titleAmbience(raw); if (titleStep === 'gacha') updateGacha(raw); }
-  draw(state === 'play' || state === 'title' ? dt : raw * 0.12);
+  if (skillDemoMode && !demoSkill) { requestAnimationFrame(frame); return; }
+  if (skillDemoMode) {
+    if (T >= (DEMO_DURATION[demoSkill] || 3.6)) resetSkillDemo();
+    update(raw);
+  } else {
+    if (NET?.on && state !== 'title') netTick(raw);
+    if (state === 'play' || (NET?.on && (state === 'levelup' || state === 'paused'))) update(dt); else if (state === 'title') { titleAmbience(raw); if (titleStep === 'gacha') updateGacha(raw); }
+  }
+  draw(skillDemoMode || state === 'play' || state === 'title' ? dt : raw * 0.12);
   composer.render(); requestAnimationFrame(frame);
 }
 window.__game = { get chests() { return chests; }, openChest2: openChest, SP, LVUP, WALLS, regionOf, inWall, HX, HZ, portalWave, PORTALS, get gems() { return gems; }, hurtPlayer, TIER, CLS_IDS, minuteEvent, spawnAltar, showArts, get altars() { return altars; }, get drops() { return drops; }, infuse(id) { pendingInfuse.push(id); showInfuse(); },
   get state() { return state; }, startRun, setDiff(d) { diffId = d; }, setMode(m) { modeId = m; }, unlockAll() { meta.heroes = [...CLS_IDS]; meta.arts = Object.keys(ARTS); meta.relics = Object.keys(RELICS); }, meta, showCodex, settle, get cups() { return cups; }, get pools() { return pools; }, get bolts() { return bolts; }, startTask, get task() { return task; }, get enemies() { return enemies; }, spawn, upgradeOptions, get boss() { return boss; }, get T() { return T; }, set T(v) { T = v; }, player, applyUpgrade, showTitle,
-  pick(i) { pickHero(i); }, ACH, SKINS, ALT, gch, showUltPick, get pendingUlt() { return pendingUlt; }, openGacha, gachaStart, gachaPull, showAch, checkAch, get run() { return run; }, renderHome, renderGacha, showLevelUp, showWin, showDeath, openChest, get step_() { return titleStep; },
+  pick(i) { pickHero(i); }, get NET() { return NET; }, netLobby, renderLobby, ACH, SKINS, ALT, gch, showUltPick, get pendingUlt() { return pendingUlt; }, openGacha, gachaStart, gachaPull, showAch, checkAch, get run() { return run; }, renderHome, renderGacha, showLevelUp, showWin, showDeath, openChest, get step_() { return titleStep; },
   step(s) { for (let k = 0; k < s * 30; k++) { update(1 / 30); realTime += 1 / 30; uTime.value = realTime; draw(1 / 30); if (state !== 'play') break; } },
 };
-showTitle();
+if (!skillDemoMode) showTitle();
 requestAnimationFrame(frame);
