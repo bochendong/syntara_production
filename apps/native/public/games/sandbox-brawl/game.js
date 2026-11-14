@@ -581,6 +581,7 @@ class Rig {
       if (e.burn > 0) tC.lerp(ORANGE, 0.6 + 0.25 * Math.sin(realTime * 20 + i));
       if (e.hit) tC.lerp(WHITE, Math.min(1, e.hit) * 0.85);
       if (e.dark) tC.multiplyScalar(0.035);
+      if (e.ghostly) tC.lerp(GHOSTC, 0.72);
       if (e.warn) tC.lerp(REDC, e.warn); if (e.frz > 0) tC.lerp(ICEC, 0.85); else { if (e.chill > 0) tC.lerp(ICEC, 0.55); if (e.acid > 0) tC.lerp(ACIDC, 0.62 + 0.12 * Math.sin(realTime * 9)); }
       P.m.setColorAt(i, tC);
       if (P.ol) { OM.multiplyMatrices(CM, OUT_S); P.ol.setMatrixAt(i, OM); }
@@ -591,6 +592,7 @@ class Rig {
     this.n = 0;
   }
 }
+const GHOSTC = new THREE.Color(0xdcefff);
 const RIGS = {}; for (const id in RIGS_DEF) RIGS[id] = new Rig(RIGS_DEF[id], RIG_CAP[id] ?? (id.startsWith('hero_') ? 4 : 1));
 const RIG_OF = (type) => type === 'inkmini' ? 'ink' : type;
 function worldM(x, y, z, yaw, sx, sy = sx, sz = sx, pitch = 0, roll = 0) { wE.set(pitch, yaw, roll, 'YXZ'); wQ.setFromEuler(wE); return WM.compose(wP.set(x, y, z), wQ, wS.set(sx, sy, sz)); }
@@ -1434,7 +1436,9 @@ function killEnemy(e, tag) {
   const big = e.type === 'boss' ? 260 : e.type === 'hourglass' ? 70 : 14;
   burst(e.x, 0.6, e.z, RIMC[e.type], big, e.r * 6 + 3, e.r * 0.4 + 0.25, 0.8);
   spark(e.x, 0.6, e.z, 0xffd9a0, 5, 4, 0.3, 0.3);
-  if (gems.length < 580) gems.push({ x: e.x, z: e.z, v: e.xp * (NET && NET.on && NET.n > 1 ? 0.75 : 1), sz: gemSize(e.xp), pull: false, s: 0, ph: Math.random() * 6 }); else { const g = gems[(Math.random() * gems.length) | 0]; g.v += e.xp; g.sz = Math.max(g.sz, gemSize(g.v)); }
+  const gid = NET && NET.on ? 'k' + (e.nid ?? e.id) : undefined;
+  if (gid && NET.gotG.has(gid)) {}
+  else if (gems.length < 580) gems.push({ x: e.x, z: e.z, v: e.xp * (NET && NET.on && NET.n > 1 ? 0.75 : 1), sz: gemSize(e.xp), pull: false, s: 0, ph: Math.random() * 6, gid }); else { const g = gems[(Math.random() * gems.length) | 0]; g.v += e.xp; g.sz = Math.max(g.sz, gemSize(g.v)); }
   if (e.type === 'ink') { blot(e.x, e.z, 0.9, 'rgba(70,84,220,.5)', 5, 0.9); for (const s of [-1, 1]) { const m = spawn('inkmini', e.x + s * 0.4, e.z); if (m) { m.spawn = 0; m.kx = s * 6; m.kz = rnd(-3, 3); } } }
   else if (e.type === 'snail') blot(e.x, e.z, 1.2, 'rgba(90,140,80,.6)', 4, 1);
   else if (e.type === 'bomber') blasts.push({ x: e.x, z: e.z, t: e.fuse === -1 ? 0 : 0.2 });
@@ -1447,17 +1451,18 @@ function killEnemy(e, tag) {
   if (e.brittle > 0) { ringFx(e.x, e.z, 1.7, 0x9fe0ff, 0.25); spark(e.x, 0.6, e.z, 0xd8f4ff, 12, 7, 0.35, 0.35); query(e.x, e.z, 1.7, (o) => hitEnemy(o, e.maxHp * 0.3, 0, 0, '', RAWK)); }
   // 知识吸取：把全场经验吸过来
   if ((Math.random() < 0.012 || e.type === 'hourglass') && drops.length < 3) drops.push({ x: e.x, z: e.z });
-  if (e.type !== 'boss' && e.type !== 'hourglass' && Math.random() < (e.giant ? 0.06 : 0.005) && gifts.length < 3) { const id = rollRelic([78, 20, 2]); if (id) gifts.push({ x: e.x, z: e.z, id, t: 0 }); }
+  if (e.type !== 'boss' && e.type !== 'hourglass' && !(NET && NET.on) && Math.random() < (e.giant ? 0.06 : 0.005) && gifts.length < 3) { const id = rollRelic([78, 20, 2]); if (id) gifts.push({ x: e.x, z: e.z, id, t: 0 }); }
   if (e.burn > 0 && SL.magic >= 2) { ringFx(e.x, e.z, 2.5, 0xff7a2a, 0.3); spark(e.x, 0.6, e.z, 0xff7a2a, 14, 5, 0.4, 0.4); query(e.x, e.z, 2.5, (o) => { o.burn = 3; o.burnDps = Math.max(o.burnDps || 0, e.burnDps || 5); }); }
   if (tag === 'summon' && player.evo.minion && minions.length < 30) addMinion(3, e.x, e.z);
   if (task && task.type === 'kill' && Math.hypot(e.x - task.x, e.z - task.z) < task.rad) { task.prog++; spark(e.x, 0.8, e.z, 0xff5a5a, 6, 3, 0.3, 0.4); }
   if (e.type === 'snail' || e.type === 'phone' || e.type === 'hourglass') { ripple(e.x, e.z, 0.6); shake = Math.max(shake, 0.12); }
   if (e.type === 'hourglass') run.hg++;
-  if (e.type === 'hourglass' && Math.random() < 0.4) chests.push({ x: e.x, z: e.z });
+  // 联机：宝箱只由房主生成（大家共用），多人时掉率低一些
+  if (e.type === 'hourglass' && !netGuest() && Math.random() < (NET && NET.on && NET.n > 1 ? 0.22 : 0.4)) chests.push({ x: e.x, z: e.z });
   if (e.type === 'boss') {
     boss = null; $('bossBar').hidden = true; $('hud').classList.remove('boss'); ripple(e.x, e.z, 1.6); shake = 0.8; chroma = 1; bossCount++;
     if (modeId === 'std') { timeScale = 0.25; setTimeout(() => { timeScale = 1; showWin(); }, 1400); }
-    else { banner('大魔王倒下了', '它还会回来，而且更强'); chests.push({ x: e.x, z: e.z }); }
+    else { banner('大魔王倒下了', '它还会回来，而且更强'); if (!netGuest()) chests.push({ x: e.x, z: e.z }); }
   }
 }
 // 经验球分三档：小怪掉小的，中等怪掉中的，大怪和精英掉大的
@@ -1755,7 +1760,7 @@ const TASKS = {
 const PLATE_C = [0xf0564a, 0x3f97e8, 0xffc93c, 0x4fbf6a];
 const hex = (c) => '#' + c.toString(16).padStart(6, '0');
 const shuffle = (a) => { for (let i = a.length - 1; i > 0; i--) { const j = (Math.random() * (i + 1)) | 0; [a[i], a[j]] = [a[j], a[i]]; } return a; };
-let task = null, nextTask = 50, taskHudT = 0;
+let task = null, nextTask = 50, taskHudT = 0, worldSeq = 0;
 // 任务圈：转动的虚线边 + 往外扩的波纹 + 扇形进度
 const zoneMat = new THREE.ShaderMaterial({
   uniforms: { uColor: { value: new THREE.Color() }, uProg: { value: 0 }, uTime }, transparent: true, depthWrite: false, toneMapped: false,
@@ -1823,7 +1828,7 @@ function startTask(force) {
   const types = Object.keys(TASKS), type = TASKS[force] ? force : types[(Math.random() * types.length) | 0];
   let x = 0, z = 0;
   for (let k = 0; k < 30; k++) { const a = rnd(0, TAU), r = rnd(8, 13); x = clamp(player.x + Math.cos(a) * r, -HX + 5, HX - 5); z = clamp(player.z + Math.sin(a) * r, -HZ + 5, HZ - 5); if (!inWall(x, z, 4) && !PROPS.some((p) => Math.hypot(x - p.x, z - p.z) < p.r + 4)) break; }
-  task = { type, x, z, t: type === 'traps' ? 60 : 45, max: type === 'traps' ? 60 : 45, prog: 0, need: type === 'mop' ? 18 : type === 'kill' ? 25 : type === 'hold' ? 8 : 4, rad: type === 'kill' ? 4.5 : type === 'hold' ? 2.4 : 3.3, age: 0 };
+  task = { id: ++worldSeq, type, x, z, t: type === 'traps' ? 60 : 45, max: type === 'traps' ? 60 : 45, prog: 0, need: type === 'mop' ? 18 : type === 'kill' ? 25 : type === 'hold' ? 8 : 4, rad: type === 'kill' ? 4.5 : type === 'hold' ? 2.4 : 3.3, age: 0 };
   if (type === 'mop') task.dirt = Array.from({ length: 18 }, () => { const a = rnd(0, TAU), r = Math.sqrt(Math.random()) * 2.8; return { x: x + Math.cos(a) * r, z: z + Math.sin(a) * r, s: rnd(0.4, 0.62), on: true }; });
   if (type === 'traps') { task.plates = [[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([a, b], i) => ({ x: x + a * 1.1, z: z + b * 1.1, i, lit: false, inside: false, flash: 0, bad: 0 })); task.order = shuffle([0, 1, 2, 3]); task.step = 0; task.rad = 2.6; }
   banner('新任务', TASKS[type].name); ripple(x, z, 1); taskHud(); taskHudT = 0;
@@ -1831,22 +1836,29 @@ function startTask(force) {
 function cleanDirt(d) { d.on = false; task.prog++; spark(d.x, 0.3, d.z, 0xffffff, 10, 3.5, 0.32, 0.45); burst(d.x, 0.2, d.z, 0x8fe6ff, 4, 2, 0.3, 0.5, 2); }
 function endTask(ok) {
   const el = $('task'); el.classList.add(ok ? 'done' : 'fail'); el.insertAdjacentHTML('beforeend', `<span class="stamp">${ok ? '完成' : '超时'}</span>`); taskHudT = 1.6; $('tmark').hidden = true;
-  if (ok) { run.tasks++; chests.push({ x: task.x, z: task.z, sp: 1 }); for (let k = 0; k < 6; k++) gems.push({ x: task.x + rnd(-1, 1), z: task.z + rnd(-1, 1), v: 3 + Math.floor(T / 90), sz: 1, pull: false, s: 0, ph: Math.random() * 6 }); banner('任务完成', '走过去开宝箱，选一个技能的特殊升级'); spark(task.x, 1, task.z, 0xffd23f, 70, 8, 0.4, 0.9); ringFx(task.x, task.z, task.rad * 1.5, 0xffe07a, 0.5); ripple(task.x, task.z, 1.4); nextTask = T + 70; }
+  if (NET && NET.on && NET.host) NET.TE = [task.id, ok ? 1 : 0];
+  if (ok) { run.tasks++; if (!netGuest()) chests.push({ x: task.x, z: task.z, sp: 1 }); for (let k = 0; k < 6; k++) { const gid = NET && NET.on ? `t${task.id}.${k}` : undefined; if (!gid || !NET.gotG.has(gid)) gems.push({ x: task.x + rnd(-1, 1), z: task.z + rnd(-1, 1), v: 3 + Math.floor(T / 90), sz: 1, pull: false, s: 0, ph: Math.random() * 6, gid }); } banner('任务完成', '走过去开宝箱，选一个技能的特殊升级'); spark(task.x, 1, task.z, 0xffd23f, 70, 8, 0.4, 0.9); ringFx(task.x, task.z, task.rad * 1.5, 0xffe07a, 0.5); ripple(task.x, task.z, 1.4); nextTask = T + 70; }
   else { nextTask = T + 55; }
   task = null;
 }
+// 能推进任务的人：自己（没倒下时），联机时再加上还站着的队友（只在房主这边算）
+function taskBodies() {
+  const out = player.ghost ? [] : [player];
+  if (NET && NET.on) for (const id in NET.peers) { const p = NET.peers[id]; if (!p.dead && p.x != null) out.push(p); }
+  return out;
+}
 function updateTask(dt) {
   if (!task) return;
-  task.t -= dt; task.age += dt; const d = Math.hypot(player.x - task.x, player.z - task.z);
-  if (task.type === 'mop') { for (const q of task.dirt) if (q.on && Math.hypot(q.x - player.x, q.z - player.z) < 0.9) cleanDirt(q); }
-  else if (task.type === 'hold') { if (d < task.rad) { task.prog += dt; if (Math.random() < dt * 8) spark(player.x + rnd(-0.5, 0.5), 0.2, player.z + rnd(-0.5, 0.5), 0x8fd0ff, 1, 1, 0.3, 0.7, -3); } }
+  task.t -= dt; task.age += dt; const bodies = taskBodies();
+  if (task.type === 'mop') { for (const q of task.dirt) if (q.on && bodies.some((b) => Math.hypot(q.x - b.x, q.z - b.z) < 0.9)) cleanDirt(q); }
+  else if (task.type === 'hold') { const b = bodies.find((o) => Math.hypot(o.x - task.x, o.z - task.z) < task.rad); if (b) { task.prog += dt; if (Math.random() < dt * 8) spark(b.x + rnd(-0.5, 0.5), 0.2, b.z + rnd(-0.5, 0.5), 0x8fd0ff, 1, 1, 0.3, 0.7, -3); } }
   else if (task.type === 'traps') {
     for (const p of task.plates) {
       p.flash = Math.max(0, p.flash - dt * 3); p.bad = Math.max(0, p.bad - dt * 2.5);
-      const inside = Math.abs(player.x - p.x) < 0.7 && Math.abs(player.z - p.z) < 0.7;
+      const on = (b) => Math.abs(b.x - p.x) < 0.7 && Math.abs(b.z - p.z) < 0.7, who = bodies.find(on), inside = !!who;
       if (inside && !p.inside && !p.lit) {
         if (task.order[task.step] === p.i) { p.lit = true; p.flash = 1; task.step++; task.prog = task.step; spark(p.x, 0.5, p.z, PLATE_C[p.i], 24, 5, 0.38, 0.55); ringFx(p.x, p.z, 1.4, PLATE_C[p.i], 0.3); dmgNum(p.x, p.z, '对！', 'tag', 1.6); }
-        else { hurtPlayer(8 * DF().dmg); zap([{ x: p.x, y: 3, z: p.z }, { x: player.x, y: 0.6, z: player.z }], 0xfff1a8, 0.2, 0.5); dmgNum(p.x, p.z, '不对，重来', 'tag', 1.6); for (const q of task.plates) { q.lit = false; q.bad = 1; } task.step = 0; task.prog = 0; shake = Math.max(shake, 0.15); }
+        else { if (who === player) hurtPlayer(8 * DF().dmg); zap([{ x: p.x, y: 3, z: p.z }, { x: who.x, y: 0.6, z: who.z }], 0xfff1a8, 0.2, 0.5); dmgNum(p.x, p.z, '不对，重来', 'tag', 1.6); for (const q of task.plates) { q.lit = false; q.bad = 1; } task.step = 0; task.prog = 0; shake = Math.max(shake, 0.15); }
       }
       p.inside = inside;
     }
@@ -1910,7 +1922,10 @@ function drawPortals(dt) {
 function spawnAltar() {
   let x = 0, z = 0;
   for (let k = 0; k < 40; k++) { const a = rnd(0, TAU), r = rnd(14, 22); x = clamp(player.x + Math.cos(a) * r, -HX + 4, HX - 4); z = clamp(player.z + Math.sin(a) * r, -HZ + 4, HZ - 4); if (Math.hypot(x - player.x, z - player.z) > 11 && !inWall(x, z, 2.8) && !PROPS.some((p) => Math.hypot(x - p.x, z - p.z) < p.r + 2.5)) break; }
-  altars.push({ x, z, age: 0 }); banner('遗物出现', '跟着金色标记去找，三选一');
+  altars.push({ id: ++worldSeq, x, z, age: 0 }); altarPin();
+}
+function altarPin() {
+  banner('遗物出现', '跟着金色标记去找，三选一');
   $('rmark').innerHTML = `<div class="pin frame">${ico('#ffab2e', 'charm')}<span>遗物</span></div><i class="arr" hidden></i>`;
 }
 function drawAltarMark() {
@@ -2662,9 +2677,12 @@ function showGachaResults() {
   $('gOk').onclick = () => { hide(); renderGacha(); }; $('gAgain').onclick = () => { hide(); gachaStart(gch.n); }; $('gOk').focus();
 }
 /* ================= 联机：最多 4 人，同一张地图 =================
- * 房主跑整局（刷怪、怪的走位、大魔王、时间线），每 0.1 秒把怪、怪的子弹、击倒名单发给队友。
- * 每个人自己的技能在自己这边打：打掉的血每 0.1 秒报给房主。经验、宝箱、遗物各拿各的。
- * 倒下后 12 秒在原地复活（还有队友站着时）；全员倒下这局结束。 */
+ * 房主跑整局（刷怪、怪的走位、大魔王、时间线、任务、宝箱、遗物），每 0.1 秒把这些发给队友。
+ * 每个人自己的技能在自己这边打：打掉的血每 0.1 秒报给房主。
+ * 经验条全队共用：谁捡到经验球都算全队的，经验球用同一个编号，不会重复算。
+ * 升级、开宝箱、碰到遗物时整局停住，所有人各选各的，最后一个人选完才一起继续（房主等齐所有人）。
+ * 倒下的人留下一个墓地，自己变成灵魂（没有伤害和技能，还能捡经验球）；
+ * 活着的队友在墓地里站满 4 秒就能把他救起来。全员倒下这局结束。 */
 const NET_API = (new URLSearchParams(location.search).get('api') || '/api/native/v1/games/brawl') + '/room';
 const NET_TYPES = Object.keys(ET), NET_TI = Object.fromEntries(NET_TYPES.map((t, i) => [t, i]));
 const ptags = document.createElement('div'); ptags.id = 'ptags'; document.body.appendChild(ptags);
@@ -2682,6 +2700,7 @@ const myHero = () => (isOpen(CLS_IDS[selIdx]) ? CLS_IDS[selIdx] : meta.heroes[0]
 function netOpen(res, host) {
   if (NET && NET.es) NET.es.close();
   NET = { code: res.code, key: res.key, id: res.id, host, room: res.room, on: false, n: 1, peers: {}, mir: new Map(), K: [], used: new Set(), sendT: 0, sid: 0 };
+  netRunReset();
   const es = new EventSource(`${NET_API}?code=${encodeURIComponent(res.code)}&key=${encodeURIComponent(res.key)}`);
   es.onmessage = (ev) => { try { netRecv(JSON.parse(ev.data)); } catch (e) { console.warn(e); } };
   es.onerror = () => { if (es.readyState === 2) netLost('和房间的连接断了'); };
@@ -2691,11 +2710,11 @@ addEventListener('pagehide', () => { if (NET) { try { navigator.sendBeacon(NET_A
 function netRecv(ev) {
   if (!NET) return;
   if (ev.t === 'closed') return netLost(ev.reason || '房间关闭了');
-  if (ev.t === 'room') { const gone = NET.room.players.filter((p) => !ev.room.players.some((q) => q.id === p.id)); NET.room = ev.room; if (NET.on) for (const p of gone) { delete NET.peers[p.id]; banner(p.name + ' 离开了'); } else if (lobbyOpen()) renderLobby(); return; }
+  if (ev.t === 'room') { const gone = NET.room.players.filter((p) => !ev.room.players.some((q) => q.id === p.id)); NET.room = ev.room; if (NET.on) { for (const p of gone) { delete NET.peers[p.id]; banner(p.name + ' 离开了'); } if (NET.host) netPhaseCheck(); } else if (lobbyOpen()) renderLobby(); return; }
   if (ev.t === 'start') { NET.room = ev.room; return netBegin(ev.m || {}); }
   if (ev.t !== 'm' || !ev.m) return;
   const m = ev.m, from = ev.from;
-  if (m.k === 'p' || m.k === 's') { if (m.p && NET.on) netPeer(from, m.p); if (m.k === 's' && !NET.host && NET.on) netApply(m); if (m.D && NET.host && NET.on) netDamage(m.D); }
+  if (m.k === 'p' || m.k === 's') { if (m.p && NET.on) netPeer(from, m.p); if (m.k === 's' && !NET.host && NET.on) netApply(m); if (m.D && NET.host && NET.on) netDamage(m.D); if (m.k === 'p' && NET.host && NET.on) { if (Array.isArray(m.G) && m.G.length) netGems(m.G); if (NET.phase && m.dn === NET.phase.id && NET.phase.wait.delete(from)) netPhaseCheck(); } }
   else if (m.k === 'end' && NET.on && !NET.host && from === NET.room.host) { if (m.win) { if (state !== 'win') showWin(); } else netOver(); }
 }
 function netPeer(id, p) {
@@ -2704,6 +2723,7 @@ function netPeer(id, p) {
   const radius = [p.x, p.z, p.sockAura].every(Number.isFinite) && p.hp > 0
     ? clamp(p.sockAura, 0, Math.hypot(2 * HX, 2 * HZ)) : 0;
   Object.assign(q, { tx: p.x, tz: p.z, yaw: p.y, mv: p.m, hp: p.hp, mh: p.mh, lv: p.lv, h: p.h, sk: p.sk, dead: !!p.d, name: room.name, radius, sockSeen: performance.now() });
+  q.grave = q.dead && Array.isArray(p.g) && p.g.every(Number.isFinite) ? { x: p.g[0], z: p.g[1], prog: clamp(p.g[2], 0, REVIVE_T) } : null;
   if (Array.isArray(p.heal)) {
     const [sequence, amount] = p.heal;
     if (Number.isSafeInteger(sequence) && sequence > (q.healSequence || 0) &&
@@ -2727,21 +2747,26 @@ function netTarget(e) {
 const r1 = (v) => Math.round(v * 10), r2 = (v) => Math.round(v * 100) / 100;
 function netTick(dt) {
   if (!NET || !NET.on) return;
-  for (const id in NET.peers) { const p = NET.peers[id]; if (p.tx == null) continue; const k = Math.min(1, dt * 10), dx = p.tx - p.x, dz = p.tz - p.z; if (Math.hypot(dx, dz) > 8) { p.x = p.tx; p.z = p.tz; } else { p.x += dx * k; p.z += dz * k; } p.ps.moving = p.mv || 0; p.ps.ph += (p.mv || 0) * dt * 14; p.ps.dark = p.dead; }
-  player.dark = !!player.ghost;
+  for (const id in NET.peers) { const p = NET.peers[id]; if (p.tx == null) continue; const k = Math.min(1, dt * 10), dx = p.tx - p.x, dz = p.tz - p.z; if (Math.hypot(dx, dz) > 8) { p.x = p.tx; p.z = p.tz; } else { p.x += dx * k; p.z += dz * k; } p.ps.moving = p.mv || 0; p.ps.ph += (p.mv || 0) * dt * 14; p.ps.ghostly = p.dead; }
+  player.ghostly = !!player.ghost;
   NET.sendT -= dt; if (NET.sendT > 0) return; NET.sendT = 0.1;
   const me = { x: r2(player.x), z: r2(player.z), y: r2(player.yaw), m: r2(player.moving), hp: Math.ceil(player.hp), mh: Math.ceil(player.maxHp), lv: player.lvl, h: clsId, sk: skinOf(clsId), d: player.ghost ? 1 : 0 };
   if (!player.ghost && player.lastHeal) me.heal = player.lastHeal;
+  if (player.ghost && player.grave) me.g = [r2(player.grave.x), r2(player.grave.z), r2(player.grave.prog)];
+  netTeamHud();
   if (!player.ghost && player.hp > 0 && player.weapons.sock && player.alt.sock &&
       (state === 'play' || state === 'levelup' || state === 'paused')) me.sockAura = r2(sockAuraRadius());
   if (!NET.host) {
     const Dm = []; for (const [nid, e] of NET.mir) { const d = e.base - e.hp; if (d > 0.5) { Dm.push(nid, Math.round(d)); e.base = e.hp; } if (e.dead && !e.gone) { e.gone = 1; e.deadAt = realTime; } }
-    return netSend({ k: 'p', p: me, D: Dm });
+    return netSend({ k: 'p', p: me, D: Dm, G: NET.G.splice(0), dn: NET.phase && NET.phase.done ? NET.phase.id : 0 });
   }
   const E = []; for (const e of enemies) { if (e.dead) continue; E.push(e.id, NET_TI[e.type], r1(e.x), r1(e.z), Math.max(1, Math.round(e.hp / e.maxHp * 1000)), (e.giant ? 1 : 0) | (e.inv ? 2 : 0), e.fuse > 0 ? r1(e.fuse) : 0); }
   const S = []; for (const b of eshots) { if (!b.nid) b.nid = ++NET.sid; S.push(b.nid, r1(b.x), r1(b.z), r1(b.vx), r1(b.vz), r1(b.life), b.rig === 'chalkP' ? 1 : b.source === 'boss' ? 2 : 0, b.dmg || 8); }
   const B = boss && !boss.dead ? [boss.id, boss.atkN || 0, r2(boss.slam || 0), r2(boss.rushW || 0), r2(boss.rushT || 0), r2(boss.ax || 0), r2(boss.az || 0), boss.enraged ? 1 : 0] : null;
-  netSend({ k: 's', p: me, T: r2(T), E, S, B, K: NET.K.splice(0) });
+  netPhaseTry();
+  const CH = []; for (const c of chests) { c.id = c.id || ++worldSeq; CH.push(c.id, r1(c.x), r1(c.z), c.sp ? 1 : 0); }
+  const AL = []; for (const a of altars) { a.id = a.id || ++worldSeq; AL.push(a.id, r1(a.x), r1(a.z)); }
+  netSend({ k: 's', p: me, T: r2(T), E, S, B, K: NET.K.splice(0), X: [r2(player.xp), player.need, player.lvl], C: NET.C.splice(0), CH, AL, TK: netTaskPack(), TE: NET.TE, PH: NET.phase ? NET.PH : null, PW: NET.phase ? [...NET.phase.wait] : null });
   // 全员倒下：这局结束
   if (player.ghost && Object.values(NET.peers).every((p) => p.dead)) { netSend({ k: 'end', win: 0 }); netOver(); }
 }
@@ -2767,6 +2792,131 @@ function netApply(m) {
   for (let i = 0; i < S.length; i += 8) { if (NET.used.has(S[i])) continue; const old = eshots.find((b) => b.nid === S[i]); const b = old || { nid: S[i] }; Object.assign(b, { x: S[i + 1] / 10, y: 1, z: S[i + 2] / 10, vx: S[i + 3] / 10, vz: S[i + 4] / 10, life: S[i + 5] / 10, rig: S[i + 6] === 1 ? 'chalkP' : undefined, dmg: S[i + 7], source: S[i + 6] === 1 ? 'chalk' : S[i + 6] === 2 ? 'boss' : 'ghost' }); out.push(b); }
   for (const b of eshots) if (b.life <= 0 && b.nid) NET.used.add(b.nid);
   eshots = out; if (NET.used.size > 4000) NET.used.clear();
+  // 全队共用的经验条、被捡走的经验球、宝箱、遗物、任务、一起选的阶段
+  if (Array.isArray(m.X)) { player.xp = m.X[0]; player.need = m.X[1]; player.lvl = m.X[2]; }
+  if (Array.isArray(m.C) && m.C.length) { for (const gid of m.C) NET.gotG.add(gid); gems = gems.filter((g) => !g.gid || !NET.gotG.has(g.gid)); }
+  netWorld(m);
+  netPhaseSync(m.PH, m.PW);
+}
+const netGuest = () => !!(NET && NET.on && !NET.host);
+function netRunReset() {
+  Object.assign(NET, { phase: null, PH: null, PW: null, phId: 0, lastPh: 0, lvQ: 0, q: [], gotG: new Set(), C: [], G: [], gc: 0, TE: null });
+}
+// 捡到经验球：联机时报给房主，房主按编号去重后加到全队的经验条上
+function netXp(g, v) {
+  if (!NET || !NET.on) { player.xp += v; return; }
+  if (!g.gid) g.gid = NET.id + '.' + (++NET.gc);
+  if (NET.gotG.has(g.gid)) return;
+  if (NET.host) { NET.gotG.add(g.gid); NET.C.push(g.gid); player.xp += v; }
+  else { NET.G.push(g.gid, r2(v)); player.xp += v; }
+}
+function netGems(G) {
+  let any = false;
+  for (let i = 0; i + 1 < G.length; i += 2) {
+    const gid = G[i], v = G[i + 1];
+    if (typeof gid !== 'string' || gid.length > 40 || !Number.isFinite(v) || v < 0 || v > 5000 || NET.gotG.has(gid)) continue;
+    NET.gotG.add(gid); NET.C.push(gid); player.xp += v; any = true;
+  }
+  if (any) gems = gems.filter((g) => !g.gid || !NET.gotG.has(g.gid));
+}
+// 房主：谁（自己或还站着的队友）碰到宝箱、遗物，就排进「一起选」的队列
+function netPickups() {
+  if (NET.phase || state === 'win' || state === 'dead') return;
+  const bodies = taskBodies(), whoOf = (b) => (b === player ? NET.id : b.id);
+  for (const c of chests) { const b = bodies.find((o) => Math.hypot(o.x - c.x, o.z - c.z) < 1.3); if (b) { chests = chests.filter((q) => q !== c); NET.q.push({ kind: 'ch', a: c.sp ? 1 : 0, who: whoOf(b) }); break; } }
+  for (const a of altars) { const b = bodies.find((o) => Math.hypot(o.x - a.x, o.z - a.z) < 1.6); if (b) { altars = altars.filter((q) => q !== a); NET.q.push({ kind: 'al', who: whoOf(b) }); break; } }
+}
+function netTaskPack() {
+  if (!task) return null;
+  return { id: task.id, type: task.type, x: r2(task.x), z: r2(task.z), t: r2(task.t), max: task.max, prog: r2(task.prog), need: task.need, rad: task.rad, step: task.step || 0, order: task.order || null,
+    lit: task.plates ? task.plates.map((p) => (p.lit ? 1 : 0)) : null, dirt: task.dirt ? task.dirt.map((q) => [r2(q.x), r2(q.z), r2(q.s), q.on ? 1 : 0]) : null };
+}
+// 队友：用房主的快照更新宝箱、遗物、任务
+function netWorld(m) {
+  const CH = m.CH || [], oldC = new Map(chests.map((c) => [c.id, c])); chests = [];
+  for (let i = 0; i + 3 < CH.length; i += 4) chests.push(oldC.get(CH[i]) || { id: CH[i], x: CH[i + 1] / 10, z: CH[i + 2] / 10, sp: CH[i + 3] });
+  const AL = m.AL || [], oldA = new Map(altars.map((a) => [a.id, a])), had = altars.length; altars = [];
+  for (let i = 0; i + 2 < AL.length; i += 3) altars.push(oldA.get(AL[i]) || { id: AL[i], x: AL[i + 1] / 10, z: AL[i + 2] / 10, age: 0, fresh: 1 });
+  if (altars.some((a) => a.fresh)) { for (const a of altars) delete a.fresh; if (!had) altarPin(); }
+  const TK = m.TK;
+  if (task && (!TK || TK.id !== task.id)) endTask(!!(Array.isArray(m.TE) && m.TE[0] === task.id && m.TE[1]));
+  if (!TK || !TASKS[TK.type]) return;
+  if (!task) {
+    task = { id: TK.id, type: TK.type, x: TK.x, z: TK.z, t: TK.t, max: TK.max, prog: TK.prog, need: TK.need, rad: TK.rad, age: 0 };
+    if (Array.isArray(TK.dirt)) task.dirt = TK.dirt.map(([x, z, s, on]) => ({ x, z, s, on: !!on }));
+    if (TK.type === 'traps') { task.order = TK.order || [0, 1, 2, 3]; task.step = TK.step; task.plates = [[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([a, b], i) => ({ x: task.x + a * 1.1, z: task.z + b * 1.1, i, lit: !!(TK.lit && TK.lit[i]), inside: false, flash: 0, bad: 0 })); }
+    banner('新任务', TASKS[task.type].name); ripple(task.x, task.z, 1); taskHud(); taskHudT = 0;
+    return;
+  }
+  task.t = TK.t; task.prog = TK.prog;
+  if (task.dirt && Array.isArray(TK.dirt)) task.dirt.forEach((q, i) => { if (q.on && TK.dirt[i] && !TK.dirt[i][3]) { q.on = false; spark(q.x, 0.3, q.z, 0xffffff, 10, 3.5, 0.32, 0.45); } });
+  if (task.plates && Array.isArray(TK.lit)) {
+    if (TK.step < task.step) for (const p of task.plates) p.bad = 1;
+    task.plates.forEach((p, i) => { const lit = !!TK.lit[i]; if (lit && !p.lit) { p.flash = 1; spark(p.x, 0.5, p.z, PLATE_C[p.i], 24, 5, 0.38, 0.55); } p.lit = lit; });
+    task.step = TK.step;
+  }
+}
+// 队友这边的任务只做动画，进度听房主的
+function netTaskTick(dt) {
+  if (!task) return;
+  task.t -= dt; task.age += dt;
+  if (task.plates) for (const p of task.plates) { p.flash = Math.max(0, p.flash - dt * 3); p.bad = Math.max(0, p.bad - dt * 2.5); }
+}
+/* ---- 一起选：升级 / 宝箱 / 遗物 ----
+ * 房主排队，一次只开一个阶段；阶段编号放在每个快照里（PH），队友看到新编号就停下来选。
+ * 选完的人在自己的消息里带上 dn（阶段编号），房主等齐房间里所有人后清掉 PH，大家一起继续。 */
+function netPhaseTry() {
+  if (NET.phase || state === 'win' || state === 'dead' || state === 'title') return;
+  let it = null;
+  if (NET.lvQ > 0) { it = { kind: 'lv', n: NET.lvQ, a: player.lvl }; NET.lvQ = 0; }
+  else if (NET.q.length) it = NET.q.shift();
+  if (!it) return;
+  const id = ++NET.phId;
+  NET.PH = [id, it.kind, it.n || 0, it.a || 0, it.who || ''];
+  NET.phase = { id, done: false, wait: new Set(NET.room.players.map((p) => p.id)) };
+  netEnterPhase(NET.PH);
+}
+function netEnterPhase(PH) {
+  const [id, kind, n, a, who] = PH;
+  if (!NET.phase || NET.phase.id !== id) NET.phase = { id, done: false };
+  NET.lastPh = id;
+  player.vx = player.vz = 0; player.moving = 0;
+  hide(); state = 'levelup';
+  const name = who && who !== NET.id ? (NET.room.players.find((p) => p.id === who) || { name: '队友' }).name : '';
+  if (kind === 'lv') { if (!NET.host) player.lvl = a; pendingLevels += n; nextChoice(); }
+  else if (kind === 'ch') { if (name) banner(`${name} 开了宝箱`, '大家各选一个'); openChest({ x: player.x, z: player.z, sp: a }); }
+  else if (kind === 'al') { if (name) banner(`${name} 找到了遗物`, '大家各选一个'); showArts(); }
+  else nextChoice();
+}
+function netChoiceDone() {
+  const ph = NET.phase; if (!ph || ph.done) return;
+  ph.done = true; state = 'levelup';
+  netWaitText(NET.host ? [...ph.wait] : NET.PW || []);
+  if (NET.host && ph.wait.delete(NET.id)) netPhaseCheck();
+}
+function netWaitText(ids) {
+  const names = ids.filter((id) => id !== NET.id).map((id) => (NET.room.players.find((p) => p.id === id) || {}).name).filter(Boolean);
+  const text = names.length ? `${names.join('、')} 还在选` : '马上继续';
+  const el = panel.querySelector('.nwait');
+  if (el && !ov.hidden) { if (el.textContent !== text) el.textContent = text; return; }
+  show(`<h2>等队友选完</h2><p class="nwait">${text}</p><p>所有人选完后一起继续，怪也在等。</p>`, 'frame nwaitp');
+}
+function netPhaseCheck() {
+  const ph = NET.phase; if (!ph || !ph.wait) return;
+  for (const id of [...ph.wait]) if (!NET.room.players.some((p) => p.id === id)) ph.wait.delete(id);
+  if (ph.wait.size) { if (ph.done) netWaitText([...ph.wait]); return; }
+  netLeavePhase();
+}
+function netLeavePhase() {
+  NET.phase = null; NET.PH = null;
+  if (state === 'levelup') { hide(); state = 'play'; }
+  player.iframe = Math.max(player.iframe, 1);
+}
+function netPhaseSync(PH, PW) {
+  NET.PW = PW;
+  if (NET.phase && (!PH || PH[0] !== NET.phase.id)) netLeavePhase();
+  if (Array.isArray(PH) && !NET.phase && PH[0] > NET.lastPh) netEnterPhase(PH);
+  if (NET.phase && NET.phase.done && Array.isArray(PW)) netWaitText(PW);
 }
 // 队友这边的怪：平滑跟到房主给的位置；大魔王的砸地和冲撞在本地按时间结算
 function netMirrorStep(e, dt) {
@@ -2779,28 +2929,79 @@ function netMirrorStep(e, dt) {
   if (e.rushW > 0) { e.rushW -= dt; if (e.rushW <= 0) e.rushT = 0.75; }
   else if (e.rushT > 0) { e.rushT -= dt; dust(e.x, e.z, 3, 5); if (!e.rushHit && pd < e.r + 1) { e.rushHit = true; hurtPlayer(34 * DF().dmg * tDmg(), e.type); } }
 }
+const GRAVE_R = 1.8, REVIVE_T = 4;
 function netDie() {
   player.ghost = 1;
-  player.ghostT = 12;
   player.hp = 0;
   player.healPending = 0;
+  player.grave = { x: player.x, z: player.z, prog: 0 };
   hide();
   state = 'play';
   deathTaunt = pickDeathTaunt();
-  const reviveHint = '队友还站着的话，12 秒后原地复活';
+  const reviveHint = '你变成了灵魂：没有伤害和技能，还能捡经验球。队友在你的墓地里站 4 秒就能救你';
   banner('你倒下了', deathTaunt
     ? `<span class="down-taunt">${deathTaunt.speaker}：「${deathTaunt.line}」</span>${reviveHint}`
     : reviveHint);
 }
+// 灵魂：队友站在墓地圈里就累积复活进度，离开会慢慢退回去
 function netGhostStep(dt) {
-  player.ghostT -= dt;
-  if (player.ghostT <= 0 && Object.values(NET.peers).some((p) => !p.dead)) { player.ghost = 0; player.dark = false; deathTaunt = null; defeatSource = null; player.hp = player.maxHp * 0.5; player.iframe = 2; ripple(player.x, player.z, 1.4); spark(player.x, 0.8, player.z, 0xffd23f, 90, 9, 0.45, 0.9); banner('复活了'); }
+  const g = player.grave; if (!g) return;
+  let helped = false;
+  for (const id in NET.peers) { const p = NET.peers[id]; if (!p.dead && p.x != null && Math.hypot(p.x - g.x, p.z - g.z) < GRAVE_R) { helped = true; break; } }
+  g.prog = helped ? g.prog + dt : Math.max(0, g.prog - dt * 0.5);
+  if (g.prog < REVIVE_T) return;
+  player.ghost = 0; player.ghostly = false; player.grave = null; deathTaunt = null; defeatSource = null;
+  player.x = g.x; player.z = g.z; player.vx = player.vz = 0;
+  player.hp = player.maxHp * 0.5; player.iframe = 2.5;
+  ripple(player.x, player.z, 1.4); spark(player.x, 0.8, player.z, 0xffd23f, 90, 9, 0.45, 0.9); ringFx(player.x, player.z, GRAVE_R + 0.6, 0x7fffb0, 0.5);
+  banner('队友把你救起来了');
+}
+const graveFx = Array.from({ length: 4 }, () => {
+  const g = new THREE.Group(), flat = (geo, color, opacity, y) => { const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color, transparent: true, opacity, depthWrite: false })); m.rotation.x = -HP_; m.position.y = y; g.add(m); return m; };
+  flat(new THREE.CircleGeometry(GRAVE_R, 48), 0x6a7ab8, 0.18, 0.04);
+  const ring = flat(new THREE.RingGeometry(GRAVE_R - 0.14, GRAVE_R, 56), 0xcfe6ff, 0.85, 0.05);
+  const fill = flat(new THREE.CircleGeometry(1, 48), 0x7fffb0, 0.5, 0.045);
+  const stoneMat = toonOf(0xb9b3c8);
+  const slab = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.7, 0.22), stoneMat); slab.position.y = 0.35; g.add(slab);
+  const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.36, 0.22, 24), stoneMat); cap.rotation.x = HP_; cap.position.y = 0.7; g.add(cap);
+  const mound = new THREE.Mesh(new THREE.SphereGeometry(0.6, 20, 10, 0, TAU, 0, HP_), toonOf(0x8a6a4a)); mound.scale.set(1, 0.32, 1.4); mound.position.set(0, 0, 0.7); g.add(mound);
+  g.visible = false; g.userData = { ring, fill }; scene.add(g); return g;
+});
+function drawGraves() {
+  const list = [];
+  if (player.ghost && player.grave) list.push(player.grave);
+  for (const id in NET.peers) { const p = NET.peers[id]; if (p.dead && p.grave) list.push(p.grave); }
+  graveFx.forEach((g, i) => {
+    const v = list[i]; g.visible = !!v; if (!v) return;
+    g.position.set(v.x, 0, v.z);
+    const k = v.prog / REVIVE_T, { ring, fill } = g.userData;
+    fill.visible = k > 0.01; fill.scale.setScalar(Math.max(0.01, k) * (GRAVE_R - 0.14));
+    ring.material.color.set(k > 0 ? 0x7fffb0 : 0xcfe6ff); ring.material.opacity = 0.6 + 0.3 * Math.sin(realTime * (k > 0 ? 10 : 3));
+    if (Math.random() < 0.15) spark(v.x + rnd(-1, 1), 0.2, v.z + rnd(-1, 1), k > 0 ? 0x7fffb0 : 0xbfdcff, 1, 0.6, 0.3, 0.9, -2);
+  });
+}
+// 右侧的队伍血量：自己在最上面
+const teamEl = document.createElement('div'); teamEl.id = 'team'; teamEl.hidden = true; $('hud').appendChild(teamEl);
+function netTeamHud() {
+  const rows = NET.room.players.map((rp) => {
+    const me = rp.id === NET.id, q = me ? null : NET.peers[rp.id];
+    const hero = me ? clsId : (q && q.h) || rp.hero, c = CLASSES[hero] || CLASSES.brawler;
+    const dead = me ? !!player.ghost : !!(q && q.dead), hp = me ? Math.ceil(player.hp) : q ? q.hp || 0 : 0, mh = me ? Math.ceil(player.maxHp) : q ? q.mh || 1 : 1;
+    const prog = me ? (player.grave ? player.grave.prog : 0) : q && q.grave ? q.grave.prog : 0;
+    const w = dead ? (prog / REVIVE_T) * 100 : Math.max(0, Math.min(1, hp / mh)) * 100;
+    const right = dead ? (prog > 0 ? `救援中 ${Math.round((prog / REVIVE_T) * 100)}%` : '灵魂') : `${Math.max(0, hp)}/${mh}`;
+    return { key: rp.id, me, html: `<div class="tm frame${me ? ' me' : ''}${dead ? ' dead' : ''}">${ico(TAGS[c.tag].c, c.start)}<div><b><span>${rp.name}${me ? '（你）' : ''}</span><small>${right}</small></b><i><u style="width:${w.toFixed(1)}%"></u></i></div></div>` };
+  });
+  rows.sort((a, b) => b.me - a.me);
+  const html = rows.map((r) => r.html).join('');
+  if (teamEl.hidden) teamEl.hidden = false;
+  if (teamEl.dataset.sig !== html) { teamEl.dataset.sig = html; teamEl.innerHTML = html; }
 }
 function drawPeers() {
   const W_ = innerWidth, H_ = innerHeight, live = new Set();
   for (const id in NET.peers) {
     const p = NET.peers[id]; if (p.x == null || !CLASSES[p.h]) continue; live.add(id);
-    heroRig(p.h, SKINS[p.sk] ? p.sk : '').push(p.ps, worldM(p.x, 0, p.z, p.yaw || 0, 1, 1 + Math.sin(p.ps.ph * 2) * 0.02 * (p.mv || 0))); shadow(p.x, p.z, 0.55);
+    heroRig(p.h, SKINS[p.sk] ? p.sk : '').push(p.ps, worldM(p.x, p.dead ? 0.35 + Math.sin(realTime * 3 + p.ps.seed * 9) * 0.12 : 0, p.z, p.yaw || 0, 1, 1 + Math.sin(p.ps.ph * 2) * 0.02 * (p.mv || 0))); shadow(p.x, p.z, 0.55);
     let el = ptags.querySelector(`[data-id="${id}"]`); if (!el) { el = document.createElement('span'); el.dataset.id = id; el.innerHTML = '<em></em><i><b></b></i>'; ptags.appendChild(el); }
     el.firstChild.textContent = `${p.name} · Lv ${p.lv || 1}`; el.querySelector('b').style.width = (p.mh ? Math.max(0, p.hp / p.mh) * 100 : 0) + '%'; el.classList.toggle('dead', p.dead);
     v3.set(p.x, 2.9, p.z).project(camera); el.style.transform = `translate(${(v3.x * 0.5 + 0.5) * W_}px, ${(-v3.y * 0.5 + 0.5) * H_}px) translate(-50%, -100%)`;
@@ -2810,10 +3011,10 @@ function drawPeers() {
 function netBegin(m) {
   diffId = DIFFICULTIES.includes(m.d) ? m.d : 'easy'; modeId = m.mode === 'endless' ? 'endless' : 'std';
   const me = NET.room.players.find((p) => p.id === NET.id), hero = me && CLASSES[me.hero] && isOpen(me.hero) ? me.hero : myHero();
-  selIdx = CLS_IDS.indexOf(hero); NET.n = NET.room.players.length; NET.on = true; NET.peers = {}; NET.mir.clear(); NET.K = []; NET.used.clear();
+  selIdx = CLS_IDS.indexOf(hero); NET.n = NET.room.players.length; NET.on = true; NET.peers = {}; NET.mir.clear(); NET.K = []; NET.used.clear(); netRunReset();
   const idx = NET.room.players.findIndex((p) => p.id === NET.id);
   hide(); titleEl.hidden = true;
-  wipe(() => { startRun(); player.ghost = 0; player.dark = false; player.x = (idx - (NET.n - 1) / 2) * 1.8; banner(NET.n > 1 ? `${NET.n} 人联机` : '联机（一个人）', modeId === 'std' ? '一起撑到 10:00，打倒期末大魔王' : '无尽模式：一起撑得越久越好'); });
+  wipe(() => { startRun(); player.ghost = 0; player.ghostly = false; player.grave = null; player.x = (idx - (NET.n - 1) / 2) * 1.8; banner(NET.n > 1 ? `${NET.n} 人联机` : '联机（一个人）', modeId === 'std' ? '一起撑到 10:00，打倒期末大魔王' : '无尽模式：一起撑得越久越好'); });
 }
 function netOver() {
   if (state === 'dead' || state === 'win') return;
@@ -2839,7 +3040,7 @@ const lobbyOpen = () => !ov.hidden && panel.classList.contains('lobby');
 function netLobby() { if (state === 'title') titleEl.hidden = true; renderLobby(); }
 function renderLobby(err = '') {
   if (!NET) {
-    show(`<h2>联机</h2><p>最多 4 人一起打同一局。房主负责刷怪和大魔王，大家的技能各打各的，经验都能拿到。</p>
+    show(`<h2>联机</h2><p>最多 4 人一起打同一局。房主负责刷怪和大魔王，经验条全队共用，升级、宝箱、遗物大家一起停下来选。</p>
       <div class="nrow"><input id="nName" maxlength="12" placeholder="你的名字" value="${netName.replace(/"/g, '')}"><button class="primary" id="nCreate">建房间</button></div>
       <div class="nrow"><input id="nCode" maxlength="4" placeholder="房间码" autocomplete="off"><button id="nJoin">加入</button></div>
       <p class="err" id="nErr">${err}</p><div class="actions"><button id="nClose">返回</button></div>`, 'frame lobby');
@@ -2894,7 +3095,8 @@ function startRun() {
 }
 $('pauseBtn').onclick = () => { if (state === 'play') pause(); };
 function pause() {
-  if (NET && NET.on) { state = 'paused'; show(`<h2>暂停</h2><p>联机时世界不会停，怪也不会打你，但别离开太久。</p>${statsHtml()}${buildSummary()}<div class="actions"><button class="primary" id="rs">继续</button><button id="qt">离开联机</button></div>`); $('rs').onclick = resume; $('qt').onclick = () => netLeave(); $('rs').focus(); return; } state = 'paused'; show(`<h2>暂停</h2>${statsHtml()}${buildSummary()}<div class="actions"><button class="primary" id="rs">继续</button><button id="qt">换个同学</button></div>`); $('rs').onclick = resume; $('qt').onclick = () => { settle(false); wipe(() => showTitle('prep')); }; $('rs').focus(); }
+  if (NET && NET.phase) return;
+  if (NET && NET.on) { state = 'paused'; show(`<h2>暂停</h2><p>联机时世界不会停，怪也不会打你，但别离开太久。升级、宝箱、遗物出现时会自动关掉暂停，大家一起选。</p>${statsHtml()}${buildSummary()}<div class="actions"><button class="primary" id="rs">继续</button><button id="qt">离开联机</button></div>`); $('rs').onclick = resume; $('qt').onclick = () => netLeave(); $('rs').focus(); return; } state = 'paused'; show(`<h2>暂停</h2>${statsHtml()}${buildSummary()}<div class="actions"><button class="primary" id="rs">继续</button><button id="qt">换个同学</button></div>`); $('rs').onclick = resume; $('qt').onclick = () => { settle(false); wipe(() => showTitle('prep')); }; $('rs').focus(); }
 function resume() { hide(); state = 'play'; }
 function statsHtml() {
   return `<div class="stats-grid">${Object.keys(STATS).map((id) => `<div>${illustratedBadge('stats', id, STATS[id].c)}<span>${STATS[id].name}</span><b>${STATS[id].show(player.st[id])}</b></div>`).join('')}</div>`;
@@ -3127,7 +3329,7 @@ function illustratedChoiceCards(options, theme) {
   const cards = options.map((option, index) => optionCard(option, index, theme)).join('');
   return `<div class="ucards" data-card-theme="${theme}" style="--n:${options.length}">${cards}</div>`;
 }
-function nextChoice() { if (pendingUlt.length) showUltPick(); else if (pendingInfuse.length) showInfuse(); else if (pendingLevels > 0) showLevelUp(); else { hide(); state = 'play'; } }
+function nextChoice() { if (pendingUlt.length) showUltPick(); else if (pendingInfuse.length) showInfuse(); else if (pendingLevels > 0) showLevelUp(); else if (NET && NET.on && NET.phase) netChoiceDone(); else { hide(); state = 'play'; } }
 const lvHead = (text, small, bg) => `<div class="lvhead"><div class="sunburst"></div><div class="ribbon"${bg ? ` style="background:${bg}"` : ''}>${text}${small ? `<small>${small}</small>` : ''}</div></div>`;
 const REROLL_BASE_COST = 100;
 let rerollCost = REROLL_BASE_COST;
@@ -3187,7 +3389,7 @@ function showInfuse() {
 }
 function showArts() {
   const pool = shuffle(Object.keys(ARTS).filter((a) => !A(a) && meta.arts.includes(a)));
-  if (!pool.length) { restoreHealth(player, player.maxHp); banner('遗物已经拿完了', '生命回满'); return; }
+  if (!pool.length) { if (!player.ghost) restoreHealth(player, player.maxHp); banner('遗物已经拿完了', '生命回满'); if (NET && NET.on && NET.phase) nextChoice(); return; }
   const opts = pool.slice(0, Math.random() < player.st.luck * 2 ? 4 : 3).map((id) => ({ kind: 'a', id }));
   state = 'levelup'; show(`${lvHead('发现遗物！', '', 'var(--sun2)')}<div class="ucards" style="--n:${opts.length}">${opts.map((option, index) => optionCard(option, index)).join('')}</div>`, 'bare');
   cardPick(opts, (o) => { applyUpgrade(o); nextChoice(); });
@@ -3378,6 +3580,7 @@ const SPAWN_TABLE = [['sleepy', 0, 5], ['bomber', 30, 0.3], ['chalk', 60, 1.4], 
 // 每分钟一个事件：新怪物登场、任务、地图遗物、期中考、考前冲刺
 function minuteEvent(m) {
   let E = TIMELINE[m]; if (!E) { if (m < TIMELINE.length || modeId === 'std') return; E = [['task'], ['relic'], ['rush']][m % 3]; }
+  if (netGuest() && (E[0] === 'task' || E[0] === 'relic')) return;
   const k = E[0], ringSpawn = (type, n, rad = 12) => { for (let q = 0; q < n; q++) { const a = q / n * TAU + rnd(0, 0.3); spawn(type, clamp(player.x + Math.cos(a) * rad, -HX + 0.6, HX - 0.6), clamp(player.z + Math.sin(a) * rad, -HZ + 0.6, HZ - 0.6)); } };
   if (k === 'mon') { const [nm, tip] = MON_INFO[E[1]]; banner('新怪物：' + nm, tip, illustration('mons', E[1])); ringSpawn(E[1], E[1] === 'bomber' ? 1 : E[1] === 'mole' ? 3 : E[1] === 'snail' || E[1] === 'phone' ? 5 : 10, E[1] === 'bomber' ? 9 : 12); }
   else if (k === 'task') { if (!task) startTask(); else spawnAltar(); }
@@ -3398,7 +3601,7 @@ function updateMatch(dt) {
   let mz = (keys.KeyS || keys.ArrowDown ? 1 : 0) - (keys.KeyW || keys.ArrowUp ? 1 : 0);
   if (joy) { mx = joy.dx; mz = joy.dy; }
   if (state !== 'play') mx = mz = 0;
-  if (player.ghost) netGhostStep(dt);
+  if (player.ghost && NET && NET.on) netGhostStep(dt);
   const L = Math.hypot(mx, mz); if (L > 1) { mx /= L; mz /= L; }
   const wx = mx * Math.cos(AZ) + mz * Math.sin(AZ), wz = -mx * Math.sin(AZ) + mz * Math.cos(AZ);
   player.slowT -= dt; player.iframe -= dt;
@@ -3412,7 +3615,7 @@ function updateMatch(dt) {
   // 回血：回复属性 + 近战一阶吸血（每秒最多 3）
   let heal = player.st.regen * dt;
   if (player.healAcc > 0) { const h = Math.min(player.healAcc, 0.8 * dt); heal += h; player.healAcc = Math.max(0, player.healAcc - h - 2 * dt); }
-  restoreHealth(player, heal);
+  if (!player.ghost) restoreHealth(player, heal);
   if (NET?.on && !player.ghost) sockSupport(player, remoteSockAuras(), dt);
   if (!player.ghost) flushHealFeedback(player);
 
@@ -3443,7 +3646,7 @@ function update(dt) {
   } else {
     updateMatch(dt);
   }
-  buildGrid(); if (!player.ghost) fire(dt); CW = null; updateSummons(dt); CW = null; updateTask(dt);
+  buildGrid(); if (!player.ghost) { fire(dt); CW = null; updateSummons(dt); } CW = null; if (netGuest()) netTaskTick(dt); else updateTask(dt);
   if (NET?.on && NET.host) {
     for (const aura of remoteSockAuras()) {
       query(aura.x, aura.z, aura.radius, (enemy) => { enemy.sockSlow = 1; });
@@ -3653,10 +3856,12 @@ function update(dt) {
     enemies = enemies.filter((e) => !e.dead);
     return;
   }
-  for (const g of gems) { const dx = player.x - g.x, dz = player.z - g.z, d = Math.hypot(dx, dz) || 0.01; if (d < player.magnet) g.pull = true; if (g.pull) { g.s = Math.min(g.s + dt * 40, g.vac ? 48 : 22); g.x += dx / d * g.s * dt; g.z += dz / d * g.s * dt; } if (d < 0.6) { g.got = true; player.xp += g.v * (1 + player.st.xp) * (A('grant') ? 1.3 : 1); } }
+  for (const g of gems) { const dx = player.x - g.x, dz = player.z - g.z, d = Math.hypot(dx, dz) || 0.01; if (d < player.magnet) g.pull = true; if (g.pull) { g.s = Math.min(g.s + dt * 40, g.vac ? 48 : 22); g.x += dx / d * g.s * dt; g.z += dz / d * g.s * dt; } if (d < 0.6) { g.got = true; netXp(g, g.v * (1 + player.st.xp) * (A('grant') ? 1.3 : 1)); } }
   gems = gems.filter((g) => !g.got);
-  while (player.xp >= player.need) { player.xp -= player.need; player.lvl++; player.need = Math.round(3 + player.lvl * 2 + 0.2 * Math.pow(player.lvl, 2.25)); pendingLevels++; }
-  if (state === 'play') for (const c of chests) if (Math.hypot(player.x - c.x, player.z - c.z) < 1.3) { chests = chests.filter((q) => q !== c); openChest(c); break; }
+  // 联机：经验条全队共用，只有房主算升级，然后让所有人一起选
+  if (!netGuest()) while (player.xp >= player.need) { player.xp -= player.need; player.lvl++; player.need = Math.round(3 + player.lvl * 2 + 0.2 * Math.pow(player.lvl, 2.25)); if (NET && NET.on) NET.lvQ++; else pendingLevels++; }
+  if (NET && NET.on) { if (NET.host) netPickups(); }
+  else if (state === 'play') for (const c of chests) if (Math.hypot(player.x - c.x, player.z - c.z) < 1.3) { chests = chests.filter((q) => q !== c); openChest(c); break; }
   for (const d of drops) if (Math.hypot(player.x - d.x, player.z - d.z) < 1.1) { d.got = true; for (const g of gems) { g.pull = true; g.vac = true; } ringFx(player.x, player.z, 9, 0x7fe0ff, 0.6); ripple(player.x, player.z, 1.2); banner('知识吸取', '全场经验都飞过来了'); }
   drops = drops.filter((d) => !d.got);
   for (const g of gifts) g.t += dt;
@@ -3668,11 +3873,11 @@ function update(dt) {
       openChest({ relic: pickup.id });
     }
   }
-  for (const a of altars) { a.age += dt; if (state === 'play' && Math.hypot(player.x - a.x, player.z - a.z) < 1.6) { altars = altars.filter((q) => q !== a); showArts(); break; } }
-  if (A('watch')) { watchT -= dt; if (watchT <= 0) { watchT = 12; for (const e of enemies) if (e.type !== 'boss' && !e.inv) e.frz = 1.5; ringFx(player.x, player.z, 12, 0x9fe0ff, 0.6); dmgNum(player.x, player.z, '时停！', 'tag', 2.6); } }
+  for (const a of altars) { a.age += dt; if (state === 'play' && !(NET && NET.on) && Math.hypot(player.x - a.x, player.z - a.z) < 1.6) { altars = altars.filter((q) => q !== a); showArts(); break; } }
+  if (A('watch') && !player.ghost) { watchT -= dt; if (watchT <= 0) { watchT = 12; for (const e of enemies) if (e.type !== 'boss' && !e.inv) e.frz = 1.5; ringFx(player.x, player.z, 12, 0x9fe0ff, 0.6); dmgNum(player.x, player.z, '时停！', 'tag', 2.6); } }
   if (A('bubble')) { if (!player.shield) { shieldT -= dt; if (shieldT <= 0) { player.shield = true; spark(player.x, 1, player.z, 0x9fe0ff, 20, 3, 0.3, 0.6, 0); } } else if (Math.random() < 0.4) spark(player.x + Math.cos(realTime * 5) * 0.8, 0.9, player.z + Math.sin(realTime * 5) * 0.8, 0x9fe0ff, 1, 0.2, 0.3, 0.4, 0); }
   enemies = enemies.filter((e) => !e.dead);
-  if (pendingLevels > 0 && state === 'play') showLevelUp();
+  if (pendingLevels > 0 && state === 'play' && !(NET && NET.on)) showLevelUp();
 }
 
 const STILL = { ph: 0, hit: 0, seed: 0, moving: 0 };
@@ -3712,7 +3917,7 @@ function draw(dt) {
   shN = 0;
   if (state !== 'title') {
     player.glowMul = 2.4; const yaw = player.yaw + (player.spinT > 0 ? (1 - player.spinT) * TAU : 0);
-    heroRig(clsId).push(player, worldM(player.x, 0, player.z, yaw, 1, 1 + Math.sin(player.ph * 2) * 0.02 * player.moving)); shadow(player.x, player.z, 0.55);
+    heroRig(clsId).push(player, worldM(player.x, player.ghost ? 0.35 + Math.sin(realTime * 3) * 0.12 : 0, player.z, yaw, 1, 1 + Math.sin(player.ph * 2) * 0.02 * player.moving)); shadow(player.x, player.z, 0.55);
     if (sweepFx.t > 0) { sweepFx.t -= dt * 4.2; const p = 1 - sweepFx.t, arc = sweepFx.arc || TAU, a0 = HP_ - (sweepFx.yaw || 0) + arc / 2, r = sweepFx.r, sc = r / 1.6; STILL.etint = elT('sweep');
       // 尺子本体加几道残影，注入元素后本体和残影都变成元素的颜色
       for (let g = 0; g < 4; g++) { const pp = p - g * 0.08; if (pp < 0) break; const a = a0 - pp * arc, k = 1 - g * 0.17; if (g) STILL.etint = elT('sweep', g) || STILL.etint; RIGS.ruler.push(STILL, worldM(player.x + Math.cos(a) * r * 0.52, 0.8 - g * 0.03, player.z + Math.sin(a) * r * 0.52, -a, sc * k, 1.6 * k, sc * 0.8 * k)); }
@@ -3731,7 +3936,7 @@ function draw(dt) {
     });
   }
   if (state !== 'title') podium.visible = false;
-  if (state !== 'title' && NET && NET.on) drawPeers(); else if (ptags.childElementCount) ptags.innerHTML = '';
+  if (state !== 'title' && NET && NET.on) { drawPeers(); drawGraves(); } else { if (ptags.childElementCount) ptags.innerHTML = ''; if (!teamEl.hidden) teamEl.hidden = true; if (graveFx[0].visible) graveFx.forEach((g) => (g.visible = false)); }
   if (demoSockAlly) {
     const { x, z } = demoSockAlly;
     heroRig('scholar', '').push(STILL, worldM(x, 0, z, HP_, 1));
@@ -3879,13 +4084,13 @@ function frame(now) {
     update(raw);
   } else {
     if (NET?.on && state !== 'title') netTick(raw);
-    if (state === 'play' || (NET?.on && (state === 'levelup' || state === 'paused'))) update(dt); else if (state === 'title') { titleAmbience(raw); if (titleStep === 'gacha') updateGacha(raw); }
+    if ((state === 'play' && !NET?.phase) || (NET?.on && !NET.phase && state === 'paused')) update(dt); else if (state === 'title') { titleAmbience(raw); if (titleStep === 'gacha') updateGacha(raw); }
   }
   if (!skillDemoMode) gameAudio.update(state, !!boss && !boss.dead, player.hp / player.maxHp);
   draw(skillDemoMode || state === 'play' || state === 'title' ? dt : raw * 0.12);
   composer.render(); requestAnimationFrame(frame);
 }
-window.__game = { get chests() { return chests; }, openChest2: openChest, SP, LVUP, WALLS, regionOf, inWall, HX, HZ, portalWave, PORTALS, get gems() { return gems; }, hurtPlayer, TIER, CLS_IDS, minuteEvent, spawnAltar, showArts, get altars() { return altars; }, get drops() { return drops; }, infuse(id) { pendingInfuse.push(id); showInfuse(); },
+window.__game = { get chests() { return chests; }, get pendingLevels() { return pendingLevels; }, openChest2: openChest, SP, LVUP, WALLS, regionOf, inWall, HX, HZ, portalWave, PORTALS, get gems() { return gems; }, hurtPlayer, TIER, CLS_IDS, minuteEvent, spawnAltar, showArts, get altars() { return altars; }, get drops() { return drops; }, infuse(id) { pendingInfuse.push(id); showInfuse(); },
   get state() { return state; }, startRun, setDiff(d) { diffId = d; }, setMode(m) { modeId = m; }, unlockAll() { meta.heroes = [...CLS_IDS]; meta.arts = Object.keys(ARTS); meta.relics = Object.keys(RELICS); }, meta, showCodex, settle, get cups() { return cups; }, get pools() { return pools; }, get bolts() { return bolts; }, startTask, get task() { return task; }, get enemies() { return enemies; }, spawn, upgradeOptions, get boss() { return boss; }, get T() { return T; }, set T(v) { T = v; }, player, applyUpgrade, showTitle,
   pick(i) { pickHero(i); }, get NET() { return NET; }, netLobby, renderLobby, ACH, SKINS, ALT, gch, showUltPick, get pendingUlt() { return pendingUlt; }, openGacha, gachaStart, gachaPull, showAch, checkAch, get run() { return run; }, renderHome, renderGacha, showLevelUp, showWin, showDeath, openChest, get step_() { return titleStep; },
   step(s) { for (let k = 0; k < s * 30; k++) { update(1 / 30); realTime += 1 / 30; uTime.value = realTime; draw(1 / 30); if (state !== 'play') break; } },

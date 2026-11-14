@@ -263,6 +263,17 @@ button[disabled] { opacity: .5; cursor: not-allowed; transform: none; box-shadow
 .pl.empty { border-style: dashed; color: var(--dim); justify-content: center; background: transparent; min-height: 50px; }
 .lobby .err { color: var(--bad); font-weight: 800; min-height: 1.3em; margin: 0; }
 .lobby .chips { grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); }
+#team { position: absolute; right: max(12px, env(safe-area-inset-right, 0px)); top: 50%; transform: translateY(-50%); display: grid; gap: 6px; width: 176px; }
+#team .tm { display: flex; align-items: center; gap: 7px; padding: 5px 10px 6px 5px; border-radius: 14px; }
+#team .tm .ico { --s: 26px; flex: none; }
+#team .tm > div { flex: 1; min-width: 0; }
+#team .tm b { display: flex; justify-content: space-between; gap: 6px; font: 800 12px/1.3 var(--num); white-space: nowrap; }
+#team .tm b span { overflow: hidden; text-overflow: ellipsis; } #team .tm b small { font-size: 11px; color: var(--dim); }
+#team .tm i { display: block; height: 8px; margin-top: 3px; border-radius: 99px; background: #5a3a40; border: 1.5px solid var(--ink); overflow: hidden; }
+#team .tm i u { display: block; height: 100%; background: #3fc98a; transition: width .15s; text-decoration: none; }
+#team .tm.me { box-shadow: 0 0 0 2px var(--sun), 0 3px 0 var(--ink); }
+#team .tm.dead { opacity: .82; } #team .tm.dead .ico { filter: grayscale(1) brightness(1.2); } #team .tm.dead i u { background: #7fffb0; }
+.panel.nwaitp { text-align: center; } .panel.nwaitp .nwait { font-weight: 800; font-size: 18px; }
 #ptags { position: fixed; inset: 0; pointer-events: none; overflow: hidden; z-index: 2; }
 #ptags span { position: absolute; left: 0; top: 0; font: 800 12px/1.2 var(--num); background: rgba(255,250,240,.92); border: 2px solid var(--ink); border-radius: 999px; padding: 1px 9px 3px; white-space: nowrap; will-change: transform; }
 #ptags span i { display: block; height: 4px; margin-top: 2px; background: #e3d3b8; border-radius: 99px; overflow: hidden; } #ptags span i b { display: block; height: 100%; background: #3fc98a; } #ptags span.dead { opacity: .6; } #ptags span.dead i b { background: #a89a92; }
