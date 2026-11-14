@@ -1,0 +1,20 @@
+{
+  "status": "deployed",
+  "at": "2026-11-14T16:54:06.002Z",
+  "environment": "staging",
+  "revision": "9fc9a560269b01d478ac6b5cee91fea59317dc40",
+  "deploymentId": "5181397f-3834-422e-9fc8-488f697bd5f3",
+  "previousRevision": "cf8b9a37bf1f0e1cb758f0450038d10ac0d6463f",
+  "changes": [
+    "Split the scope into independent critical chance and critical damage accessories.",
+    "Tune combat accessories, regen tiers, and lifesteal.",
+    "Subtract flat armor from incoming hits and distribute base burn damage across three seconds."
+  ],
+  "verification": {
+    "railwayBuild": true,
+    "healthAndRevision": true,
+    "gameAssets": "159 files matched source byte for byte.",
+    "isolatedRuntime": "Verified critical stats, fractional lifesteal and cap, flat armor, burn totals with and without the burn accessory, and healing card tiers."
+  },
+  "pendingMigrations": 0
+}
