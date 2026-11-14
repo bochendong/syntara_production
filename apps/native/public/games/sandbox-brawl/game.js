@@ -85,24 +85,25 @@ const WEAPONS = {
 // 饰品：每件效果都很小，同一件可以一直叠。r = 稀有度（0 普通 / 1 稀有 / 2 传奇），curse = 有代价
 const RELICS = {
   wrist:    { name: '护腕',       tag: 'melee',  r: 0, desc: '近战伤害 +8%' },
-  drink:    { name: '运动饮料',   tag: 'melee',  r: 0, desc: '生命上限 +10，每秒多回 0.05 血' },
+  drink:    { name: '运动饮料',   tag: 'melee',  r: 0, regen: 0.1, desc: '生命上限 +10，每秒多回 0.1 血' },
   dumbbell: { name: '哑铃',       tag: 'melee',  r: 0, desc: '近战范围 +8%' },
   bucket:   { name: '水桶',       tag: 'melee',  r: 0, desc: '近战范围 +5%，水渍多留 1 秒' },
   sharpener:{ name: '削笔刀',     tag: 'ranged', r: 1, desc: '远程穿透 +1' },
   scratch:  { name: '草稿纸',     tag: 'ranged', r: 2, desc: '铅笔、纸飞机、拖鞋数量 +1' },
-  scope:    { name: '望远镜',     tag: 'ranged', r: 1, desc: '暴击率 +5%，暴击伤害 +20%' },
-  mom:      { name: '妈妈的怒吼', tag: 'ranged', r: 0, desc: '所有击退 +15%' },
+  scope:    { name: '望远镜',     tag: 'ranged', r: 1, crit: 0.01, desc: '暴击率 +1 个百分点' },
+  lens:     { name: '精磨镜片',   tag: 'ranged', r: 1, icon: 'critDmg', iconCategory: 'stats', critDmg: 0.08, desc: '暴击伤害 +8 个百分点（倍率 +0.08）' },
+  mom:      { name: '妈妈的怒吼', tag: 'ranged', r: 0, knockback: 0.08, desc: '所有击退 +8%' },
   mag:      { name: '大弹匣',     tag: 'gun',    r: 0, desc: '枪械冷却 -7%' },
   dual:     { name: '双持',       tag: 'gun',    r: 2, desc: '订书机枪一次多射一发' },
-  reddot:   { name: '红点瞄具',   tag: 'gun',    r: 0, desc: '枪械暴击率 +5%' },
+  reddot:   { name: '红点瞄具',   tag: 'gun',    r: 0, gunCrit: 0.01, desc: '枪械暴击率 +1 个百分点' },
   caffeine: { name: '咖啡因',     tag: 'magic',  r: 0, desc: '魔法冷却 -7%' },
   ink:      { name: '荧光墨水',   tag: 'magic',  r: 1, desc: '魔法范围 +10%，闪电多跳 1 次' },
-  grimoire: { name: '魔导笔记',   tag: 'magic',  r: 1, desc: '燃烧伤害 +35%' },
+  grimoire: { name: '魔导笔记',   tag: 'magic',  r: 1, burnDamage: 0.08, desc: '燃烧伤害 +8%' },
   laundry:  { name: '脏衣篮',     tag: 'magic',  r: 0, desc: '臭气、旋风、燃烧这些持续伤害 +10%' },
   redpen:   { name: '红笔',       tag: 'magic',  r: 0, desc: '对精英和大魔王伤害 +10%' },
   poster:   { name: '招新海报',   tag: 'summon', r: 2, desc: '每次多召唤一个' },
-  snack:    { name: '团建零食',   tag: 'summon', r: 0, desc: '召唤物伤害 +10%' },
-  banner:   { name: '加油横幅',   tag: 'summon', r: 0, desc: '召唤物攻速 +10%' },
+  snack:    { name: '团建零食',   tag: 'summon', r: 0, summonDamage: 0.08, desc: '召唤物伤害 +8%' },
+  banner:   { name: '加油横幅',   tag: 'summon', r: 0, summonSpeed: 0.08, desc: '召唤物攻速 +8%' },
   bath:     { name: '浴缸',       tag: 'summon', r: 0, desc: '召唤物存在时间 +10%' },
   allnight: { name: '通宵',       tag: '', curse: 1, desc: '所有伤害 +15%，生命上限 -10%' },
   slack:    { name: '摸鱼',       tag: '', curse: 1, desc: '移速 +10%，拾取范围 +20%，伤害 -4%' },
@@ -131,7 +132,7 @@ const DUOS = {
 const MAXW = 4, EVO_L = 6, SKILL_LV = [4, 8, 12];
 // 元素注入：技能 4 / 8 级各选一次，两次的元素会组合
 const ELEMS = {
-  fire: { name: '火', c: '#ff6a2a', desc: '命中后灼烧 3 秒，持续掉血' },
+  fire: { name: '火', c: '#ff6a2a', desc: '命中后灼烧 3 秒，总伤害为该次命中伤害的 1/3' },
   ice:  { name: '冰', c: '#4ab8ee', desc: '命中后减速' },
   acid: { name: '酸', c: '#7ab82e', desc: '命中后 4 秒内，怪受到的所有伤害 +25%' },
   elec: { name: '电', c: '#2f86f0', desc: '25% 概率把伤害传导给旁边一只怪' },
@@ -149,8 +150,9 @@ const COMBOS = {
   'acid+elec': ['腐蚀电流', '传导伤害提高到 100%，并带上酸'],
 };
 // 地图遗物：在地图上找到祭台，三选一
+const VAMP_HEAL_RATE = 0.012, VAMP_HEAL_MAX_HP_RATE = 0.15;
 const ARTS = {
-  vamp:   { name: '吸血红笔',   c: '#e0473c', ic: 'curse',   desc: '暴击吸血：每次暴击回复伤害的 2%，单次最多 3 点' },
+  vamp:   { name: '吸血红笔',   c: '#e0473c', ic: 'curse',   desc: `每次暴击回复伤害的 ${VAMP_HEAL_RATE * 100}%，单次最多 生命上限的 ${VAMP_HEAL_MAX_HP_RATE * 100}%` },
   mirror: { name: '反光镜',     c: '#38b2c9', ic: 's_dodge', desc: '闪避成功时，回复等同于这次伤害的血，单次最多生命上限的 15%' },
   plate:  { name: '铁饭盒',     c: '#7a8394', ic: 's_armor', desc: '护甲 +3。每 1 点护甲让基础伤害 +1%' },
   koi:    { name: '锦鲤挂件',   c: '#ff6fa8', ic: 's_luck',  desc: '升级时每抽到一张普通属性卡，幸运 +1%，最多 +10%' },
@@ -251,12 +253,12 @@ const signedPercent = (value) => {
 const STATS = {
   dmg:     { name: '基础伤害', fl: '熬夜刷题', c: '#e0473c', ch: '力', step: 0.04, show: signedPercent },
   crit:    { name: '暴击率',   fl: '灵光一闪', c: '#ffb020', ch: '暴', step: 0.01, max: 1, show: (v) => `${Math.round(v * 100)}%` },
-  critDmg: { name: '暴击伤害', fl: '满分卷子', c: '#ff7a3a', ch: '伤', step: 0.08, show: (v) => `×${v.toFixed(1)}` },
+  critDmg: { name: '暴击伤害', fl: '满分卷子', c: '#ff7a3a', ch: '伤', step: 0.08, show: (v) => `×${v.toFixed(2)}` },
   atkSpd:  { name: '攻速',     fl: '手速',     c: '#3f97e8', ch: '速', step: 0.04, show: signedPercent },
   luck:    { name: '幸运',     fl: '锦鲤',     c: '#ff6fa8', ch: '运', step: 0.01, max: 0.2, show: (v) => `${Math.round(v * 100)}%` },
   dodge:   { name: '闪避',     fl: '溜得快',   c: '#38b2c9', ch: '闪', step: 0.02, max: 0.8, show: (v) => `${Math.round(v * 100)}%` },
-  armor:   { name: '护甲',     fl: '厚外套',   c: '#7a8394', ch: '甲', step: 1, show: (v) => `${Math.round(v)}（受伤 -${Math.round(v / (v + 10) * 100)}%）` },
-  regen:   { name: '回复速度', fl: '保温杯',   c: '#3faa6a', ch: '回', step: 0.04, show: (v) => `${v.toFixed(2)}/秒` },
+  armor:   { name: '护甲',     fl: '厚外套',   c: '#7a8394', ch: '甲', step: 1, show: (v) => String(Math.round(v)) },
+  regen:   { name: '回复速度', fl: '保温杯',   c: '#3faa6a', ch: '回', step: 0.1, show: (v) => `${v.toFixed(2)}/秒` },
   speed:   { name: '移动速度', fl: '新球鞋',   c: '#5fb04f', ch: '跑', step: 0.03, show: (v) => `+${Math.round(v * 100)}%` },
   xp:      { name: '经验效率', fl: '课堂笔记', c: '#3fc98a', ch: '学', step: 0.04, show: (v) => `+${Math.round(v * 100)}%` },
   maxHp:   { name: '生命上限', fl: '早餐吃饱', c: '#ff8a6b', ch: '命', step: 8, show: () => `${Math.round(player.maxHp)}` },
@@ -1005,7 +1007,7 @@ const practicePointsUrl = '/api/native/v1/games/brawl/points';
 const hostedGame = !skillDemoMode && location.pathname.startsWith('/native-web/games/sandbox-brawl/');
 const expectedGameAccount = hostedGame ? new URLSearchParams(location.search).get('account') : null;
 const PRICE = { heroes: 150 }, FREE_SKILLS = ['mop', 'plane'];
-const DEF0 = { heroes: ['brawler', 'scholar', 'jock'], arts: ['vamp', 'mirror', 'plate', 'koi'], relics: ['dumbbell', 'wrist', 'mom', 'bucket', 'scope', 'drink'] };
+const DEF0 = { heroes: ['brawler', 'scholar', 'jock'], arts: ['vamp', 'mirror', 'plate', 'koi'], relics: ['dumbbell', 'wrist', 'mom', 'bucket', 'scope', 'lens', 'drink'] };
 const meta = { pts: 0, heroes: [...DEF0.heroes], arts: [...DEF0.arts], relics: [...DEF0.relics], seen: [], ach: [], skins: [], ults: [], weapons: [], top: [], clearedDifficulties: [], skinOn: {}, growth: {}, fragments: {}, itemLevels: {}, practiceTransfer: '', stat: { runs: 0, kills: 0, wins: 0, hardWin: 0, pulls: 0, pity: 0 } };
 let legacyPreviewUnlocks = false;
 function loadMeta() {
@@ -1324,7 +1326,7 @@ const tSpd = () => Math.min(1.4, 1 + T / BOSS_T * 0.35);
 function dmgMul(tag) {
   let m = (1 + player.st.dmg) * (tag === cls.tag ? 1.2 : 1);
   if (tag === 'melee') m *= 1 + 0.08 * R('wrist');
-  if (tag === 'summon') { m *= 1 + 0.1 * R('snack'); if (SL.summon >= 3) m *= 1.5; }
+  if (tag === 'summon') { m *= 1 + RELICS.snack.summonDamage * R('snack'); if (SL.summon >= 3) m *= 1.5; }
   m *= (1 + 0.15 * R('allnight')) * Math.pow(0.96, R('slack'));
   if (A('plate')) m *= 1 + Math.max(0, player.st.armor) * 0.01; if (A('last') && player.hp < player.maxHp * 0.35) m *= 1.6;
   return m;
@@ -1333,18 +1335,18 @@ function cdMul(tag) {
   let m = 1 / (1 + player.st.atkSpd);
   if (tag === 'gun') { m *= Math.pow(0.93, R('mag')); if (SL.gun >= 1) m *= 0.8; }
   if (tag === 'magic') m *= Math.pow(0.93, R('caffeine'));
-  if (tag === 'summon') m /= 1 + 0.1 * R('banner');
+  if (tag === 'summon') m /= 1 + RELICS.banner.summonSpeed * R('banner');
   if (tag === 'melee' && SL.melee >= 3) m *= 0.5;
   return m;
 }
 const area = (tag) => (tag === 'melee' ? (1 + 0.08 * R('dumbbell') + 0.05 * R('bucket')) : 1) * (tag === 'magic' ? 1 + 0.1 * R('ink') : 1);
-const KNOCK = () => (1 + 0.15 * R('mom'));
+const KNOCK = () => (1 + RELICS.mom.knockback * R('mom'));
 function hitEnemy(e, dmg, kx = 0, kz = 0, tag = '', opts = {}) {
   if (e.dead || e.inv) return;
   const els = !opts.noElem && CW ? player.elem[CW] : null, xs = (!opts.raw && CW && player.sp[CW]) || null;
-  const critRate = (xs && xs.crit ? 0.2 : 0) + player.st.crit + (tag === 'gun' ? 0.05 * R('reddot') : 0) + (e.brittle > 0 ? 0.3 : 0);
+  const critRate = (xs && xs.crit ? 0.2 : 0) + player.st.crit + (tag === 'gun' ? RELICS.reddot.gunCrit * R('reddot') : 0) + (e.brittle > 0 ? 0.3 : 0);
   const crit = !opts.noCrit && Math.random() < critRate;
-  const critX = player.st.critDmg + 0.2 * R('scope') + 0.5 * R('glass');
+  const critX = player.st.critDmg + 0.5 * R('glass');
   const elite = e.type === 'boss' || e.type === 'hourglass';
   let xm = 1;
   if (xs) { if (xs.exec && e.hp < e.maxHp * 0.3) xm *= 1.8; if (xs.first && e.hp >= e.maxHp) xm *= 1.6; if (xs.elite && elite) xm *= 1.6; if (xs.near && Math.hypot(e.x - player.x, e.z - player.z) < 3) xm *= 1.7; if (xs.kb) { kx *= 2; kz *= 2; } }
@@ -1352,9 +1354,9 @@ function hitEnemy(e, dmg, kx = 0, kz = 0, tag = '', opts = {}) {
   e.hp -= v; e.hit = 1; const kr = (e.giant ? 0.25 : 1) * (e.type === 'boss' ? 0.05 : e.type === 'hourglass' || e.type === 'bomber' ? 0.25 : 1) * KNOCK(); e.kx += kx * kr; e.kz += kz * kr;
   if (state === 'play' && v > 0) gameAudio.play('hit');
   if (Math.random() < 0.5 || crit) dmgNum(e.x, e.z, v, crit ? 'crit' : '', e.r * 2 + 0.6);
-  if (crit && A('vamp')) restoreHealth(player, Math.min(1, v * 0.008));
+  if (crit && A('vamp')) restoreHealth(player, Math.min(player.maxHp * VAMP_HEAL_MAX_HP_RATE, v * VAMP_HEAL_RATE));
   if (tag === 'melee' && SL.melee >= 1) { player.healAcc += 0.2; }
-  if (tag === 'magic' && SL.magic >= 1) { e.burn = 3; e.burnDps = Math.max(e.burnDps || 0, v * 0.3 * (1 + 0.35 * R('grimoire')) * (1 + 0.1 * R('laundry'))); }
+  if (tag === 'magic' && SL.magic >= 1) applyBurn(e, v);
   if (tag === 'gun' && crit && SL.gun >= 2 && !opts.noChain) { boom(e.x, e.z, 1.6, v * 0.6, 'gun', 0xffd27a); }
   if (xs) { if (xs.stun && e.type !== 'boss' && Math.random() < 0.15) { e.frz = Math.max(e.frz || 0, 0.8); spark(e.x, e.r * 2 + 0.5, e.z, 0xffe07a, 5, 2, 0.3, 0.5, 0); } if (xs.mark) e.stink = Math.max(e.stink || 0, 3); }
   if (els && els.length && !e.dead) applyElems(e, v, els);
@@ -1363,10 +1365,38 @@ function hitEnemy(e, dmg, kx = 0, kz = 0, tag = '', opts = {}) {
     if (xs) { if (xs.boom && !opts.noChain) boom(e.x, e.z, 1.9, dmg * 0.6, tag, 0xffb04a); if (xs.leech && Math.random() < 0.08) restoreHealth(player, 2);
       if (xs.gem && Math.random() < 0.2) gems.push({ x: e.x + rnd(-0.4, 0.4), z: e.z + rnd(-0.4, 0.4), v: 1 + Math.floor(T / 90), sz: 0, pull: false, s: 0, ph: Math.random() * 6 }); } }
 }
+const BURN_DURATION = 3, BURN_INTERVAL = 0.5;
+function setBurn(target, dps, duration = BURN_DURATION) {
+  if (!(target.burn > 0)) {
+    target.burnDps = 0;
+    target.burnTick = 0;
+    target.burnDamage = 0;
+  }
+  target.burn = Math.max(target.burn || 0, duration);
+  target.burnDps = Math.max(target.burnDps, dps);
+}
+
+function applyBurn(target, hitDamage, multiplier = 1) {
+  const bonus = (1 + RELICS.grimoire.burnDamage * R('grimoire')) * (1 + 0.1 * R('laundry'));
+  setBurn(target, hitDamage / (3 * BURN_DURATION) * multiplier * bonus);
+}
+
+function tickBurn(target, dt) {
+  const elapsed = Math.min(dt, target.burn);
+  target.burn -= elapsed;
+  target.burnTick += elapsed;
+  target.burnDamage += elapsed * target.burnDps;
+  if (target.burnTick < BURN_INTERVAL && target.burn > 0) return 0;
+  const damage = target.burnDamage;
+  target.burnTick = 0;
+  target.burnDamage = 0;
+  return damage;
+}
+
 // 元素效果：单个元素各管各的，两个元素再叠一层组合效果
 // 闪电跳过去时，把上一只怪身上的状态一起带过去（灼烧、酸、减速、冻伤、脆化、臭气）
 function carry(a, b) {
-  if (a.burn > 0) { b.burn = Math.max(b.burn || 0, a.burn); b.burnDps = Math.max(b.burnDps || 0, a.burnDps || 0); if (a.fireBomb) b.fireBomb = 1; if (a.spreadBurn) b.spreadBurn = 1; }
+  if (a.burn > 0) { setBurn(b, a.burnDps, a.burn); if (a.fireBomb) b.fireBomb = 1; if (a.spreadBurn) b.spreadBurn = 1; }
   if (a.acid > 0) { b.acid = Math.max(b.acid || 0, a.acid); b.acidK = Math.max(b.acidK || 0, a.acidK || 0.25); if (a.acidSpread) b.acidSpread = 1; }
   if (a.chill > 0) { b.chill = Math.max(b.chill || 0, a.chill); b.slow = Math.max(b.slow, a.slow); }
   if (a.fb > 0) { b.fb = Math.max(b.fb || 0, a.fb); b.fbDps = Math.max(b.fbDps || 0, a.fbDps || 0); }
@@ -1375,7 +1405,7 @@ function carry(a, b) {
 function applyElems(e, v, els) {
   spark(e.x, e.r + 0.5, e.z, ELC[els[(Math.random() * els.length) | 0]], 4, 3.5, 0.4, 0.3);
   const F = els.includes('fire'), I = els.includes('ice'), AC = els.includes('acid'), E = els.includes('elec'), dbl = els.length === 2 && els[0] === els[1], RAW = { noElem: true, noCrit: true, raw: true };
-  if (F) { e.burn = 3; e.burnDps = Math.max(e.burnDps || 0, v * (dbl ? 0.6 : 0.25) * (AC ? 2 : 1)); if (dbl) e.fireBomb = 1; if (AC) e.spreadBurn = 1; }
+  if (F) { applyBurn(e, v, (dbl ? 2.4 : 1) * (AC ? 2 : 1)); if (dbl) e.fireBomb = 1; if (AC) e.spreadBurn = 1; }
   if (I) { e.slow = Math.max(e.slow, 1.5); e.chill = 1.5; if (dbl) { e.fb = 3; e.fbDps = Math.max(e.fbDps || 0, v * 0.25); if (Math.random() < 0.15 && e.type !== 'boss') e.frz = 1.2; } }
   if (AC) { e.acid = 4; e.acidK = dbl ? 0.5 : 0.25; if (dbl) e.acidSpread = 1; }
   if (I && AC) e.brittle = 3;
@@ -1384,7 +1414,7 @@ function applyElems(e, v, els) {
     let cur = e; const seen = new Set([e]), path = [{ x: e.x, y: 0.7, z: e.z }], jumps = dbl ? 4 : F ? 3 : 2;
     for (let j = 0; j < jumps; j++) {
       const n = nearest(cur.x, cur.z, 4.5, seen); if (!n) break; seen.add(n); path.push({ x: n.x, y: 0.7, z: n.z });
-      if (F) { n.burn = 3; n.burnDps = Math.max(n.burnDps || 0, v * 0.25); } if (I && n.type !== 'boss') n.frz = Math.max(n.frz, 0.6); if (AC) { n.acid = 4; n.acidK = Math.max(n.acidK || 0, 0.25); }
+      if (F) { applyBurn(n, v); } if (I && n.type !== 'boss') n.frz = Math.max(n.frz, 0.6); if (AC) { n.acid = 4; n.acidK = Math.max(n.acidK || 0, 0.25); }
       carry(cur, n); spark(n.x, 0.9, n.z, 0xbfe4ff, 8, 5, 0.34, 0.3); ringFx(n.x, n.z, 0.9, 0x7fc4ff, 0.2, 0.8); hitEnemy(n, v * (AC ? 1 : 0.4), 0, 0, '', RAW); cur = n;
     }
     if (path.length > 1) { const zc = F ? 0xffb04a : I ? 0x9fe0ff : AC ? 0xb8f04a : 0x4aa8ff; zap(path, zc, 0.4, 0.28, 6); zap(path, 0xffffff, 0.25, 0.12, 3); spark(e.x, 0.9, e.z, zc, 8, 5, 0.34, 0.3); }
@@ -1404,14 +1434,18 @@ function hurtPlayer(v, source) {
     return false;
   }
   if (player.shield) { player.shield = false; shieldT = 10; dmgNum(player.x, player.z, '挡住', 'tag', 2.2); ringFx(player.x, player.z, 1.6, 0x9fe0ff, 0.3); return false; }
+  v = Math.max(0, v - Math.max(0, player.st.armor));
+  if (v === 0) {
+    dmgNum(player.x, player.z, '挡住', 'tag', 2.2);
+    return false;
+  }
   if (run.hit < 0) run.hit = T;
-  v *= 10 / (10 + Math.max(0, player.st.armor));
   const big = Math.min(1, v / (player.maxHp * 0.08));
   const wasStanding = player.hp > 0;
   player.hp -= v;
   if (wasStanding && player.hp <= 0) defeatSource = source || null;
   player.hit = 1; player.warn = 1; bump($('pcard'), 'hurt'); $('hurtFx').style.setProperty('--k', (0.5 + big * 0.5).toFixed(2)); bump($('hurtFx'), 'hit'); hurt = Math.min(1, hurt + 0.55 + big * 0.4); chroma = Math.max(chroma, 0.35 + big * 0.4); shake = Math.max(shake, 0.14 + big * 0.22);
-  dmgNum(player.x, player.z, '-' + Math.max(1, Math.round(v)), 'hurt', 2.5); spark(player.x, 1, player.z, 0xff4a58, 10 + Math.round(big * 14), 6, 0.35, 0.4); ringFx(player.x, player.z, 1.3 + big, 0xff4a58, 0.25);
+  dmgNum(player.x, player.z, '-' + Math.max(0.01, Number(v.toFixed(2))), 'hurt', 2.5); spark(player.x, 1, player.z, 0xff4a58, 10 + Math.round(big * 14), 6, 0.35, 0.4); ringFx(player.x, player.z, 1.3 + big, 0xff4a58, 0.25);
   if (A('thorn')) { const cw = CW; CW = null; ringFx(player.x, player.z, 3, 0x6fd04a, 0.3); query(player.x, player.z, 3, (o, dx, dz) => { const L = Math.hypot(dx, dz) || 1; hitEnemy(o, v * 3, dx / L * 8, dz / L * 8, '', { noCrit: true }); }); CW = cw; }
   return true;
 }
@@ -1446,13 +1480,13 @@ function killEnemy(e, tag) {
   // 元素的死亡效果
   const RAWK = { noElem: true, noCrit: true, raw: true };
   if (e.burn > 0 && e.fireBomb) { ringFx(e.x, e.z, 1.9, 0xff7a2a, 0.3); spark(e.x, 0.6, e.z, 0xff7a2a, 16, 6, 0.4, 0.4); query(e.x, e.z, 1.9, (o) => hitEnemy(o, (e.burnDps || 5) * 2.5, 0, 0, '', RAWK)); }
-  if (e.burn > 0 && e.spreadBurn) { ringFx(e.x, e.z, 2.5, 0xb8f04a, 0.3); query(e.x, e.z, 2.5, (o) => { o.burn = 3; o.burnDps = Math.max(o.burnDps || 0, e.burnDps || 5); o.spreadBurn = 1; }); }
+  if (e.burn > 0 && e.spreadBurn) { ringFx(e.x, e.z, 2.5, 0xb8f04a, 0.3); query(e.x, e.z, 2.5, (o) => { setBurn(o, e.burnDps); o.spreadBurn = 1; }); }
   if (e.acid > 0 && e.acidSpread) { ringFx(e.x, e.z, 2.5, 0x8ac83a, 0.3); burst(e.x, 0.4, e.z, 0x9ad04a, 10, 5, 0.35, 0.5); query(e.x, e.z, 2.5, (o) => { o.acid = 4; o.acidK = 0.5; }); }
   if (e.brittle > 0) { ringFx(e.x, e.z, 1.7, 0x9fe0ff, 0.25); spark(e.x, 0.6, e.z, 0xd8f4ff, 12, 7, 0.35, 0.35); query(e.x, e.z, 1.7, (o) => hitEnemy(o, e.maxHp * 0.3, 0, 0, '', RAWK)); }
   // 知识吸取：把全场经验吸过来
   if ((Math.random() < 0.012 || e.type === 'hourglass') && drops.length < 3) drops.push({ x: e.x, z: e.z });
   if (e.type !== 'boss' && e.type !== 'hourglass' && !(NET && NET.on) && Math.random() < (e.giant ? 0.06 : 0.005) && gifts.length < 3) { const id = rollRelic([78, 20, 2]); if (id) gifts.push({ x: e.x, z: e.z, id, t: 0 }); }
-  if (e.burn > 0 && SL.magic >= 2) { ringFx(e.x, e.z, 2.5, 0xff7a2a, 0.3); spark(e.x, 0.6, e.z, 0xff7a2a, 14, 5, 0.4, 0.4); query(e.x, e.z, 2.5, (o) => { o.burn = 3; o.burnDps = Math.max(o.burnDps || 0, e.burnDps || 5); }); }
+  if (e.burn > 0 && SL.magic >= 2) { ringFx(e.x, e.z, 2.5, 0xff7a2a, 0.3); spark(e.x, 0.6, e.z, 0xff7a2a, 14, 5, 0.4, 0.4); query(e.x, e.z, 2.5, (o) => { setBurn(o, e.burnDps); }); }
   if (tag === 'summon' && player.evo.minion && minions.length < 30) addMinion(3, e.x, e.z);
   if (task && task.type === 'kill' && Math.hypot(e.x - task.x, e.z - task.z) < task.rad) { task.prog++; spark(e.x, 0.8, e.z, 0xff5a5a, 6, 3, 0.3, 0.4); }
   if (e.type === 'snail' || e.type === 'phone' || e.type === 'hourglass') { ripple(e.x, e.z, 0.6); shake = Math.max(shake, 0.12); }
@@ -1473,7 +1507,7 @@ function spawn(type, x, z) {
   if (NET && NET.on && !NET.host && !NET.mirroring) return null;
   if (state === 'play' && !meta.seen.includes(type)) meta.seen.push(type);
   const t = ET[type], hpMul = tHp() * DF().hp * netHp();
-  const e = { id: eid++, type, x, z, r: t.r, size: t.size, hp: t.hp * hpMul, maxHp: t.hp * hpMul, spd: t.spd * rnd(0.9, 1.1) * tSpd(), dps: t.dps * DF().dmg * tDmg(), xp: t.xp, fly: t.fly, hit: 0, seed: Math.random(), slow: 0, kx: 0, kz: 0, cdA: rnd(1, 3), ringing: 0, dash: 0, dx: 0, dz: 0, ph: Math.random() * 6, moving: 1, spawn: 1, dead: false, sleep: 0, burn: 0, burnDps: 0, burnTick: 0, stink: 0, fuse: 0, acid: 0, frz: 0, fb: 0, brittle: 0, warn: 0 };
+  const e = { id: eid++, type, x, z, r: t.r, size: t.size, hp: t.hp * hpMul, maxHp: t.hp * hpMul, spd: t.spd * rnd(0.9, 1.1) * tSpd(), dps: t.dps * DF().dmg * tDmg(), xp: t.xp, fly: t.fly, hit: 0, seed: Math.random(), slow: 0, kx: 0, kz: 0, cdA: rnd(1, 3), ringing: 0, dash: 0, dx: 0, dz: 0, ph: Math.random() * 6, moving: 1, spawn: 1, dead: false, sleep: 0, burn: 0, burnDps: 0, burnTick: 0, burnDamage: 0, stink: 0, fuse: 0, acid: 0, frz: 0, fb: 0, brittle: 0, warn: 0 };
   if (type === 'mole') { e.ms = 'walk'; e.mcd = rnd(0.8, 2); }
   // 7 分钟后开始混进大块头：个头是 2.4 倍，血厚、走得慢、推不太动，专门挤占走位空间
   if (GIANT_OK.includes(type) && state === 'play' && (forceGiant || (!(NET && NET.mirroring) && T >= GIANT_T && Math.random() < 0.08 && enemies.filter((q) => q.giant && !q.dead).length < 7))) { e.giant = 1; e.size *= 2.4; e.r *= 2.4; e.hp = e.maxHp = e.hp * 9; e.spd *= 0.6; e.dps *= 1.6; e.xp *= 6; }
@@ -2209,7 +2243,11 @@ const ICON_DIRECTORIES = {
   alternateUltimates: 'alternate-ultimate-icons',
 };
 const SKILL_FORM_ICONS = { base: 'skills', evo: 'ultimates', alt: 'alternateUltimates' };
-const illustration = (category, id) => `<img class="item-illustration" src="./${ICON_DIRECTORIES[category]}/${FRAGMENT_POOLS[category]?.[id]?.icon ?? id}.webp" width="48" height="48" alt="">`;
+function illustration(category, id) {
+  const item = FRAGMENT_POOLS[category]?.[id];
+  const directory = ICON_DIRECTORIES[item?.iconCategory ?? category];
+  return `<img class="item-illustration" src="./${directory}/${item?.icon ?? id}.webp" width="48" height="48" alt="">`;
+}
 const illustratedBadge = (category, id, color, size) =>
   `<span class="ico illustrated" style="--c:${color}${size ? `;--s:${size}px` : ''}">${illustration(category, id)}</span>`;
 
@@ -3277,7 +3315,7 @@ function optionCard(o, i, theme) {
     const S = STATS[o.id], v = statVal(o.id, o.tier), after = Math.min(S.max ?? Infinity, player.st[o.id] + v);
     c = S.c; kind = '通用属性'; rar = 'q' + o.tier; rn = TIER[o.tier].n; stars = o.tier + 1; name = S.name; sub = S.fl;
     delta = o.id === 'maxHp' ? deltaHtml(`${S.name} ${Math.round(player.maxHp)} → ${Math.round(player.maxHp + v)}`) : deltaHtml(`${S.name} ${S.show(player.st[o.id]).replace(/（.*/, '')} → ${S.show(after).replace(/（.*/, '')}`);
-    if (o.id === 'armor') desc = `受到的伤害 -${Math.round(after / (after + 10) * 100)}%`; else if (S.max != null && S.max < 1) desc = `最高 ${S.show(S.max)}`;
+    if (o.id === 'armor') desc = `每次受击扣除 ${Math.round(after)} 点伤害，最低为 0`; else if (S.max != null && S.max < 1) desc = `最高 ${S.show(S.max)}`;
   }
   const icon = elementIcon ?? illustratedBadge(category, o.kind === 'x' ? o.w : o.id, c);
   const tier = theme ? choiceCardTier(o, rar) : null;
@@ -3293,7 +3331,18 @@ function applyUpgrade(o) {
     if (l >= MAXLV && !player.evo[o.id] && !player.alt[o.id] && altOwned(o.id)) { if (!pendingUlt.includes(o.id)) pendingUlt.push(o.id); }
     if (l >= MAXLV && !player.evo[o.id] && !player.alt[o.id] && !altOwned(o.id)) { player.evo[o.id] = 1; banner(WEAPONS[o.id].evo.name, '终极形态', illustration('ultimates', o.id)); ripple(player.x, player.z, 1.5); spark(player.x, 1, player.z, 0xffc24a, 120, 9, 0.45, 0.9); shake = 0.4; } }
   else if (o.kind === 's') { const v = statVal(o.id, o.tier); if (o.id === 'maxHp') { player.maxHp += v; player.hp += v; } else player.st[o.id] = Math.min(STATS[o.id].max ?? Infinity, player.st[o.id] + v); }
-  else if (o.kind === 'r') { player.relics[o.id] = R(o.id) + 1; player.st.dmg += relicLevelDamage(o.id); if (o.id === 'drink') { player.maxHp += 10; player.hp += 10; player.st.regen += 0.05; } if (o.id === 'allnight') { player.maxHp *= 0.9; player.hp = Math.min(player.hp, player.maxHp); } if (o.id === 'glass') { player.maxHp *= 0.85; player.hp = Math.min(player.hp, player.maxHp); } if (o.id === 'slack') { player.st.speed += 0.1; player.magnet *= 1.2; } if (o.id === 'scope') player.st.crit += 0.05; renderItems(); }
+  else if (o.kind === 'r') {
+    const item = RELICS[o.id];
+    player.relics[o.id] = R(o.id) + 1;
+    player.st.dmg += relicLevelDamage(o.id);
+    if (item.crit) player.st.crit = Math.min(STATS.crit.max, player.st.crit + item.crit);
+    if (item.critDmg) player.st.critDmg += item.critDmg;
+    if (o.id === 'drink') { player.maxHp += 10; player.hp += 10; player.st.regen += item.regen; }
+    if (o.id === 'allnight') { player.maxHp *= 0.9; player.hp = Math.min(player.hp, player.maxHp); }
+    if (o.id === 'glass') { player.maxHp *= 0.85; player.hp = Math.min(player.hp, player.maxHp); }
+    if (o.id === 'slack') { player.st.speed += 0.1; player.magnet *= 1.2; }
+    renderItems();
+  }
   else if (o.kind === 'ult') {
     const form = o.v === 'b' ? 'alt' : 'evo';
     const name = form === 'alt' ? ALT[o.id].name : WEAPONS[o.id].evo.name;
@@ -3737,7 +3786,15 @@ function update(dt) {
     if (e.dead) continue;
     e.hit = Math.max(0, e.hit - dt * 7); e.slow -= dt; e.spinCd = (e.spinCd || 0) - dt; e.stink -= dt;
     if (e.sockSlow > 0) e.sockSlow -= dt;
-    if (e.burn > 0) { e.burn -= dt; e.burnTick -= dt; if (e.burnTick <= 0) { e.burnTick = 0.5; e.hp -= e.burnDps * 0.5; if (Math.random() < 0.4) dmgNum(e.x, e.z, e.burnDps * 0.5, 'burn', e.r * 2 + 0.3); spark(e.x, e.r + 0.4, e.z, 0xff7a2a, 3, 1, 0.35, 0.5, -2); if (e.hp <= 0) { killEnemy(e, 'magic'); continue; } } }
+    if (e.burn > 0) {
+      const damage = tickBurn(e, dt);
+      if (damage > 0) {
+        e.hp -= damage;
+        if (Math.random() < 0.4) dmgNum(e.x, e.z, damage, 'burn', e.r * 2 + 0.3);
+        spark(e.x, e.r + 0.4, e.z, 0xff7a2a, 3, 1, 0.35, 0.5, -2);
+        if (e.hp <= 0) { killEnemy(e, 'magic'); continue; }
+      }
+    }
     e.acid -= dt; e.brittle -= dt; e.chill = (e.chill || 0) - dt;
     if (e.burn > 0 && Math.random() < dt * 10) spark(e.x + rnd(-0.3, 0.3), e.r + 0.5, e.z + rnd(-0.3, 0.3), Math.random() < 0.5 ? 0xff7a2a : 0xffd23f, 1, 1.2, 0.46, 0.45, -4);
     if (e.acid > 0 && Math.random() < dt * 8) { spark(e.x + rnd(-0.4, 0.4), e.r + 0.7, e.z + rnd(-0.4, 0.4), 0x9be03a, 1, 0.6, 0.42, 0.5, 5); if (Math.random() < 0.2) blot(e.x + rnd(-0.3, 0.3), e.z + rnd(-0.3, 0.3), 0.22, 'rgba(120,190,40,.4)'); }
