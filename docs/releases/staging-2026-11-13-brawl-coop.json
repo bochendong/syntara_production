@@ -1,0 +1,21 @@
+{
+  "status": "deployed",
+  "at": "2026-11-14T04:17:39.834Z",
+  "environment": "staging",
+  "revision": "cf8b9a37bf1f0e1cb758f0450038d10ac0d6463f",
+  "deploymentId": "58c275c2-3f63-4f55-b86e-290801de54d3",
+  "previousRevision": "bf44832398e19dd5c4ac6a18628d64bd8d754548",
+  "changes": [
+    "Share XP among the team and wait for all players to make their own upgrade, chest, or relic choices.",
+    "Sync world tasks and rewards and allow any player to complete a task.",
+    "Revive teammates at graves and show health and revive progress in the team HUD."
+  ],
+  "verification": {
+    "railwayBuild": true,
+    "healthAndRevision": true,
+    "gameAssets": "159 files matched source byte for byte.",
+    "browser": "Two clients verified team XP, synchronized upgrade, chest and relic choices, team HP, guest task completion and teammate revival locally and on staging.",
+    "stagingRooms": "Verified four-player capacity, start and message relay, and all-player difficulty unlocks."
+  },
+  "pendingMigrations": 0
+}
