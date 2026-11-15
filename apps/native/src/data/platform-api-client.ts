@@ -714,6 +714,7 @@ export type TeachClass = {
     status: TeachAttemptStatus;
     score: number | null;
     attemptedCount: number;
+    hasIncorrectAttempt?: boolean;
   }>;
 };
 
@@ -776,6 +777,7 @@ export type TeachSessionItem = {
     score: number | null;
     submittedAt: number;
     attempts: number;
+    hasIncorrectAttempt?: boolean;
   }>;
 };
 

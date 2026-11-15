@@ -26,8 +26,8 @@ function load(path, mocks) {
   );
   return mod.exports;
 }
-function dashboardFixture() {
-  const entries = [
+function dashboardFixture(multipart = false) {
+  const ordinary = [
     {
       id: 'view-only',
       userId: 'reader',
@@ -58,10 +58,44 @@ function dashboardFixture() {
       score: null,
       resultJson: { event: 'hidden_tests_viewed' },
     },
-  ].map((entry, i) => ({ ...entry, kind: 'answer', problemId: 'p', createdAt: new Date(i + 1) }));
+  ];
+  const parts = [
+    {
+      id: 'clean-a',
+      userId: 'reader',
+      status: 'partial',
+      score: 50,
+      resultJson: { parts: [{ status: 'passed' }, { status: 'pending' }] },
+    },
+    { id: 'clean-b', userId: 'reader', status: 'passed', score: 100, resultJson: {} },
+    {
+      id: 'wrong-a',
+      userId: 'solver',
+      status: 'partial',
+      score: 0,
+      resultJson: { parts: [{ status: 'failed' }, { status: 'pending' }] },
+    },
+    { id: 'fixed-a', userId: 'solver', status: 'passed', score: 100, resultJson: {} },
+  ];
+  const entries = (multipart ? parts : ordinary).map((entry, i) => ({
+    ...entry,
+    kind: 'answer',
+    problemId: 'p',
+    createdAt: new Date(i + 1),
+  }));
   const db = {
     course: { findFirst: async () => null },
+    courseClass: {
+      findUnique: async () => ({
+        id: 'class',
+        teacherId: 'teacher',
+        courseId: 'course',
+        academicTerm: 'fall',
+      }),
+    },
     classSession: {
+      findMany: async () => [],
+      aggregate: async () => ({ _max: { number: null } }),
       findUnique: async () => ({
         id: 'lesson',
         classId: 'class',
@@ -78,11 +112,27 @@ function dashboardFixture() {
           joinedAt: new Date(1),
         })),
     },
-    courseClassMember: { findMany: async () => [] },
+    courseClassMember: {
+      findMany: async ({ orderBy }) =>
+        orderBy && multipart
+          ? ['reader', 'solver'].map((id) => ({ user: { id, name: id }, joinedAt: new Date(1) }))
+          : [],
+    },
+    notebookProblemProgress: {
+      findMany: async () =>
+        ['reader', 'solver'].map((userId) => ({
+          problemId: 'p',
+          userId,
+          status: 'passed',
+          attemptedCount: 2,
+          score: 100,
+        })),
+    },
     notebookProblem: {
       findMany: async ({ where, select }) => {
         assert.equal(where.courseId, 'course');
         assert.equal(where.ownerId, null);
+        if (where.status === 'published') return [{ id: 'p', type: 'multipart' }];
         assert.deepEqual(where.classSessionItems, { some: { sessionId: 'lesson' } });
         assert.equal(select.secret, undefined);
         return ['p', 'q']
@@ -105,12 +155,18 @@ function dashboardFixture() {
           problemId: 'p',
           position: 0,
           pushedAt: new Date(1),
-          problem: { title: 'Question', type: 'short_answer' },
+          problem: { title: 'Question', type: multipart ? 'multipart' : 'short_answer' },
         },
       ],
     },
     notebookProblemAttempt: {
       findMany: async ({ where }) => {
+        if (where.status) {
+          assert.deepEqual(where.status.in, ['failed', 'partial']);
+          assert.deepEqual(where.userId.in, ['reader', 'solver']);
+          assert.deepEqual(where.problemId.in, ['p']);
+          return entries.filter((e) => e.status === 'failed' || e.status === 'partial');
+        }
         assert.equal(where.classSessionId, 'lesson');
         assert.deepEqual(where.userId.in, ['reader', 'solver', 'hidden-only']);
         assert.deepEqual(where.problemId.in, ['p']);
@@ -123,6 +179,7 @@ function dashboardFixture() {
     },
   };
   const api = load('lib/server/teacher-classroom.ts', {
+    '@/lib/problem-bank/attempt-mistake': load('lib/problem-bank/attempt-mistake.ts', {}),
     '@/lib/server/prisma': { prisma: db },
     '@/lib/server/generated-prisma': { Prisma: {} },
     '@/lib/server/external-course-access': {},
@@ -148,6 +205,33 @@ test('a view-only student is marked; viewing then passing keeps the flag without
     /没有找到/,
   );
 });
+test('correct multipart steps do not register as past mistakes on the teacher dashboard', async () => {
+  const api = dashboardFixture(true);
+  const dashboard = await api.getClassSessionDashboard({ userId: 'teacher' }, 'lesson');
+  const results = dashboard.items[0].results;
+  assert.equal(dashboard.items[0].passedCount, 2);
+  const overview = await api.getClassOverview({ userId: 'teacher' }, 'class');
+  assert.deepEqual(
+    overview.progress.map(({ userId, hasIncorrectAttempt }) => ({ userId, hasIncorrectAttempt })),
+    [
+      { userId: 'reader', hasIncorrectAttempt: false },
+      { userId: 'solver', hasIncorrectAttempt: true },
+    ],
+  );
+  assert.deepEqual(
+    results.map(({ userId, attempts, status, hasIncorrectAttempt }) => ({
+      userId,
+      attempts,
+      status,
+      hasIncorrectAttempt,
+    })),
+    [
+      { userId: 'reader', attempts: 2, status: 'passed', hasIncorrectAttempt: false },
+      { userId: 'solver', attempts: 2, status: 'passed', hasIncorrectAttempt: true },
+    ],
+  );
+});
+
 test('teacher can load the whole lesson and only its public problems for practice', async () => {
   const api = dashboardFixture();
   const teacher = { userId: 'teacher' };
@@ -183,6 +267,10 @@ test('blue overrides answer colors, while unseen answers keep existing colors', 
   assert.match(ui.teachResultStatus('passed', 2, true).label, /已看答案.*已答对/);
   assert.equal(ui.teachResultStatus('passed', 1).marble, 'green');
   assert.equal(ui.teachResultStatus('passed', 2).marble, 'purple');
+  assert.equal(ui.teachResultStatus('passed', 3, false, false).marble, 'green');
+  assert.equal(ui.teachResultStatus('passed', 3, false, true).marble, 'purple');
+  assert.equal(ui.teachResultStatus('partial', 3, false, true).marble, 'amber');
+  assert.equal(ui.teachResultStatus('passed', 3, true, true).marble, 'blue');
 });
 test('downloaded learning snapshots never count as classroom submissions', async () => {
   const { classroomProblemDocument } = await jiti.import(

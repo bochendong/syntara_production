@@ -9,10 +9,9 @@ import ts from 'typescript';
 const require = createRequire(import.meta.url);
 function loadSource(path, mocks = {}) {
   const source = ts.transpileModule(
-    readFileSync(new URL(`../../${path}`, import.meta.url), 'utf8').replaceAll(
-      'import.meta.env.DEV',
-      'false',
-    ),
+    readFileSync(new URL(`../../${path}`, import.meta.url), 'utf8')
+      .replaceAll('import.meta.env.DEV', 'false')
+      .replaceAll('import.meta.env?.VITE_SYNTARA_SHOWCASE', 'undefined'),
     {
       compilerOptions: {
         module: ts.ModuleKind.CommonJS,
@@ -29,7 +28,7 @@ function loadSource(path, mocks = {}) {
   );
   return loaded.exports;
 }
-const history = loadSource('apps/native/src/data/problem-attempt-history.ts');
+const history = loadSource('lib/problem-bank/attempt-mistake.ts');
 
 test('mistakes exclude pending grades and correct-but-incomplete multipart attempts', () => {
   const check = (status, parts) =>

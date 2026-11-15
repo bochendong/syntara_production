@@ -853,19 +853,28 @@ function SessionGrid({
                     const status = row?.status ?? 'none';
                     const solutionViewed =
                       item.solutionViewedUserIds?.includes(student.userId) ?? false;
+                    const previouslyIncorrect =
+                      item.type === 'multipart' ? (row?.hasIncorrectAttempt ?? false) : undefined;
+                    const statusLabel = teachResultStatus(
+                      status,
+                      row?.attempts,
+                      solutionViewed,
+                      previouslyIncorrect,
+                    ).label;
                     return (
                       <td key={item.id}>
                         <button
                           type="button"
                           className="ts-cell"
-                          aria-label={`${student.name} · ${item.title} · ${teachResultStatus(status, row?.attempts, solutionViewed).label}`}
-                          title={`${teachResultStatus(status, row?.attempts, solutionViewed).label}${row && row.attempts > 1 ? ` · ${row.attempts} 次` : ''}`}
+                          aria-label={`${student.name} · ${item.title} · ${statusLabel}`}
+                          title={`${statusLabel}${row && row.attempts > 1 ? ` · ${row.attempts} 次` : ''}`}
                           onClick={() => onOpenAnswer(student.userId, item.problemId)}
                         >
                           <Marble
                             status={status}
                             attempts={row?.attempts}
                             solutionViewed={solutionViewed}
+                            previouslyIncorrect={previouslyIncorrect}
                             size={24}
                           />
                         </button>
@@ -1049,7 +1058,10 @@ function AnswerDialog({
     () => (data?.attempts ?? []).map((attempt) => toLocalAttempt(item.problemId, attempt)),
     [data, item.problemId],
   );
-  const status = item.results.find((row) => row.userId === userId)?.status ?? 'none';
+  const result = item.results.find((row) => row.userId === userId);
+  const status = result?.status ?? 'none';
+  const previouslyIncorrect =
+    item.type === 'multipart' ? (result?.hasIncorrectAttempt ?? false) : undefined;
   const solutionViewed = item.solutionViewedUserIds?.includes(userId) ?? false;
 
   return createPortal(
@@ -1076,6 +1088,7 @@ function AnswerDialog({
               status={status}
               attempts={attemptCount}
               solutionViewed={solutionViewed}
+              previouslyIncorrect={previouslyIncorrect}
               size={26}
             />
             <span>

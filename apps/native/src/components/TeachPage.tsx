@@ -1062,16 +1062,22 @@ function ClassStudents({
                       </th>
                       {problems.map((problem) => {
                         const row = progress.get(`${student.userId}:${problem.id}`);
+                        const status = row?.status ?? 'none';
+                        const previouslyIncorrect =
+                          problem.type === 'multipart'
+                            ? (row?.hasIncorrectAttempt ?? false)
+                            : undefined;
                         return (
                           <td
                             key={problem.id}
-                            title={`${problemName(problem)} · ${teachResultStatus(row?.status ?? 'none', row?.attemptedCount).label}${
+                            title={`${problemName(problem)} · ${teachResultStatus(status, row?.attemptedCount, false, previouslyIncorrect).label}${
                               row ? ` · ${row.attemptedCount} 次` : ''
                             }`}
                           >
                             <Marble
-                              status={row?.status ?? 'none'}
+                              status={status}
                               attempts={row?.attemptedCount}
+                              previouslyIncorrect={previouslyIncorrect}
                               size={20}
                             />
                           </td>

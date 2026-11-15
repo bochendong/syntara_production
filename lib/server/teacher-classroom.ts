@@ -1,5 +1,6 @@
 import { randomInt } from 'node:crypto';
 
+import { problemAttemptHasMistake } from '@/lib/problem-bank/attempt-mistake';
 import { Prisma } from '@/lib/server/generated-prisma';
 import { teacherCourseAccessWhere } from '@/lib/server/external-course-access';
 import { prisma } from '@/lib/server/prisma';
@@ -395,6 +396,32 @@ export async function getClassOverview(viewer: ClassroomViewer, classId: string)
       })
     : [];
 
+  const multipartIds = new Set(
+    problems.filter((problem) => problem.type === 'multipart').map((problem) => problem.id),
+  );
+  const multipartPasses = progress.filter(
+    (row) => row.status === 'passed' && row.attemptedCount > 1 && multipartIds.has(row.problemId),
+  );
+  const multipartMistakes = new Set<string>();
+  if (multipartPasses.length) {
+    const candidates = await prisma.notebookProblemAttempt.findMany({
+      where: {
+        problemId: { in: [...new Set(multipartPasses.map((row) => row.problemId))] },
+        userId: { in: [...new Set(multipartPasses.map((row) => row.userId))] },
+        kind: { in: ['submit', 'answer'] },
+        status: { in: ['failed', 'partial'] },
+      },
+      select: { problemId: true, userId: true, status: true, resultJson: true },
+    });
+    for (const candidate of candidates) {
+      if (
+        !isLearningSnapshot(candidate.resultJson) &&
+        problemAttemptHasMistake({ status: candidate.status, result: candidate.resultJson })
+      )
+        multipartMistakes.add(`${candidate.problemId}:${candidate.userId}`);
+    }
+  }
+
   const person = (user: {
     id: string;
     name: string | null;
@@ -447,6 +474,9 @@ export async function getClassOverview(viewer: ClassroomViewer, classId: string)
       status: row.status as AttemptStatus,
       score: row.score,
       attemptedCount: row.attemptedCount,
+      ...(multipartIds.has(row.problemId) && {
+        hasIncorrectAttempt: multipartMistakes.has(`${row.problemId}:${row.userId}`),
+      }),
       lastAttemptAt: row.lastAttemptAt?.getTime() ?? null,
     })),
   };
@@ -840,6 +870,7 @@ type AttemptSummary = {
   score: number | null;
   submittedAt: number;
   attempts: number;
+  hasIncorrectAttempt: boolean;
   attemptId: string;
 };
 
@@ -868,11 +899,15 @@ async function latestSessionAttempts(sessionId: string, userIds: string[], probl
   for (const attempt of attempts) {
     if (isLearningSnapshot(attempt.resultJson)) continue;
     const key = `${attempt.problemId}:${attempt.userId}`;
+    const previous = latest.get(key);
     latest.set(key, {
       status: attempt.status as AttemptStatus,
       score: attempt.score,
       submittedAt: attempt.createdAt.getTime(),
-      attempts: (latest.get(key)?.attempts ?? 0) + 1,
+      attempts: (previous?.attempts ?? 0) + 1,
+      hasIncorrectAttempt:
+        (previous?.hasIncorrectAttempt ?? false) ||
+        problemAttemptHasMistake({ status: attempt.status, result: attempt.resultJson }),
       attemptId: attempt.id,
     });
   }
@@ -1091,6 +1126,7 @@ export async function getClassSessionDashboard(viewer: ClassroomViewer, sessionI
                 score: row.score,
                 submittedAt: row.submittedAt,
                 attempts: row.attempts,
+                hasIncorrectAttempt: row.hasIncorrectAttempt,
               },
             ]
           : [];

@@ -19,12 +19,17 @@ export function teachResultStatus(
   status: TeachAttemptStatus | 'none',
   attempts = 0,
   solutionViewed = false,
+  previouslyIncorrect?: boolean,
 ) {
   if (solutionViewed)
     return {
       label: `已看答案 · ${status === 'passed' ? '已答对' : STATUS[status].label}`,
       marble: marbleImages.blue,
     };
+  if (status === 'passed' && previouslyIncorrect !== undefined)
+    return previouslyIncorrect
+      ? { label: '曾错后通过', marble: marbleImages.purple }
+      : { label: '小问全对', marble: marbleImages.green };
   return status === 'passed' && attempts > 1
     ? { label: '多次做对', marble: marbleImages.purple }
     : STATUS[status];
@@ -34,14 +39,16 @@ export function Marble({
   status,
   attempts = 0,
   solutionViewed = false,
+  previouslyIncorrect,
   size = 22,
 }: {
   status: TeachAttemptStatus | 'none';
   attempts?: number;
   solutionViewed?: boolean;
+  previouslyIncorrect?: boolean;
   size?: number;
 }) {
-  const marble = teachResultStatus(status, attempts, solutionViewed).marble;
+  const marble = teachResultStatus(status, attempts, solutionViewed, previouslyIncorrect).marble;
   return marble ? (
     <img className="tp-marble" src={marble} alt="" style={{ width: size, height: size }} />
   ) : (
@@ -51,8 +58,8 @@ export function Marble({
 
 export function Legend({ showSolutionViewed = false }: { showSolutionViewed?: boolean } = {}) {
   const rows = [
-    ['passed', 1, '首次做对'],
-    ['passed', 2, '多次做对'],
+    ['passed', 1, '首次做对 / 小问全对'],
+    ['passed', 2, '多次做对 / 曾错后通过'],
     ['partial', 0, '部分对 / 待批改'],
     ['failed', 0, '错了'],
     ['none', 0, '没交'],
