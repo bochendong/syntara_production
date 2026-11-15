@@ -187,6 +187,9 @@ button[disabled] { opacity: .5; cursor: not-allowed; transform: none; box-shadow
 .homeLinks button { display: flex; align-items: center; justify-content: center; gap: 9px; min-width: 116px; min-height: 50px; padding: 7px 13px; font: 400 21px/1.1 var(--disp); background: var(--paper); }
 .homeLinks button .ico { --s: 31px; }
 .homeLinks button:hover, .homeLinks button:focus-visible { background: var(--paper2); }
+[data-unread] { position: relative; }
+[data-unread]::after { content: ""; position: absolute; top: 3px; right: 3px; width: 9px; height: 9px; border: 1.5px solid var(--paper); border-radius: 50%; background: #f02f47; box-shadow: 0 0 0 1px #a42e38; pointer-events: none; }
+.gcard[data-unread]::after { top: 6px; right: 6px; }
 .panel.ranking { width: min(420px, 100%); }
 .panel.growth { width: min(880px, 100%); gap: 12px; }
 .growth-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
@@ -263,20 +266,36 @@ button[disabled] { opacity: .5; cursor: not-allowed; transform: none; box-shadow
 .pl.empty { border-style: dashed; color: var(--dim); justify-content: center; background: transparent; min-height: 50px; }
 .lobby .err { color: var(--bad); font-weight: 800; min-height: 1.3em; margin: 0; }
 .lobby .chips { grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); }
-#team { position: absolute; right: max(12px, env(safe-area-inset-right, 0px)); top: 50%; transform: translateY(-50%); display: grid; gap: 6px; width: 176px; }
+#team { position: absolute; right: max(12px, env(safe-area-inset-right, 0px)); top: 50%; transform: translateY(-50%); display: grid; gap: 6px; width: 194px; z-index: 3; }
 #team .tm { display: flex; align-items: center; gap: 7px; padding: 5px 10px 6px 5px; border-radius: 14px; }
+.team-no { display: grid; place-items: center; flex: none; width: 20px; height: 20px; border: 1.5px solid var(--ink); border-radius: 50%; background: var(--team-color); color: var(--ink); font: 800 12px/1 var(--num); }
 #team .tm .ico { --s: 26px; flex: none; }
 #team .tm > div { flex: 1; min-width: 0; }
 #team .tm b { display: flex; justify-content: space-between; gap: 6px; font: 800 12px/1.3 var(--num); white-space: nowrap; }
 #team .tm b span { overflow: hidden; text-overflow: ellipsis; } #team .tm b small { font-size: 11px; color: var(--dim); }
 #team .tm i { display: block; height: 8px; margin-top: 3px; border-radius: 99px; background: #5a3a40; border: 1.5px solid var(--ink); overflow: hidden; }
-#team .tm i u { display: block; height: 100%; background: #3fc98a; transition: width .15s; text-decoration: none; }
-#team .tm.me { box-shadow: 0 0 0 2px var(--sun), 0 3px 0 var(--ink); }
-#team .tm.dead { opacity: .82; } #team .tm.dead .ico { filter: grayscale(1) brightness(1.2); } #team .tm.dead i u { background: #7fffb0; }
+#team .tm i u { display: block; height: 100%; background: var(--team-color); transition: width .15s; text-decoration: none; }
+#team .tm.me { box-shadow: 0 0 0 2px var(--team-color), 0 3px 0 var(--ink); }
+#team .tm.dead .ico { filter: grayscale(1) brightness(1.2); }
+.tm.dead .team-no, .pmarker.grave .team-no { border-radius: 7px 7px 3px 3px; }
 .panel.nwaitp { text-align: center; } .panel.nwaitp .nwait { font-weight: 800; font-size: 18px; }
 #ptags { position: fixed; inset: 0; pointer-events: none; overflow: hidden; z-index: 2; }
-#ptags span { position: absolute; left: 0; top: 0; font: 800 12px/1.2 var(--num); background: rgba(255,250,240,.92); border: 2px solid var(--ink); border-radius: 999px; padding: 1px 9px 3px; white-space: nowrap; will-change: transform; }
-#ptags span i { display: block; height: 4px; margin-top: 2px; background: #e3d3b8; border-radius: 99px; overflow: hidden; } #ptags span i b { display: block; height: 100%; background: #3fc98a; } #ptags span.dead { opacity: .6; } #ptags span.dead i b { background: #a89a92; }
+.pmarker { position: absolute; left: 0; top: 0; display: flex; align-items: center; gap: 4px; padding: 2px 7px 2px 3px; border: 2px solid var(--ink); border-radius: 999px; box-shadow: 0 2px 0 var(--ink); background: var(--paper); font: 800 12px/1.2 var(--num); white-space: nowrap; will-change: transform; }
+.pmarker.grave { background: color-mix(in srgb, var(--team-color) 26%, var(--paper)); }
+.pmarker-label { display: block; max-width: 140px; overflow: hidden; text-overflow: ellipsis; }
+.pmarker-health { display: block; height: 3px; margin-bottom: 1px; border-radius: 99px; overflow: hidden; background: #e3d3b8; }
+.pmarker-health u { display: block; height: 100%; background: var(--team-color); }
+.pmarker-distance, .pmarker-arrow, .pmarker.offscreen .pmarker-info, .pmarker.grave .pmarker-health { display: none; }
+.pmarker.offscreen { padding-right: 3px; }
+.pmarker.offscreen .pmarker-distance { display: block; font-weight: 800; font-size: 11px; }
+.pmarker.offscreen .pmarker-arrow { display: block; width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+@media (max-width: 720px) {
+  #team { width: 112px; right: max(8px, env(safe-area-inset-right, 0px)); gap: 5px; }
+  #team .tm { gap: 4px; padding: 4px; }
+  #team .tm .ico { display: none; }
+  #team .tm b, #team .tm b small { font-size: 10px; }
+  .pmarker-label { max-width: 106px; }
+}
 
 /* ---------- 准备页 ---------- */
 .prep { display: grid; grid-template-columns: 1fr min(440px, 44vw); gap: 0; padding: max(16px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) max(16px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); }
