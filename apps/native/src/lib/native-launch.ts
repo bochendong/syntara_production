@@ -15,6 +15,23 @@ export type CourseOpenTarget = {
   createEvent?: boolean;
 };
 
+/** Read only identifiers. A link never grants access to its course or question. */
+export function practiceEntry(params: URLSearchParams | null) {
+  const courseId = params?.get('courseId');
+  const problemId = params?.get('problemId');
+  const id = /^[A-Za-z0-9_-]{1,200}$/;
+  return courseId && problemId && id.test(courseId) && id.test(problemId)
+    ? { courseId, problemId }
+    : null;
+}
+
+export function carryPracticeEntry(path: string, search: string) {
+  const target = practiceEntry(new URLSearchParams(search));
+  if (!target) return path;
+  const separator = path.includes('?') ? '&' : '?';
+  return path + separator + new URLSearchParams(target);
+}
+
 /** An explicitly empty membership must never expose courses left in the local cache. */
 export function accessibleChatCourses<T extends Pick<LocalCourseSummary, 'id'>>(
   courses: T[],

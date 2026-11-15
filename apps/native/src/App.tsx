@@ -25,6 +25,7 @@ import { syncPlatformCourses } from './data/chat-sync';
 import { getLocalRepository, type LocalBackendKind } from './data/repository';
 import {
   accessibleChatCourses,
+  practiceEntry,
   selectChatCourse,
   type CourseOpenTarget,
 } from './lib/native-launch';
@@ -39,6 +40,7 @@ import {
   type ClassroomOpenProblem,
 } from './components/ClassroomPanel';
 import { syncCourseData } from './data/course-sync';
+import { syncCourseProblems } from './data/problem-sync';
 import { StudentClassroomPage } from './components/StudentClassroomPage';
 import { TeachPage } from './components/TeachPage';
 import { AdminPage } from './components/AdminPage';
@@ -315,19 +317,6 @@ function AuthenticatedApp() {
     [openCourse],
   );
 
-  useEffect(() => {
-    if (loading || surface !== 'launch' || globalPage !== null) return;
-    const entry = browserApp ? new URLSearchParams(window.location.search) : null;
-    const requested = launchCourses.find((course) => course.id === entry?.get('courseId'));
-    const course = requested ?? selectChatCourse(launchCourses, readPhoneLastChat());
-    if (course)
-      void openRecentCourse(
-        course.id,
-        requested && entry?.get('page') === 'notes' ? { page: 'notes' } : undefined,
-      );
-    else if (browserApp || teacherLogin) setSurface('general');
-  }, [loading, surface, launchCourses, openRecentCourse, teacherLogin, globalPage]);
-
   const openGeneralChat = useCallback((draft = '', conversationId: string | null = null) => {
     setInitialGeneralConversationId(conversationId);
     navigationRequest.current += 1;
@@ -453,6 +442,64 @@ function AuthenticatedApp() {
     },
     [startPractice, workspace],
   );
+
+  const openLinkedPractice = useCallback(
+    async ({ courseId, problemId }: NonNullable<ReturnType<typeof practiceEntry>>) => {
+      openCourse(courseId, undefined, { page: 'problems' });
+      const request = navigationRequest.current;
+      try {
+        const repository = await getLocalRepository();
+        await syncCourseProblems(repository, courseId);
+        const loaded = await repository.loadCourseWorkspace(courseId);
+        if (request !== navigationRequest.current) return;
+        const problem = loaded?.problems.find(
+          (item) => item.id === problemId && item.status === 'published',
+        );
+        if (!loaded || !problem) {
+          setToast('这道题暂时不可用。');
+          return;
+        }
+        setWorkspace(loaded);
+        startPractice(
+          { problemIds: [problem.id], initialProblemId: problem.id, title: problem.title },
+          loaded.problems,
+        );
+      } catch {
+        if (request === navigationRequest.current) setToast('这道题暂时无法同步，请稍后重试。');
+      }
+    },
+    [openCourse, startPractice],
+  );
+
+  useEffect(() => {
+    if (loading || surface !== 'launch' || globalPage !== null) return;
+    const entry = browserApp ? new URLSearchParams(window.location.search) : null;
+    const requested = launchCourses.find((course) => course.id === entry?.get('courseId'));
+    const linked = practiceEntry(entry);
+    if (linked) {
+      if (requested) void openLinkedPractice(linked);
+      else {
+        setToast('当前账号无法打开这门课的练习。');
+        setSurface('general');
+      }
+      return;
+    }
+    const course = requested ?? selectChatCourse(launchCourses, readPhoneLastChat());
+    if (course)
+      void openRecentCourse(
+        course.id,
+        requested && entry?.get('page') === 'notes' ? { page: 'notes' } : undefined,
+      );
+    else if (browserApp || teacherLogin) setSurface('general');
+  }, [
+    loading,
+    surface,
+    launchCourses,
+    openRecentCourse,
+    openLinkedPractice,
+    teacherLogin,
+    globalPage,
+  ]);
 
   // 老师在课上发的题：先把这门课和题同步到本机，再打开平常的做题弹窗。
   const openClassroomProblem = useCallback<ClassroomOpenProblem>(

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { signIn, signOut, useSession } from 'next-auth/react';
+import { carryPracticeEntry } from '../../apps/native/src/lib/native-launch';
 
 type LoginAs = 'student' | 'teacher';
 
@@ -32,12 +33,19 @@ export function NativeTestLogin({ initialAs }: { initialAs: LoginAs }) {
   const [as, setAs] = useState<LoginAs>(initialAs);
   const active = status === 'authenticated' && session.user?.isActive !== false;
   useEffect(() => {
-    if (active) window.location.replace(`/test/app?as=${readLoginAs()}`);
+    if (active)
+      window.location.replace(
+        carryPracticeEntry(`/test/app?as=${readLoginAs()}`, window.location.search),
+      );
   }, [active]);
   const copy = COPY[as];
   const switchTo = (next: LoginAs) => {
     setAs(next);
-    window.history.replaceState(null, '', `/test?as=${next}`);
+    window.history.replaceState(
+      null,
+      '',
+      carryPracticeEntry(`/test?as=${next}`, window.location.search),
+    );
   };
   return (
     <main className="apple-mesh-bg grid min-h-dvh place-items-center px-5 py-12">
@@ -75,7 +83,9 @@ export function NativeTestLogin({ initialAs }: { initialAs: LoginAs }) {
               onClick={() =>
                 void (status === 'authenticated'
                   ? signOut({ callbackUrl: `/test?as=${as}` })
-                  : signIn('google', { callbackUrl: `/test?as=${as}` }))
+                  : signIn('google', {
+                      callbackUrl: carryPracticeEntry(`/test?as=${as}`, window.location.search),
+                    }))
               }
             >
               {status === 'authenticated' ? '退出并更换账号' : '使用 Google 登录'}

@@ -1,5 +1,6 @@
 import { browserApp, previewChat } from '../data/browser-runtime';
 import { openUrl } from '@tauri-apps/plugin-opener';
+import { carryPracticeEntry } from '../lib/native-launch';
 import {
   CheckCircle2,
   ExternalLink,
@@ -134,7 +135,7 @@ export function NativeAuthGate({ children }: { children: ReactNode }) {
 
   const startLogin = useCallback(async () => {
     if (browserApp) {
-      window.location.assign('/test');
+      window.location.assign(carryPracticeEntry('/test', window.location.search));
       return;
     }
     stopPolling();

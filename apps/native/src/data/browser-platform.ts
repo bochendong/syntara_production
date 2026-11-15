@@ -4,6 +4,7 @@ import type {
   PlatformJsonCommandRequest,
 } from './platform-api-contracts';
 import { browserAccountId, previewChat } from './browser-runtime';
+import { carryPracticeEntry } from '../lib/native-launch';
 
 export async function browserRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
   const response = await browserFetch(path, init);
@@ -54,7 +55,7 @@ export async function browserFetch(path: string, init: RequestInit = {}) {
     cache: 'no-store',
   });
   if (response.status === 401 && !localChat) {
-    window.location.replace('/test');
+    window.location.replace(carryPracticeEntry('/test', window.location.search));
     throw new Error('请重新登录。');
   }
   if (!response.ok) {

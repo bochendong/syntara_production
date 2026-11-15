@@ -1,8 +1,26 @@
 import assert from 'node:assert/strict';
 import {
   accessibleChatCourses,
+  carryPracticeEntry,
+  practiceEntry,
   selectChatCourse,
 } from '../../apps/native/src/lib/native-launch.ts';
+
+const practiceSearch = '?courseId=course-1&problemId=problem_2&callbackUrl=https://example.com';
+assert.deepEqual(practiceEntry(new URLSearchParams(practiceSearch)), {
+  courseId: 'course-1',
+  problemId: 'problem_2',
+});
+assert.equal(
+  carryPracticeEntry('/test', practiceSearch),
+  '/test?courseId=course-1&problemId=problem_2',
+);
+assert.equal(
+  carryPracticeEntry('/test/app?as=teacher', practiceSearch),
+  '/test/app?as=teacher&courseId=course-1&problemId=problem_2',
+);
+assert.equal(carryPracticeEntry('/test', '?courseId=course-1'), '/test');
+assert.equal(carryPracticeEntry('/test', '?courseId=course-1&problemId=%2Fbad'), '/test');
 
 const courses = [
   { id: 'a', updatedAt: 10 },
