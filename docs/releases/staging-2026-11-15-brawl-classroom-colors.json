@@ -1,0 +1,24 @@
+{
+  "status": "deployed",
+  "at": "2026-11-15T16:36:47.202Z",
+  "environment": "staging",
+  "revision": "f232693c5119c437456026751a2070c645f9b89e",
+  "deploymentId": "622d093a-cca8-405c-b0ce-d8fc11802c7d",
+  "previousRevision": "0cafd3d45516a04102cb75f5220c6cfb9f4532e5",
+  "sources": {
+    "classroom": "78115d0c",
+    "game": "Game changes imported from the sandbox-brawl-ui worktree on codex/sandbox-brawl-items at 7b1db226."
+  },
+  "changes": [
+    "Ignore ghosts when monsters choose pursuit and spawn targets.",
+    "Speed up boss pursuit and add red meteors, slowing pull, and destructible homing missiles.",
+    "Color and number co-op players, with location markers for living teammates and fixed graves.",
+    "Persist unread indicators for new gacha rewards, achievements, and characters.",
+    "Use actual multipart mistake history to distinguish clean passes from corrected passes on teacher views."
+  ],
+  "verification": {
+    "local": "Format, lint, root and native TypeScript, 15 practice and classroom regressions, and combined game browser checks with up to four co-op clients.",
+    "staging": "Verified the Railway release, health, revision, game assets, four-player room relay, and authenticated teacher readback for multipart classroom and course progress."
+  },
+  "pendingMigrations": 0
+}
