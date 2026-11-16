@@ -1,0 +1,21 @@
+{
+  "status": "deployed",
+  "at": "2026-11-16T19:09:56.748Z",
+  "environment": "staging",
+  "revision": "187d60861b745fce700ad05d2c646329e6294d23",
+  "deploymentId": "e38e5d58-534f-4e2a-b634-6ccf016ea3c9",
+  "previousRevision": "f232693c5119c437456026751a2070c645f9b89e",
+  "changes": [
+    "Store browser Brawl progress per authenticated account.",
+    "Import device saves once, merge unlocks, and avoid counting the same legacy balance twice.",
+    "Move earned practice points into the account save and preserve pending writes across network interruptions."
+  ],
+  "appliedMigrations": [
+    "20261115210000_brawl_cloud_save"
+  ],
+  "pendingMigrations": 0,
+  "verification": {
+    "local": "Repository verification, save queue regressions, isolated PostgreSQL migration and concurrent save checks, and an iPad-sized plus desktop browser fixture verified points, purchases, and unlocks.",
+    "staging": "Verified deployed revision, game files, migration, and account-scoped API access. Real learner saves were left for cross-device acceptance testing."
+  }
+}
