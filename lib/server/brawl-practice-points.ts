@@ -63,6 +63,11 @@ export async function transferBrawlPracticePoints(db: PrismaClient, userId: stri
     await tx.$queryRaw`SELECT "id" FROM "User" WHERE "id" = ${userId} FOR NO KEY UPDATE`;
     const prior = await tx.brawlPointTransfer.findUnique({ where: { userId_id: { userId, id } } });
     if (prior) return prior.points;
+    const cloud = await tx.brawlCloudSave.findUnique({
+      where: { userId },
+      select: { userId: true },
+    });
+    if (cloud) return 0;
     const points = await readBrawlPracticePoints(tx, userId);
     await tx.brawlPointTransfer.create({ data: { userId, id, points } });
     if (points)

@@ -1,4 +1,5 @@
 import { createGameAudio } from './game-audio.js';
+import { BrawlSaveConflict, createBrawlSaveQueue } from './brawl-cloud.js';
 import { DEATH_TAUNTS } from './death-taunts.js';
 import * as THREE from './vendor/three.module.js';
 import { EffectComposer } from './vendor/addons/postprocessing/EffectComposer.js';
@@ -1022,9 +1023,11 @@ const localPreview = location.protocol === 'http:' && ['127.0.0.1', 'localhost',
 const SAVE_PREFIX = localPreview ? 'syntara.brawl.preview' : 'syntara.brawl';
 let META_KEY = `${SAVE_PREFIX}.meta`;
 let BEST_KEY = `${SAVE_PREFIX}.best`;
-const practicePointsUrl = '/api/native/v1/games/brawl/points';
-const hostedGame = !skillDemoMode && location.pathname.startsWith('/native-web/games/sandbox-brawl/');
-const expectedGameAccount = hostedGame ? new URLSearchParams(location.search).get('account') : null;
+const saveParams = new URLSearchParams(location.search);
+const expectedGameAccount = !skillDemoMode && location.pathname.startsWith('/native-web/games/sandbox-brawl/')
+  ? saveParams.get('account') : null;
+const cloudGame = !!expectedGameAccount;
+let cloudSave = null;
 const PRICE = { heroes: 150 }, FREE_SKILLS = ['mop', 'plane'];
 const DEF0 = { heroes: ['brawler', 'scholar', 'jock'], arts: ['vamp', 'mirror', 'plate', 'koi'], relics: ['dumbbell', 'wrist', 'mom', 'bucket', 'scope', 'lens', 'drink'] };
 const meta = { pts: 0, heroes: [...DEF0.heroes], arts: [...DEF0.arts], relics: [...DEF0.relics], seen: [], ach: [], skins: [], ults: [], weapons: [], top: [], unread: [], clearedDifficulties: [], skinOn: {}, growth: {}, fragments: {}, itemLevels: {}, practiceTransfer: '', stat: { runs: 0, kills: 0, wins: 0, hardWin: 0, pulls: 0, pity: 0 } };
@@ -1054,8 +1057,19 @@ function loadMeta() {
   }
   } catch (e) {}
 }
-if (!hostedGame) loadMeta();
-const saveMeta = () => { if (skillDemoMode) return; try { localStorage.setItem(META_KEY, JSON.stringify(meta)); } catch (e) {} };
+if (!cloudGame) loadMeta();
+function cloudSnapshot() {
+  const { practiceTransfer: _legacyTransfer, ...data } = meta;
+  return structuredClone({ ...data, best: Math.floor(bestEndless) });
+}
+function saveMeta() {
+  if (skillDemoMode) return;
+  if (cloudSave) {
+    try { cloudSave.enqueue(cloudSnapshot()); }
+    catch (error) { showSaveError(error); }
+  }
+  try { localStorage.setItem(META_KEY, JSON.stringify(meta)); } catch (e) {}
+}
 const isUnread = (key) => meta.unread.includes(key);
 const hasUnread = (kind) => meta.unread.some((key) => key.startsWith(`${kind}:`));
 const hasUnreadDraw = () => ['skins', 'ults', 'skills', 'arts', 'relics'].some(hasUnread);
@@ -1103,7 +1117,7 @@ function migrateGrowth() {
     saveMeta();
   }
 }
-if (!hostedGame) migrateGrowth();
+if (!cloudGame) migrateGrowth();
 const GROWTH_BASE_COST = 20, GROWTH_COST_STEP = 10;
 const growthLevel = (id) => clamp(Math.floor(Number(meta.growth[id]) || 0), 0, GROWTH_CAP);
 const growthBonus = (id, level = growthLevel(id)) => GROWTH_STATS[id] * level;
@@ -1357,7 +1371,7 @@ let bestEndless = 0;
 function loadBestEndless() {
   try { if (!skillDemoMode) bestEndless = +localStorage.getItem(BEST_KEY) || 0; } catch (e) {}
 }
-if (!hostedGame) loadBestEndless();
+if (!cloudGame) loadBestEndless();
 let state = 'title', T = 0, timeScale = 1, spawnAcc = 0, nextElite = 75, nextBats = 25, nextBomb = 90, nextBoss = BOSS_T, bossCount = 0, boss = null, ev = {};
 let pendingUlt = [], gifts = [], corpses = [], drops = [], altars = [], pendingInfuse = [], CW = null, watchT = 12, shieldT = 10;
 let enemies = [], eid = 0, shots = [], planes = [], gems = [], chests = [], eshots = [], minions = [], lamps = [], ducks = [], slippers = [], books = [], wet = [], blasts = [], pendingLevels = 0;
@@ -3742,7 +3756,7 @@ function deathTauntCard(taunt) {
 }
 function showDeath() {
   state = 'dead'; $('stage').classList.add('dead');
-  if (modeId === 'endless' && T > bestEndless) { bestEndless = T; try { localStorage.setItem(BEST_KEY, String(Math.floor(T))); } catch (e) {} }
+  if (modeId === 'endless' && T > bestEndless) { bestEndless = T; try { localStorage.setItem(BEST_KEY, String(Math.floor(T))); } catch (e) {} if (cloudSave) saveMeta(); }
   show(`<div class="eyebrow">${MODES[modeId].name} · ${DF().name}</div><h2>${cls.name}被淹没了</h2>
     ${deathTauntCard(pickDeathTaunt())}
     <div class="stats"><div style="--i:0"><b>${fmt(T)}</b><small>撑了</small></div><div style="--i:1"><b>${player.kills}</b><small>击倒</small></div><div style="--i:2"><b>${player.lvl}</b><small>等级</small></div><div style="--i:3"><b>${Object.keys(player.arts).length}</b><small>遗物</small></div></div>
@@ -4622,77 +4636,144 @@ function useGameAccount(account) {
   BEST_KEY = `${SAVE_PREFIX}.best:${accountKey}`;
 }
 
-function loadGameSave() {
+async function requestBrawlSave(payload) {
+  const response = await fetch('/api/native/v1/games/brawl/save', {
+    method: 'POST',
+    credentials: 'same-origin',
+    cache: 'no-store',
+    headers: { 'Content-Type': 'application/json', 'X-Syntara-User': expectedGameAccount },
+    body: JSON.stringify({ ...payload, account: expectedGameAccount }),
+    signal: AbortSignal.timeout(12000),
+  });
+  if (!response.ok) throw new Error('账号存档暂时无法连接');
+  return (await response.json()).data;
+}
+
+let cloudErrorShown = false;
+let cloudRetry = null;
+function showSaveError(error) {
+  if (error instanceof BrawlSaveConflict) {
+    state = 'sync';
+    show(`<h2>另一个设备已有较新的进度</h2><p>本机这次的改动已留在当前设备。可以重新读取账号存档，继续游戏。</p>
+      <div class="actions"><button class="primary" id="saveRetry">读取云端存档</button></div>`);
+    $('saveRetry').onclick = () => {
+      try { cloudSave.archive(); location.reload(); }
+      catch { banner('无法备份本机存档', '请保留此页面后重试'); }
+    };
+    return;
+  }
+  if (!cloudErrorShown) {
+    cloudErrorShown = true;
+    banner('存档尚未同步', '恢复连接后会自动重试');
+  }
+  if (!cloudRetry) cloudRetry = setTimeout(() => {
+    cloudRetry = null;
+    cloudSave?.flush().then(() => { cloudErrorShown = false; }, showSaveError);
+  }, 4000);
+}
+
+function useCloudData(data) {
+  for (const key of Object.keys(meta)) {
+    if (Object.hasOwn(data, key)) meta[key] = data[key];
+  }
+  for (const [key, ids] of Object.entries(DEF0))
+    meta[key] = [...new Set([...ids, ...meta[key]])];
+  meta.practiceTransfer = '';
+  bestEndless = data.best;
+  localStorage.setItem(META_KEY, JSON.stringify(meta));
+  localStorage.setItem(BEST_KEY, String(bestEndless));
+}
+
+async function lockGameSave(key) {
+  if (!navigator.locks) return;
+  await new Promise((resolve, reject) => {
+    navigator.locks.request(key, { ifAvailable: true }, async (lock) => {
+      if (!lock) {
+        reject(new Error('这个浏览器里已经打开了同一账号的游戏，请关掉另一页再试。'));
+        return;
+      }
+      resolve();
+      await new Promise((release) => addEventListener('pagehide', release, { once: true }));
+    }).catch(reject);
+  });
+}
+
+function legacySave(account, importedKey) {
+  if (localStorage.getItem(importedKey)) return undefined;
+  let previous = localStorage.getItem(META_KEY);
+  if (!previous) {
+    const ownerKey = SAVE_PREFIX + '.legacyAccount';
+    const owner = localStorage.getItem(ownerKey);
+    const oldSave = localStorage.getItem(SAVE_PREFIX + '.meta');
+    if (oldSave && (!owner || owner === account)) {
+      localStorage.setItem(ownerKey, account);
+      localStorage.setItem(META_KEY, oldSave);
+      const oldBest = localStorage.getItem(SAVE_PREFIX + '.best');
+      if (oldBest) localStorage.setItem(BEST_KEY, oldBest);
+      previous = oldSave;
+    }
+  }
+  if (!previous) return undefined;
   loadMeta();
   migrateGrowth();
   loadBestEndless();
+  let deviceId = localStorage.getItem(importedKey + ':device');
+  if (!deviceId) {
+    deviceId = crypto.randomUUID();
+    localStorage.setItem(importedKey + ':device', deviceId);
+  }
+  return { deviceId, transferId: meta.practiceTransfer || undefined, data: cloudSnapshot() };
 }
 
-async function syncPracticePoints() {
-  const headers = new Headers();
-  if (expectedGameAccount) {
-    headers.set('X-Syntara-User', expectedGameAccount);
-    useGameAccount(expectedGameAccount);
-  }
-  let data;
-  try {
-    const response = await fetch(practicePointsUrl, { headers, signal: AbortSignal.timeout(8000) });
-    if (response.status === 401 && !expectedGameAccount) {
-      loadGameSave();
-      return 0;
-    }
-    if (!response.ok) throw new Error('积分同步失败');
-    ({ data } = await response.json());
-  } catch (error) {
-    loadGameSave();
-    throw error;
-  }
-  headers.set('X-Syntara-User', data.account);
-  useGameAccount(data.account);
+async function startCloudGame() {
+  useGameAccount(expectedGameAccount);
+  const suffix = encodeURIComponent(expectedGameAccount);
+  const queueKey = SAVE_PREFIX + '.cloud:' + suffix;
+  const importedKey = queueKey + ':imported';
+  await lockGameSave(queueKey);
+  const legacy = legacySave(expectedGameAccount, importedKey);
+  cloudSave = createBrawlSaveQueue({ request: requestBrawlSave, store: localStorage, key: queueKey, onError: showSaveError });
+  await cloudSave.flush();
+  const result = await requestBrawlSave({ action: 'open', legacy });
+  cloudSave.open(result.revision);
+  useCloudData(result.data);
+  localStorage.setItem(importedKey, '1');
+  showTitle();
+  if (result.practicePoints) banner(`做题积分 +${result.practicePoints}`, `当前有 ${meta.pts} 积分`);
 
-  const transfer = async () => {
-    if (!localStorage.getItem(META_KEY)) {
-      const ownerKey = `${SAVE_PREFIX}.legacyAccount`;
-      const previousOwner = localStorage.getItem(ownerKey);
-      if (!previousOwner || previousOwner === data.account) {
-        const oldSave = localStorage.getItem(`${SAVE_PREFIX}.meta`);
-        const oldBest = localStorage.getItem(`${SAVE_PREFIX}.best`);
-        if (oldSave || oldBest) localStorage.setItem(ownerKey, data.account);
-        if (oldSave) localStorage.setItem(META_KEY, oldSave);
-        if (oldBest) localStorage.setItem(BEST_KEY, oldBest);
-      }
+  let refreshing = false;
+  async function refresh() {
+    if (document.hidden || refreshing || state !== 'title' || titleStep !== 'home' || titleEl.hidden || !ov.hidden)
+      return;
+    refreshing = true;
+    titleEl.inert = true;
+    try {
+      await cloudSave.flush();
+      const updated = await requestBrawlSave({ action: 'open' });
+      cloudSave.open(updated.revision);
+      useCloudData(updated.data);
+      renderHome();
+      if (updated.practicePoints) banner(`做题积分 +${updated.practicePoints}`, `当前有 ${meta.pts} 积分`);
+    } catch (error) { showSaveError(error); }
+    finally {
+      titleEl.inert = false;
+      refreshing = false;
     }
-    loadGameSave();
-    if (!data.balance && !meta.practiceTransfer) return 0;
-
-    // Save the transfer ID before the request. A lost response can be retried with the same ID.
-    const id = meta.practiceTransfer || crypto.randomUUID();
-    meta.practiceTransfer = id;
-    localStorage.setItem(META_KEY, JSON.stringify(meta));
-    headers.set('Content-Type', 'application/json');
-    const claimed = await fetch(practicePointsUrl, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ id }),
-      signal: AbortSignal.timeout(8000),
-    });
-    if (!claimed.ok) throw new Error('积分同步失败');
-    const { data: { points } } = await claimed.json();
-    const updated = { ...meta, pts: meta.pts + points, practiceTransfer: '' };
-    localStorage.setItem(META_KEY, JSON.stringify(updated));
-    Object.assign(meta, updated);
-    return points;
-  };
-  return navigator.locks ? navigator.locks.request(META_KEY, transfer) : transfer();
+  }
+  document.addEventListener('visibilitychange', () => { void refresh(); });
+  addEventListener('pageshow', (event) => { if (event.persisted) location.reload(); });
+  addEventListener('online', () => {
+    void cloudSave.flush().then(() => { cloudErrorShown = false; void refresh(); }, showSaveError);
+  });
 }
 
-if (hostedGame) {
-  syncPracticePoints().then((points) => {
-    showTitle();
-    if (points) banner(`做题积分 +${points}`, `当前有 ${meta.pts} 积分`);
-  }).catch(() => {
-    showTitle();
-    banner('做题积分同步失败', '重新进入游戏后重试');
+if (cloudGame) {
+  titleEl.hidden = true;
+  show('<h2>正在读取游戏存档</h2>');
+  startCloudGame().catch((error) => {
+    if (error instanceof BrawlSaveConflict) return showSaveError(error);
+    show('<h2>暂时无法读取游戏存档</h2><p>请检查网络，或关闭同一浏览器里的其他游戏页面再重试。</p><div class="actions"><button class="primary" id="saveRetry">重试</button></div>');
+    $('saveRetry').onclick = () => location.reload();
   });
 } else if (!skillDemoMode) showTitle();
 requestAnimationFrame(frame);
