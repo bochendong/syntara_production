@@ -148,19 +148,19 @@ const ELEMS = {
   fire: { name: '火', c: '#ff6a2a', desc: '命中后灼烧 3 秒，总伤害为该次命中伤害的 1/3' },
   ice:  { name: '冰', c: '#4ab8ee', desc: '命中后减速' },
   acid: { name: '酸', c: '#7ab82e', desc: '命中后 4 秒内，怪受到的所有伤害 +25%' },
-  elec: { name: '电', c: '#2f86f0', desc: '25% 概率把伤害传导给旁边一只怪' },
+  elec: { name: '电', c: '#2f86f0', desc: '35% 概率连锁至多 2 只附近的怪，每跳造成 40% 命中伤害' },
 };
 const COMBOS = {
-  'fire+fire': ['烈焰', '灼烧伤害大幅提高，烧着的怪死掉会爆炸'],
-  'ice+ice':   ['冻伤', '附加冻伤持续掉血，15% 概率直接冻住'],
-  'acid+acid': ['强酸', '伤害加深提高到 +50%，怪死后酸液溅到周围'],
-  'elec+elec': ['雷暴', '传导概率 50%，连跳 3 只'],
-  'elec+fire': ['导火索', '电流把灼烧一起传过去，连跳 2 只'],
-  'fire+ice':  ['蒸汽爆', '20% 概率炸出一团蒸汽，伤到一小片'],
-  'acid+fire': ['毒焰', '灼烧伤害翻倍，烧着的怪死掉把火传给周围'],
-  'elec+ice':  ['超导', '被电到的怪会冻住 0.6 秒'],
-  'acid+ice':  ['脆化', '怪变脆：更容易被暴击，死掉时碎裂伤到周围'],
-  'acid+elec': ['腐蚀电流', '传导伤害提高到 100%，并带上酸'],
+  'fire+fire': ['烈焰', '每次命中附加可叠加的 3 秒灼烧，总伤害 80%，对精英和 Boss 为 100%。目标灼烧期间死亡会小范围爆炸'],
+  'ice+ice':   ['冻伤', '减速并附加 1 秒冻伤，总伤害为命中伤害的 30%。普通怪有 15% 概率冻结 1.2 秒'],
+  'acid+acid': ['强酸', '同一目标的易伤逐次升到 25%、35%、45%，持续 4 秒。满层后此技能对它再多打 35%，死亡时溅出一层强酸'],
+  'elec+elec': ['雷暴', '50% 概率连锁至多 4 只怪，每跳造成 50% 命中伤害'],
+  'elec+fire': ['导火索', '每击附加 40% 灼烧伤害。35% 概率跳至多 3 只怪，每跳打 50% 并附加 10% 灼烧'],
+  'fire+ice':  ['蒸汽爆', '减速并附加 30% 灼烧伤害。20% 概率炸出蒸汽，对每只附近的怪造成 37.5% 命中伤害'],
+  'acid+fire': ['毒焰', '挂上 25% 易伤并附加可叠加的灼烧，总伤害 50%，对精英和 Boss 为 60%。死亡时把火传给周围'],
+  'elec+ice':  ['超导', '减速。35% 概率连锁至多 2 只怪，每跳打 60%，命中的普通怪冻结 0.6 秒'],
+  'acid+ice':  ['脆化', '减速并挂上 25% 易伤，对脆化怪的暴击率提高 30 个百分点。死亡碎裂的基础伤害为死者最大血量的 30%，上限为触发命中伤害的 20%'],
+  'acid+elec': ['腐蚀电流', '挂上 25% 易伤。35% 概率连锁至多 2 只怪，每跳按易伤前的命中伤害的 85% 计算，并给目标挂酸'],
 };
 // 地图遗物：在地图上找到祭台，三选一
 const VAMP_HEAL_RATE = 0.012, VAMP_HEAL_MAX_HP_RATE = 0.15;
@@ -757,7 +757,7 @@ class Rig {
       CM.multiplyMatrices(world, partMatrix(P.pt, e)); P.m.setMatrixAt(i, CM);
       tC.copy(P.tint && e.tint ? e.tint : P.color); if (e.etint) tC.lerp(e.etint, 0.72).multiplyScalar(1.3);
       if (P.glow) tC.multiplyScalar(e.glowMul || 2.6);
-      if (e.burn > 0) tC.lerp(ORANGE, 0.6 + 0.25 * Math.sin(realTime * 20 + i));
+      if (burning(e)) tC.lerp(ORANGE, 0.6 + 0.25 * Math.sin(realTime * 20 + i));
       if (e.hit) tC.lerp(HITC, Math.min(1, e.hit * 1.4));
       if (e.dark) tC.multiplyScalar(0.035);
       if (e.ghostly) tC.lerp(GHOSTC, 0.72);
@@ -1305,7 +1305,7 @@ function spr(kind, x, y, z, sx, sy = sx, roll = 0, k = 1) { const S = SPR[kind];
 // 怪身上的元素状态：一眼分清是在烧、被冻、被腐蚀还是被电
 function statusFx(e, y0) {
   const h = e.r * 2, big = clamp(e.r * 1.5, 0.75, 2.6), sd = e.seed * 9;
-  if (e.burn > 0) { const n = e.r > 1 ? 4 : 3; for (let k = 0; k < n; k++) { const a = sd + k * TAU / n + realTime * 1.3, fl = 0.75 + 0.25 * Math.sin(realTime * 15 + k * 2.3 + sd), top = k === 0; spr('fire', e.x + (top ? 0 : Math.cos(a) * e.r * 0.6), y0 + (top ? h * 0.95 : h * 0.55) + 0.2 * big * fl, e.z + (top ? 0 : Math.sin(a) * e.r * 0.6), big * (top ? 0.8 : 0.55) * (1.1 - fl * 0.2), big * (top ? 1.05 : 0.7) * fl, Math.sin(realTime * 9 + k) * 0.15); } }
+  if (burning(e)) { const n = e.r > 1 ? 4 : 3; for (let k = 0; k < n; k++) { const a = sd + k * TAU / n + realTime * 1.3, fl = 0.75 + 0.25 * Math.sin(realTime * 15 + k * 2.3 + sd), top = k === 0; spr('fire', e.x + (top ? 0 : Math.cos(a) * e.r * 0.6), y0 + (top ? h * 0.95 : h * 0.55) + 0.2 * big * fl, e.z + (top ? 0 : Math.sin(a) * e.r * 0.6), big * (top ? 0.8 : 0.55) * (1.1 - fl * 0.2), big * (top ? 1.05 : 0.7) * fl, Math.sin(realTime * 9 + k) * 0.15); } }
   if (e.frz > 0) { for (let k = 0; k < 3; k++) { const a = sd + k * 2.1, s = big * (k ? 0.95 : 1.3); spr('ice', e.x + Math.cos(a) * e.r * (k ? 0.75 : 0.1), y0 + s * 0.42, e.z + Math.sin(a) * e.r * (k ? 0.75 : 0.1) + 0.05, s * 0.62, s, (k - 1) * 0.32, 0.92); } spr('frost', e.x, 0.05, e.z, e.r * 3.6, e.r * 3.6, sd); }
   else if (e.chill > 0 || e.fb > 0) { spr('frost', e.x, 0.05, e.z, e.r * 3.4, e.r * 3.4, sd, Math.min(1, Math.max(e.chill || 0, e.fb || 0) * 2)); for (let k = 0; k < (e.fb > 0 ? 3 : 2); k++) { const a = sd + k * 2.3; spr('ice', e.x + Math.cos(a) * e.r * 0.8, y0 + big * 0.26, e.z + Math.sin(a) * e.r * 0.6 + 0.05, big * 0.34, big * 0.56, (k - 1) * 0.4); } }
   if (e.acid > 0) spr('ooze', e.x, 0.045, e.z, e.r * 3.1 * (1 + 0.06 * Math.sin(realTime * 4 + sd)), e.r * 3.1, sd, Math.min(1, e.acid * 2));
@@ -1770,7 +1770,7 @@ function loadBestEndless() {
   try { if (!skillDemoMode) bestEndless = +localStorage.getItem(BEST_KEY) || 0; } catch (e) {}
 }
 if (!cloudGame) loadBestEndless();
-let state = 'title', T = 0, timeScale = 1, spawnAcc = 0, nextElite = 75, nextBats = 25, nextBomb = 90, nextBoss = BOSS_T, bossCount = 0, boss = null, ev = {};
+let state = 'title', T = 0, timeScale = 1, nextElite = 75, nextBats = 25, nextBomb = 90, nextBoss = BOSS_T, bossCount = 0, boss = null, ev = {};
 let pendingUlt = [], gifts = [], corpses = [], drops = [], altars = [], pendingInfuse = [], CW = null, watchT = 12, shieldT = 10;
 let enemies = [], eid = 0, shots = [], planes = [], gems = [], chests = [], eshots = [], minions = [], lamps = [], ducks = [], slippers = [], books = [], wet = [], blasts = [], pendingLevels = 0;
 const BOSS_METEOR = { radius: 2.5, warning: 1.25, damage: 46, color: 0xff4137 };
@@ -1801,16 +1801,39 @@ const player = { x: 0, z: 0, vx: 0, vz: 0, yaw: 0, hp: 100, maxHp: 100, speed: P
 const R = (id) => player.relics[id] || 0;
 const A = (id) => !!player.arts[id];
 const W = (id) => player.weapons[id] || 0;
-// 时间越久怪越强
-const tHp = () => (1 + T / 30 * 0.32) * (1 + Math.max(0, T - BOSS_T) / 60 * 0.25);
+// 单人中等难度每分钟刷怪血量，单位是万。第 8 格对应波内 7:00–8:00。
+const WAVE_HP_BUDGETS = [
+  [0.4, 0.9, 1.2, 1.8, 2.9, 4.5, 5.9, 9, 12.7, 17.2],
+  [9, 12, 15, 18, 21, 24, 27, 30, 34, 38],
+  [30, 33, 36, 39, 42, 45, 48, 52, 56, 60],
+];
+const WAVE_ENEMY_HP = [1, 7.4, 10, 13];
+let endlessWaveStartedAt = null, waveSpawnBudget = null;
+const waveElapsed = () => T - (endlessWaveStartedAt ?? 0);
+const waveIndex = () => modeId === 'endless' ? bossCount : 0;
+function enemySpawnBudget() {
+  const elapsed = waveElapsed(), minute = Math.floor(elapsed / 60), wave = waveIndex();
+  if (waveSpawnBudget?.wave === wave && waveSpawnBudget.minute === minute) return waveSpawnBudget;
+  const curve = WAVE_HP_BUDGETS[Math.min(wave, WAVE_HP_BUDGETS.length - 1)];
+  const extraWaves = Math.max(0, wave - (WAVE_HP_BUDGETS.length - 1));
+  const budget = curve[Math.min(minute, curve.length - 1)] + extraWaves * (curve[7] - curve[0]);
+  const teamRate = NET?.on && NET.host ? 1 + 0.4 * (NET.n - 1) : 1;
+  const limit = budget * 10000 * DF().hp * netHp() * DF().rate * teamRate;
+  waveSpawnBudget = { wave, minute, limit, used: 0, pending: null };
+  return waveSpawnBudget;
+}
+function enemyHpScale() {
+  const wave = waveIndex();
+  const base = WAVE_ENEMY_HP[wave] ?? WAVE_ENEMY_HP.at(-1) + (wave - WAVE_ENEMY_HP.length + 1) * 3;
+  const end = WAVE_ENEMY_HP[wave + 1] ?? base + 3;
+  return (base + (end - base) * clamp(waveElapsed() / BOSS_T, 0, 1)) * DF().hp * netHp();
+}
 const tDmg = () => 1 + T / 30 * 0.06 + Math.max(0, T - BOSS_T) / 60 * 0.05;
 const ENEMY_START_SPEED = 1.5, ENDLESS_WAVE_START_SPEED = 1.8, ENEMY_SPEED_PER_MINUTE = 0.4;
-let endlessWaveStartedAt = null;
 // 场上所有怪都按同一波的起步速度和已用时间移动。
 function enemyMoveSpeed() {
   const startSpeed = endlessWaveStartedAt === null ? ENEMY_START_SPEED : ENDLESS_WAVE_START_SPEED;
-  const elapsed = T - (endlessWaveStartedAt ?? 0);
-  return startSpeed + (elapsed / 60) * ENEMY_SPEED_PER_MINUTE;
+  return startSpeed + (waveElapsed() / 60) * ENEMY_SPEED_PER_MINUTE;
 }
 function dmgMul(tag) {
   let m = (1 + player.st.dmg) * (tag === cls.tag ? 1.2 : 1);
@@ -1843,7 +1866,10 @@ function hitEnemy(e, dmg, kx = 0, kz = 0, tag = '', opts = {}) {
   const elite = e.type === 'boss' || e.type === 'hourglass';
   let xm = 1;
   if (xs) { if (xs.exec && e.hp < e.maxHp * 0.3) xm *= 1.8; if (xs.first && e.hp >= e.maxHp) xm *= 1.6; if (xs.elite && elite) xm *= 1.6; if (xs.near && Math.hypot(e.x - player.x, e.z - player.z) < 3) xm *= 1.7; }
-  const v = xm * (opts.raw ? dmg : dmg * dmgMul(tag) * (crit ? critX : 1) * (elite ? 1 + 0.1 * R('redpen') : 1)) * (e.stink > 0 ? 1.25 : 1) * (e.acid > 0 ? 1 + (e.acidK || 0.25) : 1);
+  const baseHit = xm * (opts.raw ? dmg : dmg * dmgMul(tag) * (crit ? critX : 1) * (elite ? 1 + 0.1 * R('redpen') : 1));
+  const strongAcidFinisher = els?.[0] === 'acid' && els[1] === 'acid' &&
+    e.strongAcid > 0 && e.acidStacks === STRONG_ACID_BONUSES.length - 1;
+  const v = baseHit * (e.stink > 0 ? 1.25 : 1) * (1 + acidBonus(e)) * (strongAcidFinisher ? 1.35 : 1);
   { const dealt = Math.max(0, Math.min(v, e.hp)); run.dmg += dealt; if (dealt > run.top) run.top = dealt; }
   e.hp -= v; e.hit = 1;
   const rank = knockbackRank(xs);
@@ -1857,7 +1883,7 @@ function hitEnemy(e, dmg, kx = 0, kz = 0, tag = '', opts = {}) {
   if (Math.random() < 0.5 || crit) dmgNum(e.x, e.z, v, crit ? 'crit' : '', e.r * 2 + 0.6);
   if (crit && A('vamp')) restoreHealth(player, Math.min(player.maxHp * VAMP_HEAL_MAX_HP_RATE, v * VAMP_HEAL_RATE));
   if (xs) { if (xs.stun && e.type !== 'boss' && Math.random() < 0.15) { e.frz = Math.max(e.frz || 0, 0.8); spark(e.x, e.r * 2 + 0.5, e.z, 0xffe07a, 5, 2, 0.3, 0.5, 0); } if (xs.mark) e.stink = Math.max(e.stink || 0, 3); }
-  if (els && els.length && !e.dead) applyElems(e, v, els);
+  if (els && els.length && !e.dead) applyElems(e, v, els, baseHit);
   if (!elite && !e.dead && e.hp > 0 && A('judge') && e.hp < e.maxHp * 0.15) { e.hp = 0; dmgNum(e.x, e.z, '✗', 'crit', e.r * 2 + 1); }
   if (e.hp <= 0 && !e.dead) { killEnemy(e, tag);
     if (e.type === 'bossMissile') return;
@@ -1865,27 +1891,62 @@ function hitEnemy(e, dmg, kx = 0, kz = 0, tag = '', opts = {}) {
       if (xs.gem && Math.random() < 0.2) gems.push({ x: e.x + rnd(-0.4, 0.4), z: e.z + rnd(-0.4, 0.4), v: 1 + Math.floor(T / 90), sz: 0, pull: false, s: 0, ph: Math.random() * 6 }); } }
 }
 const BURN_DURATION = 3, BURN_INTERVAL = 0.5;
-function setBurn(target, dps, duration = BURN_DURATION) {
-  if (!(target.burn > 0)) {
-    target.burnDps = 0;
-    target.burnTick = 0;
-    target.burnDamage = 0;
+const ACID_DURATION = 4, STRONG_ACID_BONUSES = [0, 0.25, 0.35, 0.45];
+const burning = (target) => target.burn > 0 || !!target.burnLayers?.length;
+const burnBonus = () => (1 + RELICS.grimoire.burnDamage * R('grimoire')) * (1 + 0.1 * R('laundry'));
+function acidBonus(target) {
+  if (target.strongAcid > 0) return STRONG_ACID_BONUSES[target.acidStacks];
+  return target.acid > 0 ? 0.25 : 0;
+}
+function markAcid(target, strongHits = 0) {
+  target.acid = ACID_DURATION;
+  if (strongHits > 0) {
+    const stacks = target.strongAcid > 0 ? target.acidStacks : 0;
+    target.acidStacks = Math.min(STRONG_ACID_BONUSES.length - 1, stacks + strongHits);
+    target.strongAcid = ACID_DURATION;
   }
+  if (netGuest() && target.nid != null) {
+    const queued = NET.acidHits.get(target.nid) || 0;
+    NET.acidHits.set(target.nid, Math.min(STRONG_ACID_BONUSES.length - 1, queued + strongHits));
+  }
+}
+function markIce(target, freeze = 0) {
+  target.slow = Math.max(target.slow, 1.5);
+  target.chill = 1.5;
+  if (freeze > 0 && target.type !== 'boss') target.frz = Math.max(target.frz, freeze);
+  if (netGuest() && target.nid != null) {
+    NET.iceHits.set(target.nid, Math.max(NET.iceHits.get(target.nid) || 0, freeze));
+  }
+}
+function setBurn(target, dps, duration = BURN_DURATION) {
+  if (!(target.burn > 0)) target.burnDps = 0;
   target.burn = Math.max(target.burn || 0, duration);
   target.burnDps = Math.max(target.burnDps, dps);
 }
 
-function applyBurn(target, hitDamage, multiplier = 1) {
-  const bonus = (1 + RELICS.grimoire.burnDamage * R('grimoire')) * (1 + 0.1 * R('laundry'));
-  setBurn(target, hitDamage / (3 * BURN_DURATION) * multiplier * bonus);
+function applyBurn(target, hitDamage) {
+  setBurn(target, hitDamage * burnBonus() / (3 * BURN_DURATION));
+}
+
+function addBurn(target, damage, blast = 0, spread = 0) {
+  const bonus = burnBonus();
+  const layers = target.burnLayers ??= [];
+  layers.push({ remaining: BURN_DURATION, dps: damage * bonus / BURN_DURATION, blast: blast * bonus, spread: spread * bonus });
 }
 
 function tickBurn(target, dt) {
-  const elapsed = Math.min(dt, target.burn);
+  const elapsed = Math.min(dt, Math.max(0, target.burn));
   target.burn -= elapsed;
-  target.burnTick += elapsed;
   target.burnDamage += elapsed * target.burnDps;
-  if (target.burnTick < BURN_INTERVAL && target.burn > 0) return 0;
+  const layers = target.burnLayers;
+  for (let i = (layers?.length ?? 0) - 1; i >= 0; i--) {
+    const layer = layers[i], step = Math.min(dt, layer.remaining);
+    target.burnDamage += step * layer.dps;
+    layer.remaining -= step;
+    if (layer.remaining <= 0) layers.splice(i, 1);
+  }
+  target.burnTick += dt;
+  if (target.burnTick < BURN_INTERVAL && burning(target)) return 0;
   const damage = target.burnDamage;
   target.burnTick = 0;
   target.burnDamage = 0;
@@ -1893,15 +1954,16 @@ function tickBurn(target, dt) {
 }
 
 // 元素效果：单个元素各管各的，两个元素再叠一层组合效果
-// 闪电跳过去时，把上一只怪身上的状态一起带过去（灼烧、酸、减速、冻伤、脆化、臭气）
+// 传递持续状态。每次命中排入的灼烧伤害由各组合单独结算。
 function carry(a, b) {
-  if (a.burn > 0) { setBurn(b, a.burnDps, a.burn); if (a.fireBomb) b.fireBomb = 1; if (a.spreadBurn) b.spreadBurn = 1; }
-  if (a.acid > 0) { b.acid = Math.max(b.acid || 0, a.acid); b.acidK = Math.max(b.acidK || 0, a.acidK || 0.25); if (a.acidSpread) b.acidSpread = 1; }
+  if (a.burn > 0) setBurn(b, a.burnDps, a.burn);
+  if (a.acid > 0) b.acid = Math.max(b.acid || 0, a.acid);
   if (a.chill > 0) { b.chill = Math.max(b.chill || 0, a.chill); b.slow = Math.max(b.slow, a.slow); }
   if (a.fb > 0) { b.fb = Math.max(b.fb || 0, a.fb); b.fbDps = Math.max(b.fbDps || 0, a.fbDps || 0); }
-  if (a.brittle > 0) b.brittle = Math.max(b.brittle || 0, a.brittle); if (a.stink > 0) b.stink = Math.max(b.stink || 0, a.stink);
+  if (a.brittle > (b.brittle || 0)) { b.brittle = a.brittle; b.brittleHit = a.brittleHit; }
+  if (a.stink > 0) b.stink = Math.max(b.stink || 0, a.stink);
 }
-function applyElems(e, v, els) {
+function applyElems(e, v, els, baseHit) {
   if (!(e.elT > realTime)) { e.elT = realTime + 0.14; const hy = e.r + 0.5;
     for (let q = 0; q < els.length; q++) { const el = els[q]; if (q && el === els[0]) break;
       if (el === 'fire') { spark(e.x, hy, e.z, 0xff6a2a, 6, 2.8, 0.55, 0.5, -6); spark(e.x, hy, e.z, 0xffd23f, 4, 1.8, 0.38, 0.4, -7); }
@@ -1909,17 +1971,43 @@ function applyElems(e, v, els) {
       else if (el === 'acid') { burst(e.x, hy, e.z, 0x8fd83a, 6, 4, 0.26, 0.55, 13); spark(e.x, hy, e.z, 0xc8f04a, 3, 2.5, 0.36, 0.4, 6); }
       else { crackle(e.x, hy, e.z, e.r + 0.7); spark(e.x, hy, e.z, 0x7fc4ff, 6, 5, 0.32, 0.25, 0); ringFx(e.x, e.z, e.r + 0.6, 0x4aa8ff, 0.18, 0.8); e.shock = Math.max(e.shock || 0, 0.8); } } }
   const F = els.includes('fire'), I = els.includes('ice'), AC = els.includes('acid'), E = els.includes('elec'), dbl = els.length === 2 && els[0] === els[1], RAW = { noElem: true, noCrit: true, raw: true };
-  if (F) { applyBurn(e, v, (dbl ? 2.4 : 1) * (AC ? 2 : 1)); if (dbl) e.fireBomb = 1; if (AC) e.spreadBurn = 1; }
-  if (I) { e.slow = Math.max(e.slow, 1.5); e.chill = 1.5; if (dbl) { e.fb = 3; e.fbDps = Math.max(e.fbDps || 0, v * 0.25); if (Math.random() < 0.15 && e.type !== 'boss') e.frz = 1.2; } }
-  if (AC) { e.acid = 4; e.acidK = dbl ? 0.5 : 0.25; if (dbl) e.acidSpread = 1; }
-  if (I && AC) e.brittle = 3;
-  if (F && I && Math.random() < 0.2) { ringFx(e.x, e.z, 1.9, 0xffffff, 0.3, 0.7); burst(e.x, 0.6, e.z, 0xffffff, 14, 4, 0.5, 0.6, -1); query(e.x, e.z, 1.9, (o) => { if (o !== e) hitEnemy(o, v * 0.6, 0, 0, '', RAW); }); }
-  if (E && Math.random() < (dbl ? 0.6 : 0.35)) {
+  if (F) {
+    const elite = e.type === 'boss' || e.type === 'hourglass';
+    if (dbl) addBurn(e, v * (elite ? 1 : 0.8), baseHit * 0.1);
+    else if (AC) addBurn(e, v * (elite ? 0.6 : 0.5), 0, baseHit * 0.25);
+    else if (E) addBurn(e, v * 0.4);
+    else if (I) addBurn(e, v * 0.3);
+    else applyBurn(e, v);
+  }
+  if (I) {
+    const freeze = dbl && e.type !== 'boss' && Math.random() < 0.15 ? 1.2 : 0;
+    markIce(e, freeze);
+    if (dbl) {
+      e.fbDps = Math.max(e.fb > 0 ? e.fbDps : 0, v * 0.3);
+      e.fb = 1;
+    }
+  }
+  if (AC) markAcid(e, dbl ? 1 : 0);
+  if (I && AC) { e.brittle = 3; e.brittleHit = baseHit; }
+  if (F && I && Math.random() < 0.2) {
+    ringFx(e.x, e.z, 1.9, 0xffffff, 0.3, 0.7);
+    burst(e.x, 0.6, e.z, 0xffffff, 14, 4, 0.5, 0.6, -1);
+    query(e.x, e.z, 1.9, (o) => { if (o !== e) hitEnemy(o, v * 0.375, 0, 0, '', RAW); });
+  }
+  if (E && Math.random() < (dbl ? 0.5 : 0.35)) {
     let cur = e; const seen = new Set([e]), path = [{ x: e.x, y: 0.7, z: e.z }], jumps = dbl ? 4 : F ? 3 : 2;
+    const jumpDamage = AC ? baseHit * 0.85 : v * (I ? 0.6 : dbl || F ? 0.5 : 0.4);
     for (let j = 0; j < jumps; j++) {
-      const n = nearest(cur.x, cur.z, 4.5, seen); if (!n) break; seen.add(n); path.push({ x: n.x, y: 0.7, z: n.z });
-      if (F) { applyBurn(n, v); } if (I && n.type !== 'boss') n.frz = Math.max(n.frz, 0.6); if (AC) { n.acid = 4; n.acidK = Math.max(n.acidK || 0, 0.25); }
-      carry(cur, n); n.shock = 0.9; spark(n.x, 0.9, n.z, 0xbfe4ff, 8, 5, 0.34, 0.3); ringFx(n.x, n.z, 0.9, 0x7fc4ff, 0.2, 0.8); hitEnemy(n, v * (AC ? 1 : 0.4), 0, 0, '', RAW); cur = n;
+      const n = nearest(cur.x, cur.z, 4.5, seen);
+      if (!n) break;
+      seen.add(n); path.push({ x: n.x, y: 0.7, z: n.z });
+      if (F) addBurn(n, v * 0.1);
+      if (I) markIce(n, n.type === 'boss' ? 0 : 0.6);
+      if (AC) markAcid(n);
+      carry(cur, n);
+      n.shock = 0.9; spark(n.x, 0.9, n.z, 0xbfe4ff, 8, 5, 0.34, 0.3); ringFx(n.x, n.z, 0.9, 0x7fc4ff, 0.2, 0.8);
+      hitEnemy(n, jumpDamage, 0, 0, '', RAW);
+      cur = n;
     }
     if (path.length > 1) { const zc = F ? 0xffb04a : I ? 0x9fe0ff : AC ? 0xb8f04a : 0x4aa8ff; zap(path, zc, 0.4, 0.28, 6); zap(path, 0xffffff, 0.25, 0.12, 3); spark(e.x, 0.9, e.z, zc, 8, 5, 0.34, 0.3); }
   }
@@ -2015,14 +2103,35 @@ function killEnemy(e, tag) {
   // 元素的死亡效果
   hitStar(e.x, e.z, 0xffffff, 1.5 * Math.min(2.2, 0.8 + e.r * 0.6), e.r + 0.4);
   if (e.frz > 0 || e.chill > 0 || e.fb > 0) { burst(e.x, e.r + 0.3, e.z, 0xe4f6ff, 12, 7, 0.26, 0.6, 12); ringFx(e.x, e.z, e.r + 1.2, 0xbfe9ff, 0.3, 0.8); }
-  if (e.burn > 0) { spark(e.x, e.r + 0.3, e.z, 0xff6a2a, 10, 3, 0.6, 0.6, -6); burst(e.x, e.r + 0.6, e.z, 0x4a4040, 5, 1.5, 0.5, 0.7, -3); }
+  if (burning(e)) { spark(e.x, e.r + 0.3, e.z, 0xff6a2a, 10, 3, 0.6, 0.6, -6); burst(e.x, e.r + 0.6, e.z, 0x4a4040, 5, 1.5, 0.5, 0.7, -3); }
   if (e.acid > 0) { burst(e.x, e.r + 0.3, e.z, 0x8fd83a, 10, 5, 0.3, 0.6, 13); blot(e.x, e.z, e.r + 0.3, 'rgba(120,190,40,.4)', 4, 0.8); }
   if (e.shock > 0) crackle(e.x, e.r + 0.3, e.z, e.r + 0.8);
   const RAWK = { noElem: true, noCrit: true, raw: true };
-  if (e.burn > 0 && e.fireBomb) { ringFx(e.x, e.z, 1.9, 0xff7a2a, 0.3); spark(e.x, 0.6, e.z, 0xff7a2a, 16, 6, 0.4, 0.4); query(e.x, e.z, 1.9, (o) => hitEnemy(o, (e.burnDps || 5) * 2.5, 0, 0, '', RAWK)); }
-  if (e.burn > 0 && e.spreadBurn) { ringFx(e.x, e.z, 2.5, 0xb8f04a, 0.3); query(e.x, e.z, 2.5, (o) => { setBurn(o, e.burnDps); o.spreadBurn = 1; }); }
-  if (e.acid > 0 && e.acidSpread) { ringFx(e.x, e.z, 2.5, 0x8ac83a, 0.3); burst(e.x, 0.4, e.z, 0x9ad04a, 10, 5, 0.35, 0.5); query(e.x, e.z, 2.5, (o) => { o.acid = 4; o.acidK = 0.5; }); }
-  if (e.brittle > 0) { ringFx(e.x, e.z, 1.7, 0x9fe0ff, 0.25); spark(e.x, 0.6, e.z, 0xd8f4ff, 12, 7, 0.35, 0.35); query(e.x, e.z, 1.7, (o) => hitEnemy(o, e.maxHp * 0.3, 0, 0, '', RAWK)); }
+  let blastDamage = 0, spreadDamage = 0;
+  for (const layer of e.burnLayers ?? []) {
+    blastDamage = Math.max(blastDamage, layer.blast);
+    spreadDamage = Math.max(spreadDamage, layer.spread);
+  }
+  if (blastDamage > 0) {
+    ringFx(e.x, e.z, 1.9, 0xffb04a, 0.3);
+    spark(e.x, 0.6, e.z, 0xffb04a, 16, 5, 0.35, 0.4, 0);
+    query(e.x, e.z, 1.9, (o) => hitEnemy(o, blastDamage, 0, 0, '', RAWK));
+  }
+  if (spreadDamage > 0) {
+    ringFx(e.x, e.z, 2.5, 0xb8f04a, 0.3);
+    query(e.x, e.z, 2.5, (o) => setBurn(o, spreadDamage / BURN_DURATION));
+  }
+  if (e.strongAcid > 0) {
+    ringFx(e.x, e.z, 2.5, 0x8ac83d, 0.3);
+    burst(e.x, 0.6, e.z, 0x8ac83d, 18, 5, 0.35, 0.5, -1);
+    query(e.x, e.z, 2.5, (o) => markAcid(o, o.strongAcid > 0 ? 0 : 1));
+  }
+  if (e.brittle > 0 && e.brittleHit > 0) {
+    const damage = Math.min(e.maxHp * 0.3, e.brittleHit * 0.2);
+    ringFx(e.x, e.z, 1.7, 0x9fe0ff, 0.25);
+    spark(e.x, 0.6, e.z, 0x9fe0ff, 12, 7, 0.35, 0.35, 0);
+    query(e.x, e.z, 1.7, (o) => hitEnemy(o, damage, 0, 0, '', RAWK));
+  }
   // 知识吸取：把全场经验吸过来
   if ((Math.random() < 0.012 || e.type === 'hourglass') && drops.length < 3) drops.push({ x: e.x, z: e.z });
   if (e.type !== 'boss' && e.type !== 'hourglass' && !(NET && NET.on) && Math.random() < (e.giant ? 0.06 : 0.005) && gifts.length < 3) { const id = rollRelic([78, 20, 2]); if (id) gifts.push({ x: e.x, z: e.z, id, t: 0 }); }
@@ -2038,9 +2147,16 @@ function killEnemy(e, tag) {
     $('bossBar').hidden = true; $('hud').classList.remove('boss'); ripple(e.x, e.z, 1.6); shake = 0.8; chroma = 1; bossCount++;
     if (modeId === 'std') { timeScale = 0.25; setTimeout(() => { timeScale = 1; showWin(); }, 1400); }
     else {
-      endlessWaveStartedAt = T;
       banner(`${BOSSES[e.kind || 'boss'].name}倒下了`, '下一个 Boss 会更强');
-      if (!netGuest()) chests.push({ x: e.x, z: e.z });
+      if (!netGuest()) {
+        endlessWaveStartedAt = T;
+        nextBoss = T + BOSS_T;
+        nextBats = T + 25;
+        nextElite = T + DF().elite * 1.8;
+        portalAcc = 0;
+        ev['m' + Math.floor(T / EVT)] = true;
+        chests.push({ x: e.x, z: e.z });
+      }
     }
   }
 }
@@ -2048,14 +2164,25 @@ function killEnemy(e, tag) {
 const gemSize = (v) => (v >= 10 ? 2 : v >= 3 ? 1 : 0);
 const GIANT_OK = ['sleepy', 'cross', 'ink', 'snail', 'clock'], GIANT_T = 420; let forceGiant = false;
 function spawn(type, x, z) {
-  if (enemies.length >= (type === 'boss' || type === 'bossMissile' ? 472 : 460)) return null;
+  const bossUnit = type === 'boss' || type === 'bossMissile';
+  if (enemies.length >= (bossUnit ? 472 : 460)) return null;
   if (NET && NET.on && !NET.host && !NET.mirroring) return null;
+  const active = state === 'play' || state === 'paused';
+  const budget = active && !bossUnit && !NET?.mirroring ? enemySpawnBudget() : null;
+  const t = ET[type];
+  const baseHp = t.hp * (active ? enemyHpScale() : DF().hp * netHp());
+  // 巨型怪用实际血量记账。随机巨型刷不下时，仍可刷出普通形态。
+  let giant = !!budget && GIANT_OK.includes(type) && (forceGiant ||
+    (T >= GIANT_T && Math.random() < 0.08 && enemies.filter((q) => q.giant && !q.dead).length < 7));
+  const remaining = budget ? budget.limit - budget.used : Infinity;
+  if (giant && !forceGiant && baseHp * 9 > remaining) giant = false;
+  const hp = baseHp * (giant ? 9 : 1);
+  if (hp > remaining) return null;
+  if (budget) budget.used += hp;
   if (state === 'play' && type !== 'bossMissile' && !meta.seen.includes(type)) meta.seen.push(type);
-  const t = ET[type], hpMul = tHp() * DF().hp * netHp();
-  const e = { id: eid++, type, x, z, r: t.r, size: t.size, hp: t.hp * hpMul, maxHp: t.hp * hpMul, dps: t.dps * DF().dmg * tDmg(), xp: t.xp, fly: t.fly, hit: 0, seed: Math.random(), slow: 0, kx: 0, kz: 0, cdA: rnd(1, 3), ringing: 0, dash: 0, dx: 0, dz: 0, ph: Math.random() * 6, moving: 1, spawn: 1, dead: false, sleep: 0, burn: 0, burnDps: 0, burnTick: 0, burnDamage: 0, stink: 0, fuse: 0, acid: 0, frz: 0, fb: 0, brittle: 0, warn: 0 };
+  const e = { id: eid++, type, x, z, r: t.r, size: t.size, hp, maxHp: hp, dps: t.dps * DF().dmg * tDmg(), xp: t.xp, fly: t.fly, hit: 0, seed: Math.random(), slow: 0, kx: 0, kz: 0, cdA: rnd(1, 3), ringing: 0, dash: 0, dx: 0, dz: 0, ph: Math.random() * 6, moving: 1, spawn: 1, dead: false, sleep: 0, burn: 0, burnDps: 0, burnTick: 0, burnDamage: 0, stink: 0, fuse: 0, acid: 0, frz: 0, fb: 0, brittle: 0, warn: 0 };
   if (type === 'mole') { e.ms = 'walk'; e.mcd = rnd(0.8, 2); }
-  // 7 分钟后开始混进大块头：个头是 2.4 倍，血厚、推不太动，专门挤占走位空间
-  if (GIANT_OK.includes(type) && state === 'play' && (forceGiant || (!(NET && NET.mirroring) && T >= GIANT_T && Math.random() < 0.08 && enemies.filter((q) => q.giant && !q.dead).length < 7))) { e.giant = 1; e.size *= 2.4; e.r *= 2.4; e.hp = e.maxHp = e.hp * 9; e.dps *= 1.6; e.xp *= 6; }
+  if (giant) { e.giant = 1; e.size *= 2.4; e.r *= 2.4; e.dps *= 1.6; e.xp *= 6; }
   if (type === 'boss') { e.hp = e.maxHp = DF().boss * (1 + bossCount * 0.7) * netHp(); e.kind = nextBossKind(); e.atk = 0; e.enraged = false; boss = e; if (state === 'play' && !meta.seen.includes(e.kind)) meta.seen.push(e.kind); }
   if (type === 'bossMissile') { e.hp = e.maxHp = t.hp * DF().hp; e.spawn = 0; e.life = 6; }
   enemies.push(e); return e;
@@ -3424,7 +3551,30 @@ function netRecv(ev) {
   if (ev.t === 'start') { NET.room = ev.room; return netBegin(ev.m || {}); }
   if (ev.t !== 'm' || !ev.m) return;
   const m = ev.m, from = ev.from;
-  if (m.k === 'p' || m.k === 's') { if (m.p && NET.on) netPeer(from, m.p); if (m.k === 's' && !NET.host && NET.on) netApply(m); if (m.D && NET.host && NET.on) netDamage(m.D); if (m.k === 'p' && NET.host && NET.on) { if (Array.isArray(m.G) && m.G.length) netGems(m.G); if (NET.phase && m.dn === NET.phase.id && NET.phase.wait.delete(from)) netPhaseCheck(); } }
+  if (m.k === 'p' || m.k === 's') {
+    if (m.p && NET.on) netPeer(from, m.p);
+    if (m.k === 's' && !NET.host && NET.on) netApply(m);
+    if (m.k === 'p' && NET.host && NET.on) {
+      const acidHits = Array.isArray(m.EA) && m.EA.length <= 472 ? m.EA : [];
+      const iceHits = Array.isArray(m.EI) && m.EI.length <= 472 ? m.EI : [];
+      if (acidHits.length || iceHits.length) {
+        const byId = new Map(enemies.filter((e) => !e.dead && !e.inv).map((e) => [e.id, e]));
+        for (const hit of acidHits) {
+          if (!Array.isArray(hit) || hit.length !== 2) continue;
+          const [id, stacks] = hit, enemy = byId.get(id);
+          if (enemy && Number.isInteger(stacks) && stacks >= 0 && stacks < STRONG_ACID_BONUSES.length) markAcid(enemy, stacks);
+        }
+        for (const hit of iceHits) {
+          if (!Array.isArray(hit) || hit.length !== 2) continue;
+          const [id, freeze] = hit, enemy = byId.get(id);
+          if (enemy && (freeze === 0 || freeze === 0.6 || freeze === 1.2)) markIce(enemy, freeze);
+        }
+      }
+      if (m.D) netDamage(m.D);
+      if (Array.isArray(m.G) && m.G.length) netGems(m.G);
+      if (NET.phase && m.dn === NET.phase.id && NET.phase.wait.delete(from)) netPhaseCheck();
+    }
+  }
   else if (m.k === 'st' && NET.on && NET.teamIds.includes(from) && validStats(m.st)) {
     NET.finalStats.set(from, m.st);
     netReviveCredit(from, m.revives);
@@ -3543,16 +3693,27 @@ function netTick(dt) {
       (state === 'play' || state === 'levelup' || state === 'paused')) me.sockAura = r2(sockAuraRadius());
   if (!NET.host) {
     const Dm = []; for (const [nid, e] of NET.mir) { const d = e.base - e.hp; if (d > 0.5) { Dm.push(nid, Math.round(d)); e.base = e.hp; } if (e.dead && !e.gone) { e.gone = 1; e.deadAt = realTime; } }
-    return netSend({ k: 'p', p: me, D: Dm, G: NET.G.splice(0), dn: NET.phase && NET.phase.done ? NET.phase.id : 0 });
+    const EA = [...NET.acidHits], EI = [...NET.iceHits];
+    NET.acidHits.clear();
+    NET.iceHits.clear();
+    return netSend({ k: 'p', p: me, D: Dm, EA, EI, G: NET.G.splice(0), dn: NET.phase && NET.phase.done ? NET.phase.id : 0 });
   }
-  const E = []; for (const e of enemies) { if (e.dead) continue; E.push(e.id, NET_TI[e.type], r1(e.x), r1(e.z), Math.max(1, Math.round(e.hp / e.maxHp * 1000)), (e.giant ? 1 : 0) | (e.inv ? 2 : 0), e.fuse > 0 ? r1(e.fuse) : 0); }
+  const E = [], EH = [], EA = [], EI = [];
+  for (const e of enemies) {
+    if (e.dead) continue;
+    E.push(e.id, NET_TI[e.type], r1(e.x), r1(e.z), Math.max(1, Math.round(e.hp / e.maxHp * 1000)), (e.giant ? 1 : 0) | (e.inv ? 2 : 0), e.fuse > 0 ? r1(e.fuse) : 0);
+    // 血量随刷出时的波次和难度而定，队友用房主的实际数值。
+    EH.push(Math.max(0.01, r2(e.hp)), r2(e.maxHp));
+    if (e.acid > 0) EA.push([e.id, r2(e.acid), r2(Math.max(0, e.strongAcid || 0)), e.acidStacks || 0]);
+    if (e.chill > 0 || e.frz > 0) EI.push([e.id, r2(Math.max(0, e.chill || 0)), r2(Math.max(0, e.frz))]);
+  }
   const S = []; for (const b of eshots) { if (!b.nid) b.nid = ++NET.sid; S.push(b.nid, r1(b.x), r1(b.z), r1(b.vx), r1(b.vz), r1(b.life), b.rig === 'chalkP' ? 1 : b.source === 'boss' ? 2 : 0, b.dmg || 8); }
   const B = boss && !boss.dead ? [boss.id, boss.atkN || 0, r2(boss.slam || 0), r2(boss.rushW || 0), r2(boss.rushT || 0), r2(boss.ax || 0), r2(boss.az || 0), boss.enraged ? 1 : 0, r2(boss.pullAt || 0), BOSS_KINDS.indexOf(boss.kind)] : null;
   const H = [...bossHazards.values()].map((h) => [h.id, h.kind, r2(h.x), r2(h.z), r2(h.at), r2(h.a || 0)]);
   netPhaseTry();
   const CH = []; for (const c of chests) { c.id = c.id || ++worldSeq; CH.push(c.id, r1(c.x), r1(c.z), c.sp ? 1 : 0); }
   const AL = []; for (const a of altars) { a.id = a.id || ++worldSeq; AL.push(a.id, r1(a.x), r1(a.z)); }
-  netSend({ k: 's', p: me, T: r2(T), E, S, B, H, K: NET.K.splice(0), X: [r2(player.xp), player.need, player.lvl], C: NET.C.splice(0), CH, AL, TK: netTaskPack(), TE: NET.TE, PH: NET.phase ? NET.PH : null, PW: NET.phase ? [...NET.phase.wait] : null });
+  netSend({ k: 's', p: me, T: r2(T), NB: Number.isFinite(nextBoss) ? r2(nextBoss) : null, E, EH, EA, EI, S, B, H, K: NET.K.splice(0), X: [r2(player.xp), player.need, player.lvl], C: NET.C.splice(0), CH, AL, TK: netTaskPack(), TE: NET.TE, PH: NET.phase ? NET.PH : null, PW: NET.phase ? [...NET.phase.wait] : null });
   // 全员倒下：这局结束
   if (player.ghost && NET.room.players.every((p) => p.id === NET.id || NET.peers[p.id]?.dead)) { netSend({ k: 'end', win: 0 }); netOver(); }
 }
@@ -3560,15 +3721,52 @@ function netTick(dt) {
 function netApply(m) {
   if (state === 'win' || state === 'dead') return;
   if (Math.abs(T - m.T) > 0.4) T = m.T;
+  if (m.NB === null || Number.isFinite(m.NB)) nextBoss = m.NB ?? Infinity;
   const E = m.E || [], seen = new Set();
   for (let i = 0; i < E.length; i += 7) {
     const nid = E[i], x = E[i + 2] / 10, z = E[i + 3] / 10; seen.add(nid);
+    const j = i / 7 * 2, snapshotHp = m.EH?.[j], snapshotMaxHp = m.EH?.[j + 1];
+    const hasHp = Number.isFinite(snapshotHp) && snapshotHp > 0 && Number.isFinite(snapshotMaxHp) && snapshotMaxHp >= snapshotHp;
     let e = NET.mir.get(nid);
     if (e?.dead && e.deadAt != null && realTime - e.deadAt > 1.5) { NET.mir.delete(nid); e = null; }
-    if (!e) { const type = NET_TYPES[E[i + 1]]; if (!type) continue; NET.mirroring = true; e = spawn(type, x, z); NET.mirroring = false; if (!e) continue; e.nid = nid; e.spawn = 0; if (E[i + 5] & 1) { e.giant = 1; e.size *= 2.4; e.r *= 2.4; } e.hp = e.maxHp * E[i + 4] / 1000; e.base = e.hp; NET.mir.set(nid, e); }
+    if (!e) {
+      const type = NET_TYPES[E[i + 1]];
+      if (!type) continue;
+      NET.mirroring = true; e = spawn(type, x, z); NET.mirroring = false;
+      if (!e) continue;
+      e.nid = nid; e.spawn = 0;
+      if (E[i + 5] & 1) { e.giant = 1; e.size *= 2.4; e.r *= 2.4; }
+      if (hasHp) e.maxHp = snapshotMaxHp;
+      e.hp = hasHp ? snapshotHp : e.maxHp * E[i + 4] / 1000;
+      e.base = e.hp;
+      NET.mir.set(nid, e);
+    }
     if (e.dead) continue;
-    const hostHp = e.maxHp * E[i + 4] / 1000, unsent = Math.max(0, e.base - e.hp); e.hp = Math.min(e.hp, hostHp - unsent); e.base = e.hp + unsent;
+    const hostHp = hasHp ? snapshotHp : e.maxHp * E[i + 4] / 1000;
+    const unsent = Math.max(0, e.base - e.hp); e.hp = Math.min(e.hp, hostHp - unsent); e.base = e.hp + unsent;
     e.nx = x; e.nz = z; e.inv = !!(E[i + 5] & 2); e.under = e.inv; if (E[i + 6]) { e.fuse = E[i + 6] / 10; e.fuseMax = e.fuseMax || FUSE; } else e.fuse = 0;
+  }
+  if (Array.isArray(m.EA) && m.EA.length <= 472) {
+    for (const status of m.EA) {
+      if (!Array.isArray(status) || status.length !== 4) continue;
+      const [id, remaining, strongRemaining, stacks] = status, e = NET.mir.get(id);
+      if (!e || e.dead || !Number.isFinite(remaining) || remaining <= 0 || remaining > ACID_DURATION) continue;
+      e.acid = Math.max(e.acid, remaining);
+      if (Number.isFinite(strongRemaining) && strongRemaining > 0 && strongRemaining <= ACID_DURATION &&
+          Number.isInteger(stacks) && stacks > 0 && stacks < STRONG_ACID_BONUSES.length) {
+        e.acidStacks = Math.max(e.strongAcid > 0 ? e.acidStacks : 0, stacks);
+        e.strongAcid = Math.max(e.strongAcid || 0, strongRemaining);
+      }
+    }
+  }
+  if (Array.isArray(m.EI) && m.EI.length <= 472) {
+    for (const status of m.EI) {
+      if (!Array.isArray(status) || status.length !== 3) continue;
+      const [id, chill, frozen] = status, e = NET.mir.get(id);
+      if (!e || e.dead) continue;
+      if (Number.isFinite(chill) && chill > 0 && chill <= 1.5) e.chill = Math.max(e.chill || 0, chill);
+      if (Number.isFinite(frozen) && frozen > 0 && frozen <= 1.2 && e.type !== 'boss') e.frz = Math.max(e.frz, frozen);
+    }
   }
   for (const nid of m.K || []) { const e = NET.mir.get(nid); if (e && !e.dead) killEnemy(e, ''); }
   for (const [nid, e] of NET.mir) if (!seen.has(nid)) { if (!e.dead) e.dead = true; NET.mir.delete(nid); }
@@ -3595,7 +3793,7 @@ function netApply(m) {
 }
 const netGuest = () => !!(NET && NET.on && !NET.host);
 function netRunReset() {
-  Object.assign(NET, { phase: null, PH: null, PW: null, phId: 0, lastPh: 0, lvQ: 0, q: [], gotG: new Set(), C: [], G: [], gc: 0, TE: null, bossSnapshotT: -1, liveStats: new Map(), finalStats: new Map(), revives: {}, reviveCredits: new Map() });
+  Object.assign(NET, { phase: null, PH: null, PW: null, phId: 0, lastPh: 0, lvQ: 0, q: [], gotG: new Set(), C: [], G: [], gc: 0, TE: null, bossSnapshotT: -1, liveStats: new Map(), finalStats: new Map(), revives: {}, reviveCredits: new Map(), acidHits: new Map(), iceHits: new Map() });
 }
 // 捡到经验球：联机时报给房主，房主按编号去重后加到全队的经验条上
 function netXp(g, v) {
@@ -4005,14 +4203,15 @@ function startRun() {
   Object.assign(player, { x: 0, z: 0, vx: 0, vz: 0, yaw: 0, hp: maxHp, maxHp, speed: PLAYER_SPEED, magnet: 2.4, lvl: 1, xp: 0, need: 5, kills: 0, weapons: { [cls.start]: 1 }, wup: {}, elem: {}, sp: {}, arts: {}, koi: 0, shield: false, st, relics: {}, evo: {}, alt: {}, duos: {}, spinT: 0, slowT: 0, healPending: 0, lastHeal: null, iframe: 0, ghost: 0, dark: false });
   rerollCost = REROLL_BASE_COST; player.revives = DF().revive; watchT = 12; shieldT = 10; bellT = 30; warmT = 0; player.retakeUsed = false; player.errN = 0; player.lunchN = 0; player.puddleT = -9; $('rmark').hidden = true;
   mctx.clearRect(0, 0, 1024, 1024); marksDirty = true;
-  endlessWaveStartedAt = null;
-  T = 0; spawnAcc = 0; settled = false; run = { tasks: 0, hg: 0, hit: -1, dmg: 0, taken: 0, downs: 0, rev: 0, top: 0 }; achClock = 0; nextElite = DF().elite * 1.8; nextBats = 25; nextBomb = 90; nextBoss = BOSS_T; bossCount = 0; bossOrder = shuffle([...BOSS_KINDS]); if (!meta.seen.includes('boss')) bossOrder = ['boss', ...bossOrder.filter((k) => k !== 'boss')]; boss = null; ev = {}; timeScale = 1; pendingLevels = 0; task = null; nextTask = 50;
+  endlessWaveStartedAt = waveSpawnBudget = null;
+  T = 0; settled = false; run = { tasks: 0, hg: 0, hit: -1, dmg: 0, taken: 0, downs: 0, rev: 0, top: 0 }; achClock = 0; nextElite = DF().elite * 1.8; nextBats = 25; nextBomb = 90; nextBoss = BOSS_T; bossCount = 0; bossOrder = shuffle([...BOSS_KINDS]); if (!meta.seen.includes('boss')) bossOrder = ['boss', ...bossOrder.filter((k) => k !== 'boss')]; boss = null; ev = {}; timeScale = 1; pendingLevels = 0; task = null; nextTask = 50;
   for (const k in cds) delete cds[k];
   $('bossBar').hidden = true; $('hud').classList.remove('boss'); $('hud').hidden = false; titleEl.hidden = true; titleEl.innerHTML = ''; hide(); $('stage').classList.remove('dead'); $('task').hidden = true;
   $('who').innerHTML = illustratedBadge('heroes', clsId, TAGS[cls.tag].c, 40); $('pname').textContent = cls.name; hud.lv = 1; hud.points = meta.pts; $('lv').textContent = 1; $('score').textContent = meta.pts;
   camLook.set(0, 0, 0);
+  state = 'play';
   for (let k = 0; k < 6; k++) spawnNear('sleepy', 8, 13);
-  state = 'play'; renderSlots(); renderItems(); banner('第一波', modeId === 'std' ? '撑到 10:00，期末大魔王会出现' : '无尽模式：撑得越久越好');
+  renderSlots(); renderItems(); banner('第一波', modeId === 'std' ? '撑到 10:00，期末大魔王会出现' : '无尽模式：撑得越久越好');
 }
 $('pauseBtn').onclick = () => { if (state === 'play') pause(); };
 function pause() {
@@ -4160,7 +4359,7 @@ function optionCard(o, i, theme) {
   }
   else if (o.kind === 'el') {
     const E = ELEMS[o.id], cur = player.elem[o.w] || [], cb = cur.length ? COMBOS[[cur[0], o.id].sort().join('+')] : null;
-    c = E.c; kind = WEAPONS[o.w].name; name = cb ? cb[0] : E.name + '元素'; sub = cb ? `${ELEMS[cur[0]].name} + ${E.name}` : ''; desc = cb ? `${cb[1]}。${E.name}：${E.desc}` : E.desc;
+    c = E.c; kind = WEAPONS[o.w].name; name = cb ? cb[0] : E.name + '元素'; sub = cb ? `${ELEMS[cur[0]].name} + ${E.name}` : ''; desc = cb ? cb[1] : E.desc;
     elementIcon = cb
       ? `<span class="ico element-pair">${illustration('elements', cur[0])}${illustration('elements', o.id)}</span>`
       : illustratedBadge('elements', o.id, E.c);
@@ -4518,15 +4717,36 @@ if (skillDemoMode) {
   });
 }
 const SPAWN_TABLE = [['sleepy', 0, 5], ['bomber', 30, 0.3], ['chalk', 60, 1.4], ['cross', 120, 4], ['mole', 180, 0.5], ['clock', 240, 2], ['ink', 330, 2], ['ghost', 390, 1.5], ['phone', 450, 1.1], ['snail', 510, 0.9]];
+const LIVE_TYPE_LIMITS = { bomber: 3, chalk: 10, mole: 3 };
+function fillEnemyBudget(dt) {
+  const budget = enemySpawnBudget(), hpScale = enemyHpScale();
+  const seconds = waveElapsed() - budget.minute * 60;
+  // 事件先刷，普通怪按分钟内的进度补量。留一点额度给最后几秒的事件。
+  const progress = clamp((seconds + dt) / 60, 0, 1);
+  const reserve = 0.06 * clamp((60 - seconds - dt) / 4, 0, 1);
+  const due = budget.limit * Math.min(progress * (boss ? 0.5 : 1), 1 - reserve);
+  const filler = T >= 120 ? 'cross' : 'sleepy';
+  for (let i = 0; i < 3 && enemies.length < 460; i++) {
+    const allowed = due - budget.used;
+    if (allowed < ET[filler].hp * hpScale) return;
+    if (!budget.pending) {
+      const pool = SPAWN_TABLE.filter(([type, at]) => T >= at &&
+        (!LIVE_TYPE_LIMITS[type] || enemies.filter((e) => e.type === type && !e.dead).length < LIVE_TYPE_LIMITS[type]));
+      let roll = Math.random() * pool.reduce((sum, [, , weight]) => sum + weight, 0);
+      budget.pending = pool.find(([, , weight]) => (roll -= weight) < 0)?.[0] ?? filler;
+    }
+    const type = ET[budget.pending].hp * hpScale <= allowed ? budget.pending : seconds >= 59 ? filler : null;
+    if (!type || !spawnNear(type)) return;
+    if (type === budget.pending) budget.pending = null;
+  }
+}
 function timelineEventAt(m) {
-  const at = m * EVT;
-  if (at === BOSS_T || (modeId === 'endless' && at > BOSS_T && at % BOSS_T === 0)) return ['boss'];
   return TIMELINE[m] || (modeId === 'endless' && m >= TIMELINE.length ? [['task'], ['relic'], ['rush']][m % 3] : null);
 }
 // 每 30 秒一个事件：新怪物登场、任务、地图遗物、期中考、考前冲刺
 function minuteEvent(m) {
   const E = timelineEventAt(m);
-  if (!E || E[0] === 'boss') return;
+  if (!E) return;
   if (netGuest() && (E[0] === 'task' || E[0] === 'relic')) return;
   const k = E[0], ringSpawn = (type, n, rad = 12) => {
     const origin = netTarget();
@@ -4541,8 +4761,9 @@ function minuteEvent(m) {
 }
 function nextEventText() {
   const m = Math.floor(T / EVT) + 1, left = m * EVT - T;
+  if (nextBoss <= m * EVT) return `下一个：大魔王 ${fmt(Math.max(0, nextBoss - T))}`;
   const E = timelineEventAt(m);
-  return E ? `下一个：${E[0] === 'boss' ? '大魔王' : EV_NAME[E[0]]} ${fmt(left)}` : `${MODES[modeId].name} · ${DF().name}`;
+  return E ? `下一个：${EV_NAME[E[0]]} ${fmt(left)}` : `${MODES[modeId].name} · ${DF().name}`;
 }
 const BOSS_ATTACKS = ['meteor', 'rush', 'pull', 'slam', 'missiles', 'summon'];
 
@@ -4774,11 +4995,6 @@ function updateMatch(dt) {
   if (!player.ghost) flushHealFeedback(player);
 
   if (!NET || !NET.on || NET.host) {
-  // 刷怪：越往后越多越强
-  const rate = (1.6 + Math.min(T, 1500) * 0.011) * DF().rate * (boss ? 0.5 : 1) * (NET && NET.on ? 1 + 0.4 * (NET.n - 1) : 1);
-  spawnAcc += dt * rate;
-  const table = SPAWN_TABLE.filter((s) => T >= s[1]), tw = table.reduce((a, b) => a + b[2], 0);
-  while (spawnAcc > 1) { spawnAcc--; let r = Math.random() * tw, i = 0; while ((r -= table[i][2]) > 0) i++; let ty = table[i][0]; const capN = { bomber: 3, chalk: 10, mole: 3 }[ty]; if (capN && enemies.filter((q) => q.type === ty && !q.dead).length >= capN) ty = T >= 60 && Math.random() < 0.4 ? 'cross' : 'sleepy'; spawnNear(ty); }
   if (T >= nextBats && !boss) {
     const origin = netTarget();
     nextBats += 25;
@@ -4787,7 +5003,7 @@ function updateMatch(dt) {
   portalAcc += dt; if (portalAcc >= (T < 20 ? 20 : 7) && !boss) { portalAcc = 0; if (!ev.portal) { ev.portal = true; banner('角落的洞开了', '怪会从四个角落一队一队走出来'); } portalWave(); }
   }
   const minute = Math.floor(T / EVT);
-  if (minute > 0 && !ev['m' + minute] && !boss) { ev['m' + minute] = true; minuteEvent(minute); }
+  if (minute > 0 && !ev['m' + minute] && !boss && T < nextBoss) { ev['m' + minute] = true; minuteEvent(minute); }
   if (!NET || !NET.on || NET.host) {
   if (T >= GIANT_T && !ev.giant) { ev.giant = true; banner('大块头来了', '个头很大的怪会挤占你的走位空间'); forceGiant = true; for (const ty of ['sleepy', 'cross', 'sleepy']) spawnNear(ty, 11, 14); forceGiant = false; shake = Math.max(shake, 0.3); }
   if (T >= nextElite && !boss) { nextElite += DF().elite * 1.8; spawnNear('hourglass', 12, 15); banner('DDL 沙漏人', '打倒它有机会掉宝箱', illustration('mons', 'hourglass')); }
@@ -4798,10 +5014,11 @@ function updateMatch(dt) {
       $('bossBar').hidden = false; $('hud').classList.add('boss'); shake = 0.5;
       const name = BOSSES[enemy.kind].name;
       banner(bossCount ? `${name} · 第 ${bossCount + 1} 个` : name, '', illustration('mons', enemy.kind));
-      nextBoss = modeId === 'endless' ? nextBoss + BOSS_T : Infinity;
+      nextBoss = Infinity;
       if (task) endTask(false);
     }
   }
+  fillEnemyBudget(dt);
   }
 }
 
@@ -4901,7 +5118,7 @@ function update(dt) {
     if (e.dead) continue;
     e.hit = Math.max(0, e.hit - dt * 7); e.slow -= dt; e.spinCd = (e.spinCd || 0) - dt; e.stink -= dt;
     if (e.sockSlow > 0) e.sockSlow -= dt;
-    if (e.burn > 0) {
+    if (burning(e)) {
       const damage = tickBurn(e, dt);
       if (damage > 0) {
         run.dmg += Math.max(0, Math.min(damage, e.hp)); e.hp -= damage;
@@ -4910,17 +5127,29 @@ function update(dt) {
         if (e.hp <= 0) { killEnemy(e, 'magic'); continue; }
       }
     }
-    e.acid -= dt; e.brittle -= dt; e.chill = (e.chill || 0) - dt; if (e.shock > 0) e.shock -= dt;
-    if (e.burn > 0 && Math.random() < dt * 10) spark(e.x + rnd(-0.3, 0.3), e.r + 0.5, e.z + rnd(-0.3, 0.3), Math.random() < 0.5 ? 0xff7a2a : 0xffd23f, 1, 1.2, 0.46, 0.45, -4);
+    e.acid -= dt; if (e.strongAcid > 0) e.strongAcid -= dt; e.brittle -= dt; e.chill = (e.chill || 0) - dt; if (e.shock > 0) e.shock -= dt;
+    if (burning(e) && Math.random() < dt * 10) spark(e.x + rnd(-0.3, 0.3), e.r + 0.5, e.z + rnd(-0.3, 0.3), Math.random() < 0.5 ? 0xff7a2a : 0xffd23f, 1, 1.2, 0.46, 0.45, -4);
     if (e.acid > 0 && Math.random() < dt * 8) { spark(e.x + rnd(-0.4, 0.4), e.r + 0.7, e.z + rnd(-0.4, 0.4), 0x9be03a, 1, 0.6, 0.42, 0.5, 5); if (Math.random() < 0.2) blot(e.x + rnd(-0.3, 0.3), e.z + rnd(-0.3, 0.3), 0.22, 'rgba(120,190,40,.4)'); }
     if (e.chill > 0 && Math.random() < dt * 6) spark(e.x + rnd(-0.4, 0.4), e.r + 0.8, e.z + rnd(-0.4, 0.4), 0xd8f2ff, 1, 0.5, 0.32, 0.6, 2);
+    if (e.fb > 0) {
+      const step = Math.min(e.fb, dt), damage = e.fbDps * step;
+      e.fb -= step;
+      run.dmg += Math.max(0, Math.min(damage, e.hp));
+      e.hp -= damage;
+      if (Math.random() < dt * 3) spark(e.x, e.r + 0.4, e.z, 0x9fe0ff, 1, 1, 0.3, 0.5, -1);
+      if (e.hp <= 0) { killEnemy(e, ''); continue; }
+    }
     if (e.type === 'bossMissile') {
       if (netGuest()) netMirrorStep(e, dt);
       else updateBossMissile(e, dt);
       continue;
     }
-    if (NET && NET.on && !NET.host) { netMirrorStep(e, dt); if (!e.inv && !player.ghost && e.spawn <= 0 && Math.hypot(player.x - e.x, player.z - e.z) < e.r + 0.45) addContact(e); continue; }
-    if (e.fb > 0) { e.fb -= dt; run.dmg += Math.max(0, Math.min(e.fbDps * dt, e.hp)); e.hp -= e.fbDps * dt; if (Math.random() < dt * 3) spark(e.x, e.r + 0.3, e.z, 0x9fe0ff, 1, 1, 0.3, 0.5, -1); if (e.hp <= 0) { killEnemy(e, ''); continue; } }
+    if (NET && NET.on && !NET.host) {
+      netMirrorStep(e, dt);
+      if (e.frz > 0) { e.frz -= dt; continue; }
+      if (!e.inv && !player.ghost && e.spawn <= 0 && Math.hypot(player.x - e.x, player.z - e.z) < e.r + 0.45) addContact(e);
+      continue;
+    }
     if (e.frz > 0) { e.frz -= dt; e.moving = 0; continue; }
     if (e.spawn > 0) { e.spawn -= dt * 1.7; if (Math.random() < 0.3 && !e.fly) dust(e.x, e.z, 2, 2); if (e.spawn > 0) continue; }
     const tg = netTarget(e);
@@ -5284,7 +5513,7 @@ function draw(dt) {
     if (e.type === 'boss') e.ringing = bossRinging;
     RIGS[e.kind || RIG_OF(e.type)].push(e, worldM(e.x + (fz ? Math.sin(realTime * 60) * 0.06 * fz : 0), y + popY + (e.type === 'boss' ? bossLeapY : 0), e.z, yaw, sw * (1 + e.hit * 0.24), sw * (sq - e.hit * 0.2), sw * (1 + e.hit * 0.24)));
     shadow(e.x, e.z, e.r * (e.fly ? 0.7 : 1) * (1 - rise * 0.7));
-    if (e.burn > 0 || e.frz > 0 || e.chill > 0 || e.acid > 0 || e.shock > 0 || e.fb > 0) statusFx(e, Math.max(0, y));
+    if (burning(e) || e.frz > 0 || e.chill > 0 || e.acid > 0 || e.shock > 0 || e.fb > 0) statusFx(e, Math.max(0, y));
   }
   for (let k = fi * 2; k < 8; k++) fuseDiscs[k].visible = false;
   for (const c of corpses) { c.t += dt / 0.2; const k = Math.min(1, c.t); RIGS[RIG_OF(c.type)].push({ ph: 0, hit: 1 - k * 0.4, seed: c.seed, moving: 0 }, worldM(c.x, 0, c.z, c.yaw, c.size * (1 + k * 0.7), c.size * Math.max(0.04, 1 - k), c.size * (1 + k * 0.7))); }
