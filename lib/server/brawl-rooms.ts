@@ -21,6 +21,7 @@ type Peer = {
   hero: string;
   skin: string;
   difficultyLevel: number;
+  endlessUnlocked: boolean;
   seen: number;
   streams: Set<Stream>;
   bucket: { at: number; n: number };
@@ -32,7 +33,10 @@ type Room = {
   started: boolean;
   touched: number;
 };
-type PublicPeer = { id: string; name: string; hero: string; skin: string; difficultyLevel: number };
+type PublicPeer = Pick<
+  Peer,
+  'id' | 'name' | 'hero' | 'skin' | 'difficultyLevel' | 'endlessUnlocked'
+>;
 export type BrawlRoomView = { code: string; host: string; started: boolean; players: PublicPeer[] };
 
 const store = globalThis as typeof globalThis & { __brawlRooms?: Map<string, Room> };
@@ -76,13 +80,16 @@ function view(room: Room): BrawlRoomView {
     code: room.code,
     host: room.host,
     started: room.started,
-    players: [...room.peers.values()].map(({ id, name, hero, skin, difficultyLevel }) => ({
-      id,
-      name,
-      hero,
-      skin,
-      difficultyLevel,
-    })),
+    players: [...room.peers.values()].map(
+      ({ id, name, hero, skin, difficultyLevel, endlessUnlocked }) => ({
+        id,
+        name,
+        hero,
+        skin,
+        difficultyLevel,
+        endlessUnlocked,
+      }),
+    ),
   };
 }
 
@@ -140,14 +147,15 @@ export function sweepBrawlRooms(now = Date.now()) {
   }
 }
 
-function addPeer(room: Room, name: string, hero: string, skin: string, level: number): Peer {
+function addPeer(room: Room, body: Record<string, unknown>): Peer {
   const peer: Peer = {
     id: randomBytes(4).toString('hex'),
     key: randomUUID(),
-    name,
-    hero,
-    skin,
-    difficultyLevel: level,
+    name: clean(body.name, 12, '同学'),
+    hero: clean(body.hero, 24),
+    skin: clean(body.skin, 32),
+    difficultyLevel: difficultyLevel(body.difficultyLevel),
+    endlessUnlocked: body.endlessUnlocked === true,
     seen: Date.now(),
     streams: new Set(),
     bucket: { at: Date.now(), n: 0 },
@@ -186,13 +194,7 @@ export function createBrawlRoom(body: Record<string, unknown>) {
     started: false,
     touched: Date.now(),
   };
-  const peer = addPeer(
-    room,
-    clean(body.name, 12, '同学'),
-    clean(body.hero, 24),
-    clean(body.skin, 32),
-    difficultyLevel(body.difficultyLevel),
-  );
+  const peer = addPeer(room, body);
   room.host = peer.id;
   rooms.set(room.code, room);
   return { code: room.code, id: peer.id, key: peer.key, room: view(room) };
@@ -205,13 +207,7 @@ export function joinBrawlRoom(body: Record<string, unknown>) {
   if (room.started) throw new BrawlRoomError(409, 'started', '这局已经开始了');
   if (room.peers.size >= BRAWL_MAX_PLAYERS)
     throw new BrawlRoomError(409, 'full', '房间满了，最多 4 人');
-  const peer = addPeer(
-    room,
-    clean(body.name, 12, '同学'),
-    clean(body.hero, 24),
-    clean(body.skin, 32),
-    difficultyLevel(body.difficultyLevel),
-  );
+  const peer = addPeer(room, body);
   broadcastRoom(room);
   return { code: room.code, id: peer.id, key: peer.key, room: view(room) };
 }
@@ -224,6 +220,7 @@ export function updateBrawlPeer(body: Record<string, unknown>) {
   if (body.skin !== undefined) peer.skin = clean(body.skin, 32);
   if (body.difficultyLevel !== undefined)
     peer.difficultyLevel = difficultyLevel(body.difficultyLevel);
+  if (typeof body.endlessUnlocked === 'boolean') peer.endlessUnlocked = body.endlessUnlocked;
   broadcastRoom(room);
   return { room: view(room) };
 }
@@ -232,11 +229,14 @@ export function updateBrawlPeer(body: Record<string, unknown>) {
 export function startBrawlRoom(body: Record<string, unknown>) {
   const { room, peer } = find(body.code, body.key);
   if (peer.id !== room.host) throw new BrawlRoomError(403, 'not_host', '只有房主能开局');
-  const settings = body.m as { d?: unknown } | null | undefined;
+  const settings = body.m as { d?: unknown; mode?: unknown } | null | undefined;
   const selected = settings?.d ?? 'easy';
   const level = typeof selected === 'string' ? difficulties.indexOf(selected) : -1;
   if (level < 0 || [...room.peers.values()].some((p) => p.difficultyLevel < level)) {
     throw new BrawlRoomError(409, 'difficulty_locked', '有队友尚未解锁这个难度');
+  }
+  if (settings?.mode === 'endless' && [...room.peers.values()].some((p) => !p.endlessUnlocked)) {
+    throw new BrawlRoomError(409, 'endless_locked', '所有队友都须通关标准模式的困难难度');
   }
   room.started = true;
   const event = { t: 'start', from: peer.id, m: body.m ?? null, room: view(room) };

@@ -636,6 +636,10 @@ body.skill-demo #nums span { font-size: 12px; -webkit-text-stroke-width: 2.5px; 
 }
 .lvfoot { display: flex; gap: 12px; align-items: center; justify-content: center; flex-wrap: wrap; margin-top: 8px; animation: rise .4s .4s backwards; }
 .lvfoot > span, .lvfoot summary { font-size: 13px; font-weight: 800; background: var(--paper); border: 2px solid var(--ink); border-radius: 999px; padding: 5px 14px; }
+@media (width > 700px) {
+  .ucards[data-card-theme] { grid-template-columns: repeat(var(--n, 3), minmax(0, 240px)); justify-content: center; gap: clamp(16px, 2.4vw, 28px); }
+  .ucard[data-card-tier] { aspect-ratio: 3 / 4; min-height: auto; }
+}
 .lvfoot summary { cursor: pointer; list-style: none; } .statsBox { position: relative; } .statsBox[open] .stats-grid { position: absolute; bottom: calc(100% + 10px); left: 50%; translate: -50% 0; width: min(420px, 90vw); }
 .sc { display: inline-flex; align-items: center; gap: 3px; color: #c07a00; font-weight: 800; } .sc svg { width: 15px; height: 15px; }
 .stats-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 16px; font-size: 13px; font-weight: 600; background: var(--paper2); border: 2px solid var(--ink); border-radius: 14px; padding: 10px 12px; }
