@@ -696,8 +696,8 @@ const tP = new THREE.Vector3(), tQ = new THREE.Quaternion(), tS = new THREE.Vect
 const wP = new THREE.Vector3(), wQ = new THREE.Quaternion(), wS = new THREE.Vector3(), wE = new THREE.Euler(0, 0, 0, 'YXZ');
 const PM = new THREE.Matrix4(), WM = new THREE.Matrix4(), CM = new THREE.Matrix4(), OM = new THREE.Matrix4();
 const OUT_S = new THREE.Matrix4().makeScale(1.15, 1.15, 1.15);
-const REDC = new THREE.Color(1.5, 0.15, 0.1), ICEC = new THREE.Color(0.6, 0.9, 1.3), ACIDC = new THREE.Color(0.5, 1.0, 0.2);
-const WHITE = new THREE.Color(1, 1, 1), ORANGE = new THREE.Color(1.6, 0.6, 0.15), tC = new THREE.Color(), tC2 = new THREE.Color();
+const REDC = new THREE.Color(1.5, 0.15, 0.1), ICEC = new THREE.Color(0.45, 0.85, 1.5), ACIDC = new THREE.Color(0.3, 1.0, 0.12), SHOCKC = new THREE.Color(0.9, 1.4, 2.2);
+const HITC = new THREE.Color(1.7, 1.7, 1.7), WHITE = new THREE.Color(1, 1, 1), ORANGE = new THREE.Color(1.6, 0.6, 0.15), tC = new THREE.Color(), tC2 = new THREE.Color();
 let realTime = 0;
 function partMatrix(pt, e) {
   const p = pt[2], s = pt[3], r = pt[4] || [0, 0, 0], k = pt[5] || '';
@@ -744,10 +744,10 @@ class Rig {
       tC.copy(P.tint && e.tint ? e.tint : P.color); if (e.etint) tC.lerp(e.etint, 0.72).multiplyScalar(1.3);
       if (P.glow) tC.multiplyScalar(e.glowMul || 2.6);
       if (e.burn > 0) tC.lerp(ORANGE, 0.6 + 0.25 * Math.sin(realTime * 20 + i));
-      if (e.hit) tC.lerp(WHITE, Math.min(1, e.hit) * 0.85);
+      if (e.hit) tC.lerp(HITC, Math.min(1, e.hit * 1.4));
       if (e.dark) tC.multiplyScalar(0.035);
       if (e.ghostly) tC.lerp(GHOSTC, 0.72);
-      if (e.warn) tC.lerp(REDC, e.warn); if (e.frz > 0) tC.lerp(ICEC, 0.85); else { if (e.chill > 0) tC.lerp(ICEC, 0.55); if (e.acid > 0) tC.lerp(ACIDC, 0.62 + 0.12 * Math.sin(realTime * 9)); }
+      if (e.warn) tC.lerp(REDC, e.warn); if (e.frz > 0) tC.lerp(ICEC, 0.92); else { if (e.chill > 0) tC.lerp(ICEC, 0.72); if (e.acid > 0) tC.lerp(ACIDC, 0.74 + 0.1 * Math.sin(realTime * 9)); } if (e.shock > 0 && Math.sin(realTime * 70 + i) > 0) tC.lerp(SHOCKC, 0.8);
       P.m.setColorAt(i, tC);
       if (P.ol) P.ol.setMatrixAt(i, CM);
     }
@@ -1158,6 +1158,8 @@ let shN = 0; const SH_ROT = new THREE.Quaternion().setFromEuler(new THREE.Euler(
 function shadow(x, z, r) { if (shN >= 1400) return; shadowMesh.setMatrixAt(shN++, WM.compose(wP.set(x, 0.02, z), SH_ROT, wS.set(r * 2.2, r * 2.2, 1))); }
 
 /* ================= 粒子（普通 + 发光） ================= */
+// 特效统一用预乘混合：既能盖住亮色地板，又保留发光感（纯叠加在亮地板上几乎看不见）
+const FX_BLEND = { blending: THREE.CustomBlending, blendEquation: THREE.AddEquation, blendSrc: THREE.OneFactor, blendDst: THREE.OneMinusSrcAlphaFactor };
 function makeParticles(N, additive) {
   const geo = new THREE.BufferGeometry();
   const P = { N, head: 0, pos: new Float32Array(N * 3), col: new Float32Array(N * 3), size: new Float32Array(N), a: new Float32Array(N), vel: new Float32Array(N * 3), life: new Float32Array(N), max: new Float32Array(N), grav: new Float32Array(N), geo };
@@ -1169,9 +1171,9 @@ function makeParticles(N, additive) {
     uniforms: { uScale: { value: 300 } },
     vertexShader: `attribute float aSize; attribute vec3 aColor; attribute float aAlpha; uniform float uScale; varying vec3 vC; varying float vA; void main(){ vec4 mv=modelViewMatrix*vec4(position,1.0); gl_PointSize=aSize*uScale/-mv.z; gl_Position=projectionMatrix*mv; vC=aColor; vA=aAlpha; }`,
     fragmentShader: additive
-      ? `varying vec3 vC; varying float vA; void main(){ float d=length(gl_PointCoord-0.5); float a=smoothstep(0.5,0.0,d); gl_FragColor=vec4(vC*a*a*vA*2.5,1.0); }`
+      ? `varying vec3 vC; varying float vA; void main(){ float d=length(gl_PointCoord-0.5); float a=smoothstep(0.5,0.0,d); float al=a*a*min(1.0,vA*1.6); vec3 c=mix(vC,vec3(1.0),smoothstep(0.45,0.95,a)*0.7); gl_FragColor=vec4(c*al*1.9,al*0.92); }`
       : `varying vec3 vC; varying float vA; void main(){ float d=length(gl_PointCoord-0.5); if(d>0.5) discard; gl_FragColor=vec4(vC,smoothstep(0.5,0.38,d)*vA); }`,
-    transparent: true, depthWrite: false, blending: additive ? THREE.AdditiveBlending : THREE.NormalBlending,
+    transparent: true, depthWrite: false, ...(additive ? FX_BLEND : { blending: THREE.NormalBlending }),
   });
   const pts = new THREE.Points(geo, P.mat); pts.frustumCulled = false; scene.add(pts); P.pts = pts;
   return P;
@@ -1217,8 +1219,8 @@ const slashMat = () => new THREE.ShaderMaterial({
     void main(){ float a=fract(atan(vP.y,vP.x)/6.28318+0.5-uStart)/uArc; if(a>1.0) discard; float r=length(vP.xy); float d=uProg-a; if(d<0.0){ if(uArc<0.999) discard; d+=1.0; }
       float trail=smoothstep(0.6,0.0,d); float band=smoothstep(0.35,0.8,r)*smoothstep(1.0,0.93,r); float edge=smoothstep(0.9,0.97,r)*smoothstep(1.0,0.97,r);
       float tick=step(0.55,fract(a*40.0))*smoothstep(0.8,0.84,r)*smoothstep(0.95,0.9,r); float lead=smoothstep(0.07,0.0,d)*smoothstep(0.25,0.5,r)*smoothstep(1.0,0.96,r);
-      float al=(band*0.5+edge*1.3+tick*0.55)*trail*uFade+lead*uFade*1.4; gl_FragColor=vec4(mix(uColor,vec3(2.2,2.1,1.8),lead)*(1.0+edge*1.6),al); }`,
-  transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, toneMapped: false,
+      float al=(band*0.5+edge*1.3+tick*0.55)*trail*uFade+lead*uFade*1.4; al=min(al,1.0); gl_FragColor=vec4(mix(uColor,vec3(2.2,2.1,1.8),max(lead,edge*0.6))*(1.0+edge*1.2)*al,al*0.9); }`,
+  transparent: true, depthWrite: false, ...FX_BLEND, side: THREE.DoubleSide, toneMapped: false,
 });
 const slashes = [];
 for (let k = 0; k < 4; k++) { const m = new THREE.Mesh(new THREE.RingGeometry(0.2, 1, 96, 1), slashMat()); m.rotation.x = -HP_; m.visible = false; scene.add(m); slashes.push({ m, t: 1, dur: 0.22 }); }
@@ -1228,11 +1230,86 @@ function slashFx(x, z, rad, color, dur = 0.2, start = Math.random(), arc = 1) {
 }
 /* 圆环冲击 */
 const rings = [];
-for (let k = 0; k < 12; k++) { const m = new THREE.Mesh(new THREE.RingGeometry(0.82, 1, 64), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, depthWrite: false, toneMapped: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide })); m.rotation.x = -HP_; m.visible = false; scene.add(m); rings.push({ m, t: 1, dur: 0.3, rad: 1, op: 1 }); }
-function ringFx(x, z, rad, color, dur = 0.4, op = 0.9) { const r = rings.find((q) => q.t >= 1) || rings[0]; Object.assign(r, { t: 0, dur, rad, op }); r.m.position.set(x, 0.1, z); r.m.material.color.set(color).multiplyScalar(1.4); r.m.visible = true; }
+for (let k = 0; k < 12; k++) { const m = new THREE.Mesh(new THREE.RingGeometry(0.8, 1, 64), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, depthWrite: false, toneMapped: false, side: THREE.DoubleSide })); m.rotation.x = -HP_; m.visible = false; scene.add(m); rings.push({ m, t: 1, dur: 0.3, rad: 1, op: 1 }); }
+function ringFx(x, z, rad, color, dur = 0.4, op = 0.9) { const r = rings.find((q) => q.t >= 1) || rings[0]; Object.assign(r, { t: 0, dur, rad, op }); r.m.position.set(x, 0.1, z); { const c = r.m.material.color.set(color), mx = Math.max(c.r, c.g, c.b, 0.01); c.multiplyScalar(Math.max(1.4, 0.95 / mx)); } r.m.visible = true; }
 const tele = new THREE.Mesh(new THREE.CircleGeometry(1, 48), new THREE.MeshBasicMaterial({ color: 0xff2a2a, transparent: true, opacity: 0.3, depthWrite: false, toneMapped: false, blending: THREE.AdditiveBlending }));
 tele.rotation.x = -HP_; tele.position.y = 0.05; tele.visible = false; scene.add(tele);
 const fuseDiscs = Array.from({ length: 8 }, (_, k) => { const m = new THREE.Mesh(new THREE.CircleGeometry(1, 48), new THREE.MeshBasicMaterial({ color: 0xff2a1a, transparent: true, opacity: k % 2 ? 0.3 : 0.13, depthWrite: false })); m.rotation.x = -HP_; m.visible = false; m.renderOrder = 2; scene.add(m); return m; });
+/* 弹道拖尾 + 命中星：所有技能共用，让「我放了什么、打中了谁」一眼能看见 */
+const fxCanvasTex = (draw) => { const c = document.createElement('canvas'); c.width = c.height = 128; draw(c.getContext('2d')); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t; };
+const fxMat = (map, rgb = 0) => new THREE.ShaderMaterial({ uniforms: { map: { value: map }, uRGB: { value: rgb } },
+  vertexShader: `varying vec2 vUv; varying vec3 vC; void main(){ vUv=uv; vC=vec3(1.0);
+    #ifdef USE_INSTANCING_COLOR
+    vC=instanceColor;
+    #endif
+    gl_Position=projectionMatrix*modelViewMatrix*instanceMatrix*vec4(position,1.0); }`,
+  fragmentShader: `uniform sampler2D map; uniform float uRGB; varying vec2 vUv; varying vec3 vC;
+    void main(){ vec4 t=texture2D(map,vUv); float k=min(1.0,max(vC.r,max(vC.g,vC.b)));
+      if(uRGB>0.5){ gl_FragColor=vec4(t.rgb*vC*t.a,t.a*k); }
+      else { float a=t.r; gl_FragColor=vec4(vC*a+vec3(1.0)*pow(a,3.0)*0.7*k,a*k*0.92); } }`,
+  transparent: true, depthWrite: false, toneMapped: false, side: THREE.DoubleSide, ...FX_BLEND });
+const streakMesh = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1).rotateX(-HP_).translate(0, 0, -0.5), fxMat(fxCanvasTex((g) => {
+  const img = g.createImageData(128, 128);
+  for (let y = 0; y < 128; y++) for (let x = 0; x < 128; x++) { const along = y / 127, side = Math.abs(x - 63.5) / 63.5, w = 0.25 + 0.75 * along, a = Math.max(0, 1 - side / w) ** 1.6 * along ** 1.4; const i = (y * 128 + x) * 4; img.data[i] = img.data[i + 1] = img.data[i + 2] = 255 * a; img.data[i + 3] = 255; }
+  g.putImageData(img, 0, 0);
+})), 600);
+streakMesh.frustumCulled = false; streakMesh.count = 0; streakMesh.renderOrder = 4; scene.add(streakMesh);
+const starMesh = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1).rotateX(-HP_), fxMat(fxCanvasTex((g) => {
+  const img = g.createImageData(128, 128);
+  for (let y = 0; y < 128; y++) for (let x = 0; x < 128; x++) { const dx = Math.abs(x - 63.5) / 63.5, dy = Math.abs(y - 63.5) / 63.5, r = Math.hypot(dx, dy), ray = Math.max(0, 1 - (dx * dy) * 26 - r) , core = Math.max(0, 1 - r * 2.6), a = Math.min(1, ray ** 1.5 + core * core * 1.4); const i = (y * 128 + x) * 4; img.data[i] = img.data[i + 1] = img.data[i + 2] = 255 * a; img.data[i + 3] = 255; }
+  g.putImageData(img, 0, 0);
+})), 160);
+starMesh.frustumCulled = false; starMesh.count = 0; starMesh.renderOrder = 5; scene.add(starMesh);
+let streakN = 0; const fxC = new THREE.Color(), hitFx = [];
+// 光束（闪电用）：一段一片，外圈带颜色、中间发白
+const beamMesh = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1).rotateX(-HP_), fxMat(fxCanvasTex((g) => {
+  const img = g.createImageData(128, 128);
+  for (let y = 0; y < 128; y++) for (let x = 0; x < 128; x++) { const side = Math.abs(x - 63.5) / 63.5, end = Math.min(1, Math.min(y, 127 - y) / 10), a = Math.max(0, 1 - side) ** 2.2 * (0.6 + 0.4 * end); const i = (y * 128 + x) * 4; img.data[i] = img.data[i + 1] = img.data[i + 2] = 255 * a; img.data[i + 3] = 255; }
+  g.putImageData(img, 0, 0);
+})), 1600);
+beamMesh.frustumCulled = false; beamMesh.count = 0; beamMesh.renderOrder = 6; scene.add(beamMesh);
+let beamN = 0;
+function boltSeg(x0, y0, z0, x1, y1, z1, width, color, k = 1) { if (beamN >= 1600) return; const dx = x1 - x0, dz = z1 - z0, L = Math.hypot(dx, dz); if (L < 0.01) return; beamMesh.setMatrixAt(beamN, worldM((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2, Math.atan2(dx, dz), width, 1, L * 1.08)); beamMesh.setColorAt(beamN++, fxC.copy(color).multiplyScalar(k)); }
+// 元素贴片：火苗 / 冰晶 / 酸泡 / 电弧，永远正对镜头；霜花贴在地上
+const elTex = (draw) => { const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d'); g.lineJoin = g.lineCap = 'round'; draw(g); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t; };
+const drop = (g, s, col) => { g.fillStyle = col; g.beginPath(); g.moveTo(64, 64 - 58 * s + (1 - s) * 30); g.bezierCurveTo(64 + 16 * s, 64 - 20 * s + (1 - s) * 30, 64 + 46 * s, 64 + 6 * s + (1 - s) * 30, 64 + 40 * s, 86 + (1 - s) * 16); g.bezierCurveTo(64 + 34 * s, 122, 64 - 34 * s, 122, 64 - 40 * s, 86 + (1 - s) * 16); g.bezierCurveTo(64 - 46 * s, 64 + 6 * s + (1 - s) * 30, 64 - 22 * s, 64 - 14 * s + (1 - s) * 30, 64, 64 - 58 * s + (1 - s) * 30); g.fill(); };
+const EL_SPR = {
+  fire: elTex((g) => { drop(g, 1, '#ff4a1c'); drop(g, 0.74, '#ff9a2a'); drop(g, 0.46, '#ffe36a'); drop(g, 0.22, '#fffbe0'); }),
+  ice: elTex((g) => { const P = [[64, 4], [92, 46], [80, 122], [48, 122], [36, 46]]; g.beginPath(); P.forEach((p, i) => g[i ? 'lineTo' : 'moveTo'](p[0], p[1])); g.closePath(); g.fillStyle = '#9fdcff'; g.fill(); g.lineWidth = 7; g.strokeStyle = '#3f8fe0'; g.stroke();
+    g.beginPath(); g.moveTo(64, 4); g.lineTo(64, 122); g.lineTo(36, 46); g.closePath(); g.fillStyle = '#e8f8ff'; g.fill(); g.beginPath(); g.moveTo(64, 4); g.lineTo(64, 122); g.moveTo(36, 46); g.lineTo(64, 60); g.lineTo(92, 46); g.lineWidth = 3; g.strokeStyle = '#6fb8f0'; g.stroke(); }),
+  acid: elTex((g) => { g.beginPath(); g.arc(64, 64, 50, 0, 7); g.fillStyle = 'rgba(150,230,60,.6)'; g.fill(); g.lineWidth = 10; g.strokeStyle = '#5fae1e'; g.stroke(); g.fillStyle = '#f4ffd0'; g.beginPath(); g.ellipse(46, 44, 14, 8, -0.7, 0, 7); g.fill(); g.beginPath(); g.arc(80, 82, 5, 0, 7); g.fill(); }),
+  elec: elTex((g) => { const P = [[20, 14], [58, 46], [40, 58], [86, 80], [70, 92], [110, 116]]; for (const [w, c] of [[22, '#1f6fe8'], [13, '#4aa8ff'], [5, '#ffffff']]) { g.beginPath(); P.forEach((p, i) => g[i ? 'lineTo' : 'moveTo'](p[0], p[1])); g.lineWidth = w; g.strokeStyle = c; g.stroke(); } }),
+  ooze: elTex((g) => { g.beginPath(); for (let k = 0; k <= 48; k++) { const a = k / 48 * Math.PI * 2, r = 46 + 9 * Math.sin(a * 4 + 1) + 5 * Math.sin(a * 7); g[k ? 'lineTo' : 'moveTo'](64 + Math.cos(a) * r, 64 + Math.sin(a) * r); } g.closePath(); g.fillStyle = 'rgba(130,215,45,.72)'; g.fill(); g.lineWidth = 6; g.strokeStyle = 'rgba(80,160,25,.85)'; g.stroke(); g.fillStyle = 'rgba(235,255,170,.85)'; g.beginPath(); g.ellipse(48, 46, 12, 6, -0.6, 0, 7); g.fill(); g.beginPath(); g.arc(84, 78, 6, 0, 7); g.fill(); }),
+  frost: elTex((g) => { const gr = g.createRadialGradient(64, 64, 6, 64, 64, 62); gr.addColorStop(0, 'rgba(200,236,255,.5)'); gr.addColorStop(0.8, 'rgba(170,222,255,.38)'); gr.addColorStop(1, 'rgba(170,222,255,0)'); g.fillStyle = gr; g.fillRect(0, 0, 128, 128);
+    g.strokeStyle = '#ffffff'; g.lineWidth = 5; for (let k = 0; k < 6; k++) { const a = k * Math.PI / 3, c = Math.cos(a), s2 = Math.sin(a); g.beginPath(); g.moveTo(64, 64); g.lineTo(64 + c * 52, 64 + s2 * 52); for (const d of [26, 40]) for (const sd of [-1, 1]) { const b = a + sd * 0.8; g.moveTo(64 + c * d, 64 + s2 * d); g.lineTo(64 + c * d + Math.cos(b) * 12, 64 + s2 * d + Math.sin(b) * 12); } g.stroke(); } }),
+};
+const SPR = {}; for (const k in EL_SPR) { const flat = k === 'frost' || k === 'ooze', m = new THREE.InstancedMesh(flat ? new THREE.PlaneGeometry(1, 1).rotateX(-HP_) : new THREE.PlaneGeometry(1, 1), fxMat(EL_SPR[k], 1), k === 'fire' ? 260 : 140); m.frustumCulled = false; m.count = 0; m.renderOrder = flat ? 2 : 7; scene.add(m); SPR[k] = { m, n: 0, cap: k === 'fire' ? 260 : 140 }; }
+const sprQ = new THREE.Quaternion(), sprQ2 = new THREE.Quaternion(), sprE = new THREE.Euler(), sprC = new THREE.Color();
+function spr(kind, x, y, z, sx, sy = sx, roll = 0, k = 1) { const S = SPR[kind]; if (S.n >= S.cap) return;
+  if (kind === 'frost' || kind === 'ooze') S.m.setMatrixAt(S.n, worldM(x, y, z, roll, sx, 1, sy)); else { sprQ.copy(camera.quaternion); if (roll) sprQ.multiply(sprQ2.setFromEuler(sprE.set(0, 0, roll))); S.m.setMatrixAt(S.n, WM.compose(wP.set(x, y, z), sprQ, wS.set(sx, sy, 1))); }
+  S.m.setColorAt(S.n++, sprC.setScalar(k)); }
+// 怪身上的元素状态：一眼分清是在烧、被冻、被腐蚀还是被电
+function statusFx(e, y0) {
+  const h = e.r * 2, big = clamp(e.r * 1.5, 0.75, 2.6), sd = e.seed * 9;
+  if (e.burn > 0) { const n = e.r > 1 ? 4 : 3; for (let k = 0; k < n; k++) { const a = sd + k * TAU / n + realTime * 1.3, fl = 0.75 + 0.25 * Math.sin(realTime * 15 + k * 2.3 + sd), top = k === 0; spr('fire', e.x + (top ? 0 : Math.cos(a) * e.r * 0.6), y0 + (top ? h * 0.95 : h * 0.55) + 0.2 * big * fl, e.z + (top ? 0 : Math.sin(a) * e.r * 0.6), big * (top ? 0.8 : 0.55) * (1.1 - fl * 0.2), big * (top ? 1.05 : 0.7) * fl, Math.sin(realTime * 9 + k) * 0.15); } }
+  if (e.frz > 0) { for (let k = 0; k < 3; k++) { const a = sd + k * 2.1, s = big * (k ? 0.95 : 1.3); spr('ice', e.x + Math.cos(a) * e.r * (k ? 0.75 : 0.1), y0 + s * 0.42, e.z + Math.sin(a) * e.r * (k ? 0.75 : 0.1) + 0.05, s * 0.62, s, (k - 1) * 0.32, 0.92); } spr('frost', e.x, 0.05, e.z, e.r * 3.6, e.r * 3.6, sd); }
+  else if (e.chill > 0 || e.fb > 0) { spr('frost', e.x, 0.05, e.z, e.r * 3.4, e.r * 3.4, sd, Math.min(1, Math.max(e.chill || 0, e.fb || 0) * 2)); for (let k = 0; k < (e.fb > 0 ? 3 : 2); k++) { const a = sd + k * 2.3; spr('ice', e.x + Math.cos(a) * e.r * 0.8, y0 + big * 0.26, e.z + Math.sin(a) * e.r * 0.6 + 0.05, big * 0.34, big * 0.56, (k - 1) * 0.4); } }
+  if (e.acid > 0) spr('ooze', e.x, 0.045, e.z, e.r * 3.1 * (1 + 0.06 * Math.sin(realTime * 4 + sd)), e.r * 3.1, sd, Math.min(1, e.acid * 2));
+  if (e.acid > 0) for (let k = 0; k < 4; k++) { const t = (realTime * 0.85 + k / 4 + e.seed) % 1, a = sd + k * 2.4; spr('acid', e.x + Math.cos(a) * e.r * 0.7 + Math.sin(realTime * 5 + k) * 0.08, y0 + h * 0.25 + t * h * 0.95, e.z + Math.sin(a) * e.r * 0.5, big * (0.3 + 0.36 * t), big * (0.3 + 0.36 * t), 0, t > 0.85 ? (1 - t) / 0.15 : 1); }
+  if (e.shock > 0) for (let k = 0; k < 3; k++) { const a = Math.random() * TAU; spr('elec', e.x + Math.cos(a) * e.r * 0.5, y0 + h * rnd(0.3, 0.9), e.z + Math.sin(a) * e.r * 0.5, big * rnd(0.8, 1.3), big * rnd(0.8, 1.3), Math.random() * TAU, Math.min(1, e.shock * 5)); }
+}
+function crackle(x, y, z, r, color = 0x4aa8ff) { for (let k = 0; k < 2; k++) { const a = Math.random() * TAU, b = a + rnd(1.6, 3.4); zap([{ x: x + Math.cos(a) * r, y: y + rnd(-0.3, 0.4), z: z + Math.sin(a) * r }, { x: x + rnd(-0.2, 0.2), y: y + rnd(-0.2, 0.5), z: z + rnd(-0.2, 0.2) }, { x: x + Math.cos(b) * r, y: y + rnd(-0.3, 0.4), z: z + Math.sin(b) * r }], color, 0.14, 0.12, 1); } }
+function streak(x, y, z, yaw, len, width, color, k = 1) { if (streakN >= 600) return; streakMesh.setMatrixAt(streakN, worldM(x, y, z, yaw, width, 1, len)); streakMesh.setColorAt(streakN++, fxC.set(color).multiplyScalar(k)); }
+function hitStar(x, z, color, size = 1, y = 0.9) { if (hitFx.length < 160) hitFx.push({ x, y, z, c: color, s: size, t: 0, a: Math.random() * PI }); }
+function drawFx(dt) {
+  let n = 0;
+  for (const h of hitFx) { h.t += dt / 0.2; if (h.t >= 1) continue; const k = 1 - (1 - h.t) ** 3; starMesh.setMatrixAt(n, worldM(h.x, h.y, h.z, h.a + h.t * 0.6, h.s * (0.7 + 1.9 * k))); starMesh.setColorAt(n++, fxC.set(h.c).multiplyScalar(Math.min(1.5, (1 - h.t) * 2.6))); }
+  for (let i = hitFx.length - 1; i >= 0; i--) if (hitFx[i].t >= 1) hitFx.splice(i, 1);
+  starMesh.count = n; starMesh.instanceMatrix.needsUpdate = true; if (starMesh.instanceColor) starMesh.instanceColor.needsUpdate = true;
+  streakMesh.count = streakN; streakMesh.instanceMatrix.needsUpdate = true; if (streakMesh.instanceColor) streakMesh.instanceColor.needsUpdate = true; streakN = 0;
+  beamMesh.count = beamN; beamMesh.instanceMatrix.needsUpdate = true; if (beamMesh.instanceColor) beamMesh.instanceColor.needsUpdate = true; beamN = 0;
+  for (const k in SPR) { const S = SPR[k]; S.m.count = S.n; S.m.instanceMatrix.needsUpdate = true; if (S.m.instanceColor) S.m.instanceColor.needsUpdate = true; S.n = 0; }
+}
 /* 地上的法阵（咖啡海 / 电咖啡） */
 const POOL_MAX = 10, pools = []; let cups = [];
 // 水渍：一摊一摊的水，边缘亮一圈
@@ -1734,6 +1811,9 @@ function hitEnemy(e, dmg, kx = 0, kz = 0, tag = '', opts = {}) {
   const critRate = (xs && xs.crit ? 0.2 : 0) + player.st.crit + (tag === 'gun' ? RELICS.reddot.gunCrit * R('reddot') : 0) + (e.brittle > 0 ? 0.3 : 0);
   const crit = !opts.noCrit && Math.random() < critRate;
   const critX = player.st.critDmg + 0.5 * R('glass');
+  if (!opts.noCrit && !(e.fxT > realTime)) { e.fxT = realTime + 0.1; const hc = CW ? EC(CW) ?? WPC[CW]?.[0] ?? 0xffffff : 0xffffff, hy = Math.min(2.4, e.r * 1.6 + 0.5);
+    hitStar(e.x, e.z, hc, (crit ? 1.9 : 1.15) * Math.min(2, 0.8 + e.r * 0.5), hy); burst(e.x, hy, e.z, 0xffffff, crit ? 6 : 2, 5.5, 0.2, 0.28, 8); spark(e.x, hy, e.z, hc, crit ? 7 : 3, 5, 0.34, 0.3, 3);
+    if (crit) { hitStar(e.x, e.z, 0xffe07a, 2.6 * Math.min(2, 0.8 + e.r * 0.5), hy); ringFx(e.x, e.z, e.r + 1.1, 0xffe07a, 0.2, 0.95); shake = Math.max(shake, 0.07); } }
   const elite = e.type === 'boss' || e.type === 'hourglass';
   let xm = 1;
   if (xs) { if (xs.exec && e.hp < e.maxHp * 0.3) xm *= 1.8; if (xs.first && e.hp >= e.maxHp) xm *= 1.6; if (xs.elite && elite) xm *= 1.6; if (xs.near && Math.hypot(e.x - player.x, e.z - player.z) < 3) xm *= 1.7; if (xs.kb) { kx *= 2; kz *= 2; } }
@@ -1791,7 +1871,12 @@ function carry(a, b) {
   if (a.brittle > 0) b.brittle = Math.max(b.brittle || 0, a.brittle); if (a.stink > 0) b.stink = Math.max(b.stink || 0, a.stink);
 }
 function applyElems(e, v, els) {
-  spark(e.x, e.r + 0.5, e.z, ELC[els[(Math.random() * els.length) | 0]], 4, 3.5, 0.4, 0.3);
+  if (!(e.elT > realTime)) { e.elT = realTime + 0.14; const hy = e.r + 0.5;
+    for (let q = 0; q < els.length; q++) { const el = els[q]; if (q && el === els[0]) break;
+      if (el === 'fire') { spark(e.x, hy, e.z, 0xff6a2a, 6, 2.8, 0.55, 0.5, -6); spark(e.x, hy, e.z, 0xffd23f, 4, 1.8, 0.38, 0.4, -7); }
+      else if (el === 'ice') { burst(e.x, hy, e.z, 0xe4f6ff, 6, 5.5, 0.2, 0.45, 11); spark(e.x, hy, e.z, 0x9fdcff, 3, 3, 0.4, 0.35, 2); ringFx(e.x, e.z, e.r + 0.7, 0xbfe9ff, 0.24, 0.8); }
+      else if (el === 'acid') { burst(e.x, hy, e.z, 0x8fd83a, 6, 4, 0.26, 0.55, 13); spark(e.x, hy, e.z, 0xc8f04a, 3, 2.5, 0.36, 0.4, 6); }
+      else { crackle(e.x, hy, e.z, e.r + 0.7); spark(e.x, hy, e.z, 0x7fc4ff, 6, 5, 0.32, 0.25, 0); ringFx(e.x, e.z, e.r + 0.6, 0x4aa8ff, 0.18, 0.8); e.shock = Math.max(e.shock || 0, 0.8); } } }
   const F = els.includes('fire'), I = els.includes('ice'), AC = els.includes('acid'), E = els.includes('elec'), dbl = els.length === 2 && els[0] === els[1], RAW = { noElem: true, noCrit: true, raw: true };
   if (F) { applyBurn(e, v, (dbl ? 2.4 : 1) * (AC ? 2 : 1)); if (dbl) e.fireBomb = 1; if (AC) e.spreadBurn = 1; }
   if (I) { e.slow = Math.max(e.slow, 1.5); e.chill = 1.5; if (dbl) { e.fb = 3; e.fbDps = Math.max(e.fbDps || 0, v * 0.25); if (Math.random() < 0.15 && e.type !== 'boss') e.frz = 1.2; } }
@@ -1803,7 +1888,7 @@ function applyElems(e, v, els) {
     for (let j = 0; j < jumps; j++) {
       const n = nearest(cur.x, cur.z, 4.5, seen); if (!n) break; seen.add(n); path.push({ x: n.x, y: 0.7, z: n.z });
       if (F) { applyBurn(n, v); } if (I && n.type !== 'boss') n.frz = Math.max(n.frz, 0.6); if (AC) { n.acid = 4; n.acidK = Math.max(n.acidK || 0, 0.25); }
-      carry(cur, n); spark(n.x, 0.9, n.z, 0xbfe4ff, 8, 5, 0.34, 0.3); ringFx(n.x, n.z, 0.9, 0x7fc4ff, 0.2, 0.8); hitEnemy(n, v * (AC ? 1 : 0.4), 0, 0, '', RAW); cur = n;
+      carry(cur, n); n.shock = 0.9; spark(n.x, 0.9, n.z, 0xbfe4ff, 8, 5, 0.34, 0.3); ringFx(n.x, n.z, 0.9, 0x7fc4ff, 0.2, 0.8); hitEnemy(n, v * (AC ? 1 : 0.4), 0, 0, '', RAW); cur = n;
     }
     if (path.length > 1) { const zc = F ? 0xffb04a : I ? 0x9fe0ff : AC ? 0xb8f04a : 0x4aa8ff; zap(path, zc, 0.4, 0.28, 6); zap(path, 0xffffff, 0.25, 0.12, 3); spark(e.x, 0.9, e.z, zc, 8, 5, 0.34, 0.3); }
   }
@@ -1896,6 +1981,11 @@ function killEnemy(e, tag) {
   else if (e.type === 'bomber') blasts.push({ x: e.x, z: e.z, t: e.fuse === -1 ? 0 : 0.2 });
   else blot(e.x, e.z, e.r * 0.8, 'rgba(120,80,50,.1)', 2, 0.4);
   // 元素的死亡效果
+  hitStar(e.x, e.z, 0xffffff, 1.5 * Math.min(2.2, 0.8 + e.r * 0.6), e.r + 0.4);
+  if (e.frz > 0 || e.chill > 0 || e.fb > 0) { burst(e.x, e.r + 0.3, e.z, 0xe4f6ff, 12, 7, 0.26, 0.6, 12); ringFx(e.x, e.z, e.r + 1.2, 0xbfe9ff, 0.3, 0.8); }
+  if (e.burn > 0) { spark(e.x, e.r + 0.3, e.z, 0xff6a2a, 10, 3, 0.6, 0.6, -6); burst(e.x, e.r + 0.6, e.z, 0x4a4040, 5, 1.5, 0.5, 0.7, -3); }
+  if (e.acid > 0) { burst(e.x, e.r + 0.3, e.z, 0x8fd83a, 10, 5, 0.3, 0.6, 13); blot(e.x, e.z, e.r + 0.3, 'rgba(120,190,40,.4)', 4, 0.8); }
+  if (e.shock > 0) crackle(e.x, e.r + 0.3, e.z, e.r + 0.8);
   const RAWK = { noElem: true, noCrit: true, raw: true };
   if (e.burn > 0 && e.fireBomb) { ringFx(e.x, e.z, 1.9, 0xff7a2a, 0.3); spark(e.x, 0.6, e.z, 0xff7a2a, 16, 6, 0.4, 0.4); query(e.x, e.z, 1.9, (o) => hitEnemy(o, (e.burnDps || 5) * 2.5, 0, 0, '', RAWK)); }
   if (e.burn > 0 && e.spreadBurn) { ringFx(e.x, e.z, 2.5, 0xb8f04a, 0.3); query(e.x, e.z, 2.5, (o) => { setBurn(o, e.burnDps); o.spreadBurn = 1; }); }
@@ -1986,7 +2076,7 @@ const SW_ARC = 2.7;
 function slash(range, dmg, full, yaw = player.yaw) {
   const pull = full, arc = full ? TAU : SW_ARC, st = full ? Math.random() : (yaw - HP_ - arc / 2) / TAU + 0.5, af = arc / TAU;
   player.spinT = full ? 1 : 0; if (!full) player.yaw = yaw; sweepFx.t = 1; sweepFx.r = range; sweepFx.yaw = yaw; sweepFx.arc = arc;
-  slashFx(player.x, player.z, range, EC('sweep') ?? 0xffe0a0, 0.26, st, af); if (elOf('sweep').length > 1) slashFx(player.x, player.z, range * 1.12, EC('sweep', 1), 0.32, st, af);
+  slashFx(player.x, player.z, range, EC('sweep') ?? 0xffe0a0, 0.26, st, af); slashFx(player.x, player.z, range * 0.72, 0xffffff, 0.2, st, af); if (elOf('sweep').length > 1) slashFx(player.x, player.z, range * 1.12, EC('sweep', 1), 0.32, st, af);
   if (full) elemBurst('sweep', player.x, player.z, range); else elemBurst('sweep', player.x + Math.sin(yaw) * range * 0.5, player.z + Math.cos(yaw) * range * 0.5, range * 0.6);
   query(player.x, player.z, range, (o, dx, dz) => { const L = Math.hypot(dx, dz) || 1, k = pull ? -4 : 12;
     if (!full) { let da = Math.atan2(dx, dz) - yaw; da = Math.atan2(Math.sin(da), Math.cos(da)); if (Math.abs(da) > arc / 2 && L > 1) return; }
@@ -2016,6 +2106,7 @@ function mopSwipe(s, evo) {
     addWet(x, z, s, evo);
     spark(x, 0.4, z, ecRand('mop') ?? 0xbfe6ff, 5, 4, 0.3, 0.35, 6);
   }
+  slashFx(player.x, player.z, range, EC('mop') ?? 0x9fdcff, 0.3, (yaw - HP_ - 0.96) / TAU + 0.5, 1.92 / TAU);
   elemBurst('mop', player.x + Math.sin(yaw) * range * 0.6, player.z + Math.cos(yaw) * range * 0.6, range * 0.7);
   if (task && task.type === 'mop') for (const d of task.dirt) if (d.on && Math.hypot(d.x - player.x, d.z - player.z) < range) cleanDirt(d);
   player.spinT = 0.35; shake = Math.max(shake, 0.06);
@@ -2029,6 +2120,7 @@ function fire(dt) {
     if (id === 'mop' && SPX('mop', 'trail') && player.moving > 0.3) { mopTrail -= dt; if (mopTrail <= 0) { mopTrail = 0.3; addWet(player.x, player.z, s, evo); } }
     cds[id] = (cds[id] ?? 0.3) - dt; if (cds[id] > 0) continue;
     cds[id] = (evo && id === 'sweep' ? 0.3 / (SL.melee >= 3 ? 0.5 : 1) : evo && id === 'coffee' ? s.cd * 0.5 : s.cd) * cdMul(tag); if (A('copier') && Math.random() < 0.2) cds[id] = Math.min(cds[id], 0.12); if (SPX(id, 'twice') && Math.random() < 0.25) cds[id] = Math.min(cds[id], 0.15); if (id === 'pencil' && player.alt.pencil) cds[id] *= 0.5;
+    { const c = EC(id) ?? WPC[id]?.[0] ?? 0xffffff; hitStar(player.x + Math.sin(player.yaw) * 0.6, player.z + Math.cos(player.yaw) * 0.6, c, 0.9, 1.1); spark(player.x, 1.1, player.z, c, 4, 3, 0.3, 0.3, 0); }
     if (id === 'sweep') {
       const range = s.range * area('melee') * (evo ? 1.5 : 1);
       const tg = nearest(player.x, player.z, range + 1.5); if (!tg) { cds[id] = 0.1; sweepAgain = 0; continue; }
@@ -2050,7 +2142,7 @@ function fire(dt) {
       if (player.alt.stapler) { const e = nearest(h.x, h.z, 18); if (!e) { cds[id] = 0.1; continue; } const yaw = Math.atan2(e.x - h.x, e.z - h.z); shoot('staple', h.x, h.y, h.z, yaw, 32, 1.0, s.dmg * 2.6 * (s.n + R('dual')), 'gun', { sc: 3.2, r: 0.7, pierce: 99 }); cds[id] *= 2.4; shake = Math.max(shake, 0.18); spark(h.x + Math.sin(yaw) * 0.5, h.y, h.z + Math.cos(yaw) * 0.5, 0xffe9a0, 14, 4, 0.3, 0.2, 0); continue; }
       const e = nearest(h.x, h.z, 13);
       const n = s.n + R('dual');
-      if (e) { const yaw = Math.atan2(e.x - h.x, e.z - h.z); for (let k = 0; k < n; k++) { const big = SPX('stapler', 'heavy') && ++stapleN % 8 === 0; shoot('staple', h.x, h.y, h.z, yaw + (k - (n - 1) / 2) * 0.12 + rnd(-0.06, 0.06), 24, 0.7, s.dmg * (big ? 4 : 1), 'gun', big ? { sc: 2.4, r: 0.5 } : {}); } spark(h.x + Math.sin(yaw) * 0.4, h.y, h.z + Math.cos(yaw) * 0.4, 0xffe9a0, 3, 2, 0.25, 0.1, 0); }
+      if (e) { const yaw = Math.atan2(e.x - h.x, e.z - h.z); for (let k = 0; k < n; k++) { const big = SPX('stapler', 'heavy') && ++stapleN % 8 === 0; shoot('staple', h.x, h.y, h.z, yaw + (k - (n - 1) / 2) * 0.12 + rnd(-0.06, 0.06), 24, 0.7, s.dmg * (big ? 4 : 1), 'gun', big ? { sc: 2.4, r: 0.5 } : {}); } spark(h.x + Math.sin(yaw) * 0.4, h.y, h.z + Math.cos(yaw) * 0.4, 0xffe9a0, 5, 3, 0.3, 0.14, 0); hitStar(h.x + Math.sin(yaw) * 0.7, h.z + Math.cos(yaw) * 0.7, EC('stapler') ?? 0xffe9a0, 1.2, h.y); }
       if (evo) for (let k = 0; k < 4; k++) shoot('staple', player.x, 0.85, player.z, realTime * 3 + k * HP_, 22, 0.8, s.dmg, 'gun');
       if (!e && !evo) cds[id] = 0.1;
     } else if (id === 'shotgun') {
@@ -2059,7 +2151,7 @@ function fire(dt) {
       if (player.alt.shotgun) { const m = s.n * 3; for (let k = 0; k < m; k++) shoot('eraser', h.x, h.y, h.z, yaw + k / m * TAU, rnd(13, 16), 0.5, s.dmg, 'gun', { tint: new THREE.Color([0xff8fb1, 0x8fd3ff, 0xffffff][k % 3]), spin: rnd(5, 12) }); ringFx(player.x, player.z, 3, 0xff8fb1, 0.3); continue; }
       for (let k = 0; k < s.n; k++) shoot('eraser', h.x, h.y, h.z, yaw + (k / (s.n - 1) - 0.5) * 0.9 + rnd(-0.05, 0.05), rnd(14, 18), 0.42, s.dmg, 'gun', { tint: new THREE.Color([0xff8fb1, 0x8fd3ff, 0xffffff][k % 3]), spin: rnd(5, 12), boom: !!evo });
       if (SPX('shotgun', 'back')) for (let k = 0; k < s.n; k++) shoot('eraser', h.x, h.y, h.z, yaw + PI + (k / (s.n - 1) - 0.5) * 0.9 + rnd(-0.05, 0.05), rnd(14, 18), 0.42, s.dmg, 'gun', { tint: new THREE.Color([0xff8fb1, 0x8fd3ff, 0xffffff][k % 3]), spin: rnd(5, 12), boom: !!evo });
-      shake = Math.max(shake, 0.1); spark(h.x, h.y, h.z, 0xffffff, 8, 4, 0.3, 0.15, 0);
+      shake = Math.max(shake, 0.1); spark(h.x, h.y, h.z, 0xffffff, 8, 4, 0.3, 0.15, 0); { const mx = h.x + Math.sin(yaw) * 0.9, mz = h.z + Math.cos(yaw) * 0.9, c = EC('shotgun') ?? 0xffd0e0; hitStar(mx, mz, c, 2.4, h.y); hitStar(mx, mz, 0xffffff, 1.3, h.y + 0.02); ringFx(mx, mz, 1.5, c, 0.18, 0.8); for (let k = -1; k <= 1; k++) spark(h.x + Math.sin(yaw + k * 0.35) * 1.4, h.y, h.z + Math.cos(yaw + k * 0.35) * 1.4, c, 4, 4, 0.36, 0.22, 0); }
     } else if (id === 'plane') {
       const n = s.n + RM.extra + (evo ? 3 : 0);
       for (let k = 0; k < n; k++) planes.push({ x: h.x, y: 1.2, z: h.z, yaw: player.yaw + (k - (n - 1) / 2) * 0.5, sp: 9, life: (evo ? 5 : 3) * (SPX('plane', 'life') ? 1.7 : 1), dmg: s.dmg, target: null, pierce: (evo ? 4 : 0) + (SPX('plane', 'loop') ? 2 : 0), hit: new Set() });
@@ -2079,7 +2171,7 @@ function fire(dt) {
       if (n > 0) ripple(player.x, player.z, 0.5);
     } else if (id === 'lamp') {
       const n = Math.min(8 - lamps.length, s.n + (SL.summon >= 1 ? 1 : 0));
-      for (let k = 0; k < n; k++) { const a = rnd(0, TAU); const L = { x: clamp(player.x + Math.cos(a) * 2, -HX + 0.6, HX - 0.6), z: clamp(player.z + Math.sin(a) * 2, -HZ + 0.6, HZ - 0.6), life: s.dur, cd: 0.5, aim: 0, seed: Math.random(), drop: 1, planeCd: 1 }; lamps.push(L); dust(L.x, L.z, 14); ripple(L.x, L.z, 0.4); if (SPX('lamp', 'flash')) { ringFx(L.x, L.z, 3.6, 0xffffff, 0.35); spark(L.x, 1.2, L.z, 0xfff6c8, 30, 8, 0.4, 0.4); query(L.x, L.z, 3.6, (o) => { if (o.type !== 'boss') o.frz = Math.max(o.frz || 0, 1.5); }); } }
+      for (let k = 0; k < n; k++) { const a = rnd(0, TAU); const L = { x: clamp(player.x + Math.cos(a) * 2, -HX + 0.6, HX - 0.6), z: clamp(player.z + Math.sin(a) * 2, -HZ + 0.6, HZ - 0.6), life: s.dur, cd: 0.5, aim: 0, seed: Math.random(), drop: 1, planeCd: 1 }; lamps.push(L); ringFx(L.x, L.z, 1.4, EC('lamp') ?? 0xfff6c8, 0.3); hitStar(L.x, L.z, EC('lamp') ?? 0xfff6c8, 2, 0.8); dust(L.x, L.z, 14); ripple(L.x, L.z, 0.4); if (SPX('lamp', 'flash')) { ringFx(L.x, L.z, 3.6, 0xffffff, 0.35); spark(L.x, 1.2, L.z, 0xfff6c8, 30, 8, 0.4, 0.4); query(L.x, L.z, 3.6, (o) => { if (o.type !== 'boss') o.frz = Math.max(o.frz || 0, 1.5); }); } }
     } else if (id === 'duck') {
       const n = Math.min(12 - ducks.length, (s.n + summonExtra()) * (evo ? 3 : 1));
       for (let k = 0; k < n; k++) { const a = rnd(0, TAU), r = rnd(2, 4); ducks.push({ x: clamp(player.x + Math.cos(a) * r, -HX + 0.6, HX - 0.6), z: clamp(player.z + Math.sin(a) * r, -HZ + 0.6, HZ - 0.6), life: s.dur, max: s.dur, dmg: s.dmg, evo, ph: rnd(0, 6), seed: Math.random(), moving: 1, hit: 0, drop: 1 }); }
@@ -2137,10 +2229,10 @@ function sockTick(dt, s, evo) {
 function chain(from, cur, jumps, dmg, splash) {
   const seen = new Set(), path = [from], X = player.sp.bolt || {}, first = cur; let prevC = null;
   for (let j = 0; j < jumps && cur; j++) {
-    seen.add(cur); if (prevC) carry(prevC, cur); prevC = cur; path.push({ x: cur.x, y: 0.7, z: cur.z }); hitEnemy(cur, dmg * (1 - j * 0.04), 0, 0, 'magic');
+    seen.add(cur); cur.shock = 0.8; if (prevC) carry(prevC, cur); prevC = cur; path.push({ x: cur.x, y: 0.7, z: cur.z }); hitEnemy(cur, dmg * (1 - j * 0.04), 0, 0, 'magic');
     if (splash) query(cur.x, cur.z, 2, (o) => { if (o !== cur) hitEnemy(o, dmg * 0.4, 0, 0, 'magic', { noCrit: true }); });
     if (X.fork && Math.random() < 0.35) { const f = nearest(cur.x, cur.z, 3.5, seen); if (f) { zap([{ x: cur.x, y: 0.7, z: cur.z }, { x: f.x, y: 0.7, z: f.z }], EC('bolt') ?? 0x4aa8ff, 0.25, 0.3, 3); hitEnemy(f, dmg * 0.6, 0, 0, 'magic'); } }
-    spark(cur.x, 0.7, cur.z, EC('bolt') ?? 0x4aa8ff, 6, 3, 0.3, 0.3); cur = nearest(cur.x, cur.z, X.far ? 8 : 5, seen);
+    spark(cur.x, 0.7, cur.z, EC('bolt') ?? 0x4aa8ff, 8, 4.5, 0.34, 0.3); hitStar(cur.x, cur.z, EC('bolt') ?? 0x4aa8ff, 1.7, 0.8); ringFx(cur.x, cur.z, cur.r + 0.7, EC('bolt') ?? 0x4aa8ff, 0.2, 0.85); cur = nearest(cur.x, cur.z, X.far ? 8 : 5, seen);
   }
   if (X.back && path.length > 2 && !first.dead) { path.push({ x: first.x, y: 0.7, z: first.z }); hitEnemy(first, dmg * 1.5, 0, 0, 'magic'); spark(first.x, 0.8, first.z, 0xffffff, 10, 5, 0.35, 0.3); }
   zap(path, EC('bolt') ?? 0x4aa8ff, 0.3, 0.3, 5); zap(path, elOf('bolt').length > 1 ? EC('bolt', 1) : 0xffffff, 0.18, 0.1, 2);
@@ -2149,7 +2241,7 @@ function addMinion(life, x, z) {
   const TINTS = [0xffe14d, 0xff9ac1, 0x8ee39a, 0x8fd3ff, 0xffb86b, 0xc9a7ff];
   const a = Math.random() * TAU;
   const m = { x: x ?? player.x + Math.cos(a) * 1.5, z: z ?? player.z + Math.sin(a) * 1.5, yaw: 0, ph: 0, moving: 1, seed: Math.random(), atk: 0, shootCd: rnd(0, 1), swing: 0, tint: new THREE.Color(TINTS[minions.length % 6]), temp: life, max: life };
-  minions.push(m); spark(m.x, 0.5, m.z, TINTS[minions.length % 6], 14, 4, 0.35, 0.5);
+  minions.push(m); spark(m.x, 0.5, m.z, TINTS[minions.length % 6], 14, 4, 0.35, 0.5); ringFx(m.x, m.z, 1.1, TINTS[minions.length % 6], 0.3, 0.9); hitStar(m.x, m.z, TINTS[minions.length % 6], 1.6, 0.6);
 }
 function updateSummons(dt) {
   const ms = player.weapons.minion ? ws('minion') : WBASE.minion, big = SL.summon >= 3 ? 1.4 : 1;
@@ -4599,7 +4691,7 @@ function update(dt) {
   CW = 'coffee';
   for (const c of cups) {
     c.t += dt / 0.5; if (c.t < 1) { if (c.t > 0 && Math.random() < dt * 40) puff('coffee', c.x0 + (c.x - c.x0) * c.t, 0.9 + Math.sin(c.t * PI) * 3, c.z0 + (c.z - c.z0) * c.t, 1, 0.5, 0.32, 0.4); continue; } c.done = true; const CX = player.sp.coffee || {};
-    elemBurst('coffee', c.x, c.z, c.rad); ringFx(c.x, c.z, c.rad, EC('coffee') ?? 0xc08040, 0.4); burst(c.x, 0.3, c.z, 0x5a3418, 20, c.rad * 2, 0.35, 0.5, 9); ringMark(c.x, c.z, c.rad * 0.9, 'rgba(45,25,10,.35)', 5); shake = Math.max(shake, 0.05);
+    elemBurst('coffee', c.x, c.z, c.rad); hitStar(c.x, c.z, EC('coffee') ?? 0xffd9a0, c.rad * 1.1, 0.4); spark(c.x, 0.4, c.z, EC('coffee') ?? 0xe0a060, 14, c.rad * 2.2, 0.4, 0.45, 8); ringFx(c.x, c.z, c.rad, EC('coffee') ?? 0xc08040, 0.4); burst(c.x, 0.3, c.z, 0x5a3418, 20, c.rad * 2, 0.35, 0.5, 9); ringMark(c.x, c.z, c.rad * 0.9, 'rgba(45,25,10,.35)', 5); shake = Math.max(shake, 0.05);
     query(c.x, c.z, c.rad, (e) => { e.slow = 2; hitEnemy(e, c.dmg, 0, 0, 'magic'); });
     if (pools.length >= POOL_MAX) pools.shift(); pools.push({ x: c.x, z: c.z, rad: c.rad, life: (c.evo ? 5 : 3.2) + (CX.long ? 2.5 : 0), max: (c.evo ? 5 : 3.2) + (CX.long ? 2.5 : 0), dmg: c.dmg * 0.4 * (1 + 0.1 * R('laundry')), tick: 0, zap: !!player.duos.zapcafe, pull: (c.evo ? 3.5 : 1.2) * (CX.pull ? 2.6 : 1) });
   }
@@ -4642,7 +4734,7 @@ function update(dt) {
     if (bk.target && !bk.target.dead) { bk.x = bk.target.x; bk.z = bk.target.z; } if (bk.t < 0.45 && Math.random() < dt * 40) puff('rollcall', bk.x + rnd(-0.3, 0.3), bk.t / 0.45 * 7 + 0.3, bk.z + rnd(-0.3, 0.3), 1, 0.5, 0.32, 0.4);
     bk.t -= dt;
     if (bk.t <= 0) {
-      bk.done = true; ripple(bk.x, bk.z, 0.8); shake = Math.max(shake, 0.15); dust(bk.x, bk.z, 16, 5); puff('rollcall', bk.x, 0.4, bk.z, 18, 5, 0.36, 0.45);
+      bk.done = true; ringFx(bk.x, bk.z, 2.2, EC('rollcall') ?? 0xfff1c8, 0.3); hitStar(bk.x, bk.z, EC('rollcall') ?? 0xfff1c8, 3, 0.5); ripple(bk.x, bk.z, 0.8); shake = Math.max(shake, 0.15); dust(bk.x, bk.z, 16, 5); puff('rollcall', bk.x, 0.4, bk.z, 18, 5, 0.36, 0.45);
       query(bk.x, bk.z, 1.3, (o) => hitEnemy(o, bk.dmg * (o.type === 'boss' || o.type === 'hourglass' ? 2 : 1), 0, 0, 'magic'));
       { const X = player.sp.rollcall || {}; elemBurst('rollcall', bk.x, bk.z, 1.6);
         if (X.fear) { ringFx(bk.x, bk.z, 3.2, 0xffffff, 0.3, 0.7); query(bk.x, bk.z, 3.2, (o) => { if (o.type !== 'boss') o.frz = Math.max(o.frz || 0, 1); }); }
@@ -4672,7 +4764,7 @@ function update(dt) {
         if (e.hp <= 0) { killEnemy(e, 'magic'); continue; }
       }
     }
-    e.acid -= dt; e.brittle -= dt; e.chill = (e.chill || 0) - dt;
+    e.acid -= dt; e.brittle -= dt; e.chill = (e.chill || 0) - dt; if (e.shock > 0) e.shock -= dt;
     if (e.burn > 0 && Math.random() < dt * 10) spark(e.x + rnd(-0.3, 0.3), e.r + 0.5, e.z + rnd(-0.3, 0.3), Math.random() < 0.5 ? 0xff7a2a : 0xffd23f, 1, 1.2, 0.46, 0.45, -4);
     if (e.acid > 0 && Math.random() < dt * 8) { spark(e.x + rnd(-0.4, 0.4), e.r + 0.7, e.z + rnd(-0.4, 0.4), 0x9be03a, 1, 0.6, 0.42, 0.5, 5); if (Math.random() < 0.2) blot(e.x + rnd(-0.3, 0.3), e.z + rnd(-0.3, 0.3), 0.22, 'rgba(120,190,40,.4)'); }
     if (e.chill > 0 && Math.random() < dt * 6) spark(e.x + rnd(-0.4, 0.4), e.r + 0.8, e.z + rnd(-0.4, 0.4), 0xd8f2ff, 1, 0.5, 0.32, 0.6, 2);
@@ -5021,8 +5113,9 @@ function draw(dt) {
     if (facing) e.yaw = Math.atan2(facing.x - e.x, facing.z - e.z);
     const rise = e.spawn > 0 ? e.spawn : 0, hopOk = !e.fly && rise <= 0 && e.type !== 'snail' && e.type !== 'boss', y = e.fly ? 0 : -rise * e.size * 1.3 + (hopOk ? Math.abs(Math.sin(e.ph)) * 0.13 * e.moving : 0), yaw = e.yaw ?? 0, sq = 1 + Math.sin(e.ph * 2) * 0.07 * e.moving;
     if (e.type === 'boss') e.ringing = bossRinging;
-    RIGS[e.kind || RIG_OF(e.type)].push(e, worldM(e.x + (fz ? Math.sin(realTime * 60) * 0.06 * fz : 0), y + popY + (e.type === 'boss' ? bossLeapY : 0), e.z, yaw, sw * (1 + e.hit * 0.15), sw * (sq - e.hit * 0.1), sw * (1 + e.hit * 0.15)));
+    RIGS[e.kind || RIG_OF(e.type)].push(e, worldM(e.x + (fz ? Math.sin(realTime * 60) * 0.06 * fz : 0), y + popY + (e.type === 'boss' ? bossLeapY : 0), e.z, yaw, sw * (1 + e.hit * 0.24), sw * (sq - e.hit * 0.2), sw * (1 + e.hit * 0.24)));
     shadow(e.x, e.z, e.r * (e.fly ? 0.7 : 1) * (1 - rise * 0.7));
+    if (e.burn > 0 || e.frz > 0 || e.chill > 0 || e.acid > 0 || e.shock > 0 || e.fb > 0) statusFx(e, Math.max(0, y));
   }
   for (let k = fi * 2; k < 8; k++) fuseDiscs[k].visible = false;
   for (const c of corpses) { c.t += dt / 0.2; const k = Math.min(1, c.t); RIGS[RIG_OF(c.type)].push({ ph: 0, hit: 1 - k * 0.4, seed: c.seed, moving: 0 }, worldM(c.x, 0, c.z, c.yaw, c.size * (1 + k * 0.7), c.size * Math.max(0.04, 1 - k), c.size * (1 + k * 0.7))); }
@@ -5051,10 +5144,10 @@ function draw(dt) {
     if (state === 'play' && Math.random() < dt * 16) { const a = rnd(0, TAU), r = rnd(0.4, 1) * R0; spark(player.x + Math.cos(a) * r, 0.3, player.z + Math.sin(a) * r, ecRand('sock') ?? (Math.random() < 0.7 ? 0xa8d84a : 0xd8f08a), 1, 0.8, 0.42, 0.7, -2.5); } }
   drawTask(dt); drawWet();
   for (const Lp of lamps) { Lp.etint = elT('lamp'); Lp.glowMul = 3; Lp.ph = 0; Lp.moving = 0; Lp.hit = 0; RIGS.lamp.push(Lp, worldM(Lp.x, Lp.drop * 4, Lp.z, Lp.aim, 1.15 * (Lp.life < 1 ? Lp.life : 1))); shadow(Lp.x, Lp.z, 0.5); }
-  for (const s of shots) { STILL.tint = s.tint; STILL.etint = s.elc || null; const k = s.sc || 1; RIGS[s.rig].push(STILL, worldM(s.x, s.y, s.z, Math.atan2(s.vx, s.vz), k, k, k, s.spinA || 0, s.spinA ? s.spinA * 0.7 : 0)); }
+  for (const s of shots) { STILL.tint = s.tint; STILL.etint = s.elc || null; const k = s.sc || 1; { const sp = Math.hypot(s.vx, s.vz); streak(s.x, s.y, s.z, Math.atan2(s.vx, s.vz), clamp(sp * 0.16, 1.2, 3.6) * k, 0.55 * k, s.el ?? WPC[s.w]?.[0] ?? 0xffffff, 0.9); } RIGS[s.rig].push(STILL, worldM(s.x, s.y, s.z, Math.atan2(s.vx, s.vz), k, k, k, s.spinA || 0, s.spinA ? s.spinA * 0.7 : 0)); }
   STILL.tint = null; STILL.etint = null;
-  planes.forEach((p, i) => { STILL.etint = elT('plane', i); const k = p.small ? 0.6 : 0.9; RIGS.planeP.push(STILL, worldM(p.x, p.y + Math.sin(realTime * 8 + p.life) * 0.08, p.z, p.yaw, k, k, k, 0, Math.sin(realTime * 6) * 0.3)); }); STILL.etint = null;
-  for (const b of eshots) { if (b.rig) RIGS[b.rig].push(STILL, worldM(b.x, b.y, b.z, Math.atan2(b.vx, b.vz), 1.2)); else RIGS.paper.push(STILL, worldM(b.x, b.y, b.z, b.life * 6, 1, 1, 1, b.life * 4)); }
+  planes.forEach((p, i) => { STILL.etint = elT('plane', i); const k = p.small ? 0.6 : 0.9; streak(p.x, p.y, p.z, p.yaw, 2.6 * k, 0.6 * k, EC('plane') ?? 0xbfe0ff, 0.8); RIGS.planeP.push(STILL, worldM(p.x, p.y + Math.sin(realTime * 8 + p.life) * 0.08, p.z, p.yaw, k, k, k, 0, Math.sin(realTime * 6) * 0.3)); }); STILL.etint = null;
+  for (const b of eshots) { streak(b.x, b.y, b.z, Math.atan2(b.vx, b.vz), 1.8, 0.5, b.source === 'boss' ? 0xff5a6a : 0xff9a5a, 0.7); if (b.rig) RIGS[b.rig].push(STILL, worldM(b.x, b.y, b.z, Math.atan2(b.vx, b.vz), 1.2)); else RIGS.paper.push(STILL, worldM(b.x, b.y, b.z, b.life * 6, 1, 1, 1, b.life * 4)); }
   if (player.weapons.spin && state !== 'title') {
     const s = ws('spin'), evo = player.evo.spin, n = s.n * (evo ? 2 : 1), rr = s.rad * area('melee') * (evo ? 1.3 : 1);
     for (let i = 0; i < n; i++) { const [sx_, sz_, a] = spinPos(i, n, s, rr, evo); STILL.etint = elT('spin', i); RIGS.ruler.push(STILL, worldM(sx_, 0.6, sz_, -a + HP_ * 0.5, evo ? 1.3 : 1)); STILL.etint = null; if (STILL.etint === null && elOf('spin').includes('elec') && state === 'play' && Math.random() < dt * 5) { const [bx, bz] = spinPos((i + 1) % n, n, s, rr, evo); zap([{ x: sx_, y: 0.7, z: sz_ }, { x: bx, y: 0.7, z: bz }], 0x8fd0ff, 0.12, 0.25, 2); } const sc_ = ecRand('spin'); if (state === 'play' && Math.random() < dt * (sc_ != null ? 60 : 14)) spark(player.x + Math.cos(a) * (rr + rnd(-0.6, 0.8)), 0.6, player.z + Math.sin(a) * (rr + rnd(-0.6, 0.8)), sc_ ?? 0xffe07a, 1, 0.6, sc_ != null ? 0.42 : 0.3, sc_ != null ? 0.5 : 0.3, sc_ === ELC.fire ? -3 : 0); }
@@ -5068,6 +5161,7 @@ function draw(dt) {
   const gemObj = { ph: 0, hit: 0, seed: 0, moving: 0, glowMul: 2 };
   for (const g of gems) { const z = g.sz || 0; gemObj.glowMul = z === 2 ? 1.6 : 2; gemObj.ph = g.ph; RIGS[z === 2 ? 'gem3' : z === 1 ? 'gem2' : 'gem'].push(gemObj, worldM(g.x, 0.4 + z * 0.12 + Math.sin(realTime * 4 + g.ph) * 0.1, g.z, realTime * (2 - z * 0.5) + g.ph, 1)); if (z === 2 && Math.random() < dt * 3) spark(g.x, 0.9, g.z, 0xffe07a, 1, 1, 0.3, 0.5, -1); }
   for (const id in RIGS) RIGS[id].end();
+  drawFx(dt);
   shadowMesh.count = shN; shadowMesh.instanceMatrix.needsUpdate = true;
   // 法阵
   poolMeshes.forEach((m, i) => { const p = pools[i]; m.visible = !!p; if (!p) return; const grow = Math.min(1, ((p.max || 3) - p.life) * 5 + 0.2); m.position.set(p.x, 0.045, p.z); m.scale.setScalar(p.rad * grow); m.rotation.z -= dt * 6; m.material.color.set(p.zap ? 0x9fd0ff : 0xffffff); { const pc = EC('coffee'); if (pc != null) m.material.color.set(pc).lerp(WHITE_C, 0.35); } m.material.opacity = Math.min(0.9, p.life * 1.5);
@@ -5089,7 +5183,7 @@ function draw(dt) {
     b.life -= dt; const a = Math.max(0, b.life / b.max);
     for (let w = 0; w < (b.w || 1); w++) for (let s = 0; s < b.path.length - 1; s++) {
       const p0 = b.path[s], p1 = b.path[s + 1], seg = b.jit ? 6 : 1, oy = w * 0.03; let px = p0.x, py = p0.y + oy, pz = p0.z;
-      for (let q = 1; q <= seg && li < LMAX - 2; q++) { const t = q / seg, j = q === seg ? 0 : b.jit; const nx = p0.x + (p1.x - p0.x) * t + rnd(-j, j), ny = p0.y + oy + (p1.y - p0.y) * t + rnd(-j, j) * 0.5, nz = p0.z + (p1.z - p0.z) * t + rnd(-j, j); lPos.set([px, py, pz, nx, ny, nz], li * 3); const r = b.color.r * a, g = b.color.g * a, bb = b.color.b * a; lCol.set([r, g, bb, r, g, bb], li * 3); li += 2; px = nx; py = ny; pz = nz; }
+      for (let q = 1; q <= seg && li < LMAX - 2; q++) { const t = q / seg, j = q === seg ? 0 : b.jit; const nx = p0.x + (p1.x - p0.x) * t + rnd(-j, j), ny = p0.y + oy + (p1.y - p0.y) * t + rnd(-j, j) * 0.5, nz = p0.z + (p1.z - p0.z) * t + rnd(-j, j); lPos.set([px, py, pz, nx, ny, nz], li * 3); const r = b.color.r * a, g = b.color.g * a, bb = b.color.b * a; lCol.set([r, g, bb, r, g, bb], li * 3); li += 2; if (w < 2) { const wd = (b.w > 1 ? 1 : 0.55) * (0.5 + 0.5 * a); if (w === 0) boltSeg(px, py, pz, nx, ny, nz, 0.62 * wd, b.color, 0.42 * Math.min(1, a * 2)); else boltSeg(px, py + 0.02, pz, nx, ny + 0.02, nz, 0.2 * wd, WHITE, 1.6 * Math.min(1, a * 2)); } px = nx; py = ny; pz = nz; }
     }
   }
   bolts = bolts.filter((b) => b.life > 0); lGeo.setDrawRange(0, li); lGeo.attributes.position.needsUpdate = lGeo.attributes.color.needsUpdate = true;
