@@ -340,7 +340,7 @@ const finalPass = new ShaderPass({
     vec2 uv=vUv; float asp=uRes.x/uRes.y;
     for(int i=0;i<6;i++){ vec4 r=uRip[i]; if(r.z<0.0||r.z>0.6) continue;
       vec2 d=uv-r.xy; d.x*=asp; float L=length(d); float front=r.z*0.6;
-      float w=exp(-pow((L-front)*20.0,2.0))*(1.0-r.z/0.6)*r.w; vec2 dir=normalize(d+1e-5); dir.x/=asp; uv-=dir*w*0.03; }
+      float w=exp(-((L-front)*20.0)*((L-front)*20.0))*(1.0-r.z/0.6)*r.w; vec2 dir=normalize(d+1e-5); dir.x/=asp; uv-=dir*w*0.03; }
     vec2 c=uv-0.5; float ch=uChroma*0.012;
     vec3 col; col.r=texture2D(tDiffuse,uv+c*ch).r; col.g=texture2D(tDiffuse,uv).g; col.b=texture2D(tDiffuse,uv-c*ch).b;
 
@@ -380,13 +380,17 @@ const outlineRigMat = new THREE.MeshBasicMaterial({ color: 0x3a2228, side: THREE
 outlineRigMat.onBeforeCompile = (sh) => {
   sh.uniforms.uOutW = OUTLINE_W;
   sh.vertexShader = 'uniform float uOutW;\n' + sh.vertexShader.replace('#include <project_vertex>', `
-    vec4 lp = vec4(transformed, 1.0); vec3 on = normal;
+    vec4 lp = vec4(transformed, 1.0); vec3 on = normal; float ow = 1.0;
     #ifdef USE_INSTANCING
       lp = instanceMatrix * lp; mat3 im = mat3(instanceMatrix);
-      on = im * (on / vec3(dot(im[0], im[0]), dot(im[1], im[1]), dot(im[2], im[2])));
+      vec3 id2 = vec3(dot(im[0], im[0]), dot(im[1], im[1]), dot(im[2], im[2]));
+      // 缩到 0 的部件（刚出现、被藏起来）不能除以 0，否则顶点飞到无穷远，画面上就是一大块黑
+      ow = clamp(sqrt(min(id2.x, min(id2.y, id2.z))) * 4.0, 0.0, 1.0);
+      on = im * (on / max(id2, vec3(1e-8)));
     #endif
-    mat3 mm = mat3(modelMatrix); on = mm * (on / vec3(dot(mm[0], mm[0]), dot(mm[1], mm[1]), dot(mm[2], mm[2])));
-    vec4 wp = modelMatrix * lp; wp.xyz += normalize(on) * uOutW;
+    mat3 mm = mat3(modelMatrix); on = mm * (on / max(vec3(dot(mm[0], mm[0]), dot(mm[1], mm[1]), dot(mm[2], mm[2])), vec3(1e-8)));
+    float onL = length(on);
+    vec4 wp = modelMatrix * lp; if (onL > 1e-6 && onL < 1e12) wp.xyz += on / onL * uOutW * ow;
     vec4 mvPosition = viewMatrix * wp; gl_Position = projectionMatrix * mvPosition;`);
 };
 const toonOf = (c) => inkToon(new THREE.MeshToonMaterial({ color: c, gradientMap: grad }));
@@ -889,10 +893,10 @@ const sandMat = new THREE.ShaderMaterial({
     float pane=step(abs(lw),3.6)*step(0.18,abs(lw))*step(0.18,abs(fract(dx*0.12)-0.5)*8.0);
     light+=vec3(1.0,0.86,0.6)*0.42*pane*exp(-dx/26.0);
     float dp=length(p-uPlayer.xz); light+=vec3(1.0,0.85,0.6)*0.12*exp(-dp*dp/30.0)*uTorch;
-    float rip=0.0; for(int i=0;i<8;i++){ vec4 r=uRip[i]; float age=uTime-r.z; if(age<0.0||age>1.0) continue; float L=length(p-r.xy); rip+=exp(-pow((L-age*9.0)*1.3,2.0))*(1.0-age)*r.w; }
+    float rip=0.0; for(int i=0;i<8;i++){ vec4 r=uRip[i]; float age=uTime-r.z; if(age<0.0||age>1.0) continue; float L=length(p-r.xy); rip+=exp(-((L-age*9.0)*1.3)*((L-age*9.0)*1.3))*(1.0-age)*r.w; }
     light+=vec3(1.0,0.85,0.5)*min(rip,1.0)*0.4;
     vec3 col=base*light*1.25;
-    gl_FragColor=vec4(pow(col,vec3(2.2)),1.0);
+    gl_FragColor=vec4(pow(max(col,vec3(0.0)),vec3(2.2)),1.0);
   }`,
 });
 const sand = new THREE.Mesh(new THREE.PlaneGeometry(2 * HX + 6, 2 * HZ + 6.8), sandMat); sand.rotation.x = -HP_; scene.add(sand);
@@ -2328,7 +2332,7 @@ const zone = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), zoneMat); zone.rotati
 const beamMat = new THREE.ShaderMaterial({
   uniforms: { uColor: zoneMat.uniforms.uColor, uTime }, transparent: true, depthWrite: false, toneMapped: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending,
   vertexShader: `varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.); }`,
-  fragmentShader: `uniform vec3 uColor; uniform float uTime; varying vec2 vUv; void main(){ float s=0.75+0.25*sin(vUv.x*50.0+uTime*2.0); float f=pow(1.0-vUv.y,2.2); gl_FragColor=vec4(uColor*f*s*0.16,1.0); }`,
+  fragmentShader: `uniform vec3 uColor; uniform float uTime; varying vec2 vUv; void main(){ float s=0.75+0.25*sin(vUv.x*50.0+uTime*2.0); float f=pow(max(0.0,1.0-vUv.y),2.2); gl_FragColor=vec4(uColor*f*s*0.16,1.0); }`,
 });
 const beam = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 1, 40, 1, true), beamMat); beam.visible = false; scene.add(beam);
 // 脏污：一团带墨线的泥点
