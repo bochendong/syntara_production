@@ -45,6 +45,7 @@ import { StudentClassroomPage } from './components/StudentClassroomPage';
 import { TeachPage } from './components/TeachPage';
 import { AdminPage } from './components/AdminPage';
 import { GamePage } from './components/GamePage';
+import { GameNudge, useGameNudge } from './components/GameNudge';
 import { OnboardingCoach } from './components/OnboardingCoach';
 import { SpeedupPhoneDialog } from './components/SpeedupPhoneDialog';
 import { readLoginIntent } from './lib/login-intent';
@@ -536,6 +537,23 @@ function AuthenticatedApp() {
   };
   const practiceExpanded = practiceSession !== null && !practiceMinimized;
 
+  // 「去玩一把」：手机没有游戏，老师不提示；做题、上课和别的整页功能打开时先不打扰。
+  const gameAvailable = !phoneLayout && !teacherLogin;
+  const gameNudge = useGameNudge({
+    enabled: gameAvailable,
+    playing: globalPage === 'game',
+    blocked:
+      loading || practiceExpanded || globalPage !== null || classroom.state.sessions.length > 0,
+  });
+  const openGame = () => {
+    gameNudge.played();
+    setGlobalPage('game');
+  };
+  const playGame = () => {
+    if (practiceExpanded) minimizePractice();
+    openGame();
+  };
+
   // 做题页「问 AI」：做题收成右下角弹珠，题目上下文交给课程聊天。
   const askAiInCourseChat = (attachment: ProblemChatAttachment, move: ProblemCoachMove) => {
     minimizePractice();
@@ -741,7 +759,8 @@ function AuthenticatedApp() {
     onOpenCalendar: () => setGlobalPage('calendar'),
     onOpenStore: () => setGlobalPage('store'),
     // 手机屏幕太小玩不了，只在 iPad、电脑和网页版放入口。
-    onOpenGame: phoneLayout ? undefined : () => setGlobalPage('game'),
+    onOpenGame: phoneLayout ? undefined : openGame,
+    gameHint: gameNudge.hint,
     onOpenSettings: () => setGlobalPage('profile'),
     // 老师从「教学」卡片进入班级；学生保留独立的上课入口。
     onOpenClassroom:
@@ -823,6 +842,7 @@ function AuthenticatedApp() {
               onBack={minimizePractice}
               onMinimize={minimizePractice}
               onAskAi={phoneLayout ? undefined : askAiInCourseChat}
+              onPlayGame={gameAvailable ? playGame : undefined}
             />
           </PracticeOverlay>
         ) : null}
@@ -1006,6 +1026,10 @@ function AuthenticatedApp() {
               setGlobalPage('student-classroom');
             }}
           />
+        ) : null}
+
+        {gameNudge.minutes !== null ? (
+          <GameNudge minutes={gameNudge.minutes} onPlay={playGame} onDismiss={gameNudge.dismiss} />
         ) : null}
 
         {teacherLogin ? null : <OnboardingCoach courses={courses} />}

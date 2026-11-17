@@ -19,6 +19,7 @@ import { ProblemPracticePage } from '../components/ProblemPracticePage';
 import { PracticeOverlay } from '../components/PracticeOverlay';
 import { ClassroomLiveBadge } from '../components/ClassroomPanel';
 import { PracticeCelebration } from '../components/problem-bank/PracticeCelebration';
+import { GameNudge } from '../components/GameNudge';
 import { getLocalRepository } from '../data/repository';
 import { setBrowserAccount, browserApp } from '../data/browser-runtime';
 import { SYNTARA_ARCHIVE_FORMAT, SYNTARA_ARCHIVE_VERSION } from '../data/archive';
@@ -170,6 +171,7 @@ function Preview() {
     new URLSearchParams(location.search).get('scene') === 'celebrate',
   );
   const [notice, setNotice] = useState('');
+  const [nudge, setNudge] = useState(new URLSearchParams(location.search).get('scene') === 'nudge');
   const [classroomOpen, setClassroomOpen] = useState(false);
   const [classroomDismissed, setClassroomDismissed] = useState(false);
   const expanded = Boolean(launch && !minimized);
@@ -317,6 +319,20 @@ function Preview() {
             snapshot={{ newlyPassed: 5, passed: 5, attempted: 5, total: 26, title: '字符串与切片' }}
             onClose={() => setExample(false)}
             onContinue={() => setExample(false)}
+            onPlayGame={() => {
+              setExample(false);
+              setNotice('本地 Mock：这里会直接打开游戏页。');
+            }}
+          />
+        ) : null}
+        {nudge && !expanded ? (
+          <GameNudge
+            minutes={25}
+            onDismiss={() => setNudge(false)}
+            onPlay={() => {
+              setNudge(false);
+              setNotice('本地 Mock：这里会直接打开游戏页。');
+            }}
           />
         ) : null}
       </div>
@@ -327,6 +343,9 @@ function Preview() {
         </span>
         <button type="button" onClick={() => location.assign(location.pathname)}>
           重置
+        </button>
+        <button type="button" onClick={() => setNudge(true)}>
+          看「去玩一把」胶囊
         </button>
         <button type="button" onClick={() => setExample(true)}>
           看礼花与卡片

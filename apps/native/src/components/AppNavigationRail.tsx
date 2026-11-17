@@ -12,6 +12,7 @@ import {
 import { nativeAccountAvatarUrl } from '../assets';
 import type { AppNavigation } from './app-navigation-context';
 import './app-navigation-rail.css';
+import './game-nudge.css';
 
 export function AppNavigationRail({
   active,
@@ -20,6 +21,7 @@ export function AppNavigationRail({
   onOpenCalendar,
   onOpenStore,
   onOpenGame,
+  gameHint,
   onOpenSettings,
   onOpenClassroom,
   onOpenTeach,
@@ -65,6 +67,7 @@ export function AppNavigationRail({
           type="button"
           aria-label="游戏"
           title="游戏：沙盒期末战"
+          className={gameHint ? 'has-game-hint' : undefined}
           aria-current={active === 'game' ? 'page' : undefined}
           onClick={onOpenGame}
         >
