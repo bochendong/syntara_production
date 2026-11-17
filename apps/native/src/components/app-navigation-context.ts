@@ -19,6 +19,8 @@ export type AppNavigation = {
   onOpenStore: () => void;
   /** 「游戏」页：沙盒期末战。手机上没有（undefined），iPad、电脑和网页版有。 */
   onOpenGame?: () => void;
+  /** 提示过「去玩一把」但还没去：游戏入口上留一个小点。 */
+  gameHint?: boolean;
   onOpenSettings: () => void;
   /** 输课堂码 / 班级码。手机上没有（undefined）。 */
   onOpenClassroom?: () => void;

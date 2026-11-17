@@ -196,6 +196,8 @@ type ProblemPracticePageProps = {
   onMinimize?: () => void;
   /** iPad/桌面：「问 AI」把这道题交给课程主聊天。没有时不显示按钮。 */
   onAskAi?: (attachment: ProblemChatAttachment, move: ProblemCoachMove) => void;
+  /** 庆祝卡片上的「去玩一把」。手机、老师试做和上课做题时不传或不显示。 */
+  onPlayGame?: () => void;
   loadHiddenTests?: (problemId: string, part?: string) => Promise<RevealedHiddenTests>;
   teacherPracticeStore?: ReturnType<typeof createTeacherPracticeStore>;
   renderClassroomStats?: (problemId: string) => ReactNode;
@@ -360,6 +362,7 @@ export function ProblemPracticePage({
   onBack,
   onMinimize,
   onAskAi,
+  onPlayGame,
   loadHiddenTests,
   teacherPracticeStore,
   renderClassroomStats,
@@ -2041,6 +2044,14 @@ export function ProblemPracticePage({
         <PracticeCelebration
           snapshot={celebration}
           onClose={dismissCelebration}
+          onPlayGame={
+            onPlayGame && !launch.classSessionId && !launch.teacherPreview
+              ? () => {
+                  dismissCelebration();
+                  onPlayGame();
+                }
+              : undefined
+          }
           onContinue={() => {
             dismissCelebration();
             const next = [
