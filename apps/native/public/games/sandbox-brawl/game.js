@@ -2661,11 +2661,11 @@ function codexIcon(item, tab) {
 }
 
 const skinPortraits = new Map();
-function skinPortrait(hero, skinId) {
-  const key = skinId || hero;
+function skinPortrait(hero, skinId, rigId) {
+  const key = rigId ? 'rig:' + rigId : skinId || hero;
   if (skinPortraits.has(key)) return skinPortraits.get(key);
 
-  const parts = skinId ? heroSkinParts(hero, SKINS[skinId]) : RIGS_DEF['hero_' + hero];
+  const parts = rigId ? RIGS_DEF[rigId] : skinId ? heroSkinParts(hero, SKINS[skinId]) : RIGS_DEF['hero_' + hero];
   const portrait = new THREE.Scene();
   const model = new THREE.Group();
   const materials = new Map();
@@ -2684,6 +2684,7 @@ function skinPortrait(hero, skinId) {
     }
     model.add(part);
   }
+  if (rigId) { model.scale.setScalar(0.62); model.position.y = 0.1; }
   portrait.add(model, new THREE.AmbientLight(0xfff4e6, 1.35));
   const light = new THREE.DirectionalLight(0xfff0d8, 1.7);
   light.position.set(-3, 6, 5);
@@ -5073,7 +5074,7 @@ function frame(now) {
 }
 let debugCam = null;
 window.__game = { set cam(v) { debugCam = v; }, get chests() { return chests; }, get pendingLevels() { return pendingLevels; }, openChest2: openChest, SP, LVUP, WALLS, regionOf, inWall, HX, HZ, portalWave, PORTALS, get gems() { return gems; }, hurtPlayer, TIER, CLS_IDS, minuteEvent, spawnAltar, showArts, get altars() { return altars; }, get drops() { return drops; }, infuse(id) { pendingInfuse.push(id); showInfuse(); },
-  get state() { return state; }, startRun, set bossKind(k) { forceBoss = k; }, bossHazards, setDiff(d) { diffId = d; }, setMode(m) { modeId = m; }, unlockAll() { meta.heroes = [...CLS_IDS]; meta.arts = Object.keys(ARTS); meta.relics = Object.keys(RELICS); }, meta, showCodex, settle, get cups() { return cups; }, get pools() { return pools; }, get bolts() { return bolts; }, startTask, get task() { return task; }, get enemies() { return enemies; }, spawn, upgradeOptions, get boss() { return boss; }, get T() { return T; }, set T(v) { T = v; }, player, applyUpgrade, showTitle,
+  get state() { return state; }, startRun, rigPortrait: (id) => skinPortrait(null, null, id), set bossKind(k) { forceBoss = k; }, bossHazards, setDiff(d) { diffId = d; }, setMode(m) { modeId = m; }, unlockAll() { meta.heroes = [...CLS_IDS]; meta.arts = Object.keys(ARTS); meta.relics = Object.keys(RELICS); }, meta, showCodex, settle, get cups() { return cups; }, get pools() { return pools; }, get bolts() { return bolts; }, startTask, get task() { return task; }, get enemies() { return enemies; }, spawn, upgradeOptions, get boss() { return boss; }, get T() { return T; }, set T(v) { T = v; }, player, applyUpgrade, showTitle,
   pick(i) { pickHero(i); }, get NET() { return NET; }, netLobby, renderLobby, ACH, SKINS, ALT, gch, showUltPick, get pendingUlt() { return pendingUlt; }, openGacha, gachaStart, gachaPull, showAch, checkAch, get run() { return run; }, renderHome, renderGacha, showLevelUp, showWin, showDeath, openChest, get step_() { return titleStep; },
   step(s) { for (let k = 0; k < s * 30; k++) { update(1 / 30); realTime += 1 / 30; uTime.value = realTime; draw(1 / 30); if (state !== 'play') break; } },
 };
