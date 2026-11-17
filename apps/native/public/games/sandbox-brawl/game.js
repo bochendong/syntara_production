@@ -311,16 +311,16 @@ const ET = {
 
 /* ================= 渲染器、灯光、后期 ================= */
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
-renderer.setPixelRatio(Math.min(devicePixelRatio, 1.75));
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 $('stage').appendChild(renderer.domElement);
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0xeadcc2);
 scene.fog = new THREE.Fog(0xeadcc2, 50, 110);
 const camera = new THREE.PerspectiveCamera(32, 1, 0.1, 200);
-scene.add(new THREE.AmbientLight(0xfff4e6, 1.35));
+scene.add(new THREE.HemisphereLight(0xfff6ea, 0xcfc2ea, 1.4));
 const moon = new THREE.DirectionalLight(0xfff0d8, 1.7); moon.position.set(-12, 16, -4); scene.add(moon);
 const torch = new THREE.PointLight(0xffd8a0, 8, 10, 1.6); scene.add(torch);
-const composer = new EffectComposer(renderer);
+const composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, samples: 4 }));
 composer.addPass(new RenderPass(scene, camera));
 const bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.3, 0.4, 0.95);
 composer.addPass(bloom);
@@ -337,21 +337,16 @@ const finalPass = new ShaderPass({
     for(int i=0;i<6;i++){ vec4 r=uRip[i]; if(r.z<0.0||r.z>0.6) continue;
       vec2 d=uv-r.xy; d.x*=asp; float L=length(d); float front=r.z*0.6;
       float w=exp(-pow((L-front)*20.0,2.0))*(1.0-r.z/0.6)*r.w; vec2 dir=normalize(d+1e-5); dir.x/=asp; uv-=dir*w*0.03; }
-    vec2 c=uv-0.5; float ch=uChroma*0.012+0.0006;
+    vec2 c=uv-0.5; float ch=uChroma*0.012;
     vec3 col; col.r=texture2D(tDiffuse,uv+c*ch).r; col.g=texture2D(tDiffuse,uv).g; col.b=texture2D(tDiffuse,uv-c*ch).b;
-    // 墨线：亮度突变的地方压一道黑线，像漫画勾边
-    vec2 px=1.0/uRes; float l0=dot(col,vec3(0.3,0.59,0.11));
-    float lx=dot(texture2D(tDiffuse,uv+vec2(px.x,0.)).rgb,vec3(0.3,0.59,0.11)), ly=dot(texture2D(tDiffuse,uv+vec2(0.,px.y)).rgb,vec3(0.3,0.59,0.11));
-    float lx2=dot(texture2D(tDiffuse,uv-vec2(px.x,0.)).rgb,vec3(0.3,0.59,0.11)), ly2=dot(texture2D(tDiffuse,uv-vec2(0.,px.y)).rgb,vec3(0.3,0.59,0.11));
-    float ed=abs(lx-lx2)+abs(ly-ly2); col*=1.0-smoothstep(0.12,0.3,ed)*0.16*step(l0,0.7);
+
     // 调色：暗部偏青绿，亮部偏暖金，整体压饱和
     float L=dot(col,vec3(0.3,0.59,0.11));
     col=mix(vec3(L),col,1.16);
     col=mix(col*vec3(0.92,0.9,1.04),col*vec3(1.04,1.0,0.94),smoothstep(0.15,0.7,L));
-    float paper=fract(sin(dot(floor(uv*uRes*0.5),vec2(12.9898,78.233)))*43758.5453);
-    col*=0.985+0.025*paper; col*=uTint;
+    col*=uTint;
     float vig=smoothstep(1.1,0.28,length(c*vec2(asp*0.7,1.0)));
-    col*=mix(0.86,1.0,vig);
+    col*=mix(0.9,1.0,vig);
     col=mix(col,vec3(0.7,0.05,0.05),uHurt*(1.0-vig)*0.7);
     gl_FragColor=vec4(col,1.0);
   }`,
@@ -360,33 +355,62 @@ composer.addPass(finalPass);
 composer.addPass(new OutputPass());
 
 /* ================= 卡通墨线材质 + 拟人骨架 ================= */
-const grad = new THREE.DataTexture(new Uint8Array([45, 120, 255]), 3, 1, THREE.RedFormat);
-grad.minFilter = grad.magFilter = THREE.NearestFilter; grad.needsUpdate = true;
+const grad = new THREE.DataTexture(Uint8Array.from({ length: 64 }, (_, i) => { const k = Math.min(1, Math.max(0, (i / 63 - 0.4) / 0.1)); return 96 + (255 - 96) * k * k * (3 - 2 * k); }), 64, 1, THREE.RedFormat);
+grad.minFilter = grad.magFilter = THREE.LinearFilter; grad.needsUpdate = true;
 const RIM = { value: new THREE.Color(0xfff3d6) };
 function inkToon(mat) {
   mat.onBeforeCompile = (sh) => {
     sh.uniforms.uRim = RIM;
     sh.fragmentShader = 'uniform vec3 uRim;\n' + sh.fragmentShader.replace('#include <opaque_fragment>', `
       { vec3 vd=normalize(vViewPosition); float rim=pow(1.0-clamp(dot(normal,vd),0.0,1.0),3.0);
-        float lum=dot(outgoingLight,vec3(0.3,0.59,0.11));
-        float hatch=step(0.6,fract((gl_FragCoord.x-gl_FragCoord.y)*0.2));
-        float sh=smoothstep(0.22,0.06,lum);
-        outgoingLight=mix(outgoingLight,outgoingLight*vec3(0.85,0.75,1.0),sh*0.6);
-        outgoingLight*=1.0-hatch*sh*0.25;
-        outgoingLight+=uRim*step(0.6,rim)*0.18; }
+        outgoingLight*=0.95+0.09*clamp(normal.y,0.0,1.0);
+        outgoingLight+=uRim*smoothstep(0.5,0.95,rim)*0.2; }
       #include <opaque_fragment>`);
   };
   return mat;
 }
 const toonMat = inkToon(new THREE.MeshToonMaterial({ color: 0xffffff, gradientMap: grad }));
 const outlineMat = new THREE.MeshBasicMaterial({ color: 0x3a2228, side: THREE.BackSide });
+const OUTLINE_W = { value: 0.042 };
+const outlineRigMat = new THREE.MeshBasicMaterial({ color: 0x3a2228, side: THREE.BackSide });
+outlineRigMat.onBeforeCompile = (sh) => {
+  sh.uniforms.uOutW = OUTLINE_W;
+  sh.vertexShader = 'uniform float uOutW;\n' + sh.vertexShader.replace('#include <project_vertex>', `
+    vec4 lp = vec4(transformed, 1.0); vec3 on = normal;
+    #ifdef USE_INSTANCING
+      lp = instanceMatrix * lp; mat3 im = mat3(instanceMatrix);
+      on = im * (on / vec3(dot(im[0], im[0]), dot(im[1], im[1]), dot(im[2], im[2])));
+    #endif
+    mat3 mm = mat3(modelMatrix); on = mm * (on / vec3(dot(mm[0], mm[0]), dot(mm[1], mm[1]), dot(mm[2], mm[2])));
+    vec4 wp = modelMatrix * lp; wp.xyz += normalize(on) * uOutW;
+    vec4 mvPosition = viewMatrix * wp; gl_Position = projectionMatrix * mvPosition;`);
+};
 const toonOf = (c) => inkToon(new THREE.MeshToonMaterial({ color: c, gradientMap: grad }));
 const GEO = {
-  sph: new THREE.SphereGeometry(0.5, 20, 14), box: new THREE.BoxGeometry(1, 1, 1), cyl: new THREE.CylinderGeometry(0.5, 0.5, 1, 18),
-  cone: new THREE.ConeGeometry(0.5, 1, 18), tor: new THREE.TorusGeometry(0.5, 0.14, 8, 22), cap: new THREE.CapsuleGeometry(0.5, 0.6, 6, 14),
-  tet: new THREE.TetrahedronGeometry(0.6, 0), bowl: new THREE.CylinderGeometry(0.7, 0.4, 0.5, 16),
-  arc: new THREE.TorusGeometry(0.5, 0.07, 8, 16, Math.PI), ring: new THREE.TorusGeometry(0.5, 0.05, 8, 24), dod: new THREE.DodecahedronGeometry(0.5, 0),
+  sph: new THREE.SphereGeometry(0.5, 32, 22), box: roundedBox(0.09), cyl: new THREE.CylinderGeometry(0.5, 0.5, 1, 32),
+  cone: new THREE.ConeGeometry(0.5, 1, 32), tor: new THREE.TorusGeometry(0.5, 0.14, 12, 36), cap: new THREE.CapsuleGeometry(0.5, 0.6, 8, 24),
+  tet: new THREE.TetrahedronGeometry(0.6, 0), bowl: new THREE.CylinderGeometry(0.7, 0.4, 0.5, 28),
+  arc: new THREE.TorusGeometry(0.5, 0.07, 10, 20, Math.PI), ring: new THREE.TorusGeometry(0.5, 0.05, 10, 36), dod: new THREE.DodecahedronGeometry(0.5, 0),
 };
+// 方块的棱和角磨圆一点，法线连续，看起来不再像纸盒
+function roundedBox(r) {
+  const g = new THREE.BoxGeometry(1, 1, 1, 4, 4, 4), p = g.attributes.position, n = g.attributes.normal, v = new THREE.Vector3(), c = new THREE.Vector3(), h = 0.5 - r;
+  for (let i = 0; i < p.count; i++) {
+    v.fromBufferAttribute(p, i); c.set(clamp(v.x, -h, h), clamp(v.y, -h, h), clamp(v.z, -h, h)); v.sub(c);
+    if (v.lengthSq() > 1e-8) { v.normalize(); n.setXYZ(i, v.x, v.y, v.z); p.setXYZ(i, c.x + v.x * r, c.y + v.y * r, c.z + v.z * r); }
+  }
+  return g;
+}
+// 描边用的几何体：同一位置的法线取平均，沿法线外扩时不会在棱上裂开
+function smoothNormals(src) {
+  const g = src.clone(), p = g.attributes.position, n = g.attributes.normal, acc = new Map(), key = (i) => `${Math.round(p.getX(i) * 1e3)},${Math.round(p.getY(i) * 1e3)},${Math.round(p.getZ(i) * 1e3)}`;
+  for (let i = 0; i < p.count; i++) { const k = key(i), a = acc.get(k) || [0, 0, 0]; a[0] += n.getX(i); a[1] += n.getY(i); a[2] += n.getZ(i); acc.set(k, a); }
+  for (let i = 0; i < p.count; i++) { const a = acc.get(key(i)), L = Math.hypot(a[0], a[1], a[2]) || 1; n.setXYZ(i, a[0] / L, a[1] / L, a[2] / L); }
+  return g;
+}
+const OGEO = {}; for (const k in GEO) OGEO[k] = smoothNormals(GEO[k]);
+const SMOOTH_CACHE = new Map(Object.keys(GEO).map((k) => [GEO[k], OGEO[k]]));
+const smoothOf = (geo) => { if (!SMOOTH_CACHE.has(geo)) SMOOTH_CACHE.set(geo, smoothNormals(geo)); return SMOOTH_CACHE.get(geo); };
 const tone = (c, k) => { const q = new THREE.Color(c); return (k > 0 ? q.lerp(new THREE.Color(0xffffff), k) : q.multiplyScalar(1 + k)).getHex(); };
 const eyes = (y, z, sp = 0.16, s = 0.2, pu = 0.11, k = 'eye', pc = 0x1a1020) => [
   ['sph', 0xffffff, [-sp, y, z], [s, s * 1.15, s * 0.6], 0, k, 0], ['sph', 0xffffff, [sp, y, z], [s, s * 1.15, s * 0.6], 0, k, 0],
@@ -703,17 +727,18 @@ function partMatrix(pt, e) {
   return PM.compose(tP.set(px, py, pz), tQ, tS.set(sx, sy, sz));
 }
 class Rig {
-  constructor(parts, cap) {
-    this.n = 0; this.cap = cap;
+  constructor(parts, cap, lean) {
+    this.n = 0; this.cap = cap; this.lean = !!lean;
     this.parts = parts.map((pt) => {
       const m = new THREE.InstancedMesh(GEO[pt[0]], toonMat, cap); m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); m.frustumCulled = false; m.count = 0; m.setColorAt(0, WHITE); scene.add(m);
-      let ol = null; if (pt[6]) { ol = new THREE.InstancedMesh(GEO[pt[0]], outlineMat, cap); ol.instanceMatrix.setUsage(THREE.DynamicDrawUsage); ol.frustumCulled = false; ol.count = 0; scene.add(ol); }
+      let ol = null; if (pt[6]) { ol = new THREE.InstancedMesh(OGEO[pt[0]], outlineRigMat, cap); ol.instanceMatrix.setUsage(THREE.DynamicDrawUsage); ol.frustumCulled = false; ol.count = 0; scene.add(ol); }
       const k = pt[5] || '';
       return { pt, m, ol, color: new THREE.Color(pt[1]), glow: k.includes('glow'), tint: k.includes('tint') };
     });
   }
   push(e, world) {
     if (this.n >= this.cap) return; const i = this.n++;
+    if (this.lean && leanAngle) { const el = LW.copy(world).elements, x = el[12], y = el[13], z = el[14]; el[12] = el[13] = el[14] = 0; LW.premultiply(LEAN_ROT); el[12] = x; el[13] = y; el[14] = z; world = LW; }
     for (const P of this.parts) {
       CM.multiplyMatrices(world, partMatrix(P.pt, e)); P.m.setMatrixAt(i, CM);
       tC.copy(P.tint && e.tint ? e.tint : P.color); if (e.etint) tC.lerp(e.etint, 0.72).multiplyScalar(1.3);
@@ -724,7 +749,7 @@ class Rig {
       if (e.ghostly) tC.lerp(GHOSTC, 0.72);
       if (e.warn) tC.lerp(REDC, e.warn); if (e.frz > 0) tC.lerp(ICEC, 0.85); else { if (e.chill > 0) tC.lerp(ICEC, 0.55); if (e.acid > 0) tC.lerp(ACIDC, 0.62 + 0.12 * Math.sin(realTime * 9)); }
       P.m.setColorAt(i, tC);
-      if (P.ol) { OM.multiplyMatrices(CM, OUT_S); P.ol.setMatrixAt(i, OM); }
+      if (P.ol) P.ol.setMatrixAt(i, CM);
     }
   }
   end() {
@@ -733,7 +758,10 @@ class Rig {
   }
 }
 const GHOSTC = new THREE.Color(0xdcefff);
-const RIGS = {}; for (const id in RIGS_DEF) RIGS[id] = new Rig(RIGS_DEF[id], RIG_CAP[id] ?? (id.startsWith('hero_') ? 4 : 1));
+// 镜头是俯视的：角色整体往后仰一点，脸和身体才看得见，不会只看到头顶
+const LW = new THREE.Matrix4(), LEAN_ROT = new THREE.Matrix4(), LEAN_AX = new THREE.Vector3(); let leanAngle = 0;
+const LEAN_RIGS = new Set([...Object.keys(ET), 'dean', 'coach', 'kraken', 'minion']);
+const RIGS = {}; for (const id in RIGS_DEF) RIGS[id] = new Rig(RIGS_DEF[id], RIG_CAP[id] ?? (id.startsWith('hero_') ? 4 : 1), id.startsWith('hero_') || LEAN_RIGS.has(id));
 const RIG_OF = (type) => type === 'inkmini' ? 'ink' : type;
 function worldM(x, y, z, yaw, sx, sy = sx, sz = sx, pitch = 0, roll = 0) { wE.set(pitch, yaw, roll, 'YXZ'); wQ.setFromEuler(wE); return WM.compose(wP.set(x, y, z), wQ, wS.set(sx, sy, sz)); }
 
@@ -867,7 +895,7 @@ const sand = new THREE.Mesh(new THREE.PlaneGeometry(2 * HX + 6, 2 * HZ + 6.8), s
 const ground = new THREE.Mesh(new THREE.PlaneGeometry(400, 400), toonOf(0xd9c8a8)); ground.rotation.x = -HP_; ground.position.y = -0.05; scene.add(ground);
 function solid(geo, color, pos, scale, rot = [0, 0, 0], outline = true) {
   const g = new THREE.Group(); g.add(new THREE.Mesh(geo, toonOf(color)));
-  if (outline) { const o = new THREE.Mesh(geo, outlineMat); o.scale.setScalar(1.09); g.add(o); }
+  if (outline) g.add(new THREE.Mesh(smoothOf(geo), outlineRigMat));
   g.position.set(...pos); g.scale.set(...scale); g.rotation.set(rot[0], rot[1], rot[2], 'YXZ'); scene.add(g); return g;
 }
 const WOOD = 0xa8743f;
@@ -883,7 +911,7 @@ const ROOM_THEME = [
   { name: '美术室', wall: 0xfde8e2, trim: 0xe8785a, sign: '#a46bff' },
   { name: '体育馆', wall: 0xeef0d8, trim: 0x3f8f5a, sign: '#3fae5a' },
 ];
-const glowSolid = (geo, color, pos, scale, rot = [0, 0, 0]) => { const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: new THREE.Color(color).multiplyScalar(0.92), toneMapped: false })); m.position.set(...pos); m.scale.set(...scale); m.rotation.set(rot[0], rot[1], rot[2], 'YXZ'); scene.add(m); const o = new THREE.Mesh(geo, outlineMat); o.scale.setScalar(1.1); m.add(o); return m; };
+const glowSolid = (geo, color, pos, scale, rot = [0, 0, 0]) => { const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: new THREE.Color(color).multiplyScalar(0.92), toneMapped: false })); m.position.set(...pos); m.scale.set(...scale); m.rotation.set(rot[0], rot[1], rot[2], 'YXZ'); scene.add(m); m.add(new THREE.Mesh(smoothOf(geo), outlineRigMat)); return m; };
 function wall(x0, x1, z0, z1) { WALLS.push({ x0, x1, z0, z1 }); const w = x1 - x0, d = z1 - z0, cx = (x0 + x1) / 2, cz = (z0 + z1) / 2, th = ROOM_THEME[roomIx(cx, cz)];
   solid(GEO.box, th.wall, [cx, 0.7, cz], [w, 1.4, d]); solid(GEO.box, th.trim, [cx, 1.47, cz], [w + 0.18, 0.14, d + 0.18], [0, 0, 0], false); }
 const DOORS_X = [-30, -12, 12, 30], DOOR_W = 6;
@@ -1541,7 +1569,7 @@ function heroSkinParts(hero, skin) {
 function heroRig(h, sk = skinOf(h)) {
   const S = sk && SKINS[sk]; if (!S) return RIGS['hero_' + h];
   const key = 'hero_' + h + '_' + sk;
-  if (!RIGS[key]) RIGS[key] = new Rig(heroSkinParts(h, S), 4);
+  if (!RIGS[key]) RIGS[key] = new Rig(heroSkinParts(h, S), 4, true);
   return RIGS[key];
 }
 /* ---------- 大鹅抽卡与碎片成长 ---------- */
@@ -4871,6 +4899,8 @@ function drawBossHazards() {
 
 let fireClock = 0;
 function draw(dt) {
+  leanAngle = state !== 'title' && !debugCam ? 0.34 : 0;
+  if (leanAngle) LEAN_ROT.makeRotationAxis(LEAN_AX.setFromMatrixColumn(camera.matrixWorld, 0).setY(0).normalize(), -leanAngle);
   shN = 0;
   drawBossHazards();
   if (state !== 'title') {
