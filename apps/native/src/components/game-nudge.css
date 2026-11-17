@@ -67,6 +67,17 @@
   font-size: 13px;
   font-weight: 650;
 }
+.game-nudge.is-reward .game-nudge-text strong {
+  color: var(--marble-amber-ink);
+}
+.game-nudge.is-draw .game-nudge-text strong {
+  color: var(--marble-pink-ink);
+}
+.game-nudge.is-reward {
+  box-shadow:
+    0 10px 30px rgb(var(--marble-amber-rgb) / 30%),
+    0 1px 0 rgb(255 255 255 / 80%) inset;
+}
 .game-nudge-play:hover .game-nudge-marble {
   animation-duration: 0.9s;
 }

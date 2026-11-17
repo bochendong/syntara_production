@@ -171,7 +171,8 @@ function Preview() {
     new URLSearchParams(location.search).get('scene') === 'celebrate',
   );
   const [notice, setNotice] = useState('');
-  const [nudge, setNudge] = useState(new URLSearchParams(location.search).get('scene') === 'nudge');
+  const scene = new URLSearchParams(location.search).get('scene');
+  const [nudge, setNudge] = useState(scene === 'nudge' || scene === 'reward' || scene === 'draw');
   const [classroomOpen, setClassroomOpen] = useState(false);
   const [classroomDismissed, setClassroomDismissed] = useState(false);
   const expanded = Boolean(launch && !minimized);
@@ -319,6 +320,8 @@ function Preview() {
             snapshot={{ newlyPassed: 5, passed: 5, attempted: 5, total: 26, title: '字符串与切片' }}
             onClose={() => setExample(false)}
             onContinue={() => setExample(false)}
+            gamePoints={24}
+            gameHint="连续学习 2 天 · 再 1 天解锁限定饰品"
             onPlayGame={() => {
               setExample(false);
               setNotice('本地 Mock：这里会直接打开游戏页。');
@@ -327,7 +330,17 @@ function Preview() {
         ) : null}
         {nudge && !expanded ? (
           <GameNudge
-            minutes={25}
+            kind={scene === 'reward' ? 'reward' : scene === 'draw' ? 'draw' : 'time'}
+            eyebrow={
+              scene === 'reward'
+                ? '连续学习 3 天'
+                : scene === 'draw'
+                  ? '今天做对题了'
+                  : '学了 25 分钟 · 攒了 24 积分'
+            }
+            title={
+              scene === 'reward' ? '去领限定饰品' : scene === 'draw' ? '免费抽一次' : '去玩一把'
+            }
             onDismiss={() => setNudge(false)}
             onPlay={() => {
               setNudge(false);

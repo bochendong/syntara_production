@@ -197,7 +197,12 @@ type ProblemPracticePageProps = {
   /** iPad/桌面：「问 AI」把这道题交给课程主聊天。没有时不显示按钮。 */
   onAskAi?: (attachment: ProblemChatAttachment, move: ProblemCoachMove) => void;
   /** 庆祝卡片上的「去玩一把」。手机、老师试做和上课做题时不传或不显示。 */
-  onPlayGame?: () => void;
+  gameInvite?: {
+    onPlay: () => void;
+    onMilestone?: () => void;
+    points?: number;
+    hint?: string | null;
+  };
   loadHiddenTests?: (problemId: string, part?: string) => Promise<RevealedHiddenTests>;
   teacherPracticeStore?: ReturnType<typeof createTeacherPracticeStore>;
   renderClassroomStats?: (problemId: string) => ReactNode;
@@ -362,7 +367,7 @@ export function ProblemPracticePage({
   onBack,
   onMinimize,
   onAskAi,
-  onPlayGame,
+  gameInvite,
   loadHiddenTests,
   teacherPracticeStore,
   renderClassroomStats,
@@ -519,10 +524,12 @@ export function ProblemPracticePage({
   );
   const chapterTitle = launch.title || displayedProblem?.chapterName || undefined;
   const total = orderedIds.length;
+  const showGameInvite = gameInvite && !launch.classSessionId && !launch.teacherPreview;
   const celebrateSubmission = useCallback(
     (problemId: string, status: ProblemStatus, nextStatuses: Map<string, ProblemStatus>) => {
       const newlyPassed = milestones.current.record(problemId, statuses.get(problemId), status);
       if (newlyPassed === null) return;
+      if (showGameInvite) gameInvite.onMilestone?.();
       setCelebration({
         newlyPassed,
         passed: orderedIds.filter((id) => nextStatuses.get(id) === 'passed').length,
@@ -531,7 +538,7 @@ export function ProblemPracticePage({
         title: chapterTitle || '这一组题',
       });
     },
-    [chapterTitle, orderedIds, statuses],
+    [chapterTitle, gameInvite, orderedIds, showGameInvite, statuses],
   );
   const dismissCelebration = () => {
     setCelebration(null);
@@ -2045,13 +2052,15 @@ export function ProblemPracticePage({
           snapshot={celebration}
           onClose={dismissCelebration}
           onPlayGame={
-            onPlayGame && !launch.classSessionId && !launch.teacherPreview
+            showGameInvite
               ? () => {
                   dismissCelebration();
-                  onPlayGame();
+                  gameInvite.onPlay();
                 }
               : undefined
           }
+          gamePoints={gameInvite?.points}
+          gameHint={gameInvite?.hint}
           onContinue={() => {
             dismissCelebration();
             const next = [
