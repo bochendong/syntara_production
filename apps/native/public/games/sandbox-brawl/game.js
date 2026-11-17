@@ -120,6 +120,8 @@ const RELICS = {
   heavybag: { name: '超重书包',   tag: '', curse: 1, icon: 'dumbbell', hpMul: 1.25, st: { speed: -0.08 }, desc: '生命上限 +25%，移速 -8%' },
   bonusStamp: { name: '加分印章', tag: '', r: 0, icon: 'redpen', pointsRate: 10, desc: '结算积分 +10%，每件叠加' },
   mealVoucher: { name: '食堂饭票', tag: '', r: 1, icon: 'snack', pointsFlat: 3, desc: '结算额外获得 3 积分，每件叠加' },
+  // study = 连续学习这么多天才解锁，抽卡抽不到（见 STUDY_REWARDS）
+  attendance: { name: '全勤徽章', tag: '', r: 2, icon: 'first', iconCategory: 'ach', study: 3, st: { xp: 0.08, luck: 0.02 }, desc: '经验 +8%，幸运 +2 个百分点' },
 };
 const RAR = [['普通', '#b9ad98', 'q0'], ['稀有', '#3fae5a', 'rare'], ['传奇', '#e0473c', 'legend']], RAR3 = [0xf2ead8, 0x5fd07a, 0xff5a4a];
 const rarOf = (id) => (RELICS[id].curse ? { n: '代价', c: '#4a6ad8', k: 'curse' } : { n: RAR[RELICS[id].r][0], c: RAR[RELICS[id].r][1], k: RAR[RELICS[id].r][2] });
@@ -1049,7 +1051,7 @@ const cloudGame = !!expectedGameAccount;
 let cloudSave = null;
 const PRICE = { heroes: 150 }, FREE_SKILLS = ['mop', 'plane'];
 const DEF0 = { heroes: ['brawler', 'scholar', 'jock'], arts: ['vamp', 'mirror', 'plate', 'koi', 'retake', 'bell'], relics: ['dumbbell', 'wrist', 'mom', 'bucket', 'scope', 'lens', 'drink', 'band', 'milk', 'magnet', 'sticky', 'powder', 'starSticker'] };
-const meta = { pts: 0, heroes: [...DEF0.heroes], arts: [...DEF0.arts], relics: [...DEF0.relics], seen: [], ach: [], skins: [], ults: [], weapons: [], top: [], unread: [], clearedDifficulties: [], skinOn: {}, growth: {}, fragments: {}, itemLevels: {}, practiceTransfer: '', stat: { runs: 0, kills: 0, wins: 0, hardWin: 0, pulls: 0, pity: 0 } };
+const meta = { pts: 0, heroes: [...DEF0.heroes], arts: [...DEF0.arts], relics: [...DEF0.relics], seen: [], ach: [], skins: [], ults: [], weapons: [], top: [], unread: [], clearedDifficulties: [], skinOn: {}, growth: {}, fragments: {}, itemLevels: {}, practiceTransfer: '', study: { freeDay: '' }, stat: { runs: 0, kills: 0, wins: 0, hardWin: 0, pulls: 0, pity: 0 } };
 let legacyPreviewUnlocks = false;
 function loadMeta() {
   try {
@@ -1278,9 +1280,16 @@ const LEG_SK = {
   brawler: ['金牌冠军', { top: 0xffc93c, pants: 0xfff3d0, band: 0xff5f5f }, 0xffc93c], scholar: ['星空学霸', { top: 0x2a2a5a, pants: 0x1a1a3a, accent: 0xffe07a, hair: 0x8ab8ff }, 0x8ab8ff],
   poet: ['花神', { top: 0xffb0d0, hair: 0xffffff, beret: 0xff5f9e }, 0xff8fc8], captain: ['应援偶像', { top: 0xff5f9e, hair: 0xb69cff, accent: 0x7fd3ff }, 0xff5f9e], owl: ['月夜', { top: 0x1e1a3a, hair: 0xe8e8ff, accent: 0xffe07a }, 0x9fb8ff],
 };
+// 限定皮肤：连续学习够天数才解锁，抽卡抽不到
+const STUDY_SK = {
+  scholar_s: { h: 'scholar', n: '晨读之星', r: 1, study: 7, over: { top: 0xfff3d0, pants: 0x3a6ad8, accent: 0xff8a3a, hair: 0x3a2a22 } },
+  brawler_s: { h: 'brawler', n: '全勤传说', r: 2, study: 14, over: { top: 0xfff7e0, pants: 0xe2453a, band: 0xffc93c, hair: 0xffc93c }, aura: 0xff8a3a },
+};
 const SKINS = {};
 for (const h in RARE_SK) SKINS[h + '_r'] = { h, n: RARE_SK[h][0], r: 1, over: RARE_SK[h][1] };
 for (const h in LEG_SK) SKINS[h + '_l'] = { h, n: LEG_SK[h][0], r: 2, over: LEG_SK[h][1], aura: LEG_SK[h][2] };
+Object.assign(SKINS, STUDY_SK);
+const skinHow = (k) => SKINS[k].study ? `连续学习 ${SKINS[k].study} 天` : '抽卡';
 const skinOf = (h) => { const k = meta.skinOn[h]; return k && SKINS[k] && meta.skins.includes(k) ? k : ''; };
 function heroSkinParts(hero, skin) {
   const parts = heroParts({ ...CLASSES[hero].look, ...skin.over });
@@ -1307,7 +1316,7 @@ function drawCampusStudent(rig, pose, x, y, z, yaw) {
 const GACHA = { one: 30, ten: 270, pity: 80, legendary: 0.05, rareFragment: 0.30, duplicateBack: { 1: 10, 2: 25 } };
 const GACHA_POOLS = { skills: '技能升级', heroes: '人物', skins: '皮肤' };
 const G_ULT = GACHA_ULT.map((id) => `ult_${id}`);
-const G_SKINS = Object.keys(SKINS);
+const G_SKINS = Object.keys(SKINS).filter((id) => !SKINS[id].study);
 const drawableHeroes = Object.keys(CLASSES).filter((id) => !DEF0.heroes.includes(id) && !achFor('heroes', id));
 let gachaPool = 'skills';
 const FRAGMENT_POOLS = { skills: WEAPONS, relics: RELICS, arts: ARTS };
@@ -1317,6 +1326,8 @@ const RELIC_LEVEL_DAMAGE = 0.005, ART_LEVEL_HP = 1;
 const fragmentKey = (kind, id) => `${kind}:${id}`;
 const fragmentCount = (kind, id) => meta.fragments[fragmentKey(kind, id)] || 0;
 const fragmentName = (kind, id) => FRAGMENT_POOLS[kind][id].name;
+// 连续学习才解锁的东西，没解锁前不掉碎片
+const fragmentDrops = (kind, id) => !FRAGMENT_POOLS[kind][id].study || fragmentOwned(kind, id);
 const fragmentOwned = (kind, id) => kind === 'skills' ? skillOpen(id) : meta[kind].includes(id);
 const itemLevel = (kind, id) => fragmentOwned(kind, id)
   ? clamp(Math.floor(Number(meta.itemLevels[fragmentKey(kind, id)])) || 1, 1, ITEM_MAX_LEVEL)
@@ -1365,7 +1376,7 @@ function gachaRoll(pool, atLeastRare) {
   if (pool === 'skills' && !legendary) {
     const rare = atLeastRare || roll < GACHA.legendary + GACHA.rareFragment;
     const kind = randomGachaItem(Object.keys(FRAGMENT_POOLS));
-    const id = randomGachaItem(Object.keys(FRAGMENT_POOLS[kind]));
+    const id = randomGachaItem(Object.keys(FRAGMENT_POOLS[kind]).filter((id) => fragmentDrops(kind, id)));
     return { tier: rare ? 1 : 0, ...grantFragments(kind, id, rare ? 8 : 4) };
   }
   if (legendary) st.pity = 0;
@@ -1383,7 +1394,13 @@ const gachaNoticeKey = (id, kind) => kind ? fragmentKey(kind, id)
   : id.startsWith('hero_') ? `heroes:${id.slice(5)}`
   : id.startsWith('ult_') ? `ults:${id.slice(4)}` : `skins:${id}`;
 const newDrawItem = (reward) => reward.kind ? reward.newItem : !reward.dup;
-const gachaCost = (pool, n) => pool === 'heroes' ? PRICE.heroes : n === 10 ? GACHA.ten : GACHA.one;
+const FREE_DRAW_POOL = 'skills';
+const usesFreeDraw = (pool, n) => pool === FREE_DRAW_POOL && n === 1 && freeDrawReady();
+function gachaCost(pool, n) {
+  if (usesFreeDraw(pool, n)) return 0;
+  if (pool === 'heroes') return PRICE.heroes;
+  return n === 10 ? GACHA.ten : GACHA.one;
+}
 function canGachaDraw(pool, n) {
   if (!Object.hasOwn(GACHA_POOLS, pool) || (n !== 1 && n !== 10)) return false;
   if (pool === 'heroes' && (n !== 1 || remainingGachaHeroes().length === 0)) return false;
@@ -1391,7 +1408,9 @@ function canGachaDraw(pool, n) {
 }
 function gachaPull(n, pool = gachaPool) {
   if (!canGachaDraw(pool, n)) return null;
+  const free = usesFreeDraw(pool, n);
   meta.pts -= gachaCost(pool, n);
+  if (free) meta.study.freeDay = study.day;
   const res = [];
   for (let i = 0; i < n; i++) {
     res.push(gachaRoll(pool, n === 10 && i === n - 1 && !res.some((q) => q.tier >= 1)));
@@ -2541,7 +2560,7 @@ function backToTitle() { titleEl.hidden = false; if (titleStep === 'home') rende
 function renderHome(focusId = 'hGo') {
   titleEl.className = 'home';
   titleEl.innerHTML = `<div class="homeTop"><div class="logo" role="heading" aria-level="1" aria-label="${document.title}">${[...document.title].map((ch, i) => `<span aria-hidden="true" style="--i:${i}">${ch}</span>`).join('')}</div>
-    <div class="tagline">拖延、错题、手机、DDL 都长出了腿</div></div>
+    <div class="tagline">拖延、错题、手机、DDL 都长出了腿</div>${studyChip()}</div>
     <button class="homeHelp" id="hHow">怎么玩</button>
     <nav class="homeLinks homeLinksLeft" aria-label="成就和图鉴">
       <button id="hAch"${unreadDot(hasUnread('ach'))}>${ico('#eaa43a', 'star')}成就</button>
@@ -2549,7 +2568,7 @@ function renderHome(focusId = 'hGo') {
     </nav>
     <nav class="homeLinks homeLinksRight" aria-label="排行、抽卡和成长">
       <button id="hRank">${ico('#36a680', 'crown')}排行</button>
-      <button id="hGacha"${unreadDot(hasUnreadDraw())}>${ico('#d86f93', 'sparkle')}抽卡</button>
+      <button id="hGacha"${unreadDot(hasUnreadDraw() || freeDrawReady())}>${ico('#d86f93', 'sparkle')}抽卡</button>
       <button id="hGrowth">${illustratedBadge('stats', 'xp', STATS.xp.c)}成长</button>
     </nav>
     <div class="homeBot"><button class="primary big" id="hGo"${unreadDot(hasUnread('heroes'))}>开始</button><button id="hNet">联机</button></div>`;
@@ -2871,7 +2890,7 @@ function codexItems(tab, drawPool) {
       id: `hero_${id}`, name: CLASSES[id].name, c: RC[1], ic: id, iconCategory: 'heroes',
       open: isOpen(id), tag: RN[1], desc: `${CLASSES[id].desc}。抽到后直接解锁，在准备页可以选这位同学。`,
     })) : [];
-    const fragments = !drawPool || drawPool === 'skills' ? Object.entries(FRAGMENT_POOLS).flatMap(([kind, pool]) => Object.keys(pool).map((id) => ({
+    const fragments = !drawPool || drawPool === 'skills' ? Object.entries(FRAGMENT_POOLS).flatMap(([kind, pool]) => Object.keys(pool).filter((id) => fragmentDrops(kind, id)).map((id) => ({
       id: fragmentKey(kind, id), name: `${fragmentName(kind, id)}碎片`, c: pool[id].c ?? RC[1], ic: id,
       iconCategory: kind, open: fragmentOwned(kind, id), progress: fragmentProgress(kind, id),
       desc: `${FRAGMENT_LABEL[kind]}碎片。普通掉落 4 枚，稀有掉落 8 枚。`,
@@ -2879,7 +2898,7 @@ function codexItems(tab, drawPool) {
     return [...prizes, ...heroes, ...fragments];
   }
   if (tab === 'ach') return ACH.map((a) => ({ id: a.id, name: a.n, c: '#ffaa1e', ic: a.ic, open: meta.ach.includes(a.id), mon: true, desc: `${a.d}${a.note ? '，' + a.note : ''}。奖励：${achReward(a)}。${meta.ach.includes(a.id) ? '已达成。' : ''}` }));
-  if (tab === 'heroes') return CLS_IDS.map((id) => { const c = CLASSES[id]; const sk = Object.keys(SKINS).filter((k) => SKINS[k].h === id).map((k) => `${SKINS[k].n}（${RN[SKINS[k].r]}）`).join('、'); return { id, name: c.name, short: c.short, c: TAGS[c.tag].c, ic: c.start, open: isOpen(id), kind: achFor('heroes', id) ? null : 'heroes', tag: tagOf('heroes', id), hint: howGet('heroes', id), desc: `${TAGS[c.tag].name} · ${c.desc}。加入后这个技能也会进入技能池。<b>怎么获得：</b>${howGet('heroes', id)}。皮肤（抽卡）：${sk}。` }; });
+  if (tab === 'heroes') return CLS_IDS.map((id) => { const c = CLASSES[id]; const sk = Object.keys(SKINS).filter((k) => SKINS[k].h === id).map((k) => `${SKINS[k].n}（${SKINS[k].study ? `限定，${skinHow(k)}` : RN[SKINS[k].r]}）`).join('、'); return { id, name: c.name, short: c.short, c: TAGS[c.tag].c, ic: c.start, open: isOpen(id), kind: achFor('heroes', id) ? null : 'heroes', tag: tagOf('heroes', id), hint: howGet('heroes', id), desc: `${TAGS[c.tag].name} · ${c.desc}。加入后这个技能也会进入技能池。<b>怎么获得：</b>${howGet('heroes', id)}。皮肤：${sk}。` }; });
   if (tab === 'skills') return Object.entries(WEAPONS).map(([id, weapon]) => {
     const open = skillOpen(id);
     const item = { id, name: weapon.name, c: weapon.c, ic: id, open, progress: fragmentProgress('skills', id) };
@@ -2896,8 +2915,8 @@ function codexItems(tab, drawPool) {
     const pickup = tab === 'arts' ? '对局里在金色光柱下三选一。' : '对局里通过怪物掉落或精英宝箱三选一。同一件可以叠加。';
     return {
       id, name: item.name, c: item.c ?? TAGS[item.tag]?.c ?? '#b8433a', open: level > 0,
-      level, progress: fragmentProgress(tab, id), tag: `${fragmentCount(tab, id)} / ${FRAGMENT_UNLOCK} 碎片`,
-      desc: `${item.desc}。${pickup}${achievement && !level ? `达成成就「${achievement.n}」也能解锁。` : ''}`,
+      level, progress: item.study && !level ? '' : fragmentProgress(tab, id), tag: item.study ? `连学 ${item.study} 天` : `${fragmentCount(tab, id)} / ${FRAGMENT_UNLOCK} 碎片`,
+      desc: `${item.desc}。${pickup}${item.study ? `<b>怎么获得：</b>限定饰品，连续学习 ${item.study} 天解锁（每天至少提交一道题）。` : ''}${achievement && !level ? `达成成就「${achievement.n}」也能解锁。` : ''}`,
     };
   });
   return MON_ORDER.map((id) => { const m = MON_INFO[id] || MON_MORE[id], seen = meta.seen.includes(id); return { id, name: seen ? m[0] : '？？？', c: seen ? MON_C[id] : '#a89a92', ic: seen ? m[0][0] : '?', open: seen, mon: true, desc: seen ? m[1] + '。' : '还没遇到过，对局里见到一次就会记下来。' }; });
@@ -3138,7 +3157,7 @@ function renderPrep(fresh) {
     <div class="hinfo"><p>${aL ? `还没加入。达成成就「${aL.n}」（${aL.d}）后加入。` : locked ? `还没加入。用 ${PRICE.heroes} 积分兑换，现在有 ${meta.pts} 积分。每局结束都会拿到积分。` : cls.desc}</p>
       ${heroStats(cls)}</div>
     <h3>皮肤</h3>
-    <div class="skins"><button class="sk ${on ? '' : 'on'}" data-sk="">${ico(t.c, cls.start)}默认</button>${mySk.map((k) => { const own = meta.skins.includes(k); return `<button class="sk ${on === k ? 'on' : ''} ${own ? '' : 'lk'}" data-sk="${k}"${own ? '' : ' disabled'}${unreadDot(isUnread(`skins:${k}`))}>${ico(own ? RC[SKINS[k].r] : '#a89a92', own ? cls.start : 'lock')}${SKINS[k].n}${own ? '' : ' · 抽卡'}</button>`; }).join('')}</div>
+    <div class="skins"><button class="sk ${on ? '' : 'on'}" data-sk="">${ico(t.c, cls.start)}默认</button>${mySk.map((k) => { const own = meta.skins.includes(k); return `<button class="sk ${on === k ? 'on' : ''} ${own ? '' : 'lk'}" data-sk="${k}"${own ? '' : ' disabled'}${unreadDot(isUnread(`skins:${k}`))}>${ico(own ? RC[SKINS[k].r] : '#a89a92', own ? cls.start : 'lock')}${SKINS[k].n}${own ? '' : ' · ' + skinHow(k)}</button>`; }).join('')}</div>
     <h3>模式</h3>
     <div class="opts2">${Object.keys(MODES).map((m) => { const lk = m === 'endless' && !endlessOpen(); return `<button class="opt ${m === modeId ? 'on' : ''} ${lk ? 'lk' : ''}" data-m="${m}" ${lk ? 'disabled' : ''}><b>${MODES[m].name}</b><small>${lk ? ENDLESS_REQUIREMENT : m === 'std' ? '10:00 打倒大魔王' : bestEndless ? `最好 ${fmt(bestEndless)}` : '能撑多久算多久'}</small></button>`; }).join('')}</div>
     <h3>难度</h3>
@@ -3163,7 +3182,10 @@ function renderPrep(fresh) {
 }
 let theater;
 const gch = { on: false, res: [], t: 0, struck: false, revealed: false, feature: null, n: 1 };
-function openGacha(n) { wipe(() => { titleStep = 'gacha'; renderGacha(); if (n) gachaStart(n); }); }
+function openGacha(n) {
+  if (!n && freeDrawReady()) gachaPool = FREE_DRAW_POOL;
+  wipe(() => { titleStep = 'gacha'; renderGacha(); if (n) gachaStart(n); });
+}
 function gachaPoolDetails() {
   if (gachaPool === 'heroes') {
     const remaining = remainingGachaHeroes().length;
@@ -3175,15 +3197,16 @@ function gachaPoolDetails() {
   return `武器、饰品、遗物碎片 · 第二终极形态 5%<br>稀有碎片 30% · 十连至少一张稀有或以上<br>${pity}`;
 }
 function renderGacha() {
+  const free = usesFreeDraw(gachaPool, 1);
   titleEl.className = 'gacha'; titleEl.hidden = false;
   titleEl.innerHTML = `<div class="gTop"><button id="gBack" ${gch.on ? 'hidden' : ''}>返回</button><span class="pill">${gachaPreview ? '试抽积分' : '积分'} ${meta.pts}</span></div>
     <div class="gTitle">大鹅抽卡</div>
     ${gch.on ? '<div id="gReveal" class="gReveal" aria-live="polite"></div>' : ''}
     <div class="gBot">${gch.on ? '<button id="gSkip">跳过动画</button>' : `
       <div class="gPools" role="group" aria-label="抽卡奖池">${Object.entries(GACHA_POOLS).map(([id, name]) =>
-        `<button type="button" data-pool="${id}" aria-pressed="${id === gachaPool}"${unreadDot(hasUnreadDraw(id))}>${name}</button>`).join('')}</div>
+        `<button type="button" data-pool="${id}" aria-pressed="${id === gachaPool}"${unreadDot(hasUnreadDraw(id) || usesFreeDraw(id, 1))}>${name}</button>`).join('')}</div>
       <div class="row">
-        <button class="${gachaPool === 'heroes' ? 'primary ' : ''}big" id="g1" ${canGachaDraw(gachaPool, 1) ? '' : 'disabled'}>单抽 · ${gachaCost(gachaPool, 1)}</button>
+        ${free ? '<button class="big free" id="g1" data-unread aria-description="今天做对了题，送一次">免费单抽</button>' : `<button class="${gachaPool === 'heroes' ? 'primary ' : ''}big" id="g1" ${canGachaDraw(gachaPool, 1) ? '' : 'disabled'}>单抽 · ${gachaCost(gachaPool, 1)}</button>`}
         ${gachaPool === 'heroes' ? '' : `<button class="primary big" id="g10" ${canGachaDraw(gachaPool, 10) ? '' : 'disabled'}>十连 · ${gachaCost(gachaPool, 10)}</button>`}
         <button id="gPool"${unreadDot(hasUnreadDraw(gachaPool))}>看奖池</button>
       </div><small class="gPoolDetails">${gachaPoolDetails()}</small>`}</div>`;
@@ -5923,6 +5946,41 @@ function useGameAccount(account) {
   BEST_KEY = `${SAVE_PREFIX}.best:${accountKey}`;
 }
 
+/* ---------- 学习奖励：连续学习解锁限定皮肤 / 饰品，每天第一道做对的题送一次免费单抽 ---------- */
+// 天数和够不够格由服务器按做题记录算（lib/server/brawl-study.ts），这里只管发和显示。
+const STUDY_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone;
+const STUDY_REWARDS = [
+  ...Object.keys(RELICS).filter((id) => RELICS[id].study).map((id) => ({ kind: 'relics', id, days: RELICS[id].study, name: RELICS[id].name, label: '限定饰品' })),
+  ...Object.keys(STUDY_SK).map((id) => ({ kind: 'skins', id, days: STUDY_SK[id].study, name: `${CLASSES[STUDY_SK[id].h].name} · ${STUDY_SK[id].n}`, label: STUDY_SK[id].r === 2 ? '限定传说皮肤' : '限定皮肤' })),
+].sort((a, b) => a.days - b.days);
+let study = null;
+const freeDrawReady = () => !!study?.passedToday && meta.study.freeDay < study.day;
+const nextStudyReward = () => study && STUDY_REWARDS.find((reward) => !meta[reward.kind].includes(reward.id));
+// 返回这次新解锁的奖励（没有就是 null）
+function applyStudy(next) {
+  if (!next || typeof next.day !== 'string') return null;
+  study = next;
+  if (!meta.study || typeof meta.study.freeDay !== 'string') meta.study = { freeDay: '' };
+  const unlocked = STUDY_REWARDS.filter((reward) => next.best >= reward.days && !meta[reward.kind].includes(reward.id));
+  if (!unlocked.length) return null;
+  for (const reward of unlocked) {
+    meta[reward.kind].push(reward.id);
+    markUnread(`${reward.kind}:${reward.id}`);
+  }
+  saveMeta();
+  return unlocked;
+}
+function studyBanner(unlocked) {
+  const top = unlocked[unlocked.length - 1];
+  banner(`连续学习 ${top.days} 天`, `解锁${unlocked.map((reward) => `${reward.label}「${reward.name}」`).join('、')}`);
+}
+function studyChip() {
+  if (!study) return '';
+  const next = nextStudyReward();
+  const left = next ? Math.max(1, next.days - Math.max(study.streak, 0)) : 0;
+  return `<div class="studyChip" id="hStudy"><b>连续学习 ${study.streak} 天</b>${next ? `<span>再学 ${left} 天解锁${next.label}「${next.name}」</span>` : '<span>限定奖励已全部解锁</span>'}</div>`;
+}
+
 async function requestBrawlSave(payload) {
   const response = await fetch('/api/native/v1/games/brawl/save', {
     method: 'POST',
@@ -6021,12 +6079,14 @@ async function startCloudGame() {
   const legacy = legacySave(expectedGameAccount, importedKey);
   cloudSave = createBrawlSaveQueue({ request: requestBrawlSave, store: localStorage, key: queueKey, onError: showSaveError });
   await cloudSave.flush();
-  const result = await requestBrawlSave({ action: 'open', legacy });
+  const result = await requestBrawlSave({ action: 'open', legacy, timeZone: STUDY_TZ });
   cloudSave.open(result.revision);
   useCloudData(result.data);
   localStorage.setItem(importedKey, '1');
+  const unlocked = applyStudy(result.study);
   showTitle();
-  if (result.practicePoints) banner(`做题积分 +${result.practicePoints}`, `当前有 ${meta.pts} 积分`);
+  if (unlocked) studyBanner(unlocked);
+  else if (result.practicePoints) banner(`做题积分 +${result.practicePoints}`, `当前有 ${meta.pts} 积分`);
 
   let refreshing = false;
   async function refresh() {
@@ -6036,11 +6096,13 @@ async function startCloudGame() {
     titleEl.inert = true;
     try {
       await cloudSave.flush();
-      const updated = await requestBrawlSave({ action: 'open' });
+      const updated = await requestBrawlSave({ action: 'open', timeZone: STUDY_TZ });
       cloudSave.open(updated.revision);
       useCloudData(updated.data);
+      const unlocked = applyStudy(updated.study);
       renderHome();
-      if (updated.practicePoints) banner(`做题积分 +${updated.practicePoints}`, `当前有 ${meta.pts} 积分`);
+      if (unlocked) studyBanner(unlocked);
+      else if (updated.practicePoints) banner(`做题积分 +${updated.practicePoints}`, `当前有 ${meta.pts} 积分`);
     } catch (error) { showSaveError(error); }
     finally {
       titleEl.inert = false;

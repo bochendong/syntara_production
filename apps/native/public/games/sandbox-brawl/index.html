@@ -217,6 +217,9 @@ button[disabled] { opacity: .5; cursor: not-allowed; transform: none; box-shadow
 @keyframes logoIn { from { transform: translateY(-140%) rotate(-30deg) scale(.4); opacity: 0; } }
 @keyframes sway { from { rotate: var(--tilt); translate: 0 0; } to { rotate: calc(var(--tilt) * -0.6); translate: 0 -6px; } }
 .tagline { margin: 6px 0 0; font-weight: 800; font-size: clamp(13px, 2.4vw, 17px); background: var(--paper); border: 2.5px solid var(--ink); border-radius: 999px; padding: 4px 18px; box-shadow: 0 3px 0 var(--ink); rotate: -1.5deg; animation: logoIn .6s .45s var(--bounce) backwards; pointer-events: none; text-align: center; }
+.studyChip { margin-top: 10px; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 2px 8px; max-width: 92vw; padding: 4px 14px; font-weight: 800; font-size: clamp(12px, 2vw, 14.5px); background: #fff3c4; border: 2.5px solid var(--ink); border-radius: 999px; box-shadow: 0 3px 0 var(--ink); rotate: 1deg; animation: logoIn .6s .6s var(--bounce) backwards; pointer-events: none; text-align: center; }
+.studyChip b { color: #c2551b; }
+.gBot .free { background: #ffd23f; }
 .homeBot { grid-area: 3 / 1 / 4 / -1; display: grid; justify-items: center; gap: 12px; animation: rise .5s .5s var(--bounce) backwards; }
 .homeBot .big { font-size: 34px; padding: 8px 64px 13px; animation: breathe 1.4s ease-in-out infinite alternate; }
 .homeBot { grid-auto-flow: column; align-items: center; }
@@ -775,4 +778,4 @@ body.roster-paused #hurtFx { animation-play-state: paused; }
 <div class="ov" id="ov" hidden><div class="panel frame" id="panel"></div></div>
 <div id="wipe"></div>
 
-<script type="module" src="./game.js?v=bar-magnet"></script>
+<script type="module" src="./game.js?v=study-and-pools"></script>
