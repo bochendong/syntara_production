@@ -1,0 +1,20 @@
+{
+  "status": "deployed",
+  "at": "2026-11-17T16:47:45.692Z",
+  "environment": "staging",
+  "revision": "4fd726a7b6a89844f339426d0afbcd246586447c",
+  "deploymentId": "d40bf086-8a90-43d2-81f6-63f255a7c6e3",
+  "previousRevision": "e546a3addcbafe869ed68c5c603b531eeed69fc1",
+  "changes": [
+    "Require a standard hard clear to unlock endless mode in solo and for every player in a multiplayer room.",
+    "Offer two random element options and allow players to refresh them for points.",
+    "Reduce chalk and paper-ball projectile speed by 30 percent.",
+    "Publish the revised character, enemy, boss, and knockback balance and the upgrade card layout."
+  ],
+  "appliedMigrations": [],
+  "pendingMigrations": 0,
+  "verification": {
+    "local": "Verified JavaScript syntax, formatting, lint, TypeScript, save queue regressions, and the upgrade selection UI.",
+    "staging": "Verified Railway success, public health and revision, the app entry, matching game HTML and JavaScript hashes, the solo endless lock and game start, and eligible and ineligible starts through a temporary multiplayer room."
+  }
+}
