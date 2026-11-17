@@ -1773,6 +1773,8 @@ if (!cloudGame) loadBestEndless();
 let state = 'title', T = 0, timeScale = 1, nextElite = 75, nextBats = 25, nextBomb = 90, nextBoss = BOSS_T, bossCount = 0, boss = null, ev = {};
 let pendingUlt = [], gifts = [], corpses = [], drops = [], altars = [], pendingInfuse = [], CW = null, watchT = 12, shieldT = 10;
 let enemies = [], eid = 0, shots = [], planes = [], gems = [], chests = [], eshots = [], minions = [], lamps = [], ducks = [], slippers = [], books = [], wet = [], blasts = [], pendingLevels = 0;
+const queuedEnemySpawns = [], BATCH_SPAWN_INTERVAL = 0.25;
+let nextEnemySpawnAt = 0, nextBatchSpawnAt = 0;
 const BOSS_METEOR = { radius: 2.5, warning: 1.25, damage: 46, color: 0xff4137 };
 const BOSS_MISSILE_BLAST = { radius: 1.7, warning: 0.22, damage: 36, color: 0xff9e39 };
 const BOSS_PULL_RADIUS = 11, BOSS_PULL_WARNING = 0.55, BOSS_PULL_DURATION = 2.35;
@@ -2143,6 +2145,7 @@ function killEnemy(e, tag) {
   if (e.type === 'hourglass' && !netGuest() && Math.random() < (NET && NET.on && NET.n > 1 ? 0.22 : 0.4)) chests.push({ x: e.x, z: e.z });
   if (e.type === 'boss') {
     boss = null; bossHazards.clear(); tele.visible = false;
+    queuedEnemySpawns.length = 0;
     if (!netGuest()) for (const missile of enemies) if (missile.type === 'bossMissile') missile.dead = true;
     $('bossBar').hidden = true; $('hud').classList.remove('boss'); ripple(e.x, e.z, 1.6); shake = 0.8; chroma = 1; bossCount++;
     if (modeId === 'std') { timeScale = 0.25; setTimeout(() => { timeScale = 1; showWin(); }, 1400); }
@@ -2162,8 +2165,8 @@ function killEnemy(e, tag) {
 }
 // 经验球分三档：小怪掉小的，中等怪掉中的，大怪和精英掉大的
 const gemSize = (v) => (v >= 10 ? 2 : v >= 3 ? 1 : 0);
-const GIANT_OK = ['sleepy', 'cross', 'ink', 'snail', 'clock'], GIANT_T = 420; let forceGiant = false;
-function spawn(type, x, z) {
+const GIANT_OK = ['sleepy', 'cross', 'ink', 'snail', 'clock'], GIANT_T = 420;
+function spawn(type, x, z, forceGiant = false) {
   const bossUnit = type === 'boss' || type === 'bossMissile';
   if (enemies.length >= (bossUnit ? 472 : 460)) return null;
   if (NET && NET.on && !NET.host && !NET.mirroring) return null;
@@ -2187,14 +2190,14 @@ function spawn(type, x, z) {
   if (type === 'bossMissile') { e.hp = e.maxHp = t.hp * DF().hp; e.spawn = 0; e.life = 6; }
   enemies.push(e); return e;
 }
-function spawnNear(type, minR = 10, maxR = 17) {
+function spawnNear(type, minR = 10, maxR = 17, forceGiant = false) {
   const origin = netTarget();
   if (!origin) return null;
   for (let k = 0; k < 8; k++) {
     const a = Math.random() * TAU, Rr = rnd(minR, maxR), x = origin.x + Math.cos(a) * Rr, z = origin.z + Math.sin(a) * Rr;
     if (Math.abs(x) > HX - 0.5 || Math.abs(z) > HZ - 0.5 || inWall(x, z, 1)) continue;
     if (PROPS.some((p) => Math.hypot(x - p.x, z - p.z) < p.r + 1)) continue;
-    const e = spawn(type, x, z); if (e && !e.fly) blot(x, z, e.r * 0.9, 'rgba(120,80,50,.12)'); return e;
+    const e = spawn(type, x, z, forceGiant); if (e && !e.fly) blot(x, z, e.r * 0.9, 'rgba(120,80,50,.12)'); return e;
   }
   return null;
 }
@@ -2690,7 +2693,10 @@ for (const p of PORTALS) {
 let portalAcc = 0, portalI = 0;
 function portalWave() {
   const p = PORTALS[portalI++ % 4], pool = SPAWN_TABLE.filter((t) => T >= t[1] && !['bomber', 'chalk', 'mole', 'snail'].includes(t[0])), n = Math.min(12, 4 + Math.floor(T / 50));
-  for (let k = 0; k < n; k++) { const a = rnd(0, TAU), r = rnd(0.2, 1.9), e = spawn(pool[(Math.random() * pool.length) | 0][0], p.x + Math.cos(a) * r, p.z + Math.sin(a) * r); if (e) e.spawn = 1 + k * 0.12; }
+  for (let k = 0; k < n; k++) {
+    const a = rnd(0, TAU), r = rnd(0.2, 1.9), type = pool[(Math.random() * pool.length) | 0][0];
+    queuedEnemySpawns.push(() => spawn(type, p.x + Math.cos(a) * r, p.z + Math.sin(a) * r));
+  }
   p.flash = 1; ringFx(p.x, p.z, 3.4, 0xc89aff, 0.6); spark(p.x, 0.6, p.z, 0xc89aff, 30, 7, 0.4, 0.7); dust(p.x, p.z, 16, 5);
 }
 function drawPortals(dt) {
@@ -2814,7 +2820,11 @@ const confetti = (n = 36) => `<div class="confetti">${Array.from({ length: n }, 
 
 /* ---------- 首页 → 准备页 → 开局 ---------- */
 let titleStep = 'home', selF = 0;
-function clearField() { bossHazards.clear(); gifts = []; enemies = []; shots = []; planes = []; gems = []; chests = []; eshots = []; minions = []; lamps = []; ducks = []; slippers = []; books = []; wet = []; blasts = []; bolts = []; corpses = []; drops = []; altars = []; pendingInfuse = []; pools.length = 0; cups = []; pendingUlt = []; tele.visible = false; task = null; taskHudT = 0; boss = null; }
+function clearField() {
+  queuedEnemySpawns.length = 0;
+  nextEnemySpawnAt = nextBatchSpawnAt = 0;
+  bossHazards.clear(); gifts = []; enemies = []; shots = []; planes = []; gems = []; chests = []; eshots = []; minions = []; lamps = []; ducks = []; slippers = []; books = []; wet = []; blasts = []; bolts = []; corpses = []; drops = []; altars = []; pendingInfuse = []; pools.length = 0; cups = []; pendingUlt = []; tele.visible = false; task = null; taskHudT = 0; boss = null;
+}
 function showTitle(step) {
   if (state !== 'title') { clearField(); camPos.copy(camera.position); camTgt.copy(camLook); }
   if (typeof step === 'string') titleStep = step; else if (state !== 'title') titleStep = 'prep';
@@ -4210,7 +4220,7 @@ function startRun() {
   $('who').innerHTML = illustratedBadge('heroes', clsId, TAGS[cls.tag].c, 40); $('pname').textContent = cls.name; hud.lv = 1; hud.points = meta.pts; $('lv').textContent = 1; $('score').textContent = meta.pts;
   camLook.set(0, 0, 0);
   state = 'play';
-  for (let k = 0; k < 6; k++) spawnNear('sleepy', 8, 13);
+  if (!netGuest()) for (let k = 0; k < 6; k++) queuedEnemySpawns.push(() => spawnNear('sleepy', 8, 13));
   renderSlots(); renderItems(); banner('第一波', modeId === 'std' ? '撑到 10:00，期末大魔王会出现' : '无尽模式：撑得越久越好');
 }
 $('pauseBtn').onclick = () => { if (state === 'play') pause(); };
@@ -4723,21 +4733,36 @@ function fillEnemyBudget(dt) {
   const seconds = waveElapsed() - budget.minute * 60;
   // 事件先刷，普通怪按分钟内的进度补量。留一点额度给最后几秒的事件。
   const progress = clamp((seconds + dt) / 60, 0, 1);
-  const reserve = 0.06 * clamp((60 - seconds - dt) / 4, 0, 1);
+  const reserve = 0.06 * clamp((60 - seconds - dt) / 8, 0, 1);
   const due = budget.limit * Math.min(progress * (boss ? 0.5 : 1), 1 - reserve);
   const filler = T >= 120 ? 'cross' : 'sleepy';
-  for (let i = 0; i < 3 && enemies.length < 460; i++) {
-    const allowed = due - budget.used;
-    if (allowed < ET[filler].hp * hpScale) return;
-    if (!budget.pending) {
-      const pool = SPAWN_TABLE.filter(([type, at]) => T >= at &&
-        (!LIVE_TYPE_LIMITS[type] || enemies.filter((e) => e.type === type && !e.dead).length < LIVE_TYPE_LIMITS[type]));
-      let roll = Math.random() * pool.reduce((sum, [, , weight]) => sum + weight, 0);
-      budget.pending = pool.find(([, , weight]) => (roll -= weight) < 0)?.[0] ?? filler;
-    }
-    const type = ET[budget.pending].hp * hpScale <= allowed ? budget.pending : seconds >= 59 ? filler : null;
-    if (!type || !spawnNear(type)) return;
-    if (type === budget.pending) budget.pending = null;
+  const allowed = due - budget.used;
+  if (allowed < ET[filler].hp * hpScale) return null;
+  if (!budget.pending) {
+    const pool = SPAWN_TABLE.filter(([type, at]) => T >= at &&
+      (!LIVE_TYPE_LIMITS[type] || enemies.filter((e) => e.type === type && !e.dead).length < LIVE_TYPE_LIMITS[type]));
+    let roll = Math.random() * pool.reduce((sum, [, , weight]) => sum + weight, 0);
+    budget.pending = pool.find(([, , weight]) => (roll -= weight) < 0)?.[0] ?? filler;
+  }
+  const type = ET[budget.pending].hp * hpScale <= allowed ? budget.pending : seconds >= 59 ? filler : null;
+  const enemy = type ? spawnNear(type) : null;
+  if (enemy && type === budget.pending) budget.pending = null;
+  return enemy;
+}
+function spawnScheduledEnemy(dt) {
+  if (T < nextEnemySpawnAt) return;
+  let enemy;
+  if (queuedEnemySpawns.length && T >= nextBatchSpawnAt) {
+    const spawnQueued = queuedEnemySpawns.shift();
+    nextBatchSpawnAt = T + BATCH_SPAWN_INTERVAL;
+    enemy = spawnQueued();
+  } else if (enemies.length < 460) {
+    enemy = fillEnemyBudget(dt);
+  }
+  if (enemy) {
+    // 血量额度负责长期速率，每次成功刷怪之间也要留出时间。
+    const smallestHp = ET.cross.hp * enemyHpScale();
+    nextEnemySpawnAt = T + Math.min(0.12, smallestHp * 30 / enemySpawnBudget().limit);
   }
 }
 function timelineEventAt(m) {
@@ -4749,15 +4774,20 @@ function minuteEvent(m) {
   if (!E) return;
   if (netGuest() && (E[0] === 'task' || E[0] === 'relic')) return;
   const k = E[0], ringSpawn = (type, n, rad = 12) => {
-    const origin = netTarget();
+    const origin = netGuest() ? null : netTarget();
     if (!origin) return;
-    for (let q = 0; q < n; q++) { const a = q / n * TAU + rnd(0, 0.3); spawn(type, clamp(origin.x + Math.cos(a) * rad, -HX + 0.6, HX - 0.6), clamp(origin.z + Math.sin(a) * rad, -HZ + 0.6, HZ - 0.6)); }
+    for (let q = 0; q < n; q++) {
+      const a = q / n * TAU + rnd(0, 0.3);
+      const x = clamp(origin.x + Math.cos(a) * rad, -HX + 0.6, HX - 0.6);
+      const z = clamp(origin.z + Math.sin(a) * rad, -HZ + 0.6, HZ - 0.6);
+      queuedEnemySpawns.push(() => spawn(type, x, z));
+    }
   };
   if (k === 'mon') { const type = E[1]; monsterArrival(type); ringSpawn(type, type === 'bomber' ? 1 : type === 'mole' ? 3 : type === 'snail' || type === 'phone' ? 5 : 10, type === 'bomber' ? 9 : 12); }
   else if (k === 'task') { if (!task) startTask(); else spawnAltar(); }
   else if (k === 'relic') spawnAltar();
-  else if (k === 'elite') { banner('期中考', '两只 DDL 沙漏人，打倒有机会掉宝箱', illustration('mons', 'hourglass')); spawnNear('hourglass', 12, 15); spawnNear('hourglass', 12, 15); }
-  else if (k === 'rush') { banner('考前冲刺', '所有怪一起涌上来'); for (const t of SPAWN_TABLE) if (T >= t[1] && t[0] !== 'bomber') ringSpawn(t[0], 5, rnd(11, 14)); ringSpawn('bomber', 2, 10); }
+  else if (k === 'elite') { banner('期中考', '两只 DDL 沙漏人，打倒有机会掉宝箱', illustration('mons', 'hourglass')); if (!netGuest()) for (let i = 0; i < 2; i++) queuedEnemySpawns.push(() => spawnNear('hourglass', 12, 15)); }
+  else if (k === 'rush') { banner('考前冲刺', '怪物接连赶来'); for (const t of SPAWN_TABLE) if (T >= t[1] && t[0] !== 'bomber') ringSpawn(t[0], 5, rnd(11, 14)); ringSpawn('bomber', 2, 10); }
 }
 function nextEventText() {
   const m = Math.floor(T / EVT) + 1, left = m * EVT - T;
@@ -4883,8 +4913,12 @@ function castBossAttack(e, dx, dz) {
       const count = diffId === 'easy' ? 6 : 10;
       for (let k = 0; k < count; k++) {
         const a = k / count * TAU, type = K.minions[k % 2 && (diffId === 'hard' || e.enraged) ? 1 : 0];
-        const minion = spawn(type, cx(e.x + Math.cos(a) * 4.6), cz(e.z + Math.sin(a) * 4.6));
-        if (minion) minion.spawn = 0.4;
+        const x = cx(e.x + Math.cos(a) * 4.6), z = cz(e.z + Math.sin(a) * 4.6);
+        queuedEnemySpawns.push(() => {
+          const minion = spawn(type, x, z);
+          if (minion) minion.spawn = 0.4;
+          return minion;
+        });
       }
       ripple(e.x, e.z, 1);
       break;
@@ -4998,15 +5032,35 @@ function updateMatch(dt) {
   if (T >= nextBats && !boss) {
     const origin = netTarget();
     nextBats += 25;
-    if (origin) { const a = Math.random() * TAU; for (let k = 0; k < 7; k++) { const e = spawn('bat', clamp(origin.x + Math.cos(a) * 15 + rnd(-1.5, 1.5), -HX + 0.6, HX - 0.6), clamp(origin.z + Math.sin(a) * 15 + rnd(-1.5, 1.5), -HZ + 0.6, HZ - 0.6)); if (e) e.spawn = 0; } }
+    if (origin) {
+      const a = Math.random() * TAU;
+      for (let k = 0; k < 7; k++) {
+        const x = clamp(origin.x + Math.cos(a) * 15 + rnd(-1.5, 1.5), -HX + 0.6, HX - 0.6);
+        const z = clamp(origin.z + Math.sin(a) * 15 + rnd(-1.5, 1.5), -HZ + 0.6, HZ - 0.6);
+        queuedEnemySpawns.push(() => {
+          const bat = spawn('bat', x, z);
+          if (bat) bat.spawn = 0;
+          return bat;
+        });
+      }
+    }
   }
   portalAcc += dt; if (portalAcc >= (T < 20 ? 20 : 7) && !boss) { portalAcc = 0; if (!ev.portal) { ev.portal = true; banner('角落的洞开了', '怪会从四个角落一队一队走出来'); } portalWave(); }
   }
   const minute = Math.floor(T / EVT);
   if (minute > 0 && !ev['m' + minute] && !boss && T < nextBoss) { ev['m' + minute] = true; minuteEvent(minute); }
   if (!NET || !NET.on || NET.host) {
-  if (T >= GIANT_T && !ev.giant) { ev.giant = true; banner('大块头来了', '个头很大的怪会挤占你的走位空间'); forceGiant = true; for (const ty of ['sleepy', 'cross', 'sleepy']) spawnNear(ty, 11, 14); forceGiant = false; shake = Math.max(shake, 0.3); }
-  if (T >= nextElite && !boss) { nextElite += DF().elite * 1.8; spawnNear('hourglass', 12, 15); banner('DDL 沙漏人', '打倒它有机会掉宝箱', illustration('mons', 'hourglass')); }
+  if (T >= GIANT_T && !ev.giant) {
+    ev.giant = true;
+    banner('大块头来了', '个头很大的怪会挤占你的走位空间');
+    for (const type of ['sleepy', 'cross', 'sleepy']) queuedEnemySpawns.push(() => spawnNear(type, 11, 14, true));
+    shake = Math.max(shake, 0.3);
+  }
+  if (T >= nextElite && !boss) {
+    nextElite += DF().elite * 1.8;
+    queuedEnemySpawns.push(() => spawnNear('hourglass', 12, 15));
+    banner('DDL 沙漏人', '打倒它有机会掉宝箱', illustration('mons', 'hourglass'));
+  }
   if (!boss && T >= nextBoss - 10 && T < nextBoss && !ev['warn' + nextBoss]) { ev['warn' + nextBoss] = true; const k = nextBossKind(); banner(BOSSES[k].name, '还有 10 秒', illustration('mons', k)); }
   if (T >= nextBoss && !boss) {
     const enemy = spawnNear('boss', 12, 14);
@@ -5015,10 +5069,11 @@ function updateMatch(dt) {
       const name = BOSSES[enemy.kind].name;
       banner(bossCount ? `${name} · 第 ${bossCount + 1} 个` : name, '', illustration('mons', enemy.kind));
       nextBoss = Infinity;
+      queuedEnemySpawns.length = 0;
       if (task) endTask(false);
     }
   }
-  fillEnemyBudget(dt);
+  spawnScheduledEnemy(dt);
   }
 }
 
@@ -5844,7 +5899,10 @@ function setupStaticMatchHud(showTeam, showEvent) {
     };
     netTeamHud(previewTeam);
   }
-  if (showEvent) minuteEvent(T / EVT);
+  if (showEvent) {
+    minuteEvent(T / EVT);
+    for (const spawnQueued of queuedEnemySpawns.splice(0)) spawnQueued();
+  }
   else $('banner').hidden = true;
   state = 'preview';
 }
