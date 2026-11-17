@@ -2210,11 +2210,14 @@ function updateSummons(dt) {
 /* ================= 地图任务 ================= */
 const TASKS = {
   mop:   { name: '把地板擦干净', desc: '走过脏地板就能擦掉', c: 0x3fc98a, ic: 'sparkle' },
-  kill:  { name: '清场',         desc: '在圈里打倒 25 只怪', c: 0xff5a5a, ic: 'target' },
-  hold:  { name: '守住讲台',     desc: '在圈里站满 8 秒', c: 0x4aa8ff, ic: 'flag' },
+  kill:  { name: '清场',         desc: '把怪引到圈里打倒', c: 0xff5a5a, ic: 'target' },
+  hold:  { name: '守住讲台',     desc: '在圈里站够时间，多人时都站进来才快', c: 0x4aa8ff, ic: 'flag' },
   traps: { name: '机关地砖',     desc: '按正确顺序踩，踩错重来', c: 0xffab2e, ic: 'grid' },
+  shroom: { name: '采蘑菇',      desc: '蘑菇散在地图各处，走过去就能采', c: 0xe2453a, ic: 'sparkle' },
 };
-const PLATE_C = [0xf0564a, 0x3f97e8, 0xffc93c, 0x4fbf6a];
+const PLATE_C = [0xf0564a, 0x3f97e8, 0xffc93c, 0x4fbf6a, 0xa46bff, 0xff8a3d, 0x2fc7b8, 0xff6fa8, 0x7a8fb0];
+// 机关地砖的摆法：单人 2×2，两人 3×2，三四人 3×3
+const plateGrid = (n, x, z) => { const cols = n > 4 ? 3 : 2, rows = Math.ceil(n / cols); return Array.from({ length: n }, (_, i) => ({ x: x + ((i % cols) - (cols - 1) / 2) * 2.2, z: z + (((i / cols) | 0) - (rows - 1) / 2) * 2.2, i, lit: false, inside: false, flash: 0, bad: 0 })); };
 const hex = (c) => '#' + c.toString(16).padStart(6, '0');
 const shuffle = (a) => { for (let i = a.length - 1; i > 0; i--) { const j = (Math.random() * (i + 1)) | 0; [a[i], a[j]] = [a[j], a[i]]; } return a; };
 let task = null, nextTask = 50, taskHudT = 0, worldSeq = 0;
@@ -2245,7 +2248,7 @@ const dirtCv = document.createElement('canvas'); dirtCv.width = dirtCv.height = 
   c.fillStyle = '#a57a48'; c.beginPath(); c.ellipse(54, 54, 16, 9, -0.6, 0, TAU); c.fill(); c.fillStyle = '#fff'; c.globalAlpha = 0.7; c.beginPath(); c.ellipse(50, 50, 6, 3.5, -0.6, 0, TAU); c.fill(); }
 const dirtTex = new THREE.CanvasTexture(dirtCv); dirtTex.colorSpace = THREE.SRGBColorSpace;
 const dirtMat = new THREE.MeshBasicMaterial({ map: dirtTex, transparent: true, depthWrite: false });
-const dirtMeshes = Array.from({ length: 20 }, (_, i) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), dirtMat); m.rotation.set(-HP_, 0, i * 1.7); m.position.y = 0.05; m.visible = false; m.renderOrder = 3; scene.add(m); return m; });
+const dirtMeshes = Array.from({ length: 64 }, (_, i) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), dirtMat); m.rotation.set(-HP_, 0, i * 1.7); m.position.y = 0.05; m.visible = false; m.renderOrder = 3; scene.add(m); return m; });
 // 机关地砖：四种颜色 + 四种符号
 function symTex(k) {
   const cv = document.createElement('canvas'); cv.width = cv.height = 128; const c = cv.getContext('2d');
@@ -2253,7 +2256,12 @@ function symTex(k) {
   if (k === 0) c.arc(64, 64, 34, 0, TAU);
   else if (k === 1) { c.moveTo(64, 26); c.lineTo(102, 96); c.lineTo(26, 96); c.closePath(); }
   else if (k === 2) c.rect(30, 30, 68, 68);
-  else { for (let i = 0; i < 10; i++) { const a = -HP_ + i * PI / 5, r = i % 2 ? 18 : 42; c[i ? 'lineTo' : 'moveTo'](64 + Math.cos(a) * r, 64 + Math.sin(a) * r); } c.closePath(); }
+  else if (k === 3) { for (let i = 0; i < 10; i++) { const a = -HP_ + i * PI / 5, r = i % 2 ? 18 : 42; c[i ? 'lineTo' : 'moveTo'](64 + Math.cos(a) * r, 64 + Math.sin(a) * r); } c.closePath(); }
+  else if (k === 4) { c.moveTo(64, 26); c.lineTo(64, 102); c.moveTo(26, 64); c.lineTo(102, 64); }
+  else if (k === 5) { c.moveTo(64, 22); c.lineTo(102, 64); c.lineTo(64, 106); c.lineTo(26, 64); c.closePath(); }
+  else if (k === 6) { for (let i = 0; i < 6; i++) { const a = i * PI / 3; c[i ? 'lineTo' : 'moveTo'](64 + Math.cos(a) * 40, 64 + Math.sin(a) * 40); } c.closePath(); }
+  else if (k === 7) { c.moveTo(32, 32); c.lineTo(96, 96); c.moveTo(96, 32); c.lineTo(32, 96); }
+  else { c.moveTo(28, 46); c.lineTo(100, 46); c.moveTo(28, 82); c.lineTo(100, 82); }
   c.stroke(); const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; return t;
 }
 const plateMeshes = PLATE_C.map((c, k) => {
@@ -2272,23 +2280,86 @@ const sockAuraMeshes = Array.from({ length: 4 }, () => {
   scene.add(mesh);
   return mesh;
 });
+const shroomMeshes = Array.from({ length: 26 }, () => {
+  const g = new THREE.Group(), add = (geo, color, pos, scale, outlined) => { const m = new THREE.Mesh(geo, toonOf(color)); m.position.set(...pos); m.scale.set(...scale); if (outlined) m.add(new THREE.Mesh(smoothOf(geo), outlineRigMat)); g.add(m); return m; };
+  add(GEO.cyl, 0xfff3dc, [0, 0.3, 0], [0.42, 0.6, 0.42], true); add(GEO.sph, 0xe2453a, [0, 0.72, 0], [1.15, 0.8, 1.15], true);
+  for (const [x, y, z, r] of [[0.28, 0.95, 0.25, 0.26], [-0.32, 0.9, 0.12, 0.2], [0.02, 1.08, -0.1, 0.24], [-0.1, 0.84, 0.46, 0.16], [0.38, 0.84, -0.26, 0.16]]) add(GEO.sph, 0xffffff, [x, y, z], [r, r * 0.6, r], false);
+  const halo = new THREE.Mesh(new THREE.RingGeometry(0.75, 0.95, 32), new THREE.MeshBasicMaterial({ color: 0xffe07a, transparent: true, opacity: 0.7, depthWrite: false })); halo.rotation.x = -HP_; halo.position.y = 0.05; g.add(halo);
+  g.userData.halo = halo; g.visible = false; scene.add(g); return g;
+});
 const SYM = ['○', '△', '□', '☆'];
 function taskHud() {
   const D = TASKS[task.type], el = $('task'), c = hex(D.c);
   el.className = 'task frame'; el.style.setProperty('--c', c); el.hidden = false; el.style.animation = 'none'; void el.offsetWidth; el.style.animation = '';
   el.innerHTML = `${ico(c, D.ic)}<div class="tn">${D.name}<small>${D.desc} · 奖励宝箱</small></div><span class="tt" id="tkT"></span>
-    <div class="tp">${task.type === 'traps' ? `<div class="dots" id="tkD">${[0, 1, 2, 3].map(() => '<i></i>').join('')}</div>` : '<div class="bar"><i id="tkB" style="width:0"></i></div>'}<span id="tkN"></span></div>`;
+    <div class="tp">${task.type === 'traps' ? `<div class="dots" id="tkD">${task.plates.map(() => '<i></i>').join('')}</div>` : '<div class="bar"><i id="tkB" style="width:0"></i></div>'}<span id="tkN"></span></div>`;
   $('tmark').innerHTML = `<div class="pin frame" style="--c:${c}">${ico(c, D.ic)}<span id="tkM"></span></div><i class="arr" hidden></i>`;
   task.shown = -1;
 }
+// 屏幕外的目标贴边显示：方向按「从自己到目标」在屏幕上的方向算，目标跑到镜头后面也不会指反
+function edgeMark(wx, wy, wz, pad = [70, 70, 178, 136]) {
+  camera.updateMatrixWorld();
+  const W = innerWidth, H = innerHeight, cx = W / 2, cy = H / 2, ax = camera.projectionMatrix.elements;
+  const proj = (x, y, z) => { v3.set(x, y, z).applyMatrix4(camera.matrixWorldInverse); const d = Math.max(Math.abs(v3.z), 0.001); return [cx + cx * ax[0] * v3.x / d, cy - cy * ax[5] * v3.y / d, v3.z < 0]; };
+  const [tx, ty, front] = proj(wx, wy, wz), [px, py] = proj(player.x, 1, player.z);
+  const left = pad[0], right = W - pad[1], top = pad[2], bottom = H - pad[3];
+  if (front && tx >= left && tx <= right && ty >= top && ty <= bottom) return { x: tx, y: ty, off: false, ang: 0 };
+  let dx = tx - px, dy = ty - py; if (!front || Math.hypot(dx, dy) < 1) { const [gx, gy] = proj(player.x + (wx - player.x) * 0.02, 1, player.z + (wz - player.z) * 0.02); dx = gx - px; dy = gy - py; }
+  const L = Math.hypot(dx, dy) || 1; dx /= L; dy /= L;
+  const ox = clamp(px, left, right), oy = clamp(py, top, bottom);
+  const k = Math.min(dx > 0 ? (right - ox) / dx : dx < 0 ? (left - ox) / dx : Infinity, dy > 0 ? (bottom - oy) / dy : dy < 0 ? (top - oy) / dy : Infinity);
+  return { x: ox + dx * k, y: oy + dy * k, off: true, ang: Math.atan2(dy, dx) };
+}
+function placeMark(mk, wx, wy, wz) {
+  const m = edgeMark(wx, wy, wz), arr = mk.lastElementChild; if (!arr) { mk.hidden = true; return m; }
+  mk.hidden = false; arr.hidden = !m.off;
+  if (m.off) arr.style.transform = `rotate(${m.ang + HP_}rad) translateY(-${Math.abs(Math.cos(m.ang)) * 26 + 24}px)`;
+  mk.style.transform = `translate(${m.x}px, ${m.y}px) translate(-50%, -50%)`;
+  return m;
+}
+// 任务只出现在固定的 7 个空地上：四个教室各一个、正中间一个、再加两个走廊口，离墙和桌椅都够远
+let TASK_SPOTS = null, lastSpot = -1;
+function taskSpots() {
+  if (TASK_SPOTS) return TASK_SPOTS;
+  for (const clear of [4.6, 4, 3.4, 2.8]) {
+    const free = [];
+    for (let x = -HX + 5; x <= HX - 5; x += 1) for (let z = -HZ + 5; z <= HZ - 5; z += 1) if (!inWall(x, z, clear) && !PROPS.some((p) => Math.hypot(x - p.x, z - p.z) < p.r + clear)) free.push({ x, z });
+    if (free.length < 7) continue;
+    const pick = [], near = (tx, tz) => free.reduce((b, f) => (Math.hypot(f.x - tx, f.z - tz) < Math.hypot(b.x - tx, b.z - tz) ? f : b));
+    for (const [tx, tz] of [[-RCX, -RCZ], [RCX, -RCZ], [-RCX, RCZ], [RCX, RCZ], [0, 0]]) { const f = near(tx, tz); if (!pick.includes(f)) pick.push(f); }
+    while (pick.length < 7) { let best = null, bd = -1; for (const f of free) { const d = Math.min(...pick.map((q) => Math.hypot(f.x - q.x, f.z - q.z))); if (d > bd) { bd = d; best = f; } } if (!best || bd < 6) break; pick.push(best); }
+    if (pick.length >= 6) { TASK_SPOTS = pick; break; }
+  }
+  return TASK_SPOTS || (TASK_SPOTS = [{ x: 0, z: 0 }]);
+}
+function scatterPoints(n, gap = 5) {
+  const out = [];
+  for (let i = 0; i < n; i++) for (let k = 0; k < 60; k++) {
+    const qx = i % 2 ? 1 : -1, qz = (i >> 1) % 2 ? 1 : -1, x = qx * rnd(3, HX - 3), z = qz * rnd(3, HZ - 3);
+    if (inWall(x, z, 1.3) || PROPS.some((p) => Math.hypot(x - p.x, z - p.z) < p.r + 1.1) || out.some((o) => Math.hypot(x - o.x, z - o.z) < (k < 40 ? gap : 2))) continue;
+    out.push({ x, z, s: rnd(0.9, 1.15), on: true }); break;
+  }
+  return out;
+}
 function startTask(force) {
   const types = Object.keys(TASKS), type = TASKS[force] ? force : types[(Math.random() * types.length) | 0];
-  let x = 0, z = 0;
-  for (let k = 0; k < 30; k++) { const a = rnd(0, TAU), r = rnd(8, 13); x = clamp(player.x + Math.cos(a) * r, -HX + 5, HX - 5); z = clamp(player.z + Math.sin(a) * r, -HZ + 5, HZ - 5); if (!inWall(x, z, 4) && !PROPS.some((p) => Math.hypot(x - p.x, z - p.z) < p.r + 4)) break; }
-  task = { id: ++worldSeq, type, x, z, t: type === 'traps' ? 60 : 45, max: type === 'traps' ? 60 : 45, prog: 0, need: type === 'mop' ? 18 : type === 'kill' ? 25 : type === 'hold' ? 8 : 4, rad: type === 'kill' ? 4.5 : type === 'hold' ? 2.4 : 3.3, age: 0 };
-  if (type === 'mop') task.dirt = Array.from({ length: 18 }, () => { const a = rnd(0, TAU), r = Math.sqrt(Math.random()) * 2.8; return { x: x + Math.cos(a) * r, z: z + Math.sin(a) * r, s: rnd(0.4, 0.62), on: true }; });
-  if (type === 'traps') { task.plates = [[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([a, b], i) => ({ x: x + a * 1.1, z: z + b * 1.1, i, lit: false, inside: false, flash: 0, bad: 0 })); task.order = shuffle([0, 1, 2, 3]); task.step = 0; task.rad = 2.6; }
-  banner('新任务', TASKS[type].name); ripple(x, z, 1); taskHud(); taskHudT = 0;
+
+  const spots = taskSpots(), far = (q) => Math.hypot(q.x - player.x, q.z - player.z);
+  let pool = spots.filter((q, i) => i !== lastSpot && far(q) > 7 && far(q) < 36); if (!pool.length) pool = spots.filter((q, i) => i !== lastSpot); if (!pool.length) pool = spots;
+  const spot = pool[(Math.random() * pool.length) | 0]; lastSpot = spots.indexOf(spot);
+  const x = spot.x, z = spot.z, crew = NET && NET.on ? NET.n : 1;
+  task = { id: ++worldSeq, type, x, z, ...(() => {
+    const k = crew - 1;   // 多出来的人数
+    if (type === 'mop') return { t: 50 + 10 * k, need: 26 + 12 * k, rad: 4.6 };
+    if (type === 'kill') return { t: 50 + 15 * k, need: 30 + 22 * k, rad: 5.4 };
+    if (type === 'hold') return { t: 50 + 10 * k, need: 12 + 5 * k, rad: 3.4 };
+    if (type === 'shroom') return { t: 90, need: 8 + 4 * k, rad: 3 };
+    const plates = crew <= 1 ? 4 : crew === 2 ? 6 : 9; return { t: 60 + (plates - 4) * 12, need: plates, rad: plates > 6 ? 4.4 : plates > 4 ? 3.8 : 2.6 };
+  })(), prog: 0, age: 0 }; task.max = task.t;
+  if (type === 'mop') task.dirt = Array.from({ length: task.need }, () => { const a = rnd(0, TAU), r = Math.sqrt(Math.random()) * 4.1; return { x: x + Math.cos(a) * r, z: z + Math.sin(a) * r, s: rnd(0.4, 0.62), on: true }; });
+  if (type === 'shroom') { task.dirt = scatterPoints(task.need + 3); task.need = Math.min(task.need, task.dirt.length); task.x = player.x; task.z = player.z; }
+  if (type === 'traps') { task.plates = plateGrid(task.need, x, z); task.order = shuffle(task.plates.map((p) => p.i)); task.step = 0; }
+  banner('新任务', type === 'shroom' ? `采蘑菇：全图找 ${task.need} 个` : TASKS[type].name); if (type !== 'shroom') ripple(x, z, 1); taskHud(); taskHudT = 0;
 }
 function cleanDirt(d) { d.on = false; task.prog++; spark(d.x, 0.3, d.z, 0xffffff, 10, 3.5, 0.32, 0.45); burst(d.x, 0.2, d.z, 0x8fe6ff, 4, 2, 0.3, 0.5, 2); }
 function endTask(ok) {
@@ -2308,7 +2379,8 @@ function updateTask(dt) {
   if (!task) return;
   task.t -= dt; task.age += dt; const bodies = taskBodies();
   if (task.type === 'mop') { for (const q of task.dirt) if (q.on && bodies.some((b) => Math.hypot(q.x - b.x, q.z - b.z) < 0.9)) cleanDirt(q); }
-  else if (task.type === 'hold') { const b = bodies.find((o) => Math.hypot(o.x - task.x, o.z - task.z) < task.rad); if (b) { task.prog += dt; if (Math.random() < dt * 8) spark(b.x + rnd(-0.5, 0.5), 0.2, b.z + rnd(-0.5, 0.5), 0x8fd0ff, 1, 1, 0.3, 0.7, -3); } }
+  else if (task.type === 'shroom') { for (const q of task.dirt) if (q.on && task.prog < task.need && bodies.some((b) => Math.hypot(q.x - b.x, q.z - b.z) < 1.2)) { cleanDirt(q); task.x = q.x; task.z = q.z; dmgNum(q.x, q.z, `${task.prog}/${task.need}`, 'tag', 1.8); } }
+  else if (task.type === 'hold') { const inside = bodies.filter((o) => Math.hypot(o.x - task.x, o.z - task.z) < task.rad), b = inside[0]; if (b) { task.prog += dt * inside.length / Math.max(1, bodies.length); if (Math.random() < dt * 8) spark(b.x + rnd(-0.5, 0.5), 0.2, b.z + rnd(-0.5, 0.5), 0x8fd0ff, 1, 1, 0.3, 0.7, -3); } }
   else if (task.type === 'traps') {
     for (const p of task.plates) {
       p.flash = Math.max(0, p.flash - dt * 3); p.bad = Math.max(0, p.bad - dt * 2.5);
@@ -2323,16 +2395,17 @@ function updateTask(dt) {
   if (task.prog >= task.need) endTask(true); else if (task.t <= 0) endTask(false);
 }
 function drawTask(dt) {
-  dirtMeshes.forEach((m) => (m.visible = false)); plateMeshes.forEach((m) => (m.visible = false));
+  dirtMeshes.forEach((m) => (m.visible = false)); plateMeshes.forEach((m) => (m.visible = false)); shroomMeshes.forEach((m) => (m.visible = false));
   const tEl = $('task'), mk = $('tmark');
   if (taskHudT > 0) { taskHudT -= dt; if (taskHudT <= 0 && !task) tEl.hidden = true; }
-  zone.visible = !!task && state !== "title"; beam.visible = zone.visible && task.type !== "traps";
+  zone.visible = !!task && state !== "title" && task.type !== 'shroom'; beam.visible = zone.visible && task.type !== "traps";
   if (!task || state === 'title') { mk.hidden = true; if (state === 'title') tEl.hidden = true; return; }
   const col = TASKS[task.type].c, grow = 1 - Math.pow(1 - Math.min(1, task.age * 2.2), 3), frac = Math.min(1, task.prog / task.need);
   zoneMat.uniforms.uColor.value.set(col); zoneMat.uniforms.uProg.value = task.type === 'traps' ? 0 : frac;
   zone.position.set(task.x, 0.06, task.z); zone.scale.setScalar(task.rad * 1.12 * grow);
   beam.position.set(task.x, 3.5, task.z); beam.scale.set(task.rad * 0.96 * grow, 7, task.rad * 0.96 * grow);
-  if (task.type === 'mop') task.dirt.forEach((q, i) => { const m = dirtMeshes[i]; m.visible = q.on; m.position.set(q.x, 0.05, q.z); m.scale.setScalar(q.s * grow * (1 + 0.05 * Math.sin(realTime * 3 + i))); });
+  if (task.type === 'shroom') task.dirt.forEach((q, i) => { const m = shroomMeshes[i]; if (!m) return; m.visible = q.on; const pop = Math.min(1, task.age * 2.5 - i * 0.06); m.position.set(q.x, Math.abs(Math.sin(realTime * 2.4 + i)) * 0.12, q.z); m.rotation.y = Math.sin(realTime * 1.3 + i) * 0.4; m.scale.setScalar(Math.max(0.001, pop) * q.s * 0.85); m.userData.halo.scale.setScalar(1 + 0.25 * Math.sin(realTime * 4 + i)); });
+  if (task.type === 'mop') task.dirt.forEach((q, i) => { const m = dirtMeshes[i]; if (!m) return; m.visible = q.on; m.position.set(q.x, 0.05, q.z); m.scale.setScalar(q.s * grow * (1 + 0.05 * Math.sin(realTime * 3 + i))); });
   if (task.type === 'traps') task.plates.forEach((p, i) => {
     const m = plateMeshes[i], u = m.userData; m.visible = true;
     m.position.set(p.x + (p.bad > 0 ? Math.sin(realTime * 60) * 0.06 * p.bad : 0), (p.lit ? 0.05 : 0.13 + Math.sin(realTime * 3 + i * 1.6) * 0.03) * grow, p.z); m.scale.setScalar(grow * (1 + p.flash * 0.15));
@@ -2346,12 +2419,9 @@ function drawTask(dt) {
     if (task.type === 'traps') [...$('tkD').children].forEach((d, k) => { const on = k < task.step; d.classList.toggle('on', on); d.style.setProperty('--c', on ? hex(PLATE_C[task.order[k]]) : ''); d.textContent = ''; }); else $('tkB').style.width = frac * 100 + '%';
   }
   // 浮在任务点上方的标记；出了屏幕就贴边并带箭头
-  v3.set(task.x, 3.4, task.z).project(camera);
-  const Wd = innerWidth, Hd = innerHeight; let sx = (v3.x * 0.5 + 0.5) * Wd, sy = (-v3.y * 0.5 + 0.5) * Hd;
-  const off = sx < 50 || sx > Wd - 50 || sy < 130 || sy > Hd - 120, arr = mk.lastElementChild;
-  mk.hidden = false; arr.hidden = !off;
-  if (off) { const ang = Math.atan2(sy - Hd / 2, sx - Wd / 2); sx = clamp(sx, 60, Wd - 60); sy = clamp(sy, 140, Hd - 130); arr.style.transform = `rotate(${ang + HP_}rad) translateY(-30px)`; }
-  mk.style.transform = `translate(${sx}px, ${sy}px) translate(-50%, -50%)`;
+  let tx = task.x, tz = task.z;
+  if (task.type === 'shroom') { let bd = Infinity; for (const q of task.dirt) if (q.on) { const d = Math.hypot(q.x - player.x, q.z - player.z); if (d < bd) { bd = d; tx = q.x; tz = q.z; } } }
+  placeMark(mk, tx, task.type === 'shroom' ? 2.2 : 3.4, tz);
 }
 
 /* ================= 地图遗物 ================= */
@@ -2390,11 +2460,8 @@ function drawAltarMark() {
   if (!rBeam.visible) { mk.hidden = true; return; }
   rBeam.position.set(a.x, 4.5, a.z); rBeam.scale.set(1.2, 9, 1.2);
   v3.set(a.x, 3.6, a.z).project(camera);
-  const Wd = innerWidth, Hd = innerHeight; let sx = (v3.x * 0.5 + 0.5) * Wd, sy = (-v3.y * 0.5 + 0.5) * Hd;
-  const off = sx < 50 || sx > Wd - 50 || sy < 130 || sy > Hd - 120, arr = mk.lastElementChild; if (!arr) { mk.hidden = true; return; }
-  mk.hidden = false; arr.hidden = !off;
-  if (off) { const ang = Math.atan2(sy - Hd / 2, sx - Wd / 2); sx = clamp(sx, 60, Wd - 60); sy = clamp(sy, 140, Hd - 130); arr.style.transform = `rotate(${ang + HP_}rad) translateY(-30px)`; }
-  mk.style.transform = `translate(${sx}px, ${sy}px) translate(-50%, -50%)`;
+  const m = placeMark(mk, a.x, 3.6, a.z), txt = m.off ? `遗物 · ${Math.round(Math.hypot(a.x - player.x, a.z - player.z))}米` : '遗物', sp = mk.querySelector('.pin > span:last-child');
+  if (sp && sp.textContent !== txt) sp.textContent = txt;
 }
 
 /* ================= 输入（斜 45° 视角下的方向） ================= */
@@ -3369,7 +3436,7 @@ function netWorld(m) {
   if (!task) {
     task = { id: TK.id, type: TK.type, x: TK.x, z: TK.z, t: TK.t, max: TK.max, prog: TK.prog, need: TK.need, rad: TK.rad, age: 0 };
     if (Array.isArray(TK.dirt)) task.dirt = TK.dirt.map(([x, z, s, on]) => ({ x, z, s, on: !!on }));
-    if (TK.type === 'traps') { task.order = TK.order || [0, 1, 2, 3]; task.step = TK.step; task.plates = [[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([a, b], i) => ({ x: task.x + a * 1.1, z: task.z + b * 1.1, i, lit: !!(TK.lit && TK.lit[i]), inside: false, flash: 0, bad: 0 })); }
+    if (TK.type === 'traps') { task.order = TK.order || [0, 1, 2, 3]; task.step = TK.step; task.plates = plateGrid(TK.need, task.x, task.z); task.plates.forEach((p, i) => { p.lit = !!(TK.lit && TK.lit[i]); }); }
     banner('新任务', TASKS[task.type].name); ripple(task.x, task.z, 1); taskHud(); taskHudT = 0;
     return;
   }
