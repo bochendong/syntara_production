@@ -1,0 +1,19 @@
+{
+  "status": "deployed",
+  "at": "2026-11-17T03:14:39.714Z",
+  "environment": "staging",
+  "revision": "1f9879a5d9a0fdb067f6530d85452ad3da0566a5",
+  "deploymentId": "c6bcbb06-fe5b-4e38-aad1-b1d6cb55d523",
+  "previousRevision": "187d60861b745fce700ad05d2c646329e6294d23",
+  "changes": [
+    "Integrate all six game commits from codex/sandbox-brawl-visuals, including the classroom themes, player models, bosses, items, tasks, pointers and combat effects.",
+    "Show the damage report at multiplayer victory and defeat, including damage ranking, MVP and highlights for all four secondary statistics.",
+    "Keep connected players’ result rows consistent, count each rescue once, and preserve account-based browser saves."
+  ],
+  "appliedMigrations": [],
+  "pendingMigrations": 0,
+  "verification": {
+    "local": "Repository verification, save queue regressions and isolated desktop plus iPad-sized browsers verified account points and unlocks. Browser clients verified a four-player win, two-player defeat, and solo results. Two players in a grave circle yielded one rescue credit.",
+    "staging": "Verified staging health, exact revision and game assets, authenticated save isolation, and temporary browser rooms with four-player victory, two-player defeat, single-player results, and message relay."
+  }
+}
