@@ -12,9 +12,12 @@ const $ = (id) => document.getElementById(id);
 const rnd = (a, b) => a + Math.random() * (b - a);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
-const skillDemoMode = window.parent !== window && new URLSearchParams(location.search).has('skill-demo');
+const saveParams = new URLSearchParams(location.search);
+const skillDemoMode = window.parent !== window && saveParams.has('skill-demo');
+const localPreview = location.protocol === 'http:' && ['127.0.0.1', 'localhost', '[::1]'].includes(location.hostname);
+const staticMatchPreview = localPreview && !skillDemoMode && saveParams.has('static-match');
 const gameAudio = createGameAudio();
-if (!skillDemoMode) {
+if (!skillDemoMode && !staticMatchPreview) {
   // 在点击的同步阶段解锁音频，包括会延迟开局的转场和联机大厅。
   document.addEventListener('click', (event) => {
     if (event.isTrusted) gameAudio.unlock();
@@ -39,14 +42,6 @@ const TAGS = {
   gun:    { name: '枪械', c: '#9aa3b5' },
   magic:  { name: '魔法', c: '#a46bff' },
   summon: { name: '召唤', c: '#f0a623' },
-};
-// 流派羁绊：武器 + 饰品凑齐 2 / 4 / 6 个同系
-const SETS = {
-  melee:  ['近战命中回一点血，每秒最多 0.8', '挥砍外圈再炸一圈冲击波', '无双：挥砍冷却减半，移速 +20%'],
-  ranged: ['所有远程投射物穿透 +1', '投射物第一次命中后一分为二', '弹射：投射物会在怪之间再弹 3 次，数量 +1'],
-  gun:    ['枪械冷却 -20%', '暴击引发小爆炸', '弹幕：每 1.2 秒向四周扫射一圈订书钉'],
-  magic:  ['魔法命中会点燃敌人', '燃烧的怪死掉时把火传给周围', '天雷：每 0.5 秒落下一道雷'],
-  summon: ['召唤物 +1', '召唤物攻击带溅射，台灯光束穿透', '大军：召唤物数量翻倍，伤害 +50%'],
 };
 const CLASSES = {
   brawler:  { name: '体育委员', tag: 'melee',  hp: 150, spd: 5.7, start: 'sweep',   desc: '血厚腿长，原地抡一圈大尺子，周围全砍', look: { style: 'spiky', outfit: 'track', skin: 0xf2c49a, hair: 0x2b1d18, top: 0xd8423a, pants: 0x2b3a5c, iris: 0x7a3a22, item: 'bat', band: 0xffffff, big: true } },
@@ -197,6 +192,17 @@ const MON_INFO = {
   mole: ['钻地鼹鼠', '靠近后钻地冲过来再跳出来顶你。跳出来会晕一会，趁这时候打它'], clock: ['闹钟仔', '响完铃会猛冲过来'], ink: ['墨水史莱姆', '打死会分裂成两只'],
   ghost: ['纸团幽灵', '飘在空中扔纸团'], phone: ['手机精', '靠近会让你分心变慢'], snail: ['拖延蜗牛', '又慢又肉，一路留黏液'],
 };
+const MON_ARRIVAL_TAUNTS = {
+  bomber: '我都开始倒数了，你还打算站这儿听完？',
+  chalk: '红线都画给你看了，还要我手把手教你躲？',
+  cross: '一道错题都改不对，还敢让一群错题来找你？',
+  mole: '盯着地面看什么，我都钻到你脚下了！',
+  clock: '铃都响完了，你还没决定往哪边跑？',
+  ink: '一个我都嫌多，那就试试两个吧！',
+  ghost: '我随手扔个纸团，都比你答题准。',
+  phone: '就看一眼嘛，反正你的血条也没什么好看的。',
+  snail: '我爬这么慢都追上你了，你到底拖了多久？',
+};
 // 每分钟一个事件，下标是第几分钟
 const TIMELINE = [null, ['mon', 'bomber'], ['mon', 'chalk'], ['task'], ['mon', 'cross'], ['relic'], ['mon', 'mole'], ['task'], ['mon', 'clock'], ['relic'], ['elite'], ['mon', 'ink'], ['relic'], ['mon', 'ghost'], ['task'], ['mon', 'phone'], ['relic'], ['mon', 'snail'], ['task'], ['rush']];
 const EV_NAME = { mon: '新怪物', task: '新任务', relic: '遗物', elite: '期中考', rush: '考前冲刺' };
@@ -230,23 +236,26 @@ const WBASE = {
 };
 // 技能升级：每升一级只加一样东西。Lv 4 和 Lv 8 注入元素，Lv 10 变成终极形态
 const LVUP = {
-  sweep: ['dmg', 0.3, '伤害 +30%'], spin: ['n', 1, '多一把尺子'], mop: ['dmg', 0.3, '伤害 +30%'], pencil: ['n', 1, '多射一支铅笔'], plane: ['n', 1, '多一架纸飞机'], slipper: ['n', 1, '多扔一只拖鞋'],
-  stapler: ['rate', 0.15, '射速 +15%'], shotgun: ['n', 1, '多喷一块橡皮'], bolt: ['n', 1, '闪电多跳一次'], coffee: ['dmg', 0.3, '伤害 +30%'], sock: ['area', 0.1, '臭气范围 +10%'], rollcall: ['dmg', 0.3, '伤害 +30%'],
-  minion: ['n', 1, '多召一个小人'], lamp: ['rate', 0.15, '台灯射速 +15%'], duck: ['dmg', 0.3, '爆炸伤害 +30%'],
+  sweep: 'dmg', spin: 'dmg', mop: 'dmg', pencil: 'dmg', plane: 'dmg', slipper: 'dmg',
+  stapler: 'rate', shotgun: 'dmg', bolt: 'dmg', coffee: 'dmg', sock: 'area', rollcall: 'dmg',
+  minion: 'dmg', lamp: 'rate', duck: 'dmg',
 };
+const SKILL_GAIN_LABELS = { dmg: '伤害', rate: '攻速', area: '范围' };
+const SKILL_UPGRADE_AMOUNTS = { dmg: [12, 16, 20, 24], rate: [12, 16, 20, 24], area: [2, 4, 6, 8] };
+const skillUpgradeAmount = (id, tier = 0) => SKILL_UPGRADE_AMOUNTS[LVUP[id]][tier];
 const MAXLV = 10, INF_LV = [4, 8];
-// 特殊升级：只能靠完成地图任务开宝箱拿到，每个技能 8 种
+// 特殊升级优先来自任务宝箱；增加数量的卡只出现在任务宝箱。
 const G = { big: '范围 +30%', cd: '冷却 -25%', twice: '25% 概率马上再放一次', crit: '这个技能的暴击率 +20%', exec: '对血量低于 30% 的怪伤害 +80%', first: '对满血的怪伤害 +60%', kb: '击退翻倍', stun: '命中有 15% 概率把怪打晕 0.8 秒', mark: '打中的怪 3 秒内受到的所有伤害 +25%', elite: '对精英和大魔王伤害 +60%', boom: '用它打倒的怪会爆炸，伤到周围', leech: '用它打倒怪有 8% 概率回 2 点血', gem: '用它打倒的怪 20% 多掉一颗经验', long: '存在时间 +50%' };
 const SP = {
   sweep:    [['wave', '剑气', '每次挥砍向前甩出一道会穿透的气刃'], ['again', '二连斩', '挥完马上再挥一次，第二下伤害 60%'], ['block', '格挡', '挥砍会打掉范围内的粉笔和子弹'], ['big', '加长尺'], ['kb', '一尺拍飞'], ['exec', '收卷'], ['crit', '划重点'], ['leech', '越打越精神']],
-  spin:     [['fast', '加速', '尺子转速 +40%'], ['outer', '双圈', '一半尺子绕到外圈，打得更远'], ['fling', '甩尺', '每 4 秒所有尺子向外甩一下再收回来'], ['big', '大三角尺', '绕圈半径 +30%'], ['stun', '敲脑门'], ['mark', '画记号'], ['boom', '碎尺'], ['crit', '棱角']],
+  spin:     [['fast', '加速', '尺子转速 +40%'], ['outer', '双圈', '一半尺子绕到外圈，打得更远'], ['fling', '甩尺', '每 4 秒所有尺子向外甩一下再收回来'], ['big', '大三角尺', '绕圈半径 +30%'], ['stun', '敲脑门'], ['mark', '画记号'], ['boom', '碎尺'], ['crit', '棱角'], ['two', '多一把尺子', '绕身回旋的尺子数量 +1']],
   mop:      [['trail', '边走边拖', '你走过的地方也会留下水渍'], ['deep', '深水渍', '水渍更大，多留 3 秒'], ['slip', '打滑', '踩进水渍的怪有概率滑倒 0.6 秒'], ['big', '加宽拖把'], ['cd', '手脚麻利'], ['kb', '一拖到底'], ['exec', '擦干净'], ['first', '泼水']],
-  pencil:   [['split', '断铅', '铅笔命中后分裂成两支'], ['bounce', '弹射', '铅笔穿完后弹向下一只怪，最多 2 次'], ['back', '回马枪', '同时向背后射出同样多的铅笔'], ['pierce', '削尖', '每支多穿 2 只怪'], ['crit', '笔尖'], ['twice', '连射'], ['elite', '专治难题'], ['boom', '炸铅']],
-  plane:    [['split', '双机编队', '纸飞机命中后分裂成两架小飞机'], ['loop', '特技飞行', '命中后不消失，掉头再打 2 只'], ['bomb', '轰炸机', '命中时小范围爆炸'], ['life', '长途航线', '飞得更久，追得更远'], ['crit', '机头加固'], ['twice', '连续起飞'], ['first', '先手'], ['gem', '侦察机']],
-  slipper:  [['huge', '43 码', '拖鞋变大，更容易打中'], ['hover', '悬停', '飞到最远处原地转 1 秒，持续打周围的怪'], ['ret', '回程加速', '飞回来的那一下伤害翻倍'], ['kb', '一鞋抽飞'], ['stun', '打懵'], ['crit', '鞋底纹'], ['cd', '顺手'], ['leech', '解气']],
+  pencil:   [['split', '断铅', '铅笔命中后分裂成两支'], ['bounce', '弹射', '铅笔穿完后弹向下一只怪，最多 2 次'], ['back', '回马枪', '同时向背后射出同样多的铅笔'], ['pierce', '削尖', '每支多穿 2 只怪'], ['crit', '笔尖'], ['twice', '连射'], ['elite', '专治难题'], ['boom', '炸铅'], ['two', '备用铅笔', '每次多射 1 支铅笔']],
+  plane:    [['split', '双机编队', '纸飞机命中后分裂成两架小飞机'], ['loop', '特技飞行', '命中后不消失，掉头再打 2 只'], ['bomb', '轰炸机', '命中时小范围爆炸'], ['life', '长途航线', '飞得更久，追得更远'], ['crit', '机头加固'], ['twice', '连续起飞'], ['first', '先手'], ['gem', '侦察机'], ['two', '加飞一架', '每次多放 1 架纸飞机']],
+  slipper:  [['huge', '43 码', '拖鞋变大，更容易打中'], ['hover', '悬停', '飞到最远处原地转 1 秒，持续打周围的怪'], ['ret', '回程加速', '飞回来的那一下伤害翻倍'], ['kb', '一鞋抽飞'], ['stun', '打懵'], ['crit', '鞋底纹'], ['cd', '顺手'], ['leech', '解气'], ['two', '再来一只', '每次多扔 1 只拖鞋']],
   stapler:  [['pierce', '长钉', '钉子多穿 2 只怪'], ['bounce', '跳弹', '钉子打中后弹向下一只怪，最多 2 次'], ['heavy', '大号钉', '每第 8 发是一颗大钉，伤害 4 倍'], ['crit', '瞄准'], ['exec', '补订'], ['elite', '装订重点'], ['mark', '钉住'], ['boom', '爆钉']],
-  shotgun:  [['back', '前后开花', '同时向背后也喷一扇'], ['pierce', '硬橡皮', '橡皮多穿 1 只怪'], ['near', '贴脸', '离你 3 米内的怪受到的伤害 +70%'], ['kb', '崩飞'], ['stun', '砸晕'], ['cd', '快速装填'], ['twice', '双响'], ['first', '开门红']],
-  bolt:     [['fork', '分叉', '每一跳有 35% 概率多电旁边一只'], ['back', '回路', '最后一跳电回第一只怪，伤害 150%'], ['far', '远距放电', '起手距离和跳跃距离 +60%'], ['stun', '麻痹'], ['mark', '感电'], ['crit', '高压'], ['cd', '快充'], ['elite', '避雷针']],
+  shotgun:  [['back', '前后开花', '同时向背后也喷一扇'], ['pierce', '硬橡皮', '橡皮多穿 1 只怪'], ['near', '贴脸', '离你 3 米内的怪受到的伤害 +70%'], ['kb', '崩飞'], ['stun', '砸晕'], ['cd', '快速装填'], ['twice', '双响'], ['first', '开门红'], ['two', '多装一块', '每次多喷 1 块橡皮']],
+  bolt:     [['fork', '分叉', '每一跳有 35% 概率多电旁边一只'], ['back', '回路', '最后一跳电回第一只怪，伤害 150%'], ['far', '远距放电', '起手距离和跳跃距离 +60%'], ['stun', '麻痹'], ['mark', '感电'], ['crit', '高压'], ['cd', '快充'], ['elite', '避雷针'], ['two', '多跳一次', '荧光闪电的连锁跳跃次数 +1']],
   coffee:   [['two', '续杯', '一次扔两杯'], ['long', '慢慢喝', '旋风多留 2.5 秒'], ['pull', '搅拌', '旋风把怪往中心吸得更狠'], ['big', '大杯'], ['cd', '速溶'], ['exec', '提神'], ['mark', '咖啡渍'], ['boom', '烫嘴']],
   sock:     [['pulse', '抖一抖', '每 3 秒臭气猛地爆开一次，范围翻倍，伤害 4 倍'], ['close', '贴身', '离你越近的怪掉血越快，最多 2.5 倍'], ['linger', '余味', '被熏到的怪减速延长到 2 秒'], ['big', '陈年袜子'], ['mark', '熏透'], ['stun', '熏晕'], ['leech', '神清气爽'], ['gem', '臭名远扬']],
   rollcall: [['two', '点两个', '每次多点一个'], ['again', '留堂', '被点名没倒下的怪，1 秒后再砸一次，伤害 60%'], ['fear', '杀鸡儆猴', '书落地时把周围的怪吓晕 1 秒'], ['next', '下一个', '点名打倒怪后马上再点一个，最多连点 3 次'], ['cd', '点得勤'], ['crit', '红笔圈出'], ['elite', '重点关照'], ['boom', '厚书']],
@@ -256,20 +265,14 @@ const SP = {
 };
 for (const w in SP) for (const x of SP[w]) if (!x[2]) x[2] = G[x[0]];
 const SPX = (w, k) => !!(player.sp[w] && player.sp[w][k]);
-function ws(id, extra) {
-  const b = WBASE[id], u = Object.assign({}, player.wup[id] || {}, extra || {}), L = u.lv || 0, [ty, st] = LVUP[id], X = player.sp[id] || {};
-  const dm = ty === 'dmg' ? 1 + st * L : 1, rt = (ty === 'rate' ? 1 + st * L : 1) * (X.cd ? 1.33 : 1), ar = (ty === 'area' ? 1 + st * L : 1) * (X.big ? 1.3 : 1);
-  return { ...b, dmg: b.dmg * dm, cd: b.cd / rt, atk: b.atk ? b.atk / rt : 0, range: (b.range || 0) * ar, rad: (b.rad || 0) * ar, n: (b.n || 0) + (ty === 'n' ? st * L : 0) + (X.two ? 1 : 0),
+function ws(id) {
+  const b = WBASE[id], upgrade = player.wup[id], stat = LVUP[id], X = player.sp[id] || {};
+  const bonus = (upgrade?.bonus ?? (upgrade?.lv || 0) * skillUpgradeAmount(id)) / 100;
+  const dm = stat === 'dmg' ? 1 + bonus : 1, rt = (stat === 'rate' ? 1 + bonus : 1) * (X.cd ? 1.33 : 1), ar = (stat === 'area' ? 1 + bonus : 1) * (X.big ? 1.3 : 1);
+  return { ...b, dmg: b.dmg * dm, cd: b.cd / rt, atk: b.atk ? b.atk / rt : 0, range: (b.range || 0) * ar, rad: (b.rad || 0) * ar, n: (b.n || 0) + (X.two ? 1 : 0),
     pierce: b.pierce || 0, dur: (b.dur || 0) * (X.long ? 1.5 : 1) * (1 + 0.1 * R('bath')) };
 }
-const wLevel = (id) => 1 + Object.values(player.wup[id] || {}).reduce((a, b) => a + b, 0);
-function upPreview(id, u, n = 1) {
-  const L = (player.wup[id] || {}).lv || 0, a = ws(id), b = ws(id, { lv: L + n }), ty = LVUP[id][0];
-  if (ty === 'dmg') return `伤害 ${Math.round(a.dmg)} → ${Math.round(b.dmg)}`;
-  if (ty === 'rate') return a.atk ? `间隔 ${a.atk.toFixed(2)} → ${b.atk.toFixed(2)} 秒` : `冷却 ${a.cd.toFixed(2)} → ${b.cd.toFixed(2)} 秒`;
-  if (ty === 'area') return `范围 ${(a.rad || a.range).toFixed(1)} → ${(b.rad || b.range).toFixed(1)}`;
-  return `数量 ${a.n} → ${b.n}`;
-}
+const wLevel = (id) => 1 + (player.wup[id]?.lv || 0);
 // 通用属性
 const signedPercent = (value) => {
   const percent = Math.round(value * 100);
@@ -311,7 +314,7 @@ const ET = {
 };
 
 /* ================= 渲染器、灯光、后期 ================= */
-const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance', preserveDrawingBuffer: staticMatchPreview });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 $('stage').appendChild(renderer.domElement);
 const scene = new THREE.Scene();
@@ -1386,27 +1389,24 @@ function query(x, z, R, cb) {
 function nearest(x, z, maxD = 14, skip) { let best = null, bd = maxD * maxD; for (const e of enemies) { if (e.dead || e.inv || e.spawn > 0.3 || (skip && skip.has(e))) continue; const dx = e.x - x, dz = e.z - z, d = dx * dx + dz * dz; if (d < bd) { bd = d; best = e; } } return best; }
 function pushOutProps(o, r) { for (const p of PROPS) { const dx = o.x - p.x, dz = o.z - p.z, d = Math.hypot(dx, dz), m = p.r + r; if (d < m && d > 0.001) { o.x = p.x + dx / d * m; o.z = p.z + dz / d * m; } } pushOutWalls(o, r); o.x = clamp(o.x, -HX, HX); o.z = clamp(o.z, -HZ, HZ); }
 
-/* ================= 状态 + 流派计算 ================= */
+/* ================= 游戏状态 ================= */
 const DIFFS = {
-  easy:   { name: '简单', hp: 0.85, dmg: 0.8,  rate: 0.9,  boss: 32000, cd: 4.2, enrage: false, storm: false, revive: 2, elite: 90, note: 'Boss 出招前地上都有预警，看清再走位。每局 2 次复活' },
-  normal: { name: '中等', hp: 1,    dmg: 1,    rate: 1,    boss: 48000, cd: 3.6, enrage: true,  storm: false, revive: 1, elite: 75, note: 'Boss 半血后发怒，出招更快，多一个大招。每局 1 次复活' },
-  hard:   { name: '困难', hp: 1.35, dmg: 1.35, rate: 1.25, boss: 72000, cd: 3.0, enrage: true,  storm: true, revive: 1, elite: 60, note: '怪多血厚，Boss 一开场就会用大招。每局 1 次复活' },
+  easy:   { name: '简单', hp: 0.85, dmg: 0.8,  rate: 0.9,  boss: 32000, cd: 4.2, enrage: false, storm: false, revive: 2, elite: 90 },
+  normal: { name: '中等', hp: 1,    dmg: 1,    rate: 1,    boss: 48000, cd: 3.6, enrage: true,  storm: false, revive: 1, elite: 75 },
+  hard:   { name: '困难', hp: 1.35, dmg: 1.35, rate: 1.25, boss: 72000, cd: 3.0, enrage: true,  storm: true, revive: 1, elite: 60 },
 };
 const MODES = {
-  std:     { name: '标准', note: '每 30 秒一个新事件，10:00 期末 Boss 出场（四个里随机一个），打倒它通关' },
-  endless: { name: '无尽', note: '没有终点，5 分钟起每 5 分钟换一个 Boss，一个比一个强' },
+  std:     { name: '标准' },
+  endless: { name: '无尽' },
 };
 const BOSS_T = 600, EVT = 30;   // 一局 10 分钟，每 30 秒一个事件
 const DIFFICULTIES = Object.keys(DIFFS);
 let diffId = 'easy', modeId = 'std'; const DF = () => DIFFS[diffId];
-const UNLOCK_ORDER = ['gun', 'magic', 'summon'];   // 通关一次解锁下一个流派的全部同学
 // 局外进度：开局有 3 位同学、5 个技能、4 件遗物、6 件饰品
-const localPreview = location.protocol === 'http:' && ['127.0.0.1', 'localhost', '[::1]'].includes(location.hostname);
 const SAVE_PREFIX = localPreview ? 'syntara.brawl.preview' : 'syntara.brawl';
 let META_KEY = `${SAVE_PREFIX}.meta`;
 let BEST_KEY = `${SAVE_PREFIX}.best`;
-const saveParams = new URLSearchParams(location.search);
-const expectedGameAccount = !skillDemoMode && location.pathname.startsWith('/native-web/games/sandbox-brawl/')
+const expectedGameAccount = !skillDemoMode && !staticMatchPreview && location.pathname.startsWith('/native-web/games/sandbox-brawl/')
   ? saveParams.get('account') : null;
 const cloudGame = !!expectedGameAccount;
 let cloudSave = null;
@@ -1439,13 +1439,13 @@ function loadMeta() {
   }
   } catch (e) {}
 }
-if (!cloudGame) loadMeta();
+if (!cloudGame && !staticMatchPreview) loadMeta();
 function cloudSnapshot() {
   const { practiceTransfer: _legacyTransfer, ...data } = meta;
   return structuredClone({ ...data, best: Math.floor(bestEndless) });
 }
 function saveMeta() {
-  if (skillDemoMode) return;
+  if (skillDemoMode || staticMatchPreview) return;
   if (cloudSave) {
     try { cloudSave.enqueue(cloudSnapshot()); }
     catch (error) { showSaveError(error); }
@@ -1783,18 +1783,10 @@ function classBaseStats(hero) {
     crit: BASE_ST.crit + (hero.crit ?? 0),
   };
 }
-const player = { x: 0, z: 0, vx: 0, vz: 0, yaw: 0, hp: 100, maxHp: 100, speed: 5.4, magnet: 2.4, lvl: 1, xp: 0, need: 6, kills: 0, weapons: {}, wup: {}, st: { ...BASE_ST }, relics: {}, evo: {}, alt: {}, duos: {}, elem: {}, sp: {}, arts: {}, revives: 1, koi: 0, shield: false, ph: 0, hit: 0, seed: 0.2, moving: 0, spinT: 0, slowT: 0, stepAcc: 0, stepSide: 1, healAcc: 0, iframe: 0 };
+const player = { x: 0, z: 0, vx: 0, vz: 0, yaw: 0, hp: 100, maxHp: 100, speed: 5.4, magnet: 2.4, lvl: 1, xp: 0, need: 6, kills: 0, weapons: {}, wup: {}, st: { ...BASE_ST }, relics: {}, evo: {}, alt: {}, duos: {}, elem: {}, sp: {}, arts: {}, revives: 1, koi: 0, shield: false, ph: 0, hit: 0, seed: 0.2, moving: 0, spinT: 0, slowT: 0, stepAcc: 0, stepSide: 1, iframe: 0 };
 const R = (id) => player.relics[id] || 0;
 const A = (id) => !!player.arts[id];
 const W = (id) => player.weapons[id] || 0;
-const tagPts = (tag) => Object.keys(player.weapons).filter((w) => WEAPONS[w].tag === tag).length + Object.keys(player.relics).filter((r) => RELICS[r].tag === tag).length;
-const tierOf = (p) => (p >= 6 ? 3 : p >= 4 ? 2 : p >= 2 ? 1 : 0);
-let SL = { melee: 0, ranged: 0, gun: 0, magic: 0, summon: 0 };
-function refreshSets() {
-  const old = SL; SL = {}; for (const t in TAGS) SL[t] = tierOf(tagPts(t));
-  for (const t in TAGS) if (SL[t] > (old[t] || 0) && state !== 'title') banner(`${TAGS[t].name}流派 ${'Ⅰ Ⅱ Ⅲ'.split(' ')[SL[t] - 1]}`, SETS[t][SL[t] - 1]);
-  renderBuilds();
-}
 // 时间越久怪越强
 const tHp = () => (1 + T / 30 * 0.32) * (1 + Math.max(0, T - BOSS_T) / 60 * 0.25);
 const tDmg = () => 1 + T / 30 * 0.06 + Math.max(0, T - BOSS_T) / 60 * 0.05;
@@ -1804,17 +1796,16 @@ function dmgMul(tag) {
   if (tag === 'melee') m *= 1 + 0.08 * R('wrist');
   if (tag === 'ranged') m *= 1 + 0.08 * R('sticky'); if (tag === 'gun') m *= 1 + 0.08 * R('powder'); if (tag === 'magic') m *= 1 + 0.08 * R('starSticker');
   if (A('errbook')) m *= 1 + 0.01 * (player.errN || 0); if (A('merit') && player.hp > player.maxHp * 0.8) m *= 1.25; if (A('badge')) m *= 1 + 0.03 * Object.keys(player.relics).length;
-  if (tag === 'summon') { m *= 1 + RELICS.snack.summonDamage * R('snack'); if (SL.summon >= 3) m *= 1.5; }
+  if (tag === 'summon') m *= 1 + RELICS.snack.summonDamage * R('snack');
   m *= (1 + 0.15 * R('allnight')) * Math.pow(0.96, R('slack'));
   if (A('plate')) m *= 1 + Math.max(0, player.st.armor) * 0.01; if (A('last') && player.hp < player.maxHp * 0.35) m *= 1.6;
   return m;
 }
 function cdMul(tag) {
   let m = 1 / (1 + player.st.atkSpd);
-  if (tag === 'gun') { m *= Math.pow(0.93, R('mag')); if (SL.gun >= 1) m *= 0.8; }
+  if (tag === 'gun') m *= Math.pow(0.93, R('mag'));
   if (tag === 'magic') m *= Math.pow(0.93, R('caffeine'));
   if (tag === 'summon') m /= 1 + RELICS.banner.summonSpeed * R('banner');
-  if (tag === 'melee' && SL.melee >= 3) m *= 0.5;
   return m;
 }
 const area = (tag) => (tag === 'melee' ? (1 + 0.08 * R('dumbbell') + 0.05 * R('bucket')) : 1) * (tag === 'magic' ? 1 + 0.1 * R('ink') : 1);
@@ -1837,9 +1828,6 @@ function hitEnemy(e, dmg, kx = 0, kz = 0, tag = '', opts = {}) {
   if (state === 'play' && v > 0) gameAudio.play('hit');
   if (Math.random() < 0.5 || crit) dmgNum(e.x, e.z, v, crit ? 'crit' : '', e.r * 2 + 0.6);
   if (crit && A('vamp')) restoreHealth(player, Math.min(player.maxHp * VAMP_HEAL_MAX_HP_RATE, v * VAMP_HEAL_RATE));
-  if (tag === 'melee' && SL.melee >= 1) { player.healAcc += 0.2; }
-  if (tag === 'magic' && SL.magic >= 1) applyBurn(e, v);
-  if (tag === 'gun' && crit && SL.gun >= 2 && !opts.noChain) { boom(e.x, e.z, 1.6, v * 0.6, 'gun', 0xffd27a); }
   if (xs) { if (xs.stun && e.type !== 'boss' && Math.random() < 0.15) { e.frz = Math.max(e.frz || 0, 0.8); spark(e.x, e.r * 2 + 0.5, e.z, 0xffe07a, 5, 2, 0.3, 0.5, 0); } if (xs.mark) e.stink = Math.max(e.stink || 0, 3); }
   if (els && els.length && !e.dead) applyElems(e, v, els);
   if (!elite && !e.dead && e.hp > 0 && A('judge') && e.hp < e.maxHp * 0.15) { e.hp = 0; dmgNum(e.x, e.z, '✗', 'crit', e.r * 2 + 1); }
@@ -2010,7 +1998,6 @@ function killEnemy(e, tag) {
   // 知识吸取：把全场经验吸过来
   if ((Math.random() < 0.012 || e.type === 'hourglass') && drops.length < 3) drops.push({ x: e.x, z: e.z });
   if (e.type !== 'boss' && e.type !== 'hourglass' && !(NET && NET.on) && Math.random() < (e.giant ? 0.06 : 0.005) && gifts.length < 3) { const id = rollRelic([78, 20, 2]); if (id) gifts.push({ x: e.x, z: e.z, id, t: 0 }); }
-  if (e.burn > 0 && SL.magic >= 2) { ringFx(e.x, e.z, 2.5, 0xff7a2a, 0.3); spark(e.x, 0.6, e.z, 0xff7a2a, 14, 5, 0.4, 0.4); query(e.x, e.z, 2.5, (o) => { setBurn(o, e.burnDps); }); }
   if (tag === 'summon' && player.evo.minion && minions.length < 30) addMinion(3, e.x, e.z);
   if (task && task.type === 'kill' && Math.hypot(e.x - task.x, e.z - task.z) < task.rad) { task.prog++; spark(e.x, 0.8, e.z, 0xff5a5a, 6, 3, 0.3, 0.4); }
   if (e.type === 'snail' || e.type === 'phone' || e.type === 'hourglass') { ripple(e.x, e.z, 0.6); shake = Math.max(shake, 0.12); }
@@ -2065,8 +2052,6 @@ function shoot(rig, x, y, z, yaw, sp, life, dmg, tag, o = {}) {
   const xs = player.sp[CW]; if (xs) { o = { ...o }; if (xs.pierce) o.pierce = (o.pierce || 0) + (CW === 'shotgun' ? 1 : 2); if (xs.split) o.split = true; if (xs.bounce) o.bounce = Math.max(o.bounce || 0, 2); }
   shots.push(Object.assign({ rig, x, y, z, vx: Math.sin(yaw) * sp, vz: Math.cos(yaw) * sp, life, dmg, tag, pierce: 0, hit: new Set(), r: 0.25, spin: 0, split: false, bounce: 0, boom: false, w: CW }, o));
 }
-const rangedMods = () => ({ pierce: R('sharpener') + (SL.ranged >= 1 ? 1 : 0), split: SL.ranged >= 2, bounce: SL.ranged >= 3 ? 3 : 0, extra: R('scratch') + (SL.ranged >= 3 ? 1 : 0) });
-const summonExtra = () => R('poster') + (SL.summon >= 1 ? 1 : 0);
 const sweepFx = { t: 0, r: 2 };
 const ELC = { fire: 0xff6a2a, ice: 0x7fd4ff, acid: 0x8fd83a, elec: 0x3f9bff }, WHITE_C = new THREE.Color(1, 1, 1), ELT = {};
 const elT = (id, k = 0) => { const c = EC(id, k % 2); return c == null ? null : (ELT[c] || (ELT[c] = new THREE.Color(c))); };
@@ -2100,7 +2085,6 @@ function slash(range, dmg, full, yaw = player.yaw) {
   for (let k = 0; k < (full ? 26 : 14); k++) { const a = yaw - arc / 2 + arc * (k + Math.random()) / (full ? 26 : 14), rr = range * rnd(0.75, 1); puff('sweep', player.x + Math.sin(a) * rr, rnd(0.5, 0.9), player.z + Math.cos(a) * rr, 1, 2.2, 0.36, 0.45); }
   if (SPX('sweep', 'wave')) shoot('ruler', player.x + Math.sin(yaw) * 0.8, 0.8, player.z + Math.cos(yaw) * 0.8, yaw, 16, 0.6, dmg * 0.6, 'melee', { pierce: 99, r: 1.1, sc: 1.5 });
   if (SPX('sweep', 'block')) for (const b of eshots) if (Math.hypot(b.x - player.x, b.z - player.z) < range) { b.life = 0; spark(b.x, 0.8, b.z, 0xffffff, 6, 4, 0.3, 0.3); }
-  if (SL.melee >= 2) { ringFx(player.x, player.z, range * 1.9, 0xffb04a, 0.35); query(player.x, player.z, range * 1.9, (o, dx, dz) => { const L = Math.hypot(dx, dz); if (L > range) hitEnemy(o, dmg * 0.5, dx / L * 6, dz / L * 6, 'melee', { noChain: true }); }); }
   if (player.duos.parry) for (let k = 0; k < 8; k++) shoot('eraser', player.x, 0.8, player.z, k / 8 * TAU + rnd(-0.1, 0.1), 15, 0.45, 8 + 3 * W('shotgun'), 'gun', { tint: new THREE.Color([0xff8fb1, 0x8fd3ff, 0xffffff][k % 3]), spin: 9 });
   shake = Math.max(shake, 0.1); ripple(player.x, player.z, 0.35);
 }
@@ -2128,14 +2112,14 @@ function mopSwipe(s, evo) {
   player.spinT = 0.35; shake = Math.max(shake, 0.06);
 }
 function fire(dt) {
-  const h = hand(), RM = rangedMods();
+  const h = hand(), extraRanged = R('scratch'), rangedPierce = R('sharpener');
   for (const id in player.weapons) {
     CW = id; const s = ws(id), tag = WEAPONS[id].tag, evo = player.evo[id];
     if (id === 'spin') continue;
     if (id === 'sock') { sockTick(dt, s, evo); continue; }
     if (id === 'mop' && SPX('mop', 'trail') && player.moving > 0.3) { mopTrail -= dt; if (mopTrail <= 0) { mopTrail = 0.3; addWet(player.x, player.z, s, evo); } }
     cds[id] = (cds[id] ?? 0.3) - dt; if (cds[id] > 0) continue;
-    cds[id] = (evo && id === 'sweep' ? 0.3 / (SL.melee >= 3 ? 0.5 : 1) : evo && id === 'coffee' ? s.cd * 0.5 : s.cd) * cdMul(tag); if (A('copier') && Math.random() < 0.2) cds[id] = Math.min(cds[id], 0.12); if (SPX(id, 'twice') && Math.random() < 0.25) cds[id] = Math.min(cds[id], 0.15); if (id === 'pencil' && player.alt.pencil) cds[id] *= 0.5;
+    cds[id] = (evo && id === 'sweep' ? 0.3 : evo && id === 'coffee' ? s.cd * 0.5 : s.cd) * cdMul(tag); if (A('copier') && Math.random() < 0.2) cds[id] = Math.min(cds[id], 0.12); if (SPX(id, 'twice') && Math.random() < 0.25) cds[id] = Math.min(cds[id], 0.15); if (id === 'pencil' && player.alt.pencil) cds[id] *= 0.5;
     { const c = EC(id) ?? WPC[id]?.[0] ?? 0xffffff; hitStar(player.x + Math.sin(player.yaw) * 0.6, player.z + Math.cos(player.yaw) * 0.6, c, 0.9, 1.1); spark(player.x, 1.1, player.z, c, 4, 3, 0.3, 0.3, 0); }
     if (id === 'sweep') {
       const range = s.range * area('melee') * (evo ? 1.5 : 1);
@@ -2146,13 +2130,13 @@ function fire(dt) {
       if (!nearest(player.x, player.z, s.range + 1) && !(task && task.type === 'mop')) { cds[id] = 0.1; continue; }
       mopSwipe(s, evo);
     } else if (id === 'pencil') {
-      const used = new Set(), n = s.n + RM.extra;
-      for (let k = 0; k < n; k++) { const e = nearest(h.x, h.z, 14, used) || nearest(h.x, h.z, 14); if (!e) { cds[id] = 0.15; break; } used.add(e); shoot('pencilP', h.x, h.y, h.z, Math.atan2(e.x - h.x, e.z - h.z), 18, 1.1, s.dmg, 'ranged', { pierce: s.pierce + RM.pierce + (player.alt.pencil ? 3 : 0), split: RM.split, bounce: RM.bounce }); }
-      if (SPX('pencil', 'back')) { const e0 = nearest(h.x, h.z, 14); if (e0) { const yb = Math.atan2(e0.x - h.x, e0.z - h.z) + PI; for (let k = 0; k < n; k++) shoot('pencilP', h.x, h.y, h.z, yb + (k - (n - 1) / 2) * 0.14, 18, 1.1, s.dmg, 'ranged', { pierce: s.pierce + RM.pierce }); } }
-      if (evo) for (let k = 0; k < 10; k++) shoot('pencilP', player.x, 0.85, player.z, k / 10 * TAU + realTime, 16, 0.9, s.dmg * 0.7, 'ranged', { pierce: 1 + RM.pierce, bounce: RM.bounce });
+      const used = new Set(), n = s.n + extraRanged;
+      for (let k = 0; k < n; k++) { const e = nearest(h.x, h.z, 14, used) || nearest(h.x, h.z, 14); if (!e) { cds[id] = 0.15; break; } used.add(e); shoot('pencilP', h.x, h.y, h.z, Math.atan2(e.x - h.x, e.z - h.z), 18, 1.1, s.dmg, 'ranged', { pierce: s.pierce + rangedPierce + (player.alt.pencil ? 3 : 0) }); }
+      if (SPX('pencil', 'back')) { const e0 = nearest(h.x, h.z, 14); if (e0) { const yb = Math.atan2(e0.x - h.x, e0.z - h.z) + PI; for (let k = 0; k < n; k++) shoot('pencilP', h.x, h.y, h.z, yb + (k - (n - 1) / 2) * 0.14, 18, 1.1, s.dmg, 'ranged', { pierce: s.pierce + rangedPierce }); } }
+      if (evo) for (let k = 0; k < 10; k++) shoot('pencilP', player.x, 0.85, player.z, k / 10 * TAU + realTime, 16, 0.9, s.dmg * 0.7, 'ranged', { pierce: 1 + rangedPierce });
     } else if (id === 'slipper') {
       const e = nearest(h.x, h.z, 12); if (!e) { cds[id] = 0.15; continue; }
-      const n = s.n + RM.extra, yaw0 = Math.atan2(e.x - h.x, e.z - h.z);
+      const n = s.n + extraRanged, yaw0 = Math.atan2(e.x - h.x, e.z - h.z);
       for (let k = 0; k < n; k++) { const yaw = yaw0 + (k - (n - 1) / 2) * 0.35; slippers.push({ x: h.x, z: h.z, vx: Math.sin(yaw) * 17, vz: Math.cos(yaw) * 17, t: 0, out: true, dmg: s.dmg, hit: new Set(), spinA: 0, evo, small: false }); }
     } else if (id === 'stapler') {
       if (player.alt.stapler) { const e = nearest(h.x, h.z, 18); if (!e) { cds[id] = 0.1; continue; } const yaw = Math.atan2(e.x - h.x, e.z - h.z); shoot('staple', h.x, h.y, h.z, yaw, 32, 1.0, s.dmg * 2.6 * (s.n + R('dual')), 'gun', { sc: 3.2, r: 0.7, pierce: 99 }); cds[id] *= 2.4; shake = Math.max(shake, 0.18); spark(h.x + Math.sin(yaw) * 0.5, h.y, h.z + Math.cos(yaw) * 0.5, 0xffe9a0, 14, 4, 0.3, 0.2, 0); continue; }
@@ -2169,11 +2153,11 @@ function fire(dt) {
       if (SPX('shotgun', 'back')) for (let k = 0; k < s.n; k++) shoot('eraser', h.x, h.y, h.z, yaw + PI + (k / (s.n - 1) - 0.5) * 0.9 + rnd(-0.05, 0.05), rnd(14, 18), 0.42, s.dmg, 'gun', { tint: new THREE.Color([0xff8fb1, 0x8fd3ff, 0xffffff][k % 3]), spin: rnd(5, 12), boom: !!evo });
       shake = Math.max(shake, 0.1); spark(h.x, h.y, h.z, 0xffffff, 8, 4, 0.3, 0.15, 0); { const mx = h.x + Math.sin(yaw) * 0.9, mz = h.z + Math.cos(yaw) * 0.9, c = EC('shotgun') ?? 0xffd0e0; hitStar(mx, mz, c, 2.4, h.y); hitStar(mx, mz, 0xffffff, 1.3, h.y + 0.02); ringFx(mx, mz, 1.5, c, 0.18, 0.8); for (let k = -1; k <= 1; k++) spark(h.x + Math.sin(yaw + k * 0.35) * 1.4, h.y, h.z + Math.cos(yaw + k * 0.35) * 1.4, c, 4, 4, 0.36, 0.22, 0); }
     } else if (id === 'plane') {
-      const n = s.n + RM.extra + (evo ? 3 : 0);
+      const n = s.n + extraRanged + (evo ? 3 : 0);
       for (let k = 0; k < n; k++) planes.push({ x: h.x, y: 1.2, z: h.z, yaw: player.yaw + (k - (n - 1) / 2) * 0.5, sp: 9, life: (evo ? 5 : 3) * (SPX('plane', 'life') ? 1.7 : 1), dmg: s.dmg, target: null, pierce: (evo ? 4 : 0) + (SPX('plane', 'loop') ? 2 : 0), hit: new Set() });
     } else if (id === 'bolt') {
       let cur = nearest(h.x, h.z, SPX('bolt', 'far') ? 16 : 10); if (!cur) { cds[id] = 0.2; continue; }
-      if (player.alt.bolt) thunder(s); else chain({ x: h.x, y: 1.1, z: h.z }, cur, evo ? 14 : s.n + R('ink'), s.dmg, evo);
+      if (player.alt.bolt) thunder(s); else chain({ x: h.x, y: 1.1, z: h.z }, cur, evo ? 14 + Number(SPX('bolt', 'two')) : s.n + R('ink'), s.dmg, evo);
     } else if (id === 'coffee') {
       const tg = nearest(player.x, player.z, 9); if (!tg) { cds[id] = 0.3; continue; }
       cups.push({ x0: h.x, z0: h.z, x: tg.x, z: tg.z, t: 0, rad: s.rad * area('magic') * (evo ? 1.35 : 1), dmg: s.dmg, evo });
@@ -2182,14 +2166,14 @@ function fire(dt) {
     } else if (id === 'rollcall') {
       const n = evo ? 5 : s.n; if (!rollCall(n, s.dmg, evo)) cds[id] = 0.3;
     } else if (id === 'minion') {
-      const n = Math.min(30 - minions.length, (s.n + summonExtra()) * (evo ? 2 : 1) * (SL.summon >= 3 ? 2 : 1));
+      const n = Math.min(30 - minions.length, (s.n + R('poster')) * (evo ? 2 : 1));
       for (let k = 0; k < n; k++) addMinion(s.dur);
       if (n > 0) ripple(player.x, player.z, 0.5);
     } else if (id === 'lamp') {
-      const n = Math.min(8 - lamps.length, s.n + (SL.summon >= 1 ? 1 : 0));
+      const n = Math.min(8 - lamps.length, s.n);
       for (let k = 0; k < n; k++) { const a = rnd(0, TAU); const L = { x: clamp(player.x + Math.cos(a) * 2, -HX + 0.6, HX - 0.6), z: clamp(player.z + Math.sin(a) * 2, -HZ + 0.6, HZ - 0.6), life: s.dur, cd: 0.5, aim: 0, seed: Math.random(), drop: 1, planeCd: 1 }; lamps.push(L); ringFx(L.x, L.z, 1.4, EC('lamp') ?? 0xfff6c8, 0.3); hitStar(L.x, L.z, EC('lamp') ?? 0xfff6c8, 2, 0.8); dust(L.x, L.z, 14); ripple(L.x, L.z, 0.4); if (SPX('lamp', 'flash')) { ringFx(L.x, L.z, 3.6, 0xffffff, 0.35); spark(L.x, 1.2, L.z, 0xfff6c8, 30, 8, 0.4, 0.4); query(L.x, L.z, 3.6, (o) => { if (o.type !== 'boss') o.frz = Math.max(o.frz || 0, 1.5); }); } }
     } else if (id === 'duck') {
-      const n = Math.min(12 - ducks.length, (s.n + summonExtra()) * (evo ? 3 : 1));
+      const n = Math.min(12 - ducks.length, (s.n + R('poster')) * (evo ? 3 : 1));
       for (let k = 0; k < n; k++) { const a = rnd(0, TAU), r = rnd(2, 4); ducks.push({ x: clamp(player.x + Math.cos(a) * r, -HX + 0.6, HX - 0.6), z: clamp(player.z + Math.sin(a) * r, -HZ + 0.6, HZ - 0.6), life: s.dur, max: s.dur, dmg: s.dmg, evo, ph: rnd(0, 6), seed: Math.random(), moving: 1, hit: 0, drop: 1 }); }
       if (n > 0) dmgNum(player.x, player.z, '嘎！', 'tag', 2.4);
     }
@@ -2260,7 +2244,7 @@ function addMinion(life, x, z) {
   minions.push(m); spark(m.x, 0.5, m.z, TINTS[minions.length % 6], 14, 4, 0.35, 0.5); ringFx(m.x, m.z, 1.1, TINTS[minions.length % 6], 0.3, 0.9); hitStar(m.x, m.z, TINTS[minions.length % 6], 1.6, 0.6);
 }
 function updateSummons(dt) {
-  const ms = player.weapons.minion ? ws('minion') : WBASE.minion, big = SL.summon >= 3 ? 1.4 : 1;
+  const ms = player.weapons.minion ? ws('minion') : WBASE.minion;
   CW = 'minion';
   for (const m of minions) {
     if (Math.random() < dt * (EC('minion') != null ? 9 : 5)) puff('minion', m.x, 0.7, m.z, 1, 0.5, 0.3, 0.4);
@@ -2268,13 +2252,12 @@ function updateSummons(dt) {
     const tgt = nearest(m.x, m.z, 9);
     let tx = player.x + Math.cos(m.seed * 20 + realTime * 0.5) * 1.8, tz = player.z + Math.sin(m.seed * 20 + realTime * 0.5) * 1.8;
     if (tgt && Math.hypot(tgt.x - player.x, tgt.z - player.z) < 12) { tx = tgt.x; tz = tgt.z; }
-    const dx = tx - m.x, dz = tz - m.z, d = Math.hypot(dx, dz), reach = tgt ? tgt.r + 0.45 * big : 0.3;
+    const dx = tx - m.x, dz = tz - m.z, d = Math.hypot(dx, dz), reach = tgt ? tgt.r + 0.45 : 0.3;
     if (d > reach) { const sp = Math.min(SPX('minion', 'fast') ? 10 : 7, d * 4); m.x += dx / d * sp * dt; m.z += dz / d * sp * dt; m.yaw = Math.atan2(dx, dz); m.ph += sp * dt * 3; m.moving = 1; } else m.moving = 0;
-    m.atk -= dt; m.swing = Math.max(0, m.swing - dt * 4); m.big = big;
+    m.atk -= dt; m.swing = Math.max(0, m.swing - dt * 4);
     if (tgt && d <= reach + 0.2 && m.atk <= 0) {
       m.atk = ms.atk * cdMul('summon') * (SPX('minion', 'fast') ? 0.75 : 1); m.swing = 1;
       hitEnemy(tgt, ms.dmg, dx / (d || 1) * 3, dz / (d || 1) * 3, 'summon');
-      if (SL.summon >= 2) query(tgt.x, tgt.z, 1.2, (o) => { if (o !== tgt) hitEnemy(o, ms.dmg * 0.5, 0, 0, 'summon', { noCrit: true }); });
       spark(tgt.x, 0.6, tgt.z, 0xffe14d, 4, 3, 0.25, 0.25);
     }
     if (player.duos.binder) { m.shootCd -= dt; const e = tgt && d < 7 ? tgt : null; if (e && m.shootCd <= 0) { m.shootCd = 1; shoot('staple', m.x, 0.6, m.z, Math.atan2(e.x - m.x, e.z - m.z), 20, 0.5, 4 + 2 * W('stapler'), 'gun'); } }
@@ -2290,8 +2273,8 @@ function updateSummons(dt) {
     if (e && L.cd <= 0) {
       L.cd = ls.atk * cdMul('summon');
       const ox = L.x + Math.sin(L.aim) * 0.35, oz = L.z + Math.cos(L.aim) * 0.35;
-      if (player.evo.lamp || SL.summon >= 2) {
-        const len = player.evo.lamp ? 14 : Math.hypot(e.x - L.x, e.z - L.z) + 2, ex = ox + Math.sin(L.aim) * len, ez = oz + Math.cos(L.aim) * len;
+      if (player.evo.lamp) {
+        const len = 14, ex = ox + Math.sin(L.aim) * len, ez = oz + Math.cos(L.aim) * len;
         for (const o of enemies) { if (o.dead) continue; const t = clamp(((o.x - ox) * (ex - ox) + (o.z - oz) * (ez - oz)) / (len * len), 0, 1); const px = ox + (ex - ox) * t, pz = oz + (ez - oz) * t; if (Math.hypot(o.x - px, o.z - pz) < o.r + 0.3) hitEnemy(o, ls.dmg, 0, 0, 'summon'); }
         zap([{ x: ox, y: 0.9, z: oz }, { x: ex, y: 0.5, z: ez }], EC('lamp') ?? 0xfff1a8, 0.14, 0, EC('lamp') != null ? 4 : 1);
       } else { hitEnemy(e, ls.dmg, 0, 0, 'summon'); zap([{ x: ox, y: 0.9, z: oz }, { x: e.x, y: 0.6, z: e.z }], EC('lamp') ?? 0xfff1a8, 0.12, 0, EC('lamp') != null ? 4 : 1); }
@@ -2648,7 +2631,24 @@ function hide() { panel.querySelector('.codex-skill-preview')?.remove(); ov.hidd
 const wipeEl = $('wipe');
 function wipe(fn) { if (REDUCED) return fn(); wipeEl.classList.add('close'); setTimeout(() => { fn(); requestAnimationFrame(() => requestAnimationFrame(() => wipeEl.classList.remove('close'))); }, 420); }
 let bannerT = 0;
-function banner(text, sub = '', image = '') { const b = $('banner'); b.innerHTML = `<b>${image}${text}</b>` + (sub ? `<small>${sub}</small>` : ''); b.classList.remove('on'); void b.offsetWidth; b.classList.add('on'); bannerT = 2.4; }
+function showBanner(content, kind = '', duration = 2.4) {
+  const el = $('banner');
+  el.className = kind;
+  el.innerHTML = content;
+  void el.offsetWidth;
+  el.classList.add('on');
+  bannerT = duration;
+}
+function banner(text, sub = '', image = '') {
+  showBanner(`<b>${image}${text}</b>` + (sub ? `<small>${sub}</small>` : ''));
+}
+function monsterArrival(type) {
+  const [name] = MON_INFO[type];
+  showBanner(`<div class="monster-dialogue frame">
+    <span class="monster-speaker">新怪物 · ${name}</span>
+    <p>${MON_ARRIVAL_TAUNTS[type]}</p>
+  </div>${illustration('mons', type)}`, 'monster-arrival', 3.2);
+}
 const CLS_IDS = Object.keys(CLASSES);
 const fmt = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 const confetti = (n = 36) => `<div class="confetti">${Array.from({ length: n }, (_, i) => `<i style="left:${(i * 37 % 100)}%;background:${['#ffc93c', '#ff6b6b', '#4aa8ff', '#3fc98a', '#a98bff', '#fff'][i % 6]};animation-duration:${2.2 + (i * 13 % 10) / 5}s;animation-delay:${-(i * 7 % 30) / 10}s"></i>`).join('')}</div>`;
@@ -2998,7 +2998,7 @@ function codexItems(tab) {
     const altDesc = alt && (altOwned(id)
       ? `<b>第二种终极形态「${alt.name}」</b>：${alt.desc}。Lv 10 时二选一。`
       : `第二种终极形态「${alt.name}」可通过大鹅抽卡解锁。`);
-    return { ...item, desc: `${TAGS[weapon.tag].name}。${weapon.desc}。每升一级：${LVUP[id][2]}。Lv 4 和 Lv 8 各注入一次元素，Lv 10 变成终极形态「${weapon.evo.name}」：${weapon.evo.desc}。${altDesc || ''}特殊升级（完成地图任务开宝箱拿）：${SP[id].map((x) => x[1]).join('、')}。` };
+    return { ...item, desc: `${TAGS[weapon.tag].name}。${weapon.desc}。每升一级：${SKILL_GAIN_LABELS[LVUP[id]]} +${SKILL_UPGRADE_AMOUNTS[LVUP[id]].join('%／+')}%。Lv 4 和 Lv 8 各注入一次元素，Lv 10 变成终极形态「${weapon.evo.name}」：${weapon.evo.desc}。${altDesc || ''}特殊升级（完成地图任务开宝箱拿）：${SP[id].map((x) => x[1]).join('、')}。` };
   });
   if (tab === 'arts' || tab === 'relics') return Object.entries(FRAGMENT_POOLS[tab]).map(([id, item]) => {
     const level = itemLevel(tab, id);
@@ -3251,15 +3251,14 @@ function renderPrep(fresh) {
     <h3>模式</h3>
     <div class="opts2">${Object.keys(MODES).map((m) => { const lk = m === 'endless' && !endlessOpen(); return `<button class="opt ${m === modeId ? 'on' : ''} ${lk ? 'lk' : ''}" data-m="${m}" ${lk ? 'disabled' : ''}><b>${MODES[m].name}</b><small>${lk ? '通关一次标准模式解锁' : m === 'std' ? '10:00 打倒大魔王' : bestEndless ? `最好 ${fmt(bestEndless)}` : '能撑多久算多久'}</small></button>`; }).join('')}</div>
     <h3>难度</h3>
-    <div class="opts3">${difficultyOptions()}</div>
-    <p class="note">${MODES[modeId].note}。${DF().note}。</p>
-    <div class="actions"><button id="pBack">返回</button><button class="primary big" id="go" ${locked && (aL || meta.pts < PRICE.heroes) ? 'disabled' : ''}>${aL ? '靠成就加入' : locked ? (meta.pts < PRICE.heroes ? `还差 ${PRICE.heroes - meta.pts} 积分` : `兑换 · ${PRICE.heroes} 积分`) : '出发！'}</button></div>`;
-  const plate = `<div class="plate frame ${locked ? 'locked' : ''}"><b>${locked ? '？？？' : cls.name}</b>${locked ? `<small>${aL ? '成就解锁' : PRICE.heroes + ' 积分兑换'}</small>` : `<span class="role" style="--c:${t.c}">${t.name}</span>`}</div>`;
+    <div class="opts3">${difficultyOptions()}</div>`;
+  const launch = `<button class="primary big prep-launch" id="go" ${locked && (aL || meta.pts < PRICE.heroes) ? 'disabled' : ''}>${aL ? '靠成就加入' : locked ? (meta.pts < PRICE.heroes ? `还差 ${PRICE.heroes - meta.pts} 积分` : `兑换 · ${PRICE.heroes} 积分`) : '出发！'}</button>`;
   if (fresh || titleEl.className !== 'prep') {
     titleEl.className = 'prep';
-    titleEl.innerHTML = `<div class="stageUI"><button class="arrow l" id="pl" aria-label="上一位">‹</button><button class="arrow r" id="pr" aria-label="下一位">›</button><div id="plateBox">${plate}</div></div><div class="side frame" id="side">${side}</div>`;
+    titleEl.innerHTML = `<div class="stageUI"><button class="arrow l" id="pl" aria-label="上一位">‹</button><button class="arrow r" id="pr" aria-label="下一位">›</button><div class="actions prep-actions"><button id="pBack">返回</button><div id="launchBox">${launch}</div></div></div><div class="side frame" id="side">${side}</div>`;
     $('pl').onclick = () => pickHero(selIdx + CLS_IDS.length - 1); $('pr').onclick = () => pickHero(selIdx + 1);
-  } else { $('plateBox').innerHTML = plate; const sc = $('side').scrollTop; $('side').innerHTML = side; $('side').scrollTop = sc; }
+    $('pBack').onclick = () => { titleStep = 'home'; renderHome(); };
+  } else { $('launchBox').innerHTML = launch; const sc = $('side').scrollTop; $('side').innerHTML = side; $('side').scrollTop = sc; }
   titleEl.querySelectorAll('[data-d]').forEach((b) => b.onclick = () => { diffId = b.dataset.d; renderPrep(); });
   titleEl.querySelectorAll('[data-m]').forEach((b) => b.onclick = () => { modeId = b.dataset.m; renderPrep(); });
   titleEl.querySelectorAll('.chip').forEach((b) => b.onclick = () => pickHero(+b.dataset.i));
@@ -3269,7 +3268,6 @@ function renderPrep(fresh) {
     renderPrep();
     if (b.dataset.sk) spark(TX, 1.5, TZ - 1, 0xffd23f, 50, 6, 0.4, 0.7);
   });
-  $('pBack').onclick = () => { titleStep = 'home'; renderHome(); };
   $('go').onclick = () => { if (!isOpen(clsId)) { if (buy('heroes', clsId)) { renderPrep(); spark(TX, 1.5, TZ - 1, 0xffd23f, 80, 7, 0.4, 0.8); } return; } wipe(startRun); };
 }
 const GACHA_TURN_TIME = 0.65;
@@ -3418,6 +3416,16 @@ function netReviveCredit(id, revives) {
   }
 }
 const bigNum = (v) => v >= 1e6 ? (v / 1e6).toFixed(1) + 'M' : v >= 1e4 ? (v / 1e3).toFixed(1) + 'k' : String(Math.round(v));
+const averageDps = (damage) => bigNum(damage / Math.max(1, T));
+const combatStatFields = $('combatStats').querySelectorAll('[data-stat]');
+function renderCombatStats() {
+  for (const field of combatStatFields) {
+    const id = field.dataset.stat;
+    const value = id === 'dps' ? averageDps(run.dmg)
+      : id === 'total' ? bigNum(run.dmg) : STATS[id].show(player.st[id]);
+    if (field.textContent !== value) field.textContent = value;
+  }
+}
 function dmgBoard() {
   if (!NET?.on || NET.n < 2) return '';
   const rows = NET.roster.map((rp, index) => {
@@ -3435,12 +3443,21 @@ function dmgBoard() {
       <div class="db-cells"><span${r.st[4] === hi ? ' class="hot"' : ''}><b>${bigNum(r.st[4])}</b><small>最高一击</small></span><span${r.st[1] === tk ? ' class="hot"' : ''}><b>${bigNum(r.st[1])}</b><small>承伤</small></span><span${r.st[2] === dn ? ' class="hot"' : ''}><b>${r.st[2]}</b><small>倒下</small></span><span${r.st[3] === rv ? ' class="hot"' : ''}><b>${r.st[3]}</b><small>救人</small></span></div>
     </div>`).join('')}</div>`;
 }
+function netSkillLoadout(skills) {
+  return skills.slice(0, MAXW).filter((entry) => {
+    if (!Array.isArray(entry) || entry.length !== 3) return false;
+    const [id, level, form] = entry;
+    if (typeof id !== 'string' || !Object.hasOwn(WEAPONS, id) || !Number.isInteger(level) || level < 1 || level > MAXLV) return false;
+    return form === 'base' || (form === 'evo' && !!WEAPONS[id].evo) || (form === 'alt' && Object.hasOwn(ALT, id));
+  });
+}
 function netPeer(id, p) {
   const room = NET.room.players.find((q) => q.id === id); if (!room) return;
   let q = NET.peers[id]; if (!q) q = NET.peers[id] = { id, name: room.name, x: p.x, z: p.z, ps: { ph: 0, hit: 0, seed: Math.random(), moving: 0, glowMul: 2.4 } };
   const radius = [p.x, p.z, p.sockAura].every(Number.isFinite) && p.hp > 0
     ? clamp(p.sockAura, 0, Math.hypot(2 * HX, 2 * HZ)) : 0;
   if (validStats(p.st)) NET.liveStats.set(id, p.st);
+  if (Array.isArray(p.skills)) q.skills = netSkillLoadout(p.skills);
   netReviveCredit(id, p.revives);
   Object.assign(q, { tx: p.x, tz: p.z, yaw: p.y, mv: p.m, hp: p.hp, mh: p.mh, lv: p.lv, h: p.h, sk: p.sk, dead: !!p.d, name: room.name, radius, sockSeen: performance.now() });
   q.grave = q.dead && Array.isArray(p.g) && p.g.every(Number.isFinite) ? { x: p.g[0], z: p.g[1], prog: clamp(p.g[2], 0, REVIVE_T) } : null;
@@ -3483,10 +3500,11 @@ function netTick(dt) {
   player.ghostly = !!player.ghost;
   NET.sendT -= dt; if (NET.sendT > 0) return; NET.sendT = 0.1;
   const me = { x: r2(player.x), z: r2(player.z), y: r2(player.yaw), m: r2(player.moving), hp: Math.ceil(player.hp), mh: Math.ceil(player.maxHp), lv: player.lvl, h: clsId, sk: skinOf(clsId), d: player.ghost ? 1 : 0, st: netStats() };
+  me.skills = Object.keys(player.weapons).map((id) => [id, wLevel(id), player.evo[id] ? 'evo' : player.alt[id] ? 'alt' : 'base']);
   if (!player.ghost && player.lastHeal) me.heal = player.lastHeal;
   if (player.ghost && player.grave) me.g = [r2(player.grave.x), r2(player.grave.z), r2(player.grave.prog)];
   if (Object.keys(NET.revives).length) me.revives = NET.revives;
-  netTeamHud();
+  netTeamHud(NET);
   if (!player.ghost && player.hp > 0 && player.weapons.sock && player.alt.sock &&
       (state === 'play' || state === 'levelup' || state === 'paused')) me.sockAura = r2(sockAuraRadius());
   if (!NET.host) {
@@ -3727,10 +3745,10 @@ const teamRings = TEAM_COLORS.map((color) => {
   return ring;
 });
 
-function drawGraves() {
+function drawGraves(team) {
   graveFx.forEach((g, i) => {
-    const id = NET.teamIds[i];
-    const p = id === NET.id ? player : NET.peers[id];
+    const id = team.teamIds[i];
+    const p = id === team.id ? player : team.peers[id];
     const v = p && (p === player ? p.ghost : p.dead) && p.grave;
     g.visible = !!v; if (!v) return;
     g.position.set(v.x, 0, v.z);
@@ -3740,31 +3758,37 @@ function drawGraves() {
     if (Math.random() < 0.15) spark(v.x + rnd(-1, 1), 0.2, v.z + rnd(-1, 1), TEAM_COLORS[i], 1, 0.6, 0.3, 0.9, -2);
   });
 }
-// 右侧的队伍血量：自己在最上面
-const teamEl = document.createElement('div'); teamEl.id = 'team'; teamEl.hidden = true; $('hud').appendChild(teamEl);
-const teamNumber = (index) => `<span class="team-no">${index + 1}</span>`;
-function netTeamHud() {
-  const rows = NET.room.players.map((rp) => {
-    const index = NET.teamIds.indexOf(rp.id);
-    const me = rp.id === NET.id, q = me ? null : NET.peers[rp.id];
-    const hero = me ? clsId : (q && q.h) || rp.hero, c = CLASSES[hero] || CLASSES.brawler;
-    const dead = me ? !!player.ghost : !!(q && q.dead), hp = me ? Math.ceil(player.hp) : q ? q.hp || 0 : 0, mh = me ? Math.ceil(player.maxHp) : q ? q.mh || 1 : 1;
-    const prog = me ? (player.grave ? player.grave.prog : 0) : q && q.grave ? q.grave.prog : 0;
+const teamEl = $('team');
+function netTeamHud(team) {
+  const html = team.room.players.filter((rp) => rp.id !== team.id).map((rp) => {
+    const index = team.teamIds.indexOf(rp.id);
+    const peer = team.peers[rp.id];
+    const c = CLASSES[peer?.h || rp.hero] || CLASSES.brawler;
+    const dead = peer?.dead, hp = peer?.hp || 0, mh = peer?.mh || 1;
+    const prog = peer?.grave?.prog ?? 0;
     const w = dead ? (prog / REVIVE_T) * 100 : Math.max(0, Math.min(1, hp / mh)) * 100;
     const right = dead ? (prog > 0 ? `救援中 ${Math.round((prog / REVIVE_T) * 100)}%` : '灵魂') : `${Math.max(0, hp)}/${mh}`;
     const name = rp.name.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
-    return { me, html: `<div class="tm frame${me ? ' me' : ''}${dead ? ' dead' : ''}" data-seat="${index + 1}" style="--team-color:${TEAM_COLORS[index]}">${teamNumber(index)}${ico(TAGS[c.tag].c, c.start)}<div><b><span>${name}${me ? '（你）' : ''}</span><small>${right}</small></b><i><u style="width:${w.toFixed(1)}%"></u></i></div></div>` };
-  });
-  rows.sort((a, b) => b.me - a.me);
-  const html = rows.map((r) => r.html).join('');
-  if (teamEl.hidden) teamEl.hidden = false;
+    const damage = team.liveStats.get(rp.id)?.[0];
+    const dps = damage === undefined ? '—' : averageDps(damage);
+    const skills = peer?.skills?.map(([id, level, form]) => {
+      const skill = WEAPONS[id];
+      const label = `${form === 'alt' ? ALT[id].name : form === 'evo' ? skill.evo.name : skill.name} Lv ${level}`;
+      return `<span class="tm-skill" role="img" aria-label="${label}" title="${label}">${illustration(SKILL_FORM_ICONS[form], id)}<span aria-hidden="true">${form === 'base' ? level : '★'}</span></span>`;
+    }).join('') || '';
+    return `<div class="tm frame${dead ? ' dead' : ''}" data-seat="${index + 1}" style="--team-color:${TEAM_COLORS[index]}">${ico(TAGS[c.tag].c, c.start)}<div>
+      <b><span>${name}</span><small>${right}</small></b><i><u style="width:${w.toFixed(1)}%"></u></i>
+      <div class="tm-loadout">${skills ? `<div class="tm-skills" role="group" aria-label="技能">${skills}</div>` : ''}<span class="tm-dps">DPS <strong>${dps}</strong></span></div>
+    </div></div>`;
+  }).join('');
+  teamEl.hidden = html.length === 0;
   if (teamEl.dataset.sig !== html) { teamEl.dataset.sig = html; teamEl.innerHTML = html; }
 }
-function drawPeers() {
+function drawPeers(team) {
   teamRings.forEach((ring, i) => {
-    const id = NET.teamIds[i];
-    const me = id === NET.id;
-    const p = me ? player : NET.peers[id];
+    const id = team.teamIds[i];
+    const me = id === team.id;
+    const p = me ? player : team.peers[id];
     ring.visible = !!p && !(me ? p.ghost : p.dead);
     if (ring.visible) ring.position.set(p.x, 0.06, p.z);
     if (!p || me || !CLASSES[p.h]) return;
@@ -3779,13 +3803,13 @@ const peerMarkers = TEAM_COLORS.map((color, i) => {
   el.hidden = true;
   el.dataset.seat = i + 1;
   el.style.setProperty('--team-color', color);
-  el.innerHTML = `${teamNumber(i)}<div class="pmarker-info"><b class="pmarker-label"></b><i class="pmarker-health"><u></u></i></div><small class="pmarker-distance"></small><svg class="pmarker-arrow" viewBox="0 0 18 18" aria-hidden="true"><path d="M3 9h11m-5-5 5 5-5 5"/></svg>`;
+  el.innerHTML = `<span class="team-no">${i + 1}</span><div class="pmarker-info"><b class="pmarker-label"></b><i class="pmarker-health"><u></u></i></div><small class="pmarker-distance"></small><svg class="pmarker-arrow" viewBox="0 0 18 18" aria-hidden="true"><path d="M3 9h11m-5-5 5 5-5 5"/></svg>`;
   ptags.appendChild(el);
   const [, info, distance, arrow] = el.children;
   return { el, label: info.firstElementChild, health: info.querySelector('u'), distance, arrow };
 });
 
-function drawPeerMarkers() {
+function drawPeerMarkers(team) {
   ptags.hidden = false;
   camera.updateMatrixWorld();
   const width = innerWidth, height = innerHeight;
@@ -3795,19 +3819,19 @@ function drawPeerMarkers() {
   const bottom = height - Math.min(height * 0.25, width <= 720 ? 103 : 83);
   const axes = camera.projectionMatrix.elements;
   const edges = [[], [], [], []];
-  const team = teamEl.getBoundingClientRect();
+  const teamBounds = teamEl.getBoundingClientRect();
 
   peerMarkers.forEach((marker, i) => {
-    const id = NET.teamIds[i];
-    const me = id === NET.id;
-    const p = me ? player : NET.peers[id];
+    const id = team.teamIds[i];
+    const me = id === team.id;
+    const p = me ? player : team.peers[id];
     const dead = p && (me ? p.ghost : p.dead);
     const target = dead ? p.grave : me ? null : p;
     marker.el.hidden = !target;
     if (!target) return;
 
     marker.el.classList.toggle('grave', !!dead);
-    const name = me ? '你的坟墓' : dead ? `${p.name}的坟墓` : `${p.name} · Lv ${p.lv || 1}`;
+    const name = me ? '你的坟墓' : dead ? `${p.name}的坟墓` : p.name;
     if (marker.label.textContent !== name) marker.label.textContent = name;
     v3.set(target.x, dead ? 1.15 : 2.65, target.z).applyMatrix4(camera.matrixWorldInverse);
     const depth = Math.max(Math.abs(v3.z), 0.001);
@@ -3844,7 +3868,7 @@ function drawPeerMarkers() {
     entries.forEach((entry, i) => {
       entry[axis] = clamp(entry[axis], next, max - gap * (entries.length - i - 1));
       next = entry[axis] + gap;
-      if (side === 1 && entry.y + 14 >= team.top && entry.y - 14 <= team.bottom) entry.x = team.left - 48;
+      if (side === 0 && entry.y + 14 >= teamBounds.top && entry.y - 14 <= teamBounds.bottom) entry.x = Math.min(right, teamBounds.right + 48);
       entry.marker.el.style.transform = `translate(${entry.x}px, ${entry.y}px) translate(-50%, -50%)`;
     });
   });
@@ -3938,7 +3962,7 @@ function startRun() {
   for (const id of Object.keys(GROWTH_STATS)) {
     if (id !== 'maxHp' && id !== 'points') st[id] += growthBonus(id);
   }
-  Object.assign(player, { x: 0, z: 0, vx: 0, vz: 0, yaw: 0, hp: maxHp, maxHp, speed: cls.spd, magnet: 2.4, lvl: 1, xp: 0, need: 5, kills: 0, weapons: { [cls.start]: 1 }, wup: {}, elem: {}, sp: {}, arts: {}, koi: 0, shield: false, st, relics: {}, evo: {}, alt: {}, duos: {}, spinT: 0, slowT: 0, healAcc: 0, healPending: 0, lastHeal: null, iframe: 0, ghost: 0, dark: false });
+  Object.assign(player, { x: 0, z: 0, vx: 0, vz: 0, yaw: 0, hp: maxHp, maxHp, speed: cls.spd, magnet: 2.4, lvl: 1, xp: 0, need: 5, kills: 0, weapons: { [cls.start]: 1 }, wup: {}, elem: {}, sp: {}, arts: {}, koi: 0, shield: false, st, relics: {}, evo: {}, alt: {}, duos: {}, spinT: 0, slowT: 0, healPending: 0, lastHeal: null, iframe: 0, ghost: 0, dark: false });
   rerollCost = REROLL_BASE_COST; player.revives = DF().revive; watchT = 12; shieldT = 10; bellT = 30; warmT = 0; player.retakeUsed = false; player.errN = 0; player.lunchN = 0; player.puddleT = -9; $('rmark').hidden = true;
   mctx.clearRect(0, 0, 1024, 1024); marksDirty = true;
   T = 0; spawnAcc = 0; settled = false; run = { tasks: 0, hg: 0, hit: -1, dmg: 0, taken: 0, downs: 0, rev: 0, top: 0 }; achClock = 0; nextElite = DF().elite * 1.8; nextBats = 25; nextBomb = 90; nextBoss = modeId === 'std' ? BOSS_T : 300; bossCount = 0; bossOrder = shuffle([...BOSS_KINDS]); if (!meta.seen.includes('boss')) bossOrder = ['boss', ...bossOrder.filter((k) => k !== 'boss')]; boss = null; ev = {}; timeScale = 1; pendingLevels = 0; task = null; nextTask = 50;
@@ -3947,20 +3971,19 @@ function startRun() {
   $('who').innerHTML = illustratedBadge('heroes', clsId, TAGS[cls.tag].c, 40); $('pname').textContent = cls.name; hud.lv = 1; hud.points = meta.pts; $('lv').textContent = 1; $('score').textContent = meta.pts;
   camLook.set(0, 0, 0);
   for (let k = 0; k < 6; k++) spawnNear('sleepy', 8, 13);
-  state = 'play'; SL = {}; refreshSets(); renderSlots(); renderItems(); banner('第一波', modeId === 'std' ? '撑到 10:00，期末大魔王会出现' : '无尽模式：撑得越久越好');
+  state = 'play'; renderSlots(); renderItems(); banner('第一波', modeId === 'std' ? '撑到 10:00，期末大魔王会出现' : '无尽模式：撑得越久越好');
 }
 $('pauseBtn').onclick = () => { if (state === 'play') pause(); };
 function pause() {
   if (NET && NET.phase) return;
   if (NET && NET.on) { state = 'paused'; show(`<h2>暂停</h2><p>联机时世界不会停，怪也不会打你，但别离开太久。升级、宝箱、遗物出现时会自动关掉暂停，大家一起选。</p>${statsHtml()}${buildSummary()}<div class="actions"><button class="primary" id="rs">继续</button><button id="qt">离开联机</button></div>`); $('rs').onclick = resume; $('qt').onclick = () => netLeave(); $('rs').focus(); return; } state = 'paused'; show(`<h2>暂停</h2>${statsHtml()}${buildSummary()}<div class="actions"><button class="primary" id="rs">继续</button><button id="qt">换个同学</button></div>`); $('rs').onclick = resume; $('qt').onclick = () => { settle(false); wipe(() => showTitle('prep')); }; $('rs').focus(); }
-function resume() { hide(); state = 'play'; }
+function resume() { hide(); state = staticMatchPreview ? 'preview' : 'play'; }
 function statsHtml() {
   return `<div class="stats-grid">${Object.keys(STATS).map((id) => `<div>${illustratedBadge('stats', id, STATS[id].c)}<span>${STATS[id].name}</span><b>${STATS[id].show(player.st[id])}</b></div>`).join('')}</div>`;
 }
 function buildSummary() {
-  const rows = Object.keys(TAGS).filter((t) => tagPts(t) > 0).map((t) => `<div><span class="role" style="--c:${TAGS[t].c}">${TAGS[t].name} ${tagPts(t)}</span> ${SL[t] ? SETS[t].slice(0, SL[t]).join('；') : '凑齐 2 件解锁第一阶'}</div>`);
   const ex = [...Object.keys(player.arts).map((a) => `遗物：${ARTS[a].name}`), ...Object.keys(player.relics).map((r) => `${RELICS[r].name}×${R(r)}`), ...Object.keys(player.elem).map((w) => `${WEAPONS[w].name}：${player.elem[w].map((e) => ELEMS[e].name).join('+')}`), ...Object.keys(player.evo).map((w) => `终极：${WEAPONS[w].evo.name}`), ...Object.keys(player.alt).map((w) => `终极：${ALT[w].name}`), ...Object.keys(player.sp).flatMap((w) => Object.keys(player.sp[w]).map((k) => `${WEAPONS[w].name}·${SP[w].find((q) => q[0] === k)[1]}`)), ...Object.keys(player.duos).map((d) => `联动：${DUOS[d].name}`)];
-  return `<div class="summary">${rows.join('')}${ex.length ? `<div style="color:#9a5a12;font-weight:800">${ex.join(' · ')}</div>` : ''}</div>`;
+  return ex.length ? `<div class="summary" style="color:#9a5a12;font-weight:800">${ex.join(' · ')}</div>` : '';
 }
 let slotSig = {};
 function renderSlots() {
@@ -3987,7 +4010,7 @@ function renderSlots() {
   slotSig = sig;
 }
 function showRunItems(selected) {
-  if (state !== 'play' || !ov.hidden) return;
+  if ((state !== 'play' && state !== 'preview') || !ov.hidden) return;
   state = 'paused';
   endJoy();
   const items = Object.keys(player.relics);
@@ -4005,7 +4028,6 @@ function showRunItems(selected) {
   if (NET?.on) close.insertAdjacentHTML('beforebegin', '<small>联机时，房间仍在进行。</small>');
   ($('inventory-' + selected) || close).focus();
 }
-$('itemsOpen').onclick = () => showRunItems();
 function renderItems() {
   const items = Object.keys(player.relics);
   $('items').hidden = !items.length;
@@ -4021,16 +4043,13 @@ function renderItems() {
     button.onclick = () => showRunItems(button.dataset.item);
   });
 }
-function renderBuilds() {
-  $('builds').innerHTML = Object.keys(TAGS).filter((t) => tagPts(t) > 0).map((t) => `<div class="bchip frame" style="--c:${TAGS[t].c}">${TAGS[t].name} ${tagPts(t)}<span class="tiers">${[1, 2, 3].map((k) => `<i class="${SL[t] >= k ? 'on' : ''}"></i>`).join('')}</span></div>`).join('');
-}
 function evoReady() { return []; }
 function duoReady() { return Object.keys(DUOS).filter((d) => !player.duos[d] && W(DUOS[d].a) && W(DUOS[d].b)); }
 function upgradeOptions(n = A('fourth') ? 4 : 3) {
   const pool = [], nW = Object.keys(player.weapons).length;
   for (const w of evoReady()) pool.push({ kind: 'e', id: w, w: 8 });
   for (const d of duoReady()) pool.push({ kind: 'd', id: d, w: 5 });
-  for (const id in player.weapons) for (const u of WEAPONS[id].ups) { const k = (player.wup[id] || {})[u] || 0; if (k < UPS[u].max) pool.push({ kind: 'u', id, u, tier: 0, w: 1.3 }); }
+  for (const id in player.weapons) for (const u of WEAPONS[id].ups) { const k = (player.wup[id] || {})[u] || 0; if (k < UPS[u].max) pool.push({ kind: 'u', id, u, tier: rollTier(), w: 1.3 }); }
   for (const id in STATS) { const S = STATS[id]; if (S.max != null && player.st[id] >= S.max - 1e-6) continue; pool.push({ kind: 's', id, tier: rollTier(), w: 0.75 }); }
   const out = [];
   while (out.length < n && pool.length) { let r = Math.random() * pool.reduce((a, b) => a + b.w, 0), i = 0; while ((r -= pool[i].w) > 0 && i < pool.length - 1) i++; out.push(pool.splice(i, 1)[0]); }
@@ -4038,114 +4057,104 @@ function upgradeOptions(n = A('fourth') ? 4 : 3) {
 }
 // 4 / 8 / 12 级固定拿一个新技能：从没有的武器里抽三把
 function weaponOptions(n = 3) {
-  const pool = []; for (const id in WEAPONS) if (!W(id) && skillOpen(id)) { const t = WEAPONS[id].tag; pool.push({ kind: 'w', id, w: (t === cls.tag ? 1.6 : 1) * (tagPts(t) > 0 ? 1.3 : 1) }); }
+  const pool = []; for (const id in WEAPONS) if (!W(id) && skillOpen(id)) { const t = WEAPONS[id].tag; pool.push({ kind: 'w', id, w: (t === cls.tag ? 1.6 : 1) }); }
   const out = [];
   while (out.length < n && pool.length) { let r = Math.random() * pool.reduce((a, b) => a + b.w, 0), i = 0; while ((r -= pool[i].w) > 0 && i < pool.length - 1) i++; out.push(pool.splice(i, 1)[0]); }
   return out;
 }
-function buildLine(tag) {
-  if (!tag) return '';
-  const p = tagPts(tag), next = p + 1, tier = tierOf(next);
-  if (tier > tierOf(p)) return `<span class="build">${TAGS[tag].name} ${p}→${next}：解锁「${SETS[tag][tier - 1]}」</span>`;
-  const need = next < 2 ? 2 : next < 4 ? 4 : next < 6 ? 6 : 0;
-  return `<span class="build">${TAGS[tag].name}流派 ${p}→${next}${need ? `，再 ${need - next} 件到下一阶` : ''}</span>`;
-}
-const deltaHtml = (s) => { const m = s.match(/^(.*?)\s*(\S+) → (.+)$/); return m ? `<span class="delta">${m[1]} <s>${m[2]}</s><em>→</em><b>${m[3]}</b></span>` : `<span class="delta">${s}</span>`; };
 const OPTION_ICON_CATEGORIES = { w: 'skills', u: 'skills', e: 'ultimates', d: 'duos', x: 'skills', r: 'relics', a: 'arts', s: 'stats' };
-// 饰品和特殊升级使用固定的展示品质，保留原有的效果和掉落权重。
-const EPIC_CHEST_RELICS = new Set(['grimoire', 'ink']);
-const SPECIAL_CARD_TIERS = {
-  sweep:    [2, 3, 2, 0, 0, 1, 1, 1],
-  spin:     [1, 2, 3, 0, 1, 0, 2, 1],
-  mop:      [3, 2, 1, 0, 0, 0, 1, 2],
-  pencil:   [3, 2, 3, 1, 0, 1, 0, 2],
-  plane:    [3, 2, 2, 0, 0, 1, 0, 1],
-  slipper:  [1, 3, 2, 0, 1, 0, 0, 2],
-  stapler:  [1, 2, 3, 0, 1, 0, 0, 2],
-  shotgun:  [3, 1, 2, 0, 1, 0, 2, 0],
-  bolt:     [3, 2, 2, 1, 0, 0, 1, 0],
-  coffee:   [3, 1, 2, 0, 0, 1, 0, 2],
-  sock:     [3, 2, 1, 0, 0, 1, 2, 0],
-  rollcall: [2, 2, 1, 3, 0, 0, 1, 2],
-  minion:   [2, 1, 3, 2, 0, 0, 0, 1],
-  lamp:     [3, 1, 1, 2, 0, 0, 1, 0],
-  duck:     [2, 1, 3, 2, 1, 0, 0, 0],
-};
+const CHOICE_CARD_LABELS = { task: '任务', unique: '独特', artifact: '遗物', accessory: '宝箱', ultimate: '终极形态', element: '元素注入' };
 function choiceCardTier(option, rarity) {
-  if (option.kind === 'r') {
-    const relic = RELICS[option.id];
-    if (relic.r === 2) return 3;
-    if (relic.curse || EPIC_CHEST_RELICS.has(option.id)) return 2;
-    return relic.r;
-  }
-  if (option.kind === 'x') {
-    const index = SP[option.w].findIndex(([id]) => id === option.id);
-    return SPECIAL_CARD_TIERS[option.w][index];
-  }
+  if (option.kind === 'r') return 'accessory';
+  if (option.kind === 'a') return 'artifact';
+  if (option.kind === 'x') return 'task';
+  if (option.kind === 'ult') return 'ultimate';
+  if (option.kind === 'el') return 'element';
+  if (option.kind === 'u') return option.tier ?? 0;
   if (rarity === 'legend') return 3;
-  if (rarity === 'duo') return 2;
+  if (rarity === 'duo') return 'unique';
   if (option.kind === 'w') return 1;
   return option.tier ?? 0;
 }
 function optionCard(o, i, theme) {
-  let c, kind, rar = '', rn = '', stars = 0, name, sub = '', desc = '', delta = '', pips = '', foot = '';
+  let c, kind, rar = '', rn = '', stars = 0, name, sub = '', desc = '', pips = '', foot = '';
   let elementIcon;
   let category = OPTION_ICON_CATEGORIES[o.kind];
-  if (o.kind === 'e') { const w = WEAPONS[o.id]; c = w.c; kind = '武器进化'; rar = 'legend'; rn = '传说'; name = w.evo.name; sub = `${w.name} + ${RELICS[w.evo.relic].name}`; desc = w.evo.desc; }
+  if (o.kind === 'ult') {
+    const w = WEAPONS[o.id], alternate = o.v === 'b', form = alternate ? ALT[o.id] : w.evo;
+    category = SKILL_FORM_ICONS[alternate ? 'alt' : 'evo'];
+    c = w.c; kind = w.name; name = form.name; desc = form.desc;
+  }
+  else if (o.kind === 'e') { const w = WEAPONS[o.id]; c = w.c; kind = '武器进化'; rar = 'legend'; rn = '传说'; name = w.evo.name; sub = `${w.name} + ${RELICS[w.evo.relic].name}`; desc = w.evo.desc; }
   else if (o.kind === 'd') { const d = DUOS[o.id]; c = '#2a9a86'; kind = '武器联动'; rar = 'duo'; rn = '联动'; name = d.name; sub = `${WEAPONS[d.a].name} × ${WEAPONS[d.b].name}`; desc = d.desc; }
-  else if (o.kind === 'w') { const w = WEAPONS[o.id], t = TAGS[w.tag]; c = w.c; kind = `新技能 ${Object.keys(player.weapons).length + 1}/${MAXW}`; rar = w.funny ? 'funny' : 'rare'; rn = w.funny ? '搞笑' : t.name; name = w.name; desc = w.desc; foot = buildLine(w.tag); }
+  else if (o.kind === 'w') { const w = WEAPONS[o.id]; c = w.c; kind = `新技能 ${Object.keys(player.weapons).length + 1}/${MAXW}`; rar = w.funny ? 'funny' : 'rare'; rn = w.funny ? '搞笑' : ''; name = w.name; desc = w.desc; }
   else if (o.kind === 'u') {
     const w = WEAPONS[o.id], k = (player.wup[o.id] || {})[o.u] || 0, l = wLevel(o.id), mx = UPS[o.u].max;
-    const n = (o.tier || 0) + 1; c = w.c; kind = `${w.name} Lv ${l}→${l + n}`; rn = TIER[o.tier || 0].n; rar = 'q' + (o.tier || 0); stars = n; name = LVUP[o.id][2]; sub = ''; rn = ''; rar = ''; stars = 0; delta = deltaHtml(upPreview(o.id, o.u, n));
-    pips = `<span class="pips">${Array.from({ length: mx }, (_, q) => `<i class="${q < k ? 'on' : q < k + n ? 'new' : ''}"></i>`).join('')}</span>`;
-    if (l + n >= MAXLV && altOwned(o.id)) { kind = `${w.name} 满级`; rar = 'legend'; rn = '终极形态'; name = '两种终极形态'; desc = `升到 Lv 10 时，在「${w.evo.name}」和「${ALT[o.id].name}」里选一个`; }
-    else if (l + n >= MAXLV) { kind = `${w.name} 满级`; rar = 'legend'; rn = '终极形态'; category = 'ultimates'; name = w.evo.name; desc = w.evo.desc; }
-    else if (INF_LV.includes(l + 1)) foot = '<span class="build">升到这一级会注入一次元素</span>';
-    else if (l + 2 >= MAXLV) foot = `<span class="build">再升一级变成终极形态「${altOwned(o.id) ? w.evo.name + '」或「' + ALT[o.id].name : w.evo.name}」</span>`;
-    if (theme === 'upgrade') {
-      sub = rar === 'legend' ? kind : `Lv ${l} → ${l + n} · ${name}`;
-      if (rar !== 'legend') name = w.name;
-      kind = '技能强化';
+    const next = l + 1, label = SKILL_GAIN_LABELS[LVUP[o.id]];
+    const amount = skillUpgradeAmount(o.id, o.tier);
+    c = w.c; kind = '技能强化';
+    name = `${label} <span class="stat-gain">+ ${amount}%</span>`;
+    sub = `${w.name} · Lv ${next}`;
+    pips = `<span class="pips">${Array.from({ length: mx }, (_, q) => `<i class="${q < k ? 'on' : q === k ? 'new' : ''}"></i>`).join('')}</span>`;
+    if (next >= MAXLV) {
+      rar = 'legend'; rn = '终极形态';
+      if (altOwned(o.id)) desc = `选择终极形态「${w.evo.name}」或「${ALT[o.id].name}」`;
+      else {
+        category = 'ultimates';
+        desc = `终极形态「${w.evo.name}」：${w.evo.desc}`;
+      }
     }
+    else if (INF_LV.some((level) => l < level && level <= next)) foot = '<span class="build">升到这一级会注入一次元素</span>';
+    else if (next + 1 === MAXLV) foot = `<span class="build">再升一级变成终极形态「${altOwned(o.id) ? w.evo.name + '」或「' + ALT[o.id].name : w.evo.name}」</span>`;
   } else if (o.kind === 'r') {
-    const r = RELICS[o.id], t = TAGS[r.tag];
-    const ra = rarOf(o.id), have = R(o.id), bonus = itemLevelBonus('relics', o.id);
-    c = ra.c; kind = (r.curse ? '代价饰品' : '饰品') + (t ? ' · ' + t.name : ''); rar = ra.k; rn = ra.n; name = r.name;
-    sub = `Lv ${itemLevel('relics', o.id)} · ${have ? `已有 ${have} 件` : '可以叠加'}`;
+    const r = RELICS[o.id];
+    const have = R(o.id), bonus = itemLevelBonus('relics', o.id);
+    c = '#68e0a1'; kind = r.curse ? '代价饰品' : '饰品'; name = r.name;
+    sub = have ? `已有 ${have} 件` : '可以叠加';
     desc = r.desc + (bonus ? '。' + bonus : '');
-    foot = have ? '' : buildLine(r.tag);
   } else if (o.kind === 'a') {
     const a = ARTS[o.id], bonus = itemLevelBonus('arts', o.id);
-    c = a.c; kind = '遗物'; rar = 'legend'; rn = '强力'; name = a.name;
-    sub = `Lv ${itemLevel('arts', o.id)}`;
+    c = a.c; kind = ''; name = a.name;
     desc = a.desc + (bonus ? '。' + bonus : '');
   }
   else if (o.kind === 'el') {
     const E = ELEMS[o.id], cur = player.elem[o.w] || [], cb = cur.length ? COMBOS[[cur[0], o.id].sort().join('+')] : null;
-    c = E.c; kind = WEAPONS[o.w].name; rar = cb ? 'epic' : 'rare'; rn = cb ? '组合' : '元素'; name = cb ? cb[0] : E.name + '元素'; sub = cb ? `${ELEMS[cur[0]].name} + ${E.name}` : ''; desc = cb ? `${cb[1]}。${E.name}：${E.desc}` : E.desc;
+    c = E.c; kind = WEAPONS[o.w].name; name = cb ? cb[0] : E.name + '元素'; sub = cb ? `${ELEMS[cur[0]].name} + ${E.name}` : ''; desc = cb ? `${cb[1]}。${E.name}：${E.desc}` : E.desc;
     elementIcon = cb
       ? `<span class="ico element-pair">${illustration('elements', cur[0])}${illustration('elements', o.id)}</span>`
       : illustratedBadge('elements', o.id, E.c);
-    if (!cb) foot = '<span class="build">这个技能到 Lv 8 再注入一次，两种元素会组合</span>';
+    if (!cb) foot = '<span class="build">下次注入时，两种元素会组合</span>';
   } else if (o.kind === 'x') {
-    const w = WEAPONS[o.w], x = SP[o.w].find((q) => q[0] === o.id); c = w.c; kind = w.name; rar = 'epic'; rn = '特殊升级'; name = x[1]; desc = x[2];
+    const w = WEAPONS[o.w], x = SP[o.w].find((q) => q[0] === o.id); c = w.c; kind = w.name; rn = '任务'; name = x[1]; desc = x[2];
   } else {
     const S = STATS[o.id], v = statVal(o.id, o.tier), after = Math.min(S.max ?? Infinity, player.st[o.id] + v);
-    c = S.c; kind = '通用属性'; rar = 'q' + o.tier; rn = TIER[o.tier].n; stars = o.tier + 1; name = S.name; sub = S.fl;
-    delta = o.id === 'maxHp' ? deltaHtml(`${S.name} ${Math.round(player.maxHp)} → ${Math.round(player.maxHp + v)}`) : deltaHtml(`${S.name} ${S.show(player.st[o.id]).replace(/（.*/, '')} → ${S.show(after).replace(/（.*/, '')}`);
-    if (o.id === 'armor') desc = `每次受击扣除 ${Math.round(after)} 点伤害，最低为 0`; else if (S.max != null && S.max < 1) desc = `最高 ${S.show(S.max)}`;
+    const gain = S.max == null ? v : Math.max(0, after - player.st[o.id]);
+    const amount = o.id === 'maxHp' || o.id === 'armor' ? String(gain)
+      : o.id === 'regen' ? `${Number(gain.toFixed(2))}/秒` : `${Number((gain * 100).toFixed(2))}%`;
+    c = S.c; kind = '通用属性'; rar = 'q' + o.tier; rn = TIER[o.tier].n; stars = o.tier + 1; sub = S.fl;
+    name = `${S.name} <span class="stat-gain">+ ${amount}</span>`;
   }
   const icon = elementIcon ?? illustratedBadge(category, o.kind === 'x' ? o.w : o.id, c);
   const tier = theme ? choiceCardTier(o, rar) : null;
-  const themeAttr = theme ? ` data-card-tier="${tier}"` : '';
+  const themeAttr = theme ? ` data-card-tier="${tier}"${tier === 'element' ? ` data-card-element="${o.id}"` : ''}` : '';
+  const hasSkillRelief = theme && (o.kind === 'w' || o.kind === 'u');
+  const skillAttr = hasSkillRelief ? ` data-card-skill="${o.id}"` : '';
+  const reliefStyle = hasSkillRelief ? `;--card-relief:url('./card-backs/skills/${o.id}.webp')` : '';
   const upgradeType = theme === 'upgrade' ? (o.kind === 's' ? 'stat' : 'skill') : '';
   const typeAttr = upgradeType ? ` data-upgrade-type="${upgradeType}"` : '';
-  if (theme) rn = TIER[tier].n;
-  return `<button class="card ucard ${rar ? 'r-' + rar : ''}" data-i="${i}"${themeAttr}${typeAttr} style="--c:${c};--i:${i}"><span class="kind"><i>${kind}</i>${rn ? `<em>${rn}</em>` : ''}</span>${icon}${stars ? `<span class="stars">${'<i></i>'.repeat(stars)}</span>` : ''}<span class="name">${name}</span>${sub ? `<span class="sub">${sub}</span>` : ''}${desc ? `<span class="desc">${desc}</span>` : ''}${delta}${pips}${foot}<kbd>${i + 1}</kbd></button>`;
+  const tierLabel = CHOICE_CARD_LABELS[tier] ?? TIER[tier]?.n;
+  return `<button class="card ucard ${rar ? 'r-' + rar : ''}" data-i="${i}"${themeAttr}${typeAttr}${skillAttr} style="--c:${c};--i:${i}${reliefStyle}">${kind ? `<span class="kind"><i>${kind}</i>${!theme && rn ? `<em>${rn}</em>` : ''}</span>` : ''}${icon}${stars ? `<span class="stars">${'<i></i>'.repeat(stars)}</span>` : ''}<span class="name">${name}</span>${sub ? `<span class="sub">${sub}</span>` : ''}${desc ? `<span class="desc">${desc}</span>` : ''}${pips}${foot}${tierLabel ? `<span class="card-tier-label">${tierLabel}</span>` : ''}<kbd>${i + 1}</kbd></button>`;
 }
 function applyUpgrade(o) {
   if (o.kind === 'w') player.weapons[o.id] = 1;
-  else if (o.kind === 'u') { const u = (player.wup[o.id] = player.wup[o.id] || {}); const l0 = wLevel(o.id); u[o.u] = Math.min(UPS[o.u].max, (u[o.u] || 0) + (o.tier || 0) + 1); const l = (player.weapons[o.id] = wLevel(o.id)); for (const q of INF_LV) if (l0 < q && l >= q && (player.elem[o.id] || []).length + pendingInfuse.filter((w) => w === o.id).length < 2) pendingInfuse.push(o.id);
+  else if (o.kind === 'u') {
+    const u = (player.wup[o.id] = player.wup[o.id] || {});
+    const previous = u.lv || 0;
+    if (previous >= UPS.lv.max) return;
+    u.bonus = (u.bonus ?? previous * skillUpgradeAmount(o.id)) + skillUpgradeAmount(o.id, o.tier);
+    u.lv = previous + 1;
+    const l = (player.weapons[o.id] = wLevel(o.id));
+    if (INF_LV.includes(l) && (player.elem[o.id] || []).length + pendingInfuse.filter((w) => w === o.id).length < 2) pendingInfuse.push(o.id);
     if (l >= MAXLV && !player.evo[o.id] && !player.alt[o.id] && altOwned(o.id)) { if (!pendingUlt.includes(o.id)) pendingUlt.push(o.id); }
     if (l >= MAXLV && !player.evo[o.id] && !player.alt[o.id] && !altOwned(o.id)) { player.evo[o.id] = 1; banner(WEAPONS[o.id].evo.name, '终极形态', illustration('ultimates', o.id)); ripple(player.x, player.z, 1.5); spark(player.x, 1, player.z, 0xffc24a, 120, 9, 0.45, 0.9); shake = 0.4; } }
   else if (o.kind === 's') { const v = statVal(o.id, o.tier); if (o.id === 'maxHp') { player.maxHp += v; player.hp += v; } else player.st[o.id] = Math.min(STATS[o.id].max ?? Infinity, player.st[o.id] + v); }
@@ -4179,7 +4188,7 @@ function applyUpgrade(o) {
   else if (o.kind === 'a') { player.arts[o.id] = 1; const hpBonus = artLevelHp(o.id); player.maxHp += hpBonus; player.hp += hpBonus; if (o.id === 'plate') player.st.armor += 3; if (o.id === 'grant') player.magnet *= 1.5; banner(ARTS[o.id].name, '获得遗物', illustration('arts', o.id)); spark(player.x, 1, player.z, 0xffc93c, 90, 9, 0.45, 0.9); ripple(player.x, player.z, 1.2); }
   else if (o.kind === 'x') { (player.sp[o.w] = player.sp[o.w] || {})[o.id] = 1; const x = SP[o.w].find((q) => q[0] === o.id); banner(x[1], WEAPONS[o.w].name + ' · 特殊升级'); spark(player.x, 1, player.z, 0xc9a7ff, 80, 8, 0.4, 0.8); ripple(player.x, player.z, 1); }
   else if (o.kind === 'el') { (player.elem[o.w] = player.elem[o.w] || []).push(o.id); spark(player.x, 1, player.z, +('0x' + ELEMS[o.id].c.slice(1)), 70, 8, 0.4, 0.8); }
-  refreshSets(); renderSlots();
+  renderSlots();
 }
 // 三选一：点了以后被选中的卡放大，其余收走，再回到游戏
 function cardPick(opts, done) {
@@ -4244,36 +4253,33 @@ function showLevelUp(replacement) {
 function showUltPick() {
   state = 'levelup'; const id = pendingUlt[0], w = WEAPONS[id];
   const opts = [{ kind: 'ult', id, v: 'a' }, { kind: 'ult', id, v: 'b' }];
-  const card = (o, i) => {
-    const alternate = o.v === 'b';
-    const form = alternate ? ALT[id] : w.evo;
-    const icon = illustratedBadge(SKILL_FORM_ICONS[alternate ? 'alt' : 'evo'], id, w.c);
-    return `<button class="card ucard r-legend" data-i="${i}" style="--c:${w.c};--i:${i}"><span class="kind"><i>${w.name} 满级</i><em>${alternate ? '抽卡得到' : '原版'}</em></span>${icon}<span class="name">${form.name}</span><span class="desc">${form.desc}</span><kbd>${i + 1}</kbd></button>`;
-  };
-  show(`${lvHead('选一个终极形态', w.name + ' Lv 10', 'var(--sun2)')}<div class="ucards" style="--n:2">${opts.map(card).join('')}</div>`, 'bare');
+  show(`${lvHead('选一个终极形态', w.name, 'var(--sun2)')}${illustratedChoiceCards(opts, 'ultimate')}`, 'bare');
   cardPick(opts, (o) => { pendingUlt.shift(); applyUpgrade(o); nextChoice(); });
 }
 function showInfuse() {
   state = 'levelup'; const id = pendingInfuse[0], opts = Object.keys(ELEMS).map((el) => ({ kind: 'el', id: el, w: id }));
-  show(`${lvHead('元素注入', `${WEAPONS[id].name} Lv ${wLevel(id)}`, 'var(--lilac)')}<div class="ucards" style="--n:4">${opts.map((option, index) => optionCard(option, index)).join('')}</div>`, 'bare');
+  show(`${lvHead('元素注入', WEAPONS[id].name, 'var(--lilac)')}${illustratedChoiceCards(opts, 'element')}`, 'bare');
   cardPick(opts, (o) => { const cur = player.elem[id] || [], cb = cur.length ? COMBOS[[cur[0], o.id].sort().join('+')] : null; pendingInfuse.shift(); applyUpgrade(o); banner(cb ? cb[0] : ELEMS[o.id].name + '元素', WEAPONS[id].name); nextChoice(); });
 }
 function showArts() {
   const pool = shuffle(Object.keys(ARTS).filter((a) => !A(a) && meta.arts.includes(a)));
   if (!pool.length) { if (!player.ghost) restoreHealth(player, player.maxHp); banner('遗物已经拿完了', '生命回满'); if (NET && NET.on && NET.phase) nextChoice(); return; }
   const opts = pool.slice(0, Math.random() < player.st.luck * 2 ? 4 : 3).map((id) => ({ kind: 'a', id }));
-  state = 'levelup'; show(`${lvHead('发现遗物！', '', 'var(--sun2)')}<div class="ucards" style="--n:${opts.length}">${opts.map((option, index) => optionCard(option, index)).join('')}</div>`, 'bare');
+  state = 'levelup'; show(`${lvHead('发现遗物！', '', 'var(--sun2)')}${illustratedChoiceCards(opts, 'art')}`, 'bare');
   cardPick(opts, (o) => { applyUpgrade(o); nextChoice(); });
 }
 addEventListener('keydown', (e) => { if (state === 'levelup' && /^[1-4]$/.test(e.key)) { const b = panel.querySelectorAll('.ucard')[+e.key - 1]; if (b) b.click(); } });
-function specialOptions(n = 3) {
+function specialOptions(n, taskChest) {
   // 尽量每个技能各出一张，不够再补
-  const by = shuffle(Object.keys(player.weapons)).map((w) => shuffle(SP[w].filter((x) => !SPX(w, x[0])).map((x) => ({ kind: 'x', w, id: x[0] })))), out = [];
-  for (let r = 0; r < 8 && out.length < n; r++) for (const q of by) if (q[r] && out.length < n) out.push(q[r]);
+  const by = shuffle(Object.keys(player.weapons)).map((w) => shuffle(SP[w]
+    .filter(([id]) => (taskChest || id !== 'two') && !SPX(w, id))
+    .map(([id]) => ({ kind: 'x', w, id }))));
+  const out = [], rounds = Math.max(0, ...by.map((cards) => cards.length));
+  for (let r = 0; r < rounds && out.length < n; r++) for (const q of by) if (q[r] && out.length < n) out.push(q[r]);
   return out;
 }
 function chestOptions(special, gift, firstRelic) {
-  const options = special ? specialOptions(3) : [];
+  const options = special ? specialOptions(3, true) : [];
   const relicIds = firstRelic ? [firstRelic] : [];
   if (firstRelic) options.push({ kind: 'r', id: firstRelic });
   const weights = gift ? [78, 20, 2] : [50, 40, 10];
@@ -4283,7 +4289,7 @@ function chestOptions(special, gift, firstRelic) {
     relicIds.push(id);
     options.push({ kind: 'r', id });
   }
-  if (!special && options.length < 3) options.push(...specialOptions(3 - options.length));
+  if (!special && options.length < 3) options.push(...specialOptions(3 - options.length, false));
   const stats = shuffle(Object.keys(STATS).filter((id) => STATS[id].max == null || player.st[id] < STATS[id].max - 1e-6));
   for (const id of stats.slice(0, 3 - options.length)) options.push({ kind: 's', id, tier: 2 });
   return options;
@@ -4458,7 +4464,7 @@ function minuteEvent(m) {
     if (!origin) return;
     for (let q = 0; q < n; q++) { const a = q / n * TAU + rnd(0, 0.3); spawn(type, clamp(origin.x + Math.cos(a) * rad, -HX + 0.6, HX - 0.6), clamp(origin.z + Math.sin(a) * rad, -HZ + 0.6, HZ - 0.6)); }
   };
-  if (k === 'mon') { const [nm, tip] = MON_INFO[E[1]]; banner('新怪物：' + nm, tip, illustration('mons', E[1])); ringSpawn(E[1], E[1] === 'bomber' ? 1 : E[1] === 'mole' ? 3 : E[1] === 'snail' || E[1] === 'phone' ? 5 : 10, E[1] === 'bomber' ? 9 : 12); }
+  if (k === 'mon') { const type = E[1]; monsterArrival(type); ringSpawn(type, type === 'bomber' ? 1 : type === 'mole' ? 3 : type === 'snail' || type === 'phone' ? 5 : 10, type === 'bomber' ? 9 : 12); }
   else if (k === 'task') { if (!task) startTask(); else spawnAltar(); }
   else if (k === 'relic') spawnAltar();
   else if (k === 'elite') { banner('期中考', '两只 DDL 沙漏人，打倒有机会掉宝箱', illustration('mons', 'hourglass')); spawnNear('hourglass', 12, 15); spawnNear('hourglass', 12, 15); }
@@ -4469,7 +4475,6 @@ function nextEventText() {
   const E = TIMELINE[m] || (modeId === 'std' ? (m * EVT === BOSS_T ? ['boss'] : null) : [['task'], ['relic'], ['rush']][m % 3]);
   return E ? `下一个：${E[0] === 'boss' ? '大魔王' : EV_NAME[E[0]]} ${fmt(left)}` : `${MODES[modeId].name} · ${DF().name}`;
 }
-let thunderCd = 0, ringCd = 0;
 const BOSS_ATTACKS = ['meteor', 'rush', 'pull', 'slam', 'missiles', 'summon'];
 
 const HAZ = {
@@ -4684,7 +4689,7 @@ function updateMatch(dt) {
   const pullDistance = Math.hypot(pullX, pullZ);
   const pulled = !player.ghost && player.hp > 0 && pullPhase >= 0 && pullPhase < BOSS_PULL_DURATION &&
     pullDistance < BOSS_PULL_RADIUS && !lineBlocked(player.x, player.z, boss.x, boss.z);
-  const spd = player.speed * (1 + player.st.speed) * (A('merit') && player.hp > player.maxHp * 0.8 ? 1.1 : 1) * (player.slowT > 0 ? 0.7 : 1) * (SL.melee >= 3 ? 1.2 : 1) * (pulled ? 0.65 : 1);
+  const spd = player.speed * (1 + player.st.speed) * (A('merit') && player.hp > player.maxHp * 0.8 ? 1.1 : 1) * (player.slowT > 0 ? 0.7 : 1) * (pulled ? 0.65 : 1);
   player.vx += (wx * spd - player.vx) * Math.min(1, dt * 14); player.vz += (wz * spd - player.vz) * Math.min(1, dt * 14);
   const pullStep = pulled ? Math.min(pullDistance, 2.8 * dt) / (pullDistance || 1) : 0;
   player.x += player.vx * dt + pullX * pullStep;
@@ -4694,10 +4699,7 @@ function updateMatch(dt) {
   if (sp > 0.5) { const ty = Math.atan2(player.vx, player.vz); let d = ty - player.yaw; d = Math.atan2(Math.sin(d), Math.cos(d)); player.yaw += d * Math.min(1, dt * 12); }
   player.spinT = Math.max(0, player.spinT - dt * 5); player.hit = Math.max(0, player.hit - dt * 5);
   player.stepAcc += sp * dt; if (player.stepAcc > 0.5) { player.stepAcc = 0; player.stepSide *= -1; footprint(player.x, player.z, player.yaw, player.stepSide); }
-  // 回血：回复属性 + 近战一阶吸血（每秒最多 3）
-  let heal = player.st.regen * dt;
-  if (player.healAcc > 0) { const h = Math.min(player.healAcc, 0.8 * dt); heal += h; player.healAcc = Math.max(0, player.healAcc - h - 2 * dt); }
-  if (!player.ghost) restoreHealth(player, heal);
+  if (!player.ghost) restoreHealth(player, player.st.regen * dt);
   if (NET?.on && !player.ghost) sockSupport(player, remoteSockAuras(), dt);
   if (!player.ghost) flushHealFeedback(player);
 
@@ -4741,9 +4743,6 @@ function update(dt) {
     sockSupport(demoSockAlly, [{ x: player.x, z: player.z, radius: sockAuraRadius() }], dt);
     flushHealFeedback(demoSockAlly);
   }
-  // 流派三阶的全场效果
-  if (SL.magic >= 3) { thunderCd -= dt; if (thunderCd <= 0) { thunderCd = 0.5; const e = nearest(player.x + rnd(-6, 6), player.z + rnd(-6, 6), 9); if (e) { zap([{ x: e.x + rnd(-1, 1), y: 12, z: e.z + rnd(-1, 1) }, { x: e.x, y: 0.4, z: e.z }], 0xc9b8ff, 0.18, 0.8); hitEnemy(e, 40, 0, 0, 'magic'); ripple(e.x, e.z, 0.4); spark(e.x, 0.5, e.z, 0xc9b8ff, 14, 5, 0.35, 0.35); } } }
-  if (SL.gun >= 3) { ringCd -= dt; if (ringCd <= 0) { ringCd = 1.2; for (let k = 0; k < 16; k++) shoot('staple', player.x, 0.85, player.z, k / 16 * TAU, 20, 0.6, 6 + 2 * W('stapler'), 'gun'); } }
   // 尺子回旋
   CW = 'spin';
   if (player.weapons.spin) {
@@ -5123,8 +5122,9 @@ function drawBossHazards() {
   });
 }
 
-let fireClock = 0;
+let fireClock = 0, previewTeam = null;
 function draw(dt) {
+  const team = state === 'title' ? null : NET?.on ? NET : previewTeam;
   leanAngle = state !== 'title' && !debugCam ? 0.34 : 0;
   if (leanAngle) LEAN_ROT.makeRotationAxis(LEAN_AX.setFromMatrixColumn(camera.matrixWorld, 0).setY(0).normalize(), -leanAngle);
   shN = 0;
@@ -5150,8 +5150,8 @@ function draw(dt) {
     });
   }
   if (state !== 'title') podium.visible = false;
-  if (state !== 'title' && NET?.on) {
-    drawPeers(); drawGraves();
+  if (team) {
+    drawPeers(team); drawGraves(team);
   } else {
     ptags.hidden = true;
     teamEl.hidden = true;
@@ -5187,7 +5187,7 @@ function draw(dt) {
   for (let k = fi * 2; k < 8; k++) fuseDiscs[k].visible = false;
   for (const c of corpses) { c.t += dt / 0.2; const k = Math.min(1, c.t); RIGS[RIG_OF(c.type)].push({ ph: 0, hit: 1 - k * 0.4, seed: c.seed, moving: 0 }, worldM(c.x, 0, c.z, c.yaw, c.size * (1 + k * 0.7), c.size * Math.max(0.04, 1 - k), c.size * (1 + k * 0.7))); }
   corpses = corpses.filter((c) => c.t < 1);
-  for (const m of minions) { m.glowMul = 1; m.etint = elT('minion', (m.seed * 10) | 0); const f = Math.min(1, m.temp * 3, (m.max - m.temp) * 6 + 0.2); RIGS.minion.push(m, worldM(m.x, Math.abs(Math.sin(m.ph)) * 0.15 * m.moving, m.z, m.yaw, 1.1 * (m.big || 1) * f)); shadow(m.x, m.z, 0.35); }
+  for (const m of minions) { m.glowMul = 1; m.etint = elT('minion', (m.seed * 10) | 0); const f = Math.min(1, m.temp * 3, (m.max - m.temp) * 6 + 0.2); RIGS.minion.push(m, worldM(m.x, Math.abs(Math.sin(m.ph)) * 0.15 * m.moving, m.z, m.yaw, 1.1 * f)); shadow(m.x, m.z, 0.35); }
   for (const dk of ducks) { dk.etint = elT('duck'); const f = Math.min(1, dk.life * 4) * (1 + (dk.life < 0.8 ? Math.sin(realTime * 40) * 0.08 : 0)); RIGS.duck.push(dk, worldM(dk.x, dk.drop * 3 + Math.abs(Math.sin(dk.ph)) * 0.12, dk.z, Math.sin(dk.ph * 0.7) * 0.6 + dk.seed * 6, 1.1 * f, 1.1 * f, 1.1 * f, 0, Math.sin(dk.ph) * 0.15)); shadow(dk.x, dk.z, 0.45); }
   slippers.forEach((sl, i) => { STILL.etint = elT('slipper', i); RIGS.slipperP.push(STILL, worldM(sl.x, 0.8, sl.z, sl.spinA, (sl.small ? 0.7 : 1) * (SPX('slipper', 'huge') ? 1.7 : 1))); }); STILL.etint = null;
   STILL.etint = elT('rollcall'); for (const bk of books) { const y = bk.done ? 0.13 : bk.t / 0.45 * 7 + 0.13; RIGS.bookP.push(STILL, worldM(bk.x, y, bk.z, bk.x * 3, 1.2, 1.2, 1.2, bk.done ? 0 : bk.t * 6)); if (!bk.done) shadow(bk.x, bk.z, 0.6 * Math.max(0, 1 - bk.t)); }
@@ -5288,12 +5288,13 @@ function draw(dt) {
     torch.position.set(player.x, 3.2, player.z); sandMat.uniforms.uPlayer.value.set(player.x, 0, player.z);
   }
   if (debugCam) { camera.position.set(...debugCam.pos); camera.lookAt(...debugCam.look); }
-  if (state !== 'title' && NET?.on) drawPeerMarkers();
+  if (team) drawPeerMarkers(team);
   torch.intensity = 8 * (0.92 + 0.08 * Math.sin(realTime * 11) * Math.sin(realTime * 7.3));
   shake = Math.max(0, shake - dt * 1.8); chroma = Math.max(0, chroma - dt * 2.2); hurt = Math.max(0, hurt - dt * 1.4); player.warn = Math.max(0, (player.warn || 0) - dt * 4.5); $('hurtFx').classList.toggle('low', state === 'play' && player.hp < player.maxHp * 0.3);
   finalPass.uniforms.uChroma.value = REDUCED ? chroma * 0.3 : chroma; finalPass.uniforms.uHurt.value = hurt;
   for (let i = 0; i < 6; i++) SCREEN_RIPS[i].z = sripStart[i] < 0 ? -1 : realTime - sripStart[i];
   if (state !== 'title' && !skillDemoMode) {
+    renderCombatStats();
     $('hpFill').style.width = (player.hp / player.maxHp * 100) + '%'; $('hpText').textContent = Math.ceil(player.hp);
     $('xpFill').style.width = (player.xp / player.need * 100) + '%'; $('clock').textContent = fmt(T); $('wave').textContent = boss ? (boss.enraged ? '大魔王发怒' : '首领战') : nextEventText();
     if (hud.points !== meta.pts) { hud.points = meta.pts; $('score').textContent = meta.pts; bump($('scPill'), 'pop'); }
@@ -5473,7 +5474,72 @@ async function startCloudGame() {
   });
 }
 
-if (cloudGame) {
+if (staticMatchPreview) {
+  const showTeam = saveParams.get('static-match') === 'team';
+  const showEvent = saveParams.has('event');
+  startRun();
+  const step = 1 / 30;
+  for (let i = 0; i < 120; i++) {
+    realTime += step;
+    update(step);
+  }
+  // 补齐开局尚未出现的局内组件，供本地界面预览。
+  T = showEvent ? 2 * EVT : 76;
+  player.lvl = 8;
+  player.xp = Math.ceil(player.need / 2);
+  Object.assign(player.st, { dmg: 0.24, crit: 0.12, atkSpd: 0.16, critDmg: 1.74 });
+  run.dmg = 2684;
+  player.weapons = { sweep: 4, shotgun: 2, coffee: 1 };
+  player.wup = { sweep: { lv: 3 }, shotgun: { lv: 1 } };
+  player.elem = { sweep: ['fire'] };
+  player.duos = { parry: 1 };
+  player.relics = showTeam
+    ? Object.fromEntries(Object.keys(RELICS).map((id, index) => [id, index % 4 + 1]))
+    : { dumbbell: 2, drink: 1, magnet: 1 };
+  startTask('traps');
+  Object.assign(task, { x: -7, z: 1, t: task.t - 12, age: 12, prog: 2, step: 2 });
+  task.plates = plateGrid(task.need, task.x, task.z);
+  for (const i of task.order.slice(0, task.step)) task.plates[i].lit = true;
+  renderSlots();
+  renderItems();
+  uTime.value = realTime;
+  if (showTeam) {
+    const peers = [
+      { id: 'lin', name: '小林', h: 'scholar', x: -2.6, z: 3.4, hp: 62, lv: 8, yaw: -0.5, dmg: 4261,
+        skills: [['pencil', 5, 'base'], ['plane', 2, 'base'], ['spin', 1, 'base']] },
+      { id: 'zhou', name: '小周', h: 'jock', x: 2.5, z: -1.3, hp: 87, lv: 8, yaw: 0.4, dmg: 2175,
+        skills: [['sock', 4, 'base'], ['mop', 3, 'base'], ['bolt', 1, 'base']] },
+    ];
+    const players = [{ id: 'me', name: '体育委员' }, ...peers];
+    previewTeam = {
+      id: 'me', room: { players }, teamIds: players.map((member) => member.id),
+      liveStats: new Map(peers.map((peer) => [peer.id, [peer.dmg, 0, 0, 0, 0]])),
+      peers: Object.fromEntries(peers.map((peer, index) => [peer.id, {
+        ...peer, mh: CLASSES[peer.h].hp,
+        ps: { ph: 0, hit: 0, seed: index, moving: 0, glowMul: 2.4 },
+      }])),
+    };
+    netTeamHud(previewTeam);
+  }
+  if (showEvent) minuteEvent(T / EVT);
+  else $('banner').hidden = true;
+  state = 'preview';
+  // 初始化时还没有可用于投影的相机，清掉首帧前产生的屏幕涟漪。
+  sripStart.fill(-99);
+  shake = chroma = hurt = 0;
+  for (const number of NUMS) number.life = 0;
+  const renderPreview = () => {
+    draw(0);
+    // 相机在 draw 末尾定位，用它重新投影静态画面里的任务标记。
+    drawTask(0);
+    composer.render();
+  };
+  requestAnimationFrame(() => {
+    renderPreview();
+    requestAnimationFrame(renderPreview);
+  });
+  addEventListener('resize', () => requestAnimationFrame(renderPreview));
+} else if (cloudGame) {
   titleEl.hidden = true;
   show('<h2>正在读取游戏存档</h2>');
   startCloudGame().catch((error) => {
@@ -5482,4 +5548,4 @@ if (cloudGame) {
     $('saveRetry').onclick = () => location.reload();
   });
 } else if (!skillDemoMode) showTitle();
-requestAnimationFrame(frame);
+if (!staticMatchPreview) requestAnimationFrame(frame);
