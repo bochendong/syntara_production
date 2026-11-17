@@ -1,0 +1,20 @@
+{
+  "status": "deployed",
+  "at": "2026-11-17T08:13:22.526Z",
+  "environment": "staging",
+  "revision": "e546a3addcbafe869ed68c5c603b531eeed69fc1",
+  "deploymentId": "6b82aebd-aef6-4e75-9f3a-8d11e116ff29",
+  "previousRevision": "1f9879a5d9a0fdb067f6530d85452ad3da0566a5",
+  "changes": [
+    "Publish the full-card textures, rarity borders, and reliefs for skills, general attributes, and the specialty card families.",
+    "Remove set bonuses, apply the four skill upgrade tiers, and offer quantity upgrades through map task chests.",
+    "Publish the updated preparation and combat displays, including teammate skills and DPS, and the new enemy arrival notices.",
+    "Integrate the relic altar rendering fix from e63e230b on codex/sandbox-brawl-visuals."
+  ],
+  "appliedMigrations": [],
+  "pendingMigrations": 0,
+  "verification": {
+    "local": "Verified 352 card definitions, all 15 skill textures, the three skill upgrade curves, two save queue regressions, and the local multiplayer HUD fixture.",
+    "staging": "Railway production build and TypeScript checks passed. Verified public health, exact revision, the web app entry, and a single-player start through the combat HUD. SHA-256 matched all 193 runtime files. The unchanged, extensionless vendor/THREE-LICENSE path returns 404 under the staging route policy."
+  }
+}
