@@ -1,0 +1,19 @@
+{
+  "status": "deployed",
+  "at": "2026-11-17T18:32:07.348Z",
+  "environment": "staging",
+  "revision": "bbdbf4c0acd70257fbdbb5246613b241d2e1a1c7",
+  "deploymentId": "305f3bb9-dc8e-4e3f-bfa6-ce259abb43e6",
+  "previousRevision": "4fd726a7b6a89844f339426d0afbcd246586447c",
+  "changes": [
+    "Rebalance all ten dual-element combinations and align the upgrade card descriptions with combat.",
+    "Use the first-wave enemy health budget in standard mode and carry the previous wave's 7:00–8:00 budget into the next endless wave. Boss HP is separate.",
+    "Synchronize acid vulnerability and ice control between players in co-op."
+  ],
+  "appliedMigrations": [],
+  "pendingMigrations": 0,
+  "verification": {
+    "local": "Verified JavaScript syntax, elemental damage expectations and caps, wave budgets, and acid and ice packet handling in offline simulations.",
+    "staging": "Railway production build and type check passed. Verified public health, exact revision, test app entry, byte-for-byte game HTML and JavaScript, and endless start plus two-way acid and ice message relay in a temporary room."
+  }
+}
