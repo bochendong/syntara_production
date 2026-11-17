@@ -554,6 +554,16 @@ body.skill-demo #nums span { font-size: 12px; -webkit-text-stroke-width: 2.5px; 
 .stats b { font: 800 24px/1.2 var(--num); } .stats small { color: var(--dim); font-size: 12px; font-weight: 800; }
 .unlock { display: flex; gap: 12px; align-items: center; padding: 10px 14px; border: 2.5px solid var(--ink); border-radius: 16px; background: var(--sun); rotate: 1deg; animation: stampIn .5s .5s var(--bounce) backwards; }
 .unlock .ico { --s: 44px; border-radius: 50%; } .unlock b { display: block; font-size: 16px; } .unlock small { font-weight: 600; }
+.dmgboard { display: grid; gap: 6px; padding: 10px; border: 2.5px solid var(--ink); border-radius: 16px; background: var(--paper2); }
+.db-head { display: flex; justify-content: space-between; align-items: baseline; } .db-head b { font: 800 16px/1 var(--disp); } .db-head small { color: var(--dim); font-size: 12px; font-weight: 800; }
+.db-row { display: grid; grid-template-columns: minmax(120px, 1.1fr) 2fr auto; gap: 10px; align-items: center; padding: 6px 8px; border: 2px solid var(--ink); border-left: 8px solid var(--team-color); border-radius: 12px; background: #fff; animation: deal .45s var(--bounce) backwards; animation-delay: calc(var(--i) * 90ms + 250ms); }
+.db-row.me { background: #fffbe6; }
+.db-who { display: flex; gap: 8px; align-items: center; min-width: 0; } .db-who .ico { --s: 34px; border-radius: 50%; flex: none; } .db-who b { display: block; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .db-who small { color: var(--dim); font-size: 11px; font-weight: 700; }
+.db-who em { font: 800 10px/1 var(--num); font-style: normal; margin-left: 5px; padding: 2px 5px; border: 1.5px solid var(--ink); border-radius: 6px; background: var(--sun); vertical-align: 1px; }
+.db-bar { display: grid; grid-template-columns: 1fr auto auto; gap: 6px; align-items: center; } .db-bar i { height: 14px; border: 2px solid var(--ink); border-radius: 8px; background: var(--paper2); overflow: hidden; } .db-bar u { display: block; height: 100%; background: var(--team-color); transition: width .5s; }
+.db-bar b { font: 800 18px/1 var(--num); min-width: 3.2em; text-align: right; } .db-bar small { color: var(--dim); font: 800 11px/1 var(--num); min-width: 2.6em; text-align: right; }
+.db-cells { display: grid; grid-template-columns: repeat(4, 3.6em); gap: 4px; text-align: center; } .db-cells b { display: block; font: 800 14px/1.2 var(--num); } .db-cells small { color: var(--dim); font-size: 10px; font-weight: 800; } .db-cells .hot b { color: #d2552a; }
+@media (max-width: 720px) { .db-row { grid-template-columns: 1fr; gap: 4px; } .db-cells { grid-template-columns: repeat(4, 1fr); } }
 .summary { display: grid; gap: 5px; font-size: 13px; font-weight: 600; color: var(--dim); }
 .how { display: grid; gap: 10px; } .how div { display: grid; grid-template-columns: auto 1fr; gap: 12px; align-items: center; font-weight: 600; line-height: 1.5; } .how .ico { --s: 40px; } .how b { display: block; }
 .confetti { position: fixed; inset: 0; overflow: hidden; pointer-events: none; }

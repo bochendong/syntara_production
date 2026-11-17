@@ -1579,7 +1579,7 @@ const achFor = (kind, id) => ACH_LOCK[kind + ':' + id];
 const achReward = (a) => a.get ? `${a.get[0] === 'heroes' ? '同学' : '饰品'}「${(a.get[0] === 'heroes' ? CLASSES : RELICS)[a.get[1]].name}」` : `${a.pts} 积分`;
 const liveKills = () => (state === 'play' || state === 'paused' || state === 'dead') && !settled ? player.kills : 0;
 const endlessOpen = () => meta.ach.includes('pass') || meta.stat.wins > 0 || bestEndless > 0;
-let run = { tasks: 0, hg: 0, hit: -1 }, achClock = 0, NET = null;
+let run = { tasks: 0, hg: 0, hit: -1, dmg: 0, taken: 0, downs: 0, rev: 0, top: 0 }, achClock = 0, NET = null;
 function checkAch(inRun, final) {
   const P = inRun ? player : null, c = {
     first: !!final, pass: final === 'win', hard: final === 'win' && diffId === 'hard',
@@ -1818,6 +1818,7 @@ function hitEnemy(e, dmg, kx = 0, kz = 0, tag = '', opts = {}) {
   let xm = 1;
   if (xs) { if (xs.exec && e.hp < e.maxHp * 0.3) xm *= 1.8; if (xs.first && e.hp >= e.maxHp) xm *= 1.6; if (xs.elite && elite) xm *= 1.6; if (xs.near && Math.hypot(e.x - player.x, e.z - player.z) < 3) xm *= 1.7; if (xs.kb) { kx *= 2; kz *= 2; } }
   const v = xm * (opts.raw ? dmg : dmg * dmgMul(tag) * (crit ? critX : 1) * (elite ? 1 + 0.1 * R('redpen') : 1)) * (e.stink > 0 ? 1.25 : 1) * (e.acid > 0 ? 1 + (e.acidK || 0.25) : 1);
+  { const dealt = Math.max(0, Math.min(v, e.hp)); run.dmg += dealt; if (dealt > run.top) run.top = dealt; }
   e.hp -= v; e.hit = 1; const kr = (e.giant ? 0.25 : 1) * (e.type === 'boss' ? 0.05 : e.type === 'hourglass' || e.type === 'bomber' ? 0.25 : 1) * KNOCK(); e.kx += kx * kr; e.kz += kz * kr;
   if (state === 'play' && v > 0) gameAudio.play('hit');
   if (Math.random() < 0.5 || crit) dmgNum(e.x, e.z, v, crit ? 'crit' : '', e.r * 2 + 0.6);
@@ -1916,6 +1917,7 @@ function hurtPlayer(v, source) {
   if (run.hit < 0) run.hit = T;
   const big = Math.min(1, v / (player.maxHp * 0.08));
   const wasStanding = player.hp > 0;
+  run.taken += Math.min(v, Math.max(0, player.hp));
   player.hp -= v;
   if (A('errbook')) player.errN = Math.min(40, (player.errN || 0) + 1);
   if (wasStanding && player.hp <= 0 && A('retake') && !player.retakeUsed) {
@@ -3377,13 +3379,36 @@ function netRecv(ev) {
   if (ev.t !== 'm' || !ev.m) return;
   const m = ev.m, from = ev.from;
   if (m.k === 'p' || m.k === 's') { if (m.p && NET.on) netPeer(from, m.p); if (m.k === 's' && !NET.host && NET.on) netApply(m); if (m.D && NET.host && NET.on) netDamage(m.D); if (m.k === 'p' && NET.host && NET.on) { if (Array.isArray(m.G) && m.G.length) netGems(m.G); if (NET.phase && m.dn === NET.phase.id && NET.phase.wait.delete(from)) netPhaseCheck(); } }
+  else if (m.k === 'st' && NET.on) { const q = NET.peers[from]; if (q && validStats(m.st)) { q.st = m.st; const el = $('dmgBoard'); if (el) el.outerHTML = dmgBoard(); } }
   else if (m.k === 'end' && NET.on && !NET.host && from === NET.room.host) { if (m.win) { if (state !== 'win') showWin(); } else netOver(); }
+}
+// 伤害统计：每个人自己记自己的，随位置包带给队友，结束时再补发一次最终值
+const netStats = () => [Math.round(run.dmg), Math.round(run.taken), run.downs, run.rev, Math.round(run.top)];
+const validStats = (st) => Array.isArray(st) && st.length === 5 && st.every((v) => Number.isFinite(v) && v >= 0);
+const bigNum = (v) => v >= 1e6 ? (v / 1e6).toFixed(1) + 'M' : v >= 1e4 ? (v / 1e3).toFixed(1) + 'k' : String(Math.round(v));
+function dmgBoard() {
+  if (!NET || !NET.on) return '';
+  const rows = NET.room.players.filter((rp) => rp.id === NET.id || NET.peers[rp.id]).map((rp) => {
+    const me = rp.id === NET.id, q = me ? null : NET.peers[rp.id], st = me ? netStats() : (q.st || [0, 0, 0, 0, 0]);
+    const hero = me ? clsId : q.h || rp.hero, c = CLASSES[hero] || CLASSES.brawler;
+    return { me, st, c, index: NET.teamIds.indexOf(rp.id), name: rp.name.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;') };
+  }).sort((a, b) => b.st[0] - a.st[0]);
+  const total = rows.reduce((n, r) => n + r.st[0], 0) || 1, best = Math.max(1, ...rows.map((r) => r.st[0])), sec = Math.max(1, T);
+  const top = (k) => { const m = Math.max(...rows.map((r) => r.st[k])); return m > 0 ? m : -1; }, tk = top(1), rv = top(3), hi = top(4);
+  return `<div class="dmgboard" id="dmgBoard"><div class="db-head"><b>伤害统计</b><small>全队 ${bigNum(total === 1 && !rows.some((r) => r.st[0]) ? 0 : total)} · 每秒 ${bigNum(total / sec)}</small></div>${rows.map((r, i) => `
+    <div class="db-row${r.me ? ' me' : ''}" style="--team-color:${TEAM_COLORS[Math.max(0, r.index)]};--i:${i}">
+      <div class="db-who">${ico(TAGS[r.c.tag].c, r.c.start)}<div><b>${r.name}${r.me ? '（你）' : ''}${i === 0 && r.st[0] > 0 && rows.length > 1 ? '<em>MVP</em>' : ''}</b><small>${r.c.name}</small></div></div>
+      <div class="db-bar"><i><u style="width:${(r.st[0] / best * 100).toFixed(1)}%"></u></i><b>${bigNum(r.st[0])}</b><small>${Math.round(r.st[0] / total * 100)}%</small></div>
+      <div class="db-cells"><span${r.st[4] === hi ? ' class="hot"' : ''}><b>${bigNum(r.st[4])}</b><small>最高一击</small></span><span${r.st[1] === tk ? ' class="hot"' : ''}><b>${bigNum(r.st[1])}</b><small>承伤</small></span><span><b>${r.st[2]}</b><small>倒下</small></span><span${r.st[3] === rv ? ' class="hot"' : ''}><b>${r.st[3]}</b><small>救人</small></span></div>
+    </div>`).join('')}</div>`;
 }
 function netPeer(id, p) {
   const room = NET.room.players.find((q) => q.id === id); if (!room) return;
   let q = NET.peers[id]; if (!q) q = NET.peers[id] = { id, name: room.name, x: p.x, z: p.z, ps: { ph: 0, hit: 0, seed: Math.random(), moving: 0, glowMul: 2.4 } };
   const radius = [p.x, p.z, p.sockAura].every(Number.isFinite) && p.hp > 0
     ? clamp(p.sockAura, 0, Math.hypot(2 * HX, 2 * HZ)) : 0;
+  if (q.dead && !p.d && q.grave && !player.ghost && Math.hypot(player.x - q.grave.x, player.z - q.grave.z) < GRAVE_R + 0.6) run.rev++;
+  if (validStats(p.st)) q.st = p.st;
   Object.assign(q, { tx: p.x, tz: p.z, yaw: p.y, mv: p.m, hp: p.hp, mh: p.mh, lv: p.lv, h: p.h, sk: p.sk, dead: !!p.d, name: room.name, radius, sockSeen: performance.now() });
   q.grave = q.dead && Array.isArray(p.g) && p.g.every(Number.isFinite) ? { x: p.g[0], z: p.g[1], prog: clamp(p.g[2], 0, REVIVE_T) } : null;
   if (Array.isArray(p.heal)) {
@@ -3424,7 +3449,7 @@ function netTick(dt) {
   for (const id in NET.peers) { const p = NET.peers[id]; if (p.tx == null) continue; const k = Math.min(1, dt * 10), dx = p.tx - p.x, dz = p.tz - p.z; if (Math.hypot(dx, dz) > 8) { p.x = p.tx; p.z = p.tz; } else { p.x += dx * k; p.z += dz * k; } p.ps.moving = p.mv || 0; p.ps.ph += (p.mv || 0) * dt * 14; p.ps.ghostly = p.dead; }
   player.ghostly = !!player.ghost;
   NET.sendT -= dt; if (NET.sendT > 0) return; NET.sendT = 0.1;
-  const me = { x: r2(player.x), z: r2(player.z), y: r2(player.yaw), m: r2(player.moving), hp: Math.ceil(player.hp), mh: Math.ceil(player.maxHp), lv: player.lvl, h: clsId, sk: skinOf(clsId), d: player.ghost ? 1 : 0 };
+  const me = { x: r2(player.x), z: r2(player.z), y: r2(player.yaw), m: r2(player.moving), hp: Math.ceil(player.hp), mh: Math.ceil(player.maxHp), lv: player.lvl, h: clsId, sk: skinOf(clsId), d: player.ghost ? 1 : 0, st: netStats() };
   if (!player.ghost && player.lastHeal) me.heal = player.lastHeal;
   if (player.ghost && player.grave) me.g = [r2(player.grave.x), r2(player.grave.z), r2(player.grave.prog)];
   netTeamHud();
@@ -3616,7 +3641,7 @@ function netMirrorStep(e, dt) {
 }
 const GRAVE_R = 1.8, REVIVE_T = 4;
 function netDie() {
-  player.ghost = 1;
+  player.ghost = 1; run.downs++;
   player.hp = 0;
   player.healPending = 0;
   player.slowT = 0;
@@ -3796,11 +3821,11 @@ function netBegin(m) {
 }
 function netOver() {
   if (state === 'dead' || state === 'win') return;
-  state = 'dead'; $('stage').classList.add('dead'); const gain = settle(false);
+  state = 'dead'; $('stage').classList.add('dead'); const gain = settle(false); netSend({ k: 'st', st: netStats() });
   show(`<div class="eyebrow">联机 · ${MODES[modeId].name} · ${DF().name}</div><h2>全员倒下了</h2>
     ${deathTauntCard(deathTaunt)}
     <div class="stats"><div style="--i:0"><b>${fmt(T)}</b><small>撑了</small></div><div style="--i:1"><b>${player.kills}</b><small>击倒</small></div><div style="--i:2"><b>${player.lvl}</b><small>等级</small></div><div style="--i:3"><b>+${gain}</b><small>积分</small></div></div>
-    ${buildSummary()}<div class="actions"><button class="primary" id="nback">回联机大厅</button><button id="nhome">离开房间</button></div>`);
+    ${dmgBoard()}${buildSummary()}<div class="actions"><button class="primary" id="nback">回联机大厅</button><button id="nhome">离开房间</button></div>`);
   $('nback').onclick = () => netToLobby(); $('nhome').onclick = () => netLeave();
 }
 function netToLobby() { if (NET) { NET.on = false; NET.peers = {}; if (NET.host) netPost({ op: 'reset', code: NET.code, key: NET.key }).catch(() => {}); } wipe(() => { showTitle('home'); netLobby(); }); }
@@ -3875,7 +3900,7 @@ function startRun() {
   Object.assign(player, { x: 0, z: 0, vx: 0, vz: 0, yaw: 0, hp: maxHp, maxHp, speed: cls.spd, magnet: 2.4, lvl: 1, xp: 0, need: 5, kills: 0, weapons: { [cls.start]: 1 }, wup: {}, elem: {}, sp: {}, arts: {}, koi: 0, shield: false, st, relics: {}, evo: {}, alt: {}, duos: {}, spinT: 0, slowT: 0, healAcc: 0, healPending: 0, lastHeal: null, iframe: 0, ghost: 0, dark: false });
   rerollCost = REROLL_BASE_COST; player.revives = DF().revive; watchT = 12; shieldT = 10; bellT = 30; warmT = 0; player.retakeUsed = false; player.errN = 0; player.lunchN = 0; player.puddleT = -9; $('rmark').hidden = true;
   mctx.clearRect(0, 0, 1024, 1024); marksDirty = true;
-  T = 0; spawnAcc = 0; settled = false; run = { tasks: 0, hg: 0, hit: -1 }; achClock = 0; nextElite = DF().elite * 1.8; nextBats = 25; nextBomb = 90; nextBoss = modeId === 'std' ? BOSS_T : 300; bossCount = 0; bossOrder = shuffle([...BOSS_KINDS]); if (!meta.seen.includes('boss')) bossOrder = ['boss', ...bossOrder.filter((k) => k !== 'boss')]; boss = null; ev = {}; timeScale = 1; pendingLevels = 0; task = null; nextTask = 50;
+  T = 0; spawnAcc = 0; settled = false; run = { tasks: 0, hg: 0, hit: -1, dmg: 0, taken: 0, downs: 0, rev: 0, top: 0 }; achClock = 0; nextElite = DF().elite * 1.8; nextBats = 25; nextBomb = 90; nextBoss = modeId === 'std' ? BOSS_T : 300; bossCount = 0; bossOrder = shuffle([...BOSS_KINDS]); if (!meta.seen.includes('boss')) bossOrder = ['boss', ...bossOrder.filter((k) => k !== 'boss')]; boss = null; ev = {}; timeScale = 1; pendingLevels = 0; task = null; nextTask = 50;
   for (const k in cds) delete cds[k];
   $('bossBar').hidden = true; $('hud').classList.remove('boss'); $('hud').hidden = false; titleEl.hidden = true; titleEl.innerHTML = ''; hide(); $('stage').classList.remove('dead'); $('task').hidden = true;
   $('who').innerHTML = illustratedBadge('heroes', clsId, TAGS[cls.tag].c, 40); $('pname').textContent = cls.name; hud.lv = 1; hud.points = meta.pts; $('lv').textContent = 1; $('score').textContent = meta.pts;
@@ -4268,6 +4293,7 @@ function revive() {
 }
 function showWin() {
   if (NET && NET.on && NET.host) netSend({ k: 'end', win: 1 });
+  if (NET && NET.on) netSend({ k: 'st', st: netStats() });
   state = 'win';
   const before = difficultyLevel();
   const gain = settle(true);
@@ -4278,7 +4304,7 @@ function showWin() {
     <div class="unlock">${ico('#ffab2e', 'charm')}<div><b>积分 +${gain}</b><small>现在有 ${meta.pts} 积分，可以去大鹅抽卡或升级成长</small></div></div>
     ${unlocked ? `<div class="unlock">${ico('#ffab2e', 'star')}<div><b>已解锁${DIFFS[unlocked].name}难度</b></div></div>` : ''}
     <div class="stats"><div style="--i:0"><b>${fmt(T)}</b><small>用时</small></div><div style="--i:1"><b>${player.kills}</b><small>击倒</small></div><div style="--i:2"><b>${player.lvl}</b><small>等级</small></div><div style="--i:3"><b>${Object.keys(player.arts).length}</b><small>遗物</small></div></div>
-    ${buildSummary()}<div class="actions"><button class="primary" id="again">再来一局</button><button id="wbook">去图鉴</button></div>`);
+    ${dmgBoard()}${buildSummary()}<div class="actions"><button class="primary" id="again">再来一局</button><button id="wbook">去图鉴</button></div>`);
   $('again').onclick = () => wipe(() => { if (unlocked) diffId = unlocked; showTitle('prep'); }); $('again').focus(); $('wbook').onclick = () => wipe(() => { showTitle('home'); showCodex(); });
   if (NET) { $('again').textContent = '回联机大厅'; $('again').onclick = () => netToLobby(); $('wbook').textContent = '离开房间'; $('wbook').onclick = () => netLeave(); }
 }
@@ -4758,7 +4784,7 @@ function update(dt) {
     if (e.burn > 0) {
       const damage = tickBurn(e, dt);
       if (damage > 0) {
-        e.hp -= damage;
+        run.dmg += Math.max(0, Math.min(damage, e.hp)); e.hp -= damage;
         if (Math.random() < 0.4) dmgNum(e.x, e.z, damage, 'burn', e.r * 2 + 0.3);
         spark(e.x, e.r + 0.4, e.z, 0xff7a2a, 3, 1, 0.35, 0.5, -2);
         if (e.hp <= 0) { killEnemy(e, 'magic'); continue; }
@@ -4774,7 +4800,7 @@ function update(dt) {
       continue;
     }
     if (NET && NET.on && !NET.host) { netMirrorStep(e, dt); if (!e.inv && !player.ghost && e.spawn <= 0 && Math.hypot(player.x - e.x, player.z - e.z) < e.r + 0.45) addContact(e); continue; }
-    if (e.fb > 0) { e.fb -= dt; e.hp -= e.fbDps * dt; if (Math.random() < dt * 3) spark(e.x, e.r + 0.3, e.z, 0x9fe0ff, 1, 1, 0.3, 0.5, -1); if (e.hp <= 0) { killEnemy(e, ''); continue; } }
+    if (e.fb > 0) { e.fb -= dt; run.dmg += Math.max(0, Math.min(e.fbDps * dt, e.hp)); e.hp -= e.fbDps * dt; if (Math.random() < dt * 3) spark(e.x, e.r + 0.3, e.z, 0x9fe0ff, 1, 1, 0.3, 0.5, -1); if (e.hp <= 0) { killEnemy(e, ''); continue; } }
     if (e.frz > 0) { e.frz -= dt; e.moving = 0; continue; }
     if (e.spawn > 0) { e.spawn -= dt * 1.7; if (Math.random() < 0.3 && !e.fly) dust(e.x, e.z, 2, 2); if (e.spawn > 0) continue; }
     const tg = netTarget(e);
