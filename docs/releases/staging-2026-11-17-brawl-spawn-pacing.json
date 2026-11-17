@@ -1,0 +1,18 @@
+{
+  "status": "deployed",
+  "at": "2026-11-17T18:46:01.852Z",
+  "environment": "staging",
+  "revision": "22639f6688e77b6cf9c4620bd6dbc518998dab6b",
+  "deploymentId": "c047c080-cebc-4179-80d2-6ebd736ccbfb",
+  "previousRevision": "bbdbf4c0acd70257fbdbb5246613b241d2e1a1c7",
+  "changes": [
+    "Queue opening groups, event monsters, portal groups, giant monsters and boss summons so each group releases one enemy every 0.25 seconds.",
+    "Pace ordinary reinforcements through the same spawn timing gate while charging successfully spawned enemies to the current minute's health budget."
+  ],
+  "appliedMigrations": [],
+  "pendingMigrations": 0,
+  "verification": {
+    "local": "Simulated standard mode and the first three endless waves at 30 and 60 FPS. The minute boundary peak fell from 10 regular or event enemies in a frame to one. Standard difficulty used at least 99.5% of the health budget with timely clearing. At 20 FPS, the hard-mode third wave's last minute used 85.2%.",
+    "staging": "Railway build and type check passed. Verified public health, exact served revision, test app entry, and byte-for-byte game HTML and JavaScript."
+  }
+}
