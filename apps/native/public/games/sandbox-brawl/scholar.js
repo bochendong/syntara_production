@@ -4,7 +4,21 @@ import * as T from './vendor/three.module.js';
 
 const tau = 2 * Math.PI;
 const anchors = {
-  head: [0, 1.28, 0],
+  head: [0, 0.962, 0.015],
+  browL: [-0.205, 1.505, 0.42],
+  browR: [0.205, 1.505, 0.42],
+  gazeL: [-0.205, 1.338, 0.414],
+  gazeR: [0.205, 1.338, 0.414],
+  mouth: [0, 1.143, 0.434],
+  mouthOpen: [0, 1.139, 0.437],
+  elbowL: [-0.3, 0.694, 0.02],
+  elbowR: [0.3, 0.694, 0.02],
+  handL: [-0.341, 0.556, 0.096],
+  handR: [0.341, 0.556, 0.096],
+  shinL: [-0.151, 0.26, 0],
+  shinR: [0.151, 0.26, 0],
+  footL: [-0.151, 0.095, 0],
+  footR: [0.151, 0.095, 0],
   eyeL: [-0.205, 1.338, 0.414],
   eyeR: [0.205, 1.338, 0.414],
   hair: [0, 1.45, -0.2],
@@ -15,6 +29,18 @@ const anchors = {
   legL: [-0.151, 0.463, 0],
   legR: [0.151, 0.463, 0],
 };
+const bookCover = [-0.366, 0.598, 0.15],
+  bookTurn = [-0.13, -0.53, -0.13];
+const bookOrientation = new T.Euler(...bookTurn, 'YXZ');
+function onBook(x, y, z) {
+  return new T.Vector3(x, y, z)
+    .applyEuler(bookOrientation)
+    .add(new T.Vector3(...bookCover))
+    .toArray();
+}
+anchors.cover = anchors.page = onBook(-0.099, 0, 0);
+const spine = new T.Vector3(0, 1, 0).applyEuler(bookOrientation);
+const hingeInHand = new T.Vector3(...anchors.cover).sub(new T.Vector3(...anchors.handL));
 const unit = [1, 1, 1],
   origin = [0, 0, 0];
 const sphere = new T.SphereGeometry(0.5, 16, 12);
@@ -156,7 +182,7 @@ export function createScholarSculpt() {
   );
   blob('head', 'skin', [0, 1.255, 0.462], [0.09, 0.077, 0.089]);
   line(
-    'head',
+    'mouth',
     'lip',
     [
       [-0.057, 1.143, 0.427],
@@ -166,6 +192,7 @@ export function createScholarSculpt() {
     ],
     0.009,
   );
+  blob('mouthOpen', 'lip', [0, 1.137, 0.44], [0.07, 0.064, 0.016]);
   for (const s of [-1, 1]) {
     blob('head', 'skin', [s * 0.477, 1.276, 0.008], [0.147, 0.188, 0.116], 0.009);
     blob('head', 'blush', [s * 0.496, 1.272, 0.058], [0.077, 0.104, 0.033]);
@@ -194,11 +221,12 @@ export function createScholarSculpt() {
       0.034,
     );
     blob(j, 'paper', [x, 1.333, 0.432], [0.207, 0.191, 0.061], 0, r);
-    blob(j, 'irisDark', [x - 0.005, 1.332, 0.452], [0.153, 0.182, 0.045], 0, r);
-    blob(j, 'iris', [x - 0.004, 1.315, 0.47], [0.126, 0.135, 0.023], 0, r);
-    blob(j, 'ink', [x - 0.012, 1.35, 0.478], [0.082, 0.12, 0.023], 0, r);
-    blob(j, 'sky', [x + 0.016, 1.286, 0.482], [0.047, 0.024, 0.012], 0, r);
-    blob(j, 'paper', [x - 0.027, 1.371, eyeZ(-0.027, 0.067)], [0.044, 0.046, 0.021]);
+    const gaze = 'gaze' + side(s);
+    blob(gaze, 'irisDark', [x - 0.005, 1.332, 0.452], [0.153, 0.182, 0.045], 0, r);
+    blob(gaze, 'iris', [x - 0.004, 1.315, 0.47], [0.126, 0.135, 0.023], 0, r);
+    blob(gaze, 'ink', [x - 0.012, 1.35, 0.478], [0.082, 0.12, 0.023], 0, r);
+    blob(gaze, 'sky', [x + 0.016, 1.286, 0.482], [0.047, 0.024, 0.012], 0, r);
+    blob(gaze, 'paper', [x - 0.027, 1.371, eyeZ(-0.027, 0.067)], [0.044, 0.046, 0.021]);
     line(
       j,
       'ink',
@@ -211,7 +239,7 @@ export function createScholarSculpt() {
       0.011,
     );
     line(
-      'head',
+      'brow' + side(s),
       'hair',
       [
         [x - s * 0.079, 1.495, eyeZ(-s * 0.079, -0.002)],
@@ -630,18 +658,21 @@ export function createScholarSculpt() {
   solid('skirt', 'trim', loft([skirtRing(0.389, 0.343, 0.252, 0.135), skirtRing(0.404, 0.34, 0.25, 0.135)]));
   for (const s of [-1, 1]) {
     const j = 'leg' + side(s),
-      x = s * 0.147;
+      x = s * 0.147,
+      shin = 'shin' + side(s),
+      foot = 'foot' + side(s);
     solid(
       j,
       'skin',
       oval([
-        [0.12, 0.069, 0.062, x],
+        [0.247, 0.073, 0.072, x],
         [0.255, 0.077, 0.076, x],
         [0.42, 0.084, 0.085, x],
       ]),
     );
+    blob(shin, 'skin', [x, 0.26, 0], [0.151, 0.091, 0.145]);
     solid(
-      j,
+      shin,
       'paper',
       oval([
         [0.085, 0.063, 0.064, x],
@@ -651,7 +682,7 @@ export function createScholarSculpt() {
       0.005,
     );
     solid(
-      j,
+      shin,
       'trim',
       oval([
         [0.221, 0.076, 0.077, x],
@@ -659,7 +690,7 @@ export function createScholarSculpt() {
       ]),
     );
     solid(
-      j,
+      foot,
       'shoe',
       oval(
         [
@@ -672,9 +703,9 @@ export function createScholarSculpt() {
       ),
       0.009,
     );
-    blob(j, 'shoeLight', [x - 0.011, 0.087, 0.158], [0.088, 0.02, 0.038], 0, [-0.55, 0, 0]);
+    blob(foot, 'shoeLight', [x - 0.011, 0.087, 0.158], [0.088, 0.02, 0.038], 0, [-0.55, 0, 0]);
     solid(
-      j,
+      foot,
       'sole',
       oval(
         [
@@ -685,7 +716,7 @@ export function createScholarSculpt() {
       ),
     );
     line(
-      j,
+      foot,
       'shoeLight',
       [
         [x - 0.069, 0.106, 0.036],
@@ -694,7 +725,7 @@ export function createScholarSculpt() {
       ],
       0.013,
     );
-    blob(j, 'brass', [x + s * 0.066, 0.108, 0.045], [0.029, 0.025, 0.029]);
+    blob(foot, 'brass', [x + s * 0.066, 0.108, 0.045], [0.029, 0.025, 0.029]);
     const arm = 'arm' + side(s);
     blob(arm, 'top', [s * 0.284, 0.771, 0.002], [0.205, 0.248, 0.222], 0.009, [0, 0, s * 0.19]);
     solid(
@@ -709,7 +740,7 @@ export function createScholarSculpt() {
       ),
     );
     solid(
-      arm,
+      'elbow' + side(s),
       'skin',
       oval(
         [
@@ -721,7 +752,7 @@ export function createScholarSculpt() {
       ),
       0.005,
     );
-    if (s === 1) blob(arm, 'skin', [0.346, 0.548, 0.103], [0.121, 0.123, 0.124], 0.006);
+    if (s === 1) blob('handR', 'skin', [0.346, 0.548, 0.103], [0.121, 0.123, 0.124], 0.006);
   }
   // A thumb over the hexagonal pencil, with a crimped ferrule and graphite.
   const pencilA = new T.Vector3(0.286, 0.416, 0.014),
@@ -734,28 +765,44 @@ export function createScholarSculpt() {
   );
   function pencilSegment(c, a, b, r, geometry = hex) {
     const at = pencilA.clone().addScaledVector(axis, (a + b) / 2);
-    add('armR', c, geometry, at.toArray(), [r, (b - a) * length, r], [turn.x, turn.y, turn.z], 0.0035);
+    add('handR', c, geometry, at.toArray(), [r, (b - a) * length, r], [turn.x, turn.y, turn.z], 0.0035);
   }
   pencilSegment('coral', -0.055, 0.05, 0.092);
   pencilSegment('brass', 0.05, 0.15, 0.094);
   pencilSegment('yellow', 0.15, 0.83, 0.091);
   pencilSegment('wood', 0.83, 1.066, 0.092, tip);
   pencilSegment('ink', 0.999, 1.071, 0.03, tip);
-  blob('armR', 'skin', [0.377, 0.541, 0.137], [0.143, 0.132, 0.114], 0.005);
-  blob('armR', 'skin', [0.392, 0.564, 0.163], [0.083, 0.059, 0.067], 0, [0, 0, -0.36]);
+  blob('handR', 'skin', [0.377, 0.541, 0.137], [0.143, 0.132, 0.114], 0.005);
+  blob('handR', 'skin', [0.392, 0.564, 0.163], [0.083, 0.059, 0.067], 0, [0, 0, -0.36]);
   // A pocket notebook tucked into the other elbow; the colored tab can be
   // read even when the heroine is running away from the camera.
-  const notebook = [-0.347, 0.59, 0.105],
-    bookTurn = [-0.13, -0.53, -0.13];
-  add('armL', 'frame', box, notebook, [0.2, 0.292, 0.094], bookTurn, 0.006);
-  add('armL', 'paper', box, [-0.35, 0.593, 0.118], [0.19, 0.267, 0.088], bookTurn);
-  add('armL', 'notebook', box, [-0.366, 0.598, 0.15], [0.202, 0.288, 0.022], bookTurn, 0.004);
-  add('armL', 'brass', box, [-0.368, 0.622, 0.165], [0.094, 0.03, 0.024], bookTurn);
+  const notebook = [-0.347, 0.59, 0.105];
+  add('handL', 'frame', box, notebook, [0.2, 0.292, 0.094], bookTurn, 0.006);
+  add('handL', 'paper', box, [-0.35, 0.593, 0.118], [0.19, 0.267, 0.088], bookTurn);
+  add('cover', 'notebook', box, bookCover, [0.202, 0.288, 0.022], bookTurn, 0.004);
+  add('cover', 'brass', box, [-0.368, 0.622, 0.165], [0.094, 0.03, 0.024], bookTurn);
   // The fingers wrap the fore edge; the cover stays legible above them.
-  add('armL', 'accent', box, [-0.383, 0.461, 0.116], [0.027, 0.05, 0.013], bookTurn);
-  add('armL', 'paper', box, [-0.365, 0.65, 0.168], [0.102, 0.058, 0.014], bookTurn);
-  add('armL', 'notebook', box, [-0.367, 0.65, 0.177], [0.069, 0.009, 0.008], bookTurn);
-  blob('armL', 'skin', [-0.307, 0.537, 0.187], [0.109, 0.084, 0.063], 0.003, [-0.1, -0.43, -0.42]);
+  add('handL', 'accent', box, [-0.383, 0.461, 0.116], [0.027, 0.05, 0.013], bookTurn);
+  add('cover', 'paper', box, [-0.365, 0.65, 0.168], [0.102, 0.058, 0.014], bookTurn);
+  add('cover', 'notebook', box, [-0.367, 0.65, 0.177], [0.069, 0.009, 0.008], bookTurn);
+  add('page', 'paper', box, onBook(0, 0, -0.014), [0.186, 0.265, 0.006], bookTurn);
+  for (const [y, w] of [
+    [0.065, 0.112],
+    [0.031, 0.14],
+    [-0.001, 0.093],
+    [-0.035, 0.121],
+  ]) {
+    for (const face of [-1, 1])
+      add(
+        'page',
+        'notebook',
+        box,
+        onBook(-0.073 + w * 0.5, y, -0.014 + face * 0.004),
+        [w, 0.007, 0.002],
+        bookTurn,
+      );
+  }
+  blob('handL', 'skin', [-0.307, 0.537, 0.187], [0.109, 0.084, 0.063], 0.003, [-0.1, -0.43, -0.42]);
   const geometries = {},
     parts = [];
   for (const [id, { joint, color, positions, normals }] of batches) {
@@ -808,56 +855,254 @@ export function createScholarSculpt() {
   };
 }
 
-// Motion is applied once around each joint, including every coloured piece
-// attached to it. Spectacle frames stay put when the eyelids close.
-const poseCache = new Map();
-const jointRotation = new T.Euler(),
-  jointScale = new T.Vector3(),
-  jointPosition = new T.Vector3(),
-  jointQuaternion = new T.Quaternion();
-export function poseScholar(joint, phase, moving, time, shotAge) {
-  let pose = poseCache.get(joint);
-  if (!pose) {
-    pose = { matrix: new T.Matrix4() };
-    poseCache.set(joint, pose);
-  }
-  if (pose.time === time && pose.phase === phase && pose.moving === moving && pose.shotAge === shotAge)
-    return pose.matrix;
-  pose.time = time;
-  pose.phase = phase;
-  pose.moving = moving;
-  pose.shotAge = shotAge;
-  const p = anchors[joint],
-    step = Math.sin(phase),
-    breathe = Math.sin(time * 2.4) * 0.007;
-  const rot = jointRotation.set(0, 0, 0),
-    scale = jointScale.set(1, 1, 1),
-    at = jointPosition.fromArray(p);
-  if (joint.startsWith('leg')) {
-    const sign = joint === 'legL' ? 1 : -1;
-    rot.x = step * sign * 0.49 * moving;
-    at.y += Math.max(0, -step * sign) * 0.039 * moving;
+// World travel drives cadence. Deceleration, collision and joystick speed
+// affect the pose without changing velocity, damage or the collision radius.
+const saturate = (v) => Math.min(1, Math.max(0, v));
+const ease = (v) => {
+  const t = saturate(v);
+  return t * t * (3 - 2 * t);
+};
+const angleDelta = (a, b) => Math.atan2(Math.sin(a - b), Math.cos(a - b));
+const strideLength = (gait) => 1.38 + 1.3 * gait;
+export function advanceScholar(p, distance, yaw, dt, referenceSpeed) {
+  if (dt <= 0) return;
+  const target = saturate(distance / (dt * referenceSpeed));
+  const gait =
+    (p.scholarGait ?? 0) + (target - (p.scholarGait ?? 0)) * -Math.expm1(-dt * (target > 0.1 ? 15 : 19));
+  p.scholarGait = gait < 0.004 ? 0 : gait;
+  p.scholarPhase = ((p.scholarPhase ?? 0) + (tau * distance) / strideLength(gait)) % tau;
+  const turn = Math.max(-1, Math.min(1, angleDelta(yaw, p.scholarYaw ?? yaw) / (dt * 6)));
+  p.scholarTurn = (p.scholarTurn ?? 0) + (turn - (p.scholarTurn ?? 0)) * -Math.expm1(-dt * 10);
+  p.scholarYaw = yaw;
+  // Let the idle gesture fade as the first foot steps out of it.
+  if (gait >= 0.4) p.scholarIdle = 0;
+  else if (target <= 0.07) p.scholarIdle = (p.scholarIdle ?? 0) + dt;
+}
+
+// Matrices map sculpt-local joint geometry into character space. Build the
+// complete pose once for an instance, including the eyes behind the frames.
+const bones = Object.fromEntries(Object.keys(anchors).map((j) => [j, new T.Matrix4()]));
+const position = new T.Vector3(),
+  rotation = new T.Euler(0, 0, 0, 'YXZ'),
+  orientation = new T.Quaternion(),
+  size = new T.Vector3();
+function setBone(j, parent, dx = 0, dy = 0, dz = 0, rx = 0, ry = 0, rz = 0, sx = 1, sy = 1, sz = 1) {
+  const a = anchors[j],
+    base = parent ? anchors[parent] : origin;
+  position.set(a[0] - base[0] + dx, a[1] - base[1] + dy, a[2] - base[2] + dz);
+  orientation.setFromEuler(rotation.set(rx, ry, rz, 'YXZ'));
+  size.set(sx, sy, sz);
+  bones[j].compose(position, orientation, size);
+  if (parent) bones[j].premultiply(bones[parent]);
+}
+function beat(t, start, peak, hold, end) {
+  return ease((t - start) / (peak - start)) * (1 - ease((t - hold) / (end - hold)));
+}
+function placeLeg(side, phase, gait, shift, hipDrop) {
+  const j = 'leg' + side,
+    shin = 'shin' + side,
+    foot = 'foot' + side;
+  const cycle = phase - Math.floor(phase),
+    contact = 0.56 - 0.18 * gait;
+  const halfTravel = strideLength(gait) * contact * 0.25;
+  let z, lift, pitch;
+  if (cycle < contact) {
+    const t = cycle / contact;
+    z = halfTravel * (1 - 2 * t);
+    lift = 0;
+    pitch = -0.18 * (1 - ease(t / 0.25)) + 0.4 * ease((t - 0.66) / 0.34);
   } else {
-    at.y += breathe + Math.abs(step) * 0.034 * moving;
-    if (joint.startsWith('arm')) {
-      const sign = joint === 'armL' ? 1 : -1;
-      rot.x = -sign * step * 0.29 * moving + 0.035 * Math.sin(time * 2.2);
-      rot.z = sign * 0.012 * Math.sin(time * 2.4);
-      if (joint === 'armR' && shotAge >= 0 && shotAge < 0.28) {
-        const flick = Math.sin((Math.PI * shotAge) / 0.28);
-        rot.x -= 0.56 * flick;
-        rot.z -= 0.11 * flick;
-      }
-    } else if (joint === 'hair') {
-      rot.x = 0.02 * Math.sin(time * 2.4 - 0.5) - moving * (0.045 + 0.06 * Math.cos(phase));
-      rot.z = 0.021 * Math.sin(time * 2.0) + 0.05 * step * moving;
-    } else if (joint === 'skirt') rot.z = 0.027 * step * moving;
-    else if (joint.startsWith('eye')) {
-      const blink = time % 3.75;
-      if (blink > 0.24 && blink < 0.42) scale.y = 1 - 0.94 * Math.sin(((blink - 0.24) / 0.18) * Math.PI);
-    }
+    const t = (cycle - contact) / (1 - contact);
+    // Match the planted foot's backward velocity at lift-off and touchdown.
+    z = halfTravel * (2 * (ease(t) - (t * (1 - t) * (1 - 2 * t) * (1 - contact)) / contact) - 1);
+    lift = (0.1 + 0.071 * gait) * Math.sin(t * Math.PI) ** 1.45;
+    pitch = 0.4 * (1 - ease(t)) - 0.18 * ease(t) + 0.4 * Math.sin(t * tau);
   }
-  return pose.matrix.compose(at, jointQuaternion.setFromEuler(rot), scale);
+  const blend = ease(gait / 0.35);
+  z *= blend;
+  lift *= blend;
+  pitch *= blend;
+  const hip = anchors[j],
+    ankle = anchors[foot];
+  const ankleY =
+    (ankle[1] - 0.011) * Math.cos(pitch) + Math.sin(pitch) * (pitch < 0 ? -0.108 : 0.195) + 0.011 + lift;
+  const hipY = hip[1] + hipDrop,
+    down = hipY - ankleY,
+    reach = Math.hypot(down, z);
+  const thighLength = hip[1] - anchors[shin][1],
+    calfLength = anchors[shin][1] - ankle[1];
+  const stretch = Math.max(1, (reach + 0.0001) / (thighLength + calfLength));
+  const thigh = thighLength * stretch,
+    calf = calfLength * stretch;
+  const cosine = Math.min(1, Math.max(-1, (reach * reach + thigh * thigh - calf * calf) / (2 * reach * thigh)));
+  const thighAngle = -Math.atan2(z, down) - Math.acos(cosine);
+  const kneeY = hipY - thigh * Math.cos(thighAngle),
+    kneeZ = -thigh * Math.sin(thighAngle);
+  const calfAngle = -Math.atan2(z - kneeZ, kneeY - ankleY);
+  setBone(j, null, shift, hipDrop, 0, thighAngle, 0, 0, 1, stretch);
+  setBone(shin, null, shift, kneeY - anchors[shin][1], kneeZ, calfAngle, 0, 0, 1, stretch);
+  setBone(foot, null, 0, ankleY - ankle[1], z, pitch);
+}
+export function poseScholar(p, clock) {
+  const gait = saturate(p.scholarGait ?? p.moving ?? 0),
+    phase = p.scholarPhase ?? p.ph ?? 0;
+  const time = clock + (p.seed ?? 0) * 7;
+  const idle = 1 - ease(gait / 0.4),
+    idleClock = p.scholarIdle ?? time;
+  const age = clock - (p.scholarShotAt ?? -99);
+  const wind = beat(age, 0, 0.048, 0.059, 0.115);
+  const flick = beat(age, 0.034, 0.12, 0.158, 0.33);
+  const focus = beat(age, -0.001, 0.07, 0.21, 0.51);
+  const hurt = ease((p.hit ?? 0) * 2.4);
+  const interrupt = age >= 0 && age < 0.12;
+  const quiet = idle * (interrupt ? 1 - ease(age / 0.12) : ease((age - 0.45) / 0.6)) * (1 - hurt);
+  const t = (interrupt ? (p.scholarInterruptedIdle ?? idleClock) + age : idleClock) % 10.4;
+  const read = quiet * beat(t, 0.85, 1.64, 3.08, 3.76);
+  const look = quiet * beat(t, 4.3, 4.83, 5.6, 6.33);
+  const think = quiet * beat(t, 6.94, 7.68, 8.62, 9.56);
+  const turn = p.scholarTurn ?? 0;
+  const aim = focus * Math.max(-1, Math.min(1, angleDelta(p.scholarAim ?? p.yaw ?? 0, p.yaw ?? 0)));
+  const step = Math.sin(phase),
+    twist = Math.cos(phase) * gait;
+  const rise = Math.sin(phase * 2 - 0.82);
+  const shift = -step * 0.022 * gait,
+    hipDrop = (-0.053 + 0.028 * rise) * gait;
+  const breath = 0.009 * Math.sin(time * 2.15);
+  placeLeg('L', phase / tau, gait, shift * 0.18, hipDrop);
+  placeLeg('R', phase / tau + 0.5, gait, shift * 0.18, hipDrop);
+  setBone(
+    'torso',
+    null,
+    shift,
+    hipDrop + breath,
+    0,
+    0.13 * gait + 0.09 * read - 0.12 * hurt,
+    -0.115 * twist + 0.15 * aim - 0.13 * read,
+    step * 0.049 * gait - 0.085 * turn + 0.036 * think,
+  );
+  setBone(
+    'skirt',
+    null,
+    shift,
+    hipDrop,
+    0,
+    0.046 * gait + 0.035 * gait * Math.cos(phase * 2),
+    0.13 * twist,
+    gait * 0.055 * Math.sin(phase - 0.5) - 0.045 * turn,
+  );
+  setBone(
+    'head',
+    'torso',
+    0,
+    -0.01 * rise * gait,
+    0,
+    -0.1 - 0.093 * gait + 0.34 * read - 0.18 * think - 0.12 * hurt,
+    0.065 * twist + 0.27 * turn - 0.34 * read + 0.42 * look + 0.27 * aim,
+    0.055 * step * gait + 0.12 * think - 0.055 * look,
+  );
+  setBone(
+    'hair',
+    'head',
+    0,
+    0,
+    0,
+    -0.035 * Math.cos(time * 2) - (0.065 + 0.11 * Math.cos(phase * 2 - 0.65)) * gait + 0.07 * read + 0.085 * hurt,
+    -0.14 * turn + 0.065 * twist,
+    -0.085 * Math.sin(phase - 0.5) * gait - 0.04 * think,
+  );
+  for (const side of ['L', 'R']) {
+    const left = side === 'L',
+      s = left ? -1 : 1;
+    const swing = twist * (left ? 0.48 : -0.56) * (1 - 0.6 * focus);
+    const arm = 'arm' + side,
+      elbow = 'elbow' + side,
+      hand = 'hand' + side;
+    setBone(
+      arm,
+      'torso',
+      0,
+      0,
+      0,
+      swing + (left ? -0.31 * read : -0.38 * think - 0.82 * flick + 0.12 * wind) - 0.11 * hurt,
+      left ? 0.27 * read : 0.5 * aim - 0.16 * flick,
+      s * (0.07 + 0.075 * gait) + (left ? 0.16 * read : 0.04 * think),
+    );
+    setBone(
+      elbow,
+      arm,
+      0,
+      0,
+      0,
+      -0.1 -
+        (left ? 0.31 : 0.36) * gait +
+        Math.min(0, swing) * 0.27 -
+        (left ? 1.02 * read + 0.15 * think : 0.87 * think + 0.48 * wind + 0.13 * read),
+    );
+    setBone(
+      hand,
+      elbow,
+      0,
+      0,
+      0,
+      left ? 0.15 * read : 1.31 * flick - 0.36 * wind + 0.11 * Math.sin(time * 4) * think,
+      left ? 0.22 * read : -0.15 * think - 0.41 * flick,
+      s * 0.06 * gait * step + (left ? 0.16 * read : 0.19 * think - 0.19 * flick),
+    );
+  }
+  const opened = beat(t, 1.14, 1.86, 2.96, 3.48) * quiet;
+  const leaf = opened * (0.28 + 0.84 * beat(t, 1.94, 2.61, 3.04, 3.45));
+  for (const [joint, angle] of [
+    ['cover', -2.0 * opened],
+    ['page', -leaf],
+  ]) {
+    position.copy(hingeInHand);
+    bones[joint]
+      .compose(position, orientation.setFromAxisAngle(spine, angle), size.set(1, 1, 1))
+      .premultiply(bones.handL);
+  }
+  const blink = time % 4.37;
+  const close = Math.max(
+    beat(blink, 0.22, 0.276, 0.295, 0.412),
+    0.88 * beat(blink, 0.55, 0.6, 0.61, 0.7) * Number(Math.floor(time / 4.37) % 3 === 1),
+  );
+  const eyeHeight = (1 - 0.94 * close) * (1 - 0.2 * focus + 0.13 * hurt - 0.12 * read);
+  const quickLook = beat(t, 4.21, 4.38, 5.55, 6.02) * quiet;
+  for (const side of ['L', 'R']) {
+    const s = side === 'L' ? -1 : 1,
+      eye = 'eye' + side;
+    setBone(eye, 'head', 0, 0, 0, 0, 0, 0, 1, eyeHeight);
+    setBone(
+      'gaze' + side,
+      eye,
+      0.026 * quickLook - 0.021 * read + 0.026 * aim + 0.015 * turn,
+      -0.03 * read + 0.018 * think,
+      0,
+    );
+    setBone(
+      'brow' + side,
+      'head',
+      0,
+      0.024 * hurt + 0.023 * think * (s === 1 ? 1 : 0.4) - 0.021 * focus,
+      0,
+      0,
+      0,
+      s * (0.19 * focus - 0.085 * hurt) + 0.11 * think,
+    );
+  }
+  setBone(
+    'mouth',
+    'head',
+    0,
+    0.009 * think - 0.01 * hurt,
+    0.001,
+    0,
+    0,
+    0.13 * think,
+    1 + 0.23 * think - 0.18 * hurt,
+    0.9 - 0.42 * focus + 0.78 * hurt,
+  );
+  setBone('mouthOpen', 'head', 0, -0.009 * hurt, -0.016 * (1 - hurt), 0, 0, 0, 0.01 + 0.99 * hurt, 0.01 + hurt, 1);
+  return bones;
 }
 
 export function scholarToon(color) {

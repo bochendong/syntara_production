@@ -1,4 +1,4 @@
-import { createScholarSculpt, poseScholar, scholarToon } from './scholar.js';
+import { advanceScholar, createScholarSculpt, poseScholar, scholarToon } from './scholar.js';
 import { buildInkPortal, buildPortraitRoom } from './campus-models.js';
 import { createCampusItems, ITEM } from './campus-items.js';
 import { createCampus, campusElevation, campusStudentScale, campusStudentRadius, taskSites, portalSites, insideCampusObstacle, resolveCampusObstacles } from './campus.js';
@@ -722,7 +722,6 @@ function partMatrix(pt, e) {
   const p = pt[2], s = pt[3], r = pt[4] || [0, 0, 0], k = pt[5] || '';
   let px = p[0], py = p[1], pz = p[2], sx = s[0], sy = s[1], sz = s[2], rx = r[0], ry = r[1], rz = r[2];
   const ph = e.ph || 0, t = realTime + (e.seed || 0) * 7, st = Math.sin(ph), mv = e.moving ?? 1;
-  if (k.startsWith('scholar:')) return poseScholar(k.slice(8), ph, mv, t, realTime - (e.scholarShotAt ?? -99));
   if (k.includes('legL') || k.includes('legR')) { const g = k.includes('legL') ? 1 : -1; pz += st * 0.17 * g * mv; py += Math.max(0, Math.cos(ph) * g) * 0.08 * mv; rx -= st * 0.45 * g * mv; }
   else py += Math.abs(st) * 0.06 * mv;
   if (k.includes('armL') || k.includes('armR')) { const g = k.includes('armL') ? -1 : 1; pz += st * 0.13 * g * mv; py += Math.abs(st) * 0.03 * mv; }
@@ -748,19 +747,22 @@ function partMatrix(pt, e) {
 }
 class Rig {
   constructor(parts, cap, lean) {
-    this.n = 0; this.cap = cap; this.lean = !!lean;
+    this.n = 0; this.cap = cap;
+    this.scholar = parts[0]?.[5]?.startsWith('scholar:') === true;
+    this.lean = !!lean && !this.scholar;
     this.parts = parts.map((pt) => {
       const m = new THREE.InstancedMesh(GEO[pt[0]], pt[0].startsWith('scholar_') ? scholarMaterial : toonMat, cap); m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); m.frustumCulled = false; m.count = 0; m.setColorAt(0, WHITE); scene.add(m);
       let ol = null; if (pt[6]) { ol = new THREE.InstancedMesh(OGEO[pt[0]], outlineRigMat, cap); ol.instanceMatrix.setUsage(THREE.DynamicDrawUsage); ol.frustumCulled = false; ol.count = 0; scene.add(ol); }
       const k = pt[5] || '';
-      return { pt, m, ol, color: new THREE.Color(pt[1]), glow: k.includes('glow'), tint: k.includes('tint') };
+      return { pt, m, ol, joint: k.startsWith('scholar:') ? k.slice(8) : null, color: new THREE.Color(pt[1]), glow: k.includes('glow'), tint: k.includes('tint') };
     });
   }
   push(e, world) {
     if (this.n >= this.cap) return; const i = this.n++;
     if (this.lean && leanAngle) { const el = LW.copy(world).elements, x = el[12], y = el[13], z = el[14]; el[12] = el[13] = el[14] = 0; LW.premultiply(LEAN_ROT); el[12] = x; el[13] = y; el[14] = z; world = LW; }
+    const bones = this.scholar ? poseScholar(e, realTime) : null;
     for (const P of this.parts) {
-      CM.multiplyMatrices(world, partMatrix(P.pt, e)); P.m.setMatrixAt(i, CM);
+      CM.multiplyMatrices(world, P.joint ? bones[P.joint] : partMatrix(P.pt, e)); P.m.setMatrixAt(i, CM);
       tC.copy(P.tint && e.tint ? e.tint : P.color); if (e.etint) tC.lerp(e.etint, 0.72).multiplyScalar(1.3);
       if (P.glow) tC.multiplyScalar(Math.min(e.glowMul || 1.2, 1.2));
       if (burning(e)) tC.lerp(ORANGE, 0.6 + 0.25 * Math.sin(realTime * 20 + i));
@@ -1401,7 +1403,7 @@ function heroRig(h, sk = skinOf(h)) {
   return RIGS[key];
 }
 function drawCampusStudent(rig, pose, x, y, z, yaw) {
-  const bounce = 1 + Math.sin(pose.ph * 2) * 0.02 * pose.moving;
+  const bounce = rig.scholar ? 1 : 1 + Math.sin(pose.ph * 2) * 0.02 * pose.moving;
   rig.push(pose, worldM(x, y, z, yaw, campusStudentScale, campusStudentScale * bounce, campusStudentScale));
   shadow(x, z, 0.55 * campusStudentScale);
 }
@@ -2035,7 +2037,13 @@ function fire(dt) {
     } else if (id === 'pencil') {
       const used = new Set(), n = s.n + extraRanged;
       for (let k = 0; k < n; k++) { const e = nearest(h.x, h.z, 14, used) || nearest(h.x, h.z, 14); if (!e) { cds[id] = 0.15; break; } used.add(e); shoot('pencilP', h.x, h.y, h.z, Math.atan2(e.x - h.x, e.z - h.z), 18, 1.1, s.dmg, 'ranged', { pierce: s.pierce + rangedPierce + (player.alt.pencil ? 3 : 0) }); }
-      if (used.size && clsId === 'scholar') player.scholarShotAt = realTime;
+      if (used.size && clsId === 'scholar') {
+        const target = used.values().next().value;
+        player.scholarShotAt = realTime;
+        player.scholarInterruptedIdle = player.scholarIdle;
+        player.scholarIdle = 0;
+        player.scholarAim = Math.atan2(target.x - player.x, target.z - player.z);
+      }
       if (SPX('pencil', 'back')) { const e0 = nearest(h.x, h.z, 14); if (e0) { const yb = Math.atan2(e0.x - h.x, e0.z - h.z) + PI; for (let k = 0; k < n; k++) shoot('pencilP', h.x, h.y, h.z, yb + (k - (n - 1) / 2) * 0.14, 18, 1.1, s.dmg, 'ranged', { pierce: s.pierce + rangedPierce }); } }
       if (evo) for (let k = 0; k < 10; k++) shoot('pencilP', player.x, 0.85, player.z, k / 10 * TAU + realTime, 16, 0.9, s.dmg * 0.7, 'ranged', { pierce: 1 + rangedPierce });
     } else if (id === 'slipper') {
@@ -2792,15 +2800,21 @@ function skinPortrait(hero, skinId, rigId) {
   const portrait = new THREE.Scene();
   const model = new THREE.Group();
   const materials = new Map();
+  const bones = parts[0]?.[5]?.startsWith('scholar:') ? poseScholar({ scholarIdle: 0 }, 0) : null;
   for (const [shape, color, position, scale, rotation, effect, outlined] of parts) {
     const glow = effect.includes('glow');
     const sculpted = shape.startsWith('scholar_');
     const materialKey = color + (glow ? 0x1000000 : sculpted ? 0x2000000 : 0);
     if (!materials.has(materialKey)) materials.set(materialKey, glow ? new THREE.MeshBasicMaterial({ color }) : sculpted ? scholarToon(color) : toonOf(color));
     const part = new THREE.Mesh(GEO[shape], materials.get(materialKey));
-    part.position.fromArray(position);
-    part.scale.fromArray(scale);
-    if (rotation) part.rotation.fromArray(rotation);
+    if (effect.startsWith('scholar:')) {
+      part.matrix.copy(bones[effect.slice(8)]);
+      part.matrixAutoUpdate = false;
+    } else {
+      part.position.fromArray(position);
+      part.scale.fromArray(scale);
+      if (rotation) part.rotation.fromArray(rotation);
+    }
     if (outlined) {
       const outline = new THREE.Mesh(part.geometry, outlineMat);
       outline.scale.setScalar(1.15);
@@ -3442,7 +3456,15 @@ function trackableBossTarget(target) {
 const r1 = (v) => Math.round(v * 10), r2 = (v) => Math.round(v * 100) / 100;
 function netTick(dt) {
   if (!NET || !NET.on) return;
-  for (const id in NET.peers) { const p = NET.peers[id]; if (p.tx == null) continue; const k = Math.min(1, dt * 10), dx = p.tx - p.x, dz = p.tz - p.z; if (Math.hypot(dx, dz) > 8) { p.x = p.tx; p.z = p.tz; } else { p.x += dx * k; p.z += dz * k; } p.ps.moving = p.mv || 0; p.ps.ph += (p.mv || 0) * dt * 14; p.ps.ghostly = p.dead; }
+  for (const p of Object.values(NET.peers)) {
+    if (p.tx == null) continue;
+    const k = Math.min(1, dt * 10), dx = p.tx - p.x, dz = p.tz - p.z;
+    const distance = Math.hypot(dx, dz);
+    if (distance > 8) { p.x = p.tx; p.z = p.tz; }
+    else { p.x += dx * k; p.z += dz * k; }
+    if (p.h === 'scholar') advanceScholar(p.ps, distance > 8 ? 0 : k * distance, p.yaw || 0, dt, PLAYER_SPEED);
+    p.ps.moving = p.mv || 0; p.ps.ph += (p.mv || 0) * dt * 14; p.ps.ghostly = p.dead;
+  }
   player.ghostly = !!player.ghost;
   NET.sendT -= dt; if (NET.sendT > 0) return; NET.sendT = 0.1;
   const me = { x: r2(player.x), z: r2(player.z), y: r2(player.yaw), m: r2(player.moving), hp: Math.ceil(player.hp), mh: Math.ceil(player.maxHp), lv: player.lvl, h: clsId, sk: skinOf(clsId), d: player.ghost ? 1 : 0, st: netStats() };
@@ -3963,6 +3985,7 @@ function startRun() {
     if (id !== 'maxHp' && id !== 'points') st[id] += growthBonus(id);
   }
   Object.assign(player, { x: 0, z: 0, vx: 0, vz: 0, yaw: 0, hp: maxHp, maxHp, speed: PLAYER_SPEED, magnet: 2.4, lvl: 1, xp: 0, need: 5, kills: 0, weapons: { [cls.start]: 1 }, wup: {}, elem: {}, sp: {}, arts: {}, koi: 0, shield: false, st, relics: {}, evo: {}, alt: {}, duos: {}, spinT: 0, slowT: 0, healPending: 0, lastHeal: null, iframe: 0, ghost: 0, dark: false });
+  if (clsId === 'scholar') Object.assign(player, { scholarGait: 0, scholarPhase: 0, scholarTurn: 0, scholarYaw: 0, scholarIdle: 0, scholarShotAt: -99, scholarAim: 0 });
   rerollCost = REROLL_BASE_COST; player.revives = DF().revive; watchT = 12; shieldT = 10; bellT = 30; warmT = 0; player.retakeUsed = false; player.errN = 0; player.lunchN = 0; player.puddleT = -9; $('rmark').hidden = true;
   mctx.clearRect(0, 0, 1024, 1024); marksDirty = true;
   endlessWaveStartedAt = waveSpawnBudget = null;
@@ -4772,11 +4795,13 @@ function updateMatch(dt) {
   const spd = player.speed * (1 + player.st.speed) * (A('merit') && player.hp > player.maxHp * 0.8 ? 1.1 : 1) * (player.slowT > 0 ? 0.7 : 1) * (pulled ? 0.65 : 1);
   player.vx += (wx * spd - player.vx) * Math.min(1, dt * 14); player.vz += (wz * spd - player.vz) * Math.min(1, dt * 14);
   const pullStep = pulled ? Math.min(pullDistance, 2.8 * dt) / (pullDistance || 1) : 0;
+  const fromX = player.x, fromZ = player.z;
   player.x += player.vx * dt + pullX * pullStep;
   player.z += player.vz * dt + pullZ * pullStep;
   pushOutProps(player, campusStudentRadius);
   const sp = Math.hypot(player.vx, player.vz); player.moving = clamp(sp / 3, 0, 1); player.ph += sp * dt * 2.6;
   if (sp > 0.5) { const ty = Math.atan2(player.vx, player.vz); let d = ty - player.yaw; d = Math.atan2(Math.sin(d), Math.cos(d)); player.yaw += d * Math.min(1, dt * 12); }
+  if (clsId === 'scholar') advanceScholar(player, Math.hypot(player.x - fromX, player.z - fromZ), player.yaw, dt, PLAYER_SPEED);
   player.spinT = Math.max(0, player.spinT - dt * 5); player.hit = Math.max(0, player.hit - dt * 5);
   player.stepAcc += sp * dt; if (player.stepAcc > 0.5) { player.stepAcc = 0; player.stepSide *= -1; footprint(player.x, player.z, player.yaw, player.stepSide); }
   if (!player.ghost) restoreHealth(player, player.st.regen * dt);
@@ -5309,7 +5334,8 @@ function draw(dt) {
       if (!prep) { const col = Math.floor(i / 3), row = i % 3, sp = port ? 1.15 : 1.6; x = (col - 2 + (row === 1 ? 0.5 : 0)) * sp * (1 + row * 0.06); z = -0.2 - row * 1.5; base = row * 0.62; sc = port ? 0.95 : 1.0; yaw = Math.sin(realTime * 0.8 + i) * 0.25; y = Math.pow(Math.max(0, Math.sin(realTime * 2.4 - i * 0.8)), 10) * 0.6; }
       else if (Math.abs(i - selF) > 2.6) return;
       else { const a = (i - selF) * 0.6, f = Math.max(0, 1 - Math.abs(i - selF)); x = Math.sin(a) * 3.6; z = -1 - (1 - Math.cos(a)) * 5; sc = 0.9 + 0.6 * f; yaw = f > 0.5 ? Math.sin(realTime * 1.3) * 0.4 : -a * 0.5; y = f * 0.22 + (sel && !lk ? Math.abs(Math.sin(realTime * 4.5)) * 0.22 : 0); }
-      const pseudo = { ph: sel && !lk ? realTime * 8 : 0, hit: 0, seed: i * 0.13, moving: sel && !lk ? 0.6 : 0, glowMul: 2.4, dark: lk && prep };
+      if (prep && sel && id === 'scholar') y = .22;
+      const pseudo = { ph: sel && !lk ? realTime * 8 : 0, hit: 0, seed: i * 0.13, moving: sel && !lk && id !== 'scholar' ? 0.6 : 0, glowMul: 2.4, dark: lk && prep };
       heroRig(id).push(pseudo, worldM(x + TX, y + base, z + TZ, yaw, sc)); if (!base) shadow(x + TX, z + TZ, 0.55 * sc);
     });
   }
