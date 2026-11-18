@@ -5777,5 +5777,11 @@ if (staticMatchPreview) {
     show('<h2>暂时无法读取游戏存档</h2><p>请检查网络，或关闭同一浏览器里的其他游戏页面再重试。</p><div class="actions"><button class="primary" id="saveRetry">重试</button></div>');
     $('saveRetry').onclick = () => location.reload();
   });
-} else if (!skillDemoMode) showTitle();
+} else if (!skillDemoMode) {
+  const previewStudent = localPreview ? CLS_IDS.indexOf(saveParams.get('student')) : -1;
+  if (previewStudent >= 0) {
+    selIdx = selF = previewStudent;
+    showTitle('prep');
+  } else showTitle();
+}
 if (!staticMatchPreview) requestAnimationFrame(frame);
