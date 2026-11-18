@@ -1,4 +1,5 @@
-import { advanceScholar, createScholarSculpt, poseScholar, scholarToon } from './scholar.js';
+import { advanceScholar } from './scholar.js';
+import { buildScholar, poseSchoolUniform as poseScholar } from './scholar-model.js';
 import { buildInkPortal, buildPortraitRoom } from './campus-models.js';
 import { createCampusItems, ITEM } from './campus-items.js';
 import { createCampus, campusElevation, campusStudentScale, campusStudentRadius, taskSites, portalSites, insideCampusObstacle, resolveCampusObstacles } from './campus.js';
@@ -387,7 +388,7 @@ function inkToon(mat) {
   };
   return mat;
 }
-const scholarMaterial = scholarToon(0xffffff);
+
 const toonMat = inkToon(new THREE.MeshToonMaterial({ color: 0xffffff }));
 const outlineMat = new THREE.MeshBasicMaterial({ color: 0x38172c, side: THREE.BackSide });
 const OUTLINE_W = { value: 0.064 };
@@ -432,7 +433,7 @@ function smoothNormals(src) {
   return g;
 }
 const OGEO = {}; for (const k in GEO) OGEO[k] = smoothNormals(GEO[k]);
-const scholarSculpt = createScholarSculpt();
+const scholarSculpt = await buildScholar(new URL('./scholar-face.jpg', import.meta.url).href);
 Object.assign(GEO, scholarSculpt.geometries);
 const SMOOTH_CACHE = new Map(Object.keys(OGEO).map((k) => [GEO[k], OGEO[k]]));
 const smoothOf = (geo) => { if (!SMOOTH_CACHE.has(geo)) SMOOTH_CACHE.set(geo, smoothNormals(geo)); return SMOOTH_CACHE.get(geo); };
@@ -751,7 +752,7 @@ class Rig {
     this.scholar = parts[0]?.[5]?.startsWith('scholar:') === true;
     this.lean = !!lean && !this.scholar;
     this.parts = parts.map((pt) => {
-      const m = new THREE.InstancedMesh(GEO[pt[0]], pt[0].startsWith('scholar_') ? scholarMaterial : toonMat, cap); m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); m.frustumCulled = false; m.count = 0; m.setColorAt(0, WHITE); scene.add(m);
+      const m = new THREE.InstancedMesh(GEO[pt[0]], scholarSculpt.materials[pt[0]] ?? toonMat, cap); m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); m.frustumCulled = false; m.count = 0; m.setColorAt(0, WHITE); scene.add(m);
       let ol = null; if (pt[6]) { ol = new THREE.InstancedMesh(OGEO[pt[0]], outlineRigMat, cap); ol.instanceMatrix.setUsage(THREE.DynamicDrawUsage); ol.frustumCulled = false; ol.count = 0; scene.add(ol); }
       const k = pt[5] || '';
       return { pt, m, ol, joint: k.startsWith('scholar:') ? k.slice(8) : null, color: new THREE.Color(pt[1]), glow: k.includes('glow'), tint: k.includes('tint') };
@@ -2804,8 +2805,8 @@ function skinPortrait(hero, skinId, rigId) {
   for (const [shape, color, position, scale, rotation, effect, outlined] of parts) {
     const glow = effect.includes('glow');
     const sculpted = shape.startsWith('scholar_');
-    const materialKey = color + (glow ? 0x1000000 : sculpted ? 0x2000000 : 0);
-    if (!materials.has(materialKey)) materials.set(materialKey, glow ? new THREE.MeshBasicMaterial({ color }) : sculpted ? scholarToon(color) : toonOf(color));
+    const materialKey = sculpted ? shape + color : color + (glow ? 0x1000000 : 0);
+    if (!materials.has(materialKey)) materials.set(materialKey, glow ? new THREE.MeshBasicMaterial({ color }) : sculpted ? scholarSculpt.tintedMaterial(shape, color) : toonOf(color));
     const part = new THREE.Mesh(GEO[shape], materials.get(materialKey));
     if (effect.startsWith('scholar:')) {
       part.matrix.copy(bones[effect.slice(8)]);
