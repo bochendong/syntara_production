@@ -401,40 +401,30 @@ export function createScholarSculpt() {
   );
   const rear = [0.258, 1.35, -0.575],
     rearRot = [0.06, 2.79, 0.18];
-  patch(
-    'hair',
-    'frame',
-    [
-      [-0.17, 0.072],
-      [-0.03, 0.027],
-      [0.107, 0.1],
-      [0.141, 0.057],
-      [0.116, -0.06],
-      [-0.014, -0.018],
-      [-0.132, -0.075],
-      [-0.168, -0.04],
-    ],
-    rear,
-    rearRot,
-    0.055,
-    0.006,
-  );
-  patch(
-    'hair',
-    'accent',
-    [
-      [-0.154, 0.059],
-      [-0.018, 0.014],
-      [0.103, 0.086],
-      [0.125, 0.054],
-      [0.105, -0.043],
-      [-0.011, -0.008],
-      [-0.129, -0.059],
-    ],
-    [0.266, 1.35, -0.598],
-    rearRot,
-    0.034,
-  );
+  // An oval ribbon loops away from the head, with a pinched waist
+  // at the clasp and broad folded edges at the outer tips.
+  for (const sign of [-1, 1]) {
+    const vertices = [], indices = [];
+    for (let i = 0; i < 20; i++) {
+      const angle = tau * i / 20;
+      const reach = (1 - Math.cos(angle)) / 2;
+      const x = sign * (0.008 + reach * (sign < 0 ? 0.18 : 0.15));
+      const y = reach * (sign < 0 ? 0.018 : 0.042);
+      const z = 0.036 + 0.048 * Math.sin(angle);
+      const width = 0.015 + 0.061 * reach;
+      const nx = -sign * Math.cos(angle), nz = Math.sin(angle);
+      for (const [height, depth] of [[-1, 0], [0, 0.013], [1, 0], [1, -0.008], [0, 0.005], [-1, -0.008]]) {
+        vertices.push([x + nx * depth, y + width * height, z + nz * depth]);
+      }
+      for (let j = 0; j < 6; j++) {
+        const next = ((i + 1) % 20) * 6;
+        const k = (j + 1) % 6;
+        indices.push(i * 6 + j, next + j, i * 6 + k, i * 6 + k, next + j, next + k);
+      }
+    }
+    if (sign < 0) indices.reverse();
+    add('hair', 'accent', buffer(vertices, indices), rear, unit, rearRot);
+  }
   patch(
     'hair',
     'accent',
@@ -484,6 +474,25 @@ export function createScholarSculpt() {
     [2.17, 0.6, 0.089],
     [2.4, 0.63, 0.013],
   ]);
+  // Raised, tapered sections follow the part and catch the overhead light.
+  for (const [azimuth, sweep, breadth] of [
+    [-1.75, 0.63, 0.14], [-1.13, 0.57, 0.12], [-0.57, 0.44, 0.1],
+    [0.65, -0.48, 0.13], [1.35, -0.6, 0.15], [2.48, -0.5, 0.14],
+  ]) {
+    const vertices = [], indices = [];
+    for (let i = 0; i <= 10; i++) {
+      const t = i / 10, swell = Math.sin(Math.PI * t);
+      const a = azimuth + sweep * (1 - t) ** 2, phi = 0.15 + t * 1.03;
+      const width = breadth * (0.08 + swell);
+      vertices.push(onCrown(a - width, phi, 0.005), onCrown(a, phi, 0.006 + 0.021 * swell),
+        onCrown(a + width, phi, 0.005));
+      if (i) {
+        const k = i * 3;
+        indices.push(k - 3, k, k - 2, k - 2, k, k + 1, k - 2, k + 1, k - 1, k - 1, k + 1, k + 2);
+      }
+    }
+    solid('head', 'hairMid', buffer(vertices, indices));
+  }
   // A narrow flyaway and the parting make the silhouette legible from above.
   lock(
     'head',
@@ -769,10 +778,15 @@ export function createScholarSculpt() {
   }
   pencilSegment('coral', -0.055, 0.05, 0.092);
   pencilSegment('brass', 0.05, 0.15, 0.094);
+  for (const t of [0.065, 0.122]) pencilSegment('brass', t, t + 0.014, 0.105);
   pencilSegment('yellow', 0.15, 0.83, 0.091);
   pencilSegment('wood', 0.83, 1.066, 0.092, tip);
   pencilSegment('ink', 0.999, 1.071, 0.03, tip);
-  blob('handR', 'skin', [0.377, 0.541, 0.137], [0.143, 0.132, 0.114], 0.005);
+  for (const [x, y, z, size] of [
+    [0.412, 0.556, 0.153, 1], [0.401, 0.534, 0.14, 0.95], [0.384, 0.517, 0.128, 0.83],
+  ]) {
+    blob('handR', 'skin', [x, y, z], [0.068 * size, 0.039 * size, 0.085 * size], 0.002, [-0.42, 0.26, -0.38]);
+  }
   blob('handR', 'skin', [0.392, 0.564, 0.163], [0.083, 0.059, 0.067], 0, [0, 0, -0.36]);
   // A pocket notebook tucked into the other elbow; the colored tab can be
   // read even when the heroine is running away from the camera.
@@ -785,6 +799,10 @@ export function createScholarSculpt() {
   add('handL', 'accent', box, [-0.383, 0.461, 0.116], [0.027, 0.05, 0.013], bookTurn);
   add('cover', 'paper', box, [-0.365, 0.65, 0.168], [0.102, 0.058, 0.014], bookTurn);
   add('cover', 'notebook', box, [-0.367, 0.65, 0.177], [0.069, 0.009, 0.008], bookTurn);
+  // Tabs stay on the fixed page block when the cover opens.
+  for (const [y, color] of [[0.097, 'coral'], [0.049, 'yellow']]) {
+    add('handL', color, box, onBook(0.097, y, -0.027), [0.039, 0.031, 0.006], bookTurn);
+  }
   add('page', 'paper', box, onBook(0, 0, -0.014), [0.186, 0.265, 0.006], bookTurn);
   for (const [y, w] of [
     [0.065, 0.112],
