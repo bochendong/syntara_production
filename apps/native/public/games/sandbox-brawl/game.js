@@ -48,7 +48,7 @@ const CLASSES = {
   brawler:  { name: '体育委员', tag: 'melee',  hp: 150, start: 'sweep',   desc: '血厚，原地抡一圈大尺子，周围全砍', look: { style: 'spiky', outfit: 'track', skin: 0xf2c49a, hair: 0x2b1d18, top: 0xd8423a, pants: 0x2b3a5c, iris: 0x7a3a22, item: 'bat', band: 0xffffff, big: true } },
   geo:      { name: '数学课代表', short: '课代表', tag: 'melee', hp: 120, start: 'spin', desc: '三角尺绕着自己转，站着不动也在算账', look: { style: 'bob', outfit: 'vest', hair: 0x3a2a20, top: 0xfaf8f2, pants: 0x4a5568, iris: 0x4a6a8a, accent: 0x3f7ad8, item: 'tri', glasses: true } },
   duty:     { name: '值日生',   tag: 'melee',  hp: 130, start: 'mop',     desc: '拖把一拖一大片，地板湿了怪就打滑', look: { style: 'bun', outfit: 'apron', girl: true, hair: 0x6a4630, top: 0x7cc8e8, pants: 0x3a6a9a, iris: 0x3a8ab8, accent: 0xffffff, scarf: 0xff8fa8, item: 'mop' } },
-  scholar:  { name: '学霸',     tag: 'ranged', hp: 95,  start: 'pencil',  desc: '铅笔百发百中，开局暴击率 12%，基础攻速和伤害各低 20%', crit: 0.07, baseDmg: -0.20, baseAtkSpd: -0.20, look: { style: 'long', outfit: 'sailor', girl: true, hair: 0x1e1a2e, top: 0xfaf8f2, pants: 0x2c3a6e, iris: 0x3a6ad8, accent: 0xe2453a, item: 'pencil', glasses: true } },
+  scholar:  { name: '学霸',     tag: 'ranged', hp: 95,  start: 'pencil',  desc: '铅笔百发百中，开局暴击率 12%', baseCrit: 0.12, look: { style: 'long', outfit: 'sailor', girl: true, hair: 0x1e1a2e, top: 0xfaf8f2, pants: 0x2c3a6e, iris: 0x3a6ad8, accent: 0xe2453a, item: 'pencil', glasses: true } },
   paper:    { name: '后排同学', tag: 'ranged', hp: 100, start: 'plane',   desc: '上课折的纸飞机会自己追怪', look: { style: 'messy', outfit: 'hoodie', hair: 0x4a3426, top: 0x38b2c9, pants: 0x3a3f4a, iris: 0x2a8aa0, accent: 0xffffff, cap: 0xf2f2f2, item: 'plane' } },
   dorm:     { name: '住校生',   tag: 'ranged', hp: 115, start: 'slipper', desc: '穿着睡衣就来了，拖鞋扔出去还会飞回来', look: { style: 'bun2', outfit: 'pajama', girl: true, hair: 0xe8a0b8, top: 0xffd9e4, pants: 0xffd9e4, iris: 0xd85a8a, accent: 0xff7a5a, mask: 0x8a7ad8, item: 'slipper' } },
   engineer: { name: '理科生',   tag: 'gun',    hp: 110, start: 'stapler', desc: '订书机枪高速连发，越升级射得越快', look: { style: 'messy', outfit: 'labcoat', hair: 0x2e3a48, top: 0x3faa6a, pants: 0x34495e, iris: 0x2a8a6a, item: 'gun', goggles: true } },
@@ -57,8 +57,8 @@ const CLASSES = {
   owl:      { name: '夜猫子',   tag: 'magic',  hp: 100, start: 'coffee',  desc: '咖啡不离手，扔出去就是一个旋风，又伤又减速', look: { style: 'messy', outfit: 'hoodie', hair: 0x24202e, top: 0x6a4a3a, pants: 0x2e2a36, iris: 0xb8742a, accent: 0xf5e6c8, tired: true, item: 'mug' } },
   jock:     { name: '体育生',   tag: 'magic',  hp: 140, start: 'sock',    desc: '训练完没换袜子，怪一靠近就被熏到', look: { style: 'buzz', outfit: 'jersey', skin: 0xe8b88a, hair: 0x2a2a2a, top: 0x5fb04f, pants: 0xffffff, iris: 0x3a5a2a, band2: 0xff5f5f, item: 'sock', big: true } },
   monitor:  { name: '班长',     tag: 'magic',  hp: 105, start: 'rollcall', desc: '点到谁谁倒霉，专挑血最厚的砸', look: { style: 'pony', outfit: 'sailor', girl: true, hair: 0x3a2618, top: 0xfaf8f2, pants: 0x8a2a3a, iris: 0xb83a4a, accent: 0xffc93c, armband: 0xe2453a, item: 'book' } },
-  captain:  { name: '社团长',   tag: 'summon', hp: 105, start: 'minion',  desc: '招一群便利贴小人替你冲，基础攻速低 15%，开局暴击率 3%', crit: -0.02, baseAtkSpd: -0.15, look: { style: 'twin', outfit: 'cheer', girl: true, hair: 0xf08a3a, top: 0xffb22a, pants: 0xffffff, iris: 0xe0602a, accent: 0xff5f9e, item: 'flag' } },
-  techie:   { name: '电教委员', tag: 'summon', hp: 100, start: 'lamp',    desc: '放下台灯就是炮台，基础攻速低 20%，开局暴击率 2%', crit: -0.03, baseAtkSpd: -0.20, look: { style: 'bob', outfit: 'hoodie', hair: 0x5a6a7a, top: 0xffd84d, pants: 0x3a4658, iris: 0xc89a00, accent: 0x3a3f4a, phones: 0x3a3f4a, item: 'lamp' } },
+  captain:  { name: '社团长',   tag: 'summon', hp: 105, start: 'minion',  desc: '招一群便利贴小人替你冲，开局暴击率 3%', baseCrit: 0.03, look: { style: 'twin', outfit: 'cheer', girl: true, hair: 0xf08a3a, top: 0xffb22a, pants: 0xffffff, iris: 0xe0602a, accent: 0xff5f9e, item: 'flag' } },
+  techie:   { name: '电教委员', tag: 'summon', hp: 100, start: 'lamp',    desc: '放下台灯就是炮台，开局暴击率 2%', baseCrit: 0.02, look: { style: 'bob', outfit: 'hoodie', hair: 0x5a6a7a, top: 0xffd84d, pants: 0x3a4658, iris: 0xc89a00, accent: 0x3a3f4a, phones: 0x3a3f4a, item: 'lamp' } },
   swimmer:  { name: '游泳队员', tag: 'summon', hp: 115, start: 'duck',    desc: '带着橡皮鸭下水，怪全被鸭子引走', look: { style: 'pony', outfit: 'track', girl: true, hair: 0x2a4a6a, top: 0x4aa8ff, pants: 0x2a3a6a, iris: 0x2a8ad8, accent: 0xffd23f, swimcap: 0xffffff, goggles2: true, item: 'duck' } },
 };
 const isOpen = (id) => meta.heroes.includes(id);
@@ -69,7 +69,7 @@ const WEAPONS = {
   pencil:   { name: '铅笔飞镖',   tag: 'ranged', c: '#3f97e8', ch: '铅', ups: ['lv'], nText: '每次多射一支', desc: '射出会穿透的铅笔，一条直线清一排', evo: { relic: 'scratch', name: '铅笔暴雨', desc: '每次出手额外向四周射出 10 支铅笔' } },
   plane:    { name: '纸飞机',     tag: 'ranged', c: '#38b2c9', ch: '纸', ups: ['lv'],          nText: '每次多一架', desc: '会自己拐弯追怪，边跑边打最省心', evo: { relic: 'scope', name: '纸鹤群', desc: '数量 +3，命中不消失，能连穿 4 只' } },
   slipper:  { name: '妈妈的拖鞋', tag: 'ranged', c: '#ff7a5a', ch: '鞋', ups: ['lv'],          nText: '每次多扔一只', funny: 1, desc: '扔出去还会飞回来，来回各打一次', evo: { relic: 'mom', name: '拖鞋连环', desc: '拖鞋飞到头时再分出两只' } },
-  stapler:  { name: '订书机枪',   tag: 'gun',    c: '#7a8394', ch: '钉', ups: ['lv'],          nText: '并排多射一发', desc: '高速连发，单体输出最高', evo: { relic: 'dual', name: '钉枪风暴', desc: '再加四道旋转弹流，扫遍全场' } },
+  stapler:  { name: '订书机枪',   tag: 'gun',    c: '#7a8394', ch: '钉', ups: ['lv'],          nText: '并排多射一发', desc: '高速连发，擅长持续单体输出', evo: { relic: 'dual', name: '钉枪风暴', desc: '再加四道旋转弹流，扫遍全场' } },
   shotgun:  { name: '橡皮霰弹',   tag: 'gun',    c: '#e05a8a', ch: '霰', ups: ['lv'],          nText: '一次多喷两块', desc: '贴脸喷一扇橡皮块，近身爆发高', evo: { relic: 'reddot', name: '橡皮加农', desc: '每颗橡皮命中都会爆炸' } },
   bolt:     { name: '荧光闪电',   tag: 'magic',  c: '#a46bff', ch: '电', ups: ['lv'],          nText: '多跳 2 次', desc: '闪电在怪之间来回跳，专打扎堆的', evo: { relic: 'ink', name: '荧光雷暴', desc: '跳 14 次，每一跳还会电到旁边的怪' } },
   coffee:   { name: '咖啡旋风',   tag: 'magic',  c: '#8a5a2b', ch: '咖', ups: ['lv'],       desc: '自动朝最近的怪扔一杯咖啡，落地变成旋风，持续伤害并减速', evo: { relic: 'caffeine', name: '咖啡龙卷', desc: '冷却减半，旋风更大更久，还会把怪往中心吸' } },
@@ -219,21 +219,21 @@ const UPS = {
   lv:     { name: '升级', fl: '', desc: '', max: 9 },
 };
 const WBASE = {
-  sweep:    { cd: 1.0, dmg: 22, range: 2.6 },
-  spin:     { n: 2, dmg: 10, spin: 3, rad: 2.5 },
-  mop:      { cd: 0.9, dmg: 16, range: 3.2 },
-  pencil:   { cd: 0.7, n: 1, dmg: 12, pierce: 1 },
-  plane:    { cd: 1.2, n: 1, dmg: 18 },
-  slipper:  { cd: 1.3, n: 1, dmg: 22 },
-  stapler:  { cd: 0.2, n: 1, dmg: 6 },
-  shotgun:  { cd: 1.2, n: 5, dmg: 9 },
-  bolt:     { cd: 1.4, n: 3, dmg: 16 },
-  coffee:   { cd: 3.0, rad: 2.5, dmg: 10 },
-  sock:     { cd: 0.5, rad: 2.2, dmg: 5 },
-  rollcall: { cd: 4, n: 1, dmg: 110 },
-  minion:   { cd: 4.5, n: 2, dmg: 8, atk: 0.55, dur: 8 },
-  lamp:     { cd: 7, n: 1, dmg: 14, atk: 0.9, dur: 10 },
-  duck:     { cd: 8, n: 1, dmg: 40, dur: 5 },
+  sweep:    { cd: 1.0, dmg: 44, range: 2.6 },
+  spin:     { n: 2, dmg: 46, spin: 3, rad: 2.5 },
+  mop:      { cd: 0.9, dmg: 32, range: 3.2 },
+  pencil:   { cd: 0.7, n: 1, dmg: 30, pierce: 1 },
+  plane:    { cd: 1.2, n: 1, dmg: 52 },
+  slipper:  { cd: 1.3, n: 1, dmg: 28 },
+  stapler:  { cd: 0.25, n: 1, dmg: 12 },
+  shotgun:  { cd: 1.2, n: 5, dmg: 18 },
+  bolt:     { cd: 1.4, n: 3, dmg: 60 },
+  coffee:   { cd: 3.0, rad: 2.5, dmg: 24 },
+  sock:     { cd: 0.5, rad: 2.2, dmg: 22 },
+  rollcall: { cd: 4, n: 1, dmg: 176 },
+  minion:   { cd: 4.5, n: 2, dmg: 8, atk: 0.62, dur: 8 },
+  lamp:     { cd: 7, n: 1, dmg: 28, atk: 0.9, dur: 10 },
+  duck:     { cd: 7, n: 1, dmg: 300, dur: 5 },
 };
 // 技能升级：每升一级只加一样东西。Lv 4 和 Lv 8 注入元素，Lv 10 变成终极形态
 const LVUP = {
@@ -246,20 +246,20 @@ const SKILL_UPGRADE_AMOUNTS = { dmg: [12, 16, 20, 24], rate: [12, 16, 20, 24], a
 const skillUpgradeAmount = (id, tier = 0) => SKILL_UPGRADE_AMOUNTS[LVUP[id]][tier];
 const MAXLV = 10, INF_LV = [4, 8];
 // 特殊升级优先来自任务宝箱；增加数量的卡只出现在任务宝箱。
-const G = { big: '范围 +30%', cd: '冷却 -25%', twice: '25% 概率马上再放一次', crit: '这个技能的暴击率 +20%', exec: '对血量低于 30% 的怪伤害 +80%', first: '对满血的怪伤害 +60%', knockback: '命中时击退敌人', kb: '击退力度翻倍，需要先获得本技能的一级击退', stun: '命中有 15% 概率把怪打晕 0.8 秒', mark: '打中的怪 3 秒内受到的所有伤害 +25%', elite: '对精英和大魔王伤害 +60%', boom: '用它打倒的怪会爆炸，伤到并击退周围的怪', leech: '用它打倒怪有 8% 概率回 2 点血', gem: '用它打倒的怪 20% 多掉一颗经验', long: '存在时间 +50%' };
+const G = { big: '范围 +30%', cd: '冷却 -25%', twice: '45% 概率快速再放一次', crit: '这个技能暴击率 +20 个百分点，暴击倍率 +1', exec: '对血量低于 30% 的怪伤害 +80%', first: '对满血的怪伤害 +60%', knockback: '命中时击退敌人', kb: '击退力度翻倍，需要先获得本技能的一级击退', stun: '命中有 15% 概率把怪打晕 0.8 秒', mark: '打中的怪 3 秒内受到的所有伤害 +25%', elite: '对精英和大魔王伤害 +80%', boom: '用它打倒的怪会爆炸，伤到并击退周围的怪', leech: '用它打倒怪有 8% 概率回 2 点血', gem: '用它打倒的怪 20% 多掉一颗经验', long: '存在时间 +50%' };
 const SP = {
-  sweep:    [['wave', '剑气', '每次挥砍向前甩出一道会穿透的气刃'], ['again', '二连斩', '挥完马上再挥一次，第二下伤害 60%'], ['block', '格挡', '挥砍会打掉范围内的粉笔和子弹'], ['big', '加长尺'], ['knockback', '击退'], ['kb', '一尺拍飞'], ['exec', '收卷'], ['crit', '划重点'], ['leech', '越打越精神']],
+  sweep:    [['wave', '剑气', '每次挥砍向前甩出一道会穿透的气刃'], ['again', '二连斩', '挥完马上再挥一次，第二下打出完整伤害'], ['block', '格挡', '挥砍会打掉范围内的粉笔和子弹'], ['big', '加长尺'], ['knockback', '击退'], ['kb', '一尺拍飞'], ['exec', '收卷'], ['crit', '划重点'], ['leech', '越打越精神']],
   spin:     [['fast', '加速', '尺子转速 +40%'], ['outer', '双圈', '一半尺子绕到外圈，打得更远'], ['fling', '甩尺', '每 4 秒所有尺子向外甩一下再收回来'], ['big', '大三角尺', '绕圈半径 +30%'], ['stun', '敲脑门'], ['mark', '画记号'], ['boom', '碎尺'], ['crit', '棱角'], ['two', '多一把尺子', '绕身回旋的尺子数量 +1']],
   mop:      [['trail', '边走边拖', '你走过的地方也会留下水渍'], ['deep', '深水渍', '水渍更大，多留 3 秒'], ['slip', '打滑', '踩进水渍的怪有概率滑倒 0.6 秒'], ['big', '加宽拖把'], ['cd', '手脚麻利'], ['knockback', '击退'], ['kb', '一拖到底'], ['exec', '擦干净'], ['first', '泼水']],
   pencil:   [['split', '断铅', '铅笔命中后分裂成两支'], ['bounce', '弹射', '铅笔穿完后弹向下一只怪，最多 2 次'], ['back', '回马枪', '同时向背后射出同样多的铅笔'], ['pierce', '削尖', '每支多穿 2 只怪'], ['crit', '笔尖'], ['twice', '连射'], ['elite', '专治难题'], ['boom', '炸铅'], ['two', '备用铅笔', '每次多射 1 支铅笔']],
-  plane:    [['split', '双机编队', '纸飞机命中后分裂成两架小飞机'], ['loop', '特技飞行', '命中后不消失，掉头再打 2 只'], ['bomb', '轰炸机', '命中时爆炸，伤到并击退附近的怪'], ['life', '长途航线', '飞得更久，追得更远'], ['crit', '机头加固'], ['twice', '连续起飞'], ['first', '先手'], ['gem', '侦察机'], ['two', '加飞一架', '每次多放 1 架纸飞机']],
+  plane:    [['split', '双机编队', '纸飞机命中后分裂成两架小飞机'], ['loop', '特技飞行', '命中后不消失，掉头再打 2 只'], ['bomb', '轰炸机', '命中时爆炸并击退附近的怪，越靠近爆点伤害越高'], ['life', '长途航线', '飞得更久，追得更远'], ['crit', '机头加固'], ['twice', '连续起飞'], ['first', '先手'], ['gem', '侦察机'], ['two', '加飞一架', '每次多放 1 架纸飞机']],
   slipper:  [['huge', '43 码', '拖鞋变大，更容易打中'], ['hover', '悬停', '飞到最远处原地转 1 秒，持续打周围的怪'], ['ret', '回程加速', '飞回来的那一下伤害翻倍'], ['knockback', '击退'], ['kb', '一鞋抽飞'], ['stun', '打懵'], ['crit', '鞋底纹'], ['cd', '顺手'], ['leech', '解气'], ['two', '再来一只', '每次多扔 1 只拖鞋']],
   stapler:  [['pierce', '长钉', '钉子多穿 2 只怪'], ['bounce', '跳弹', '钉子打中后弹向下一只怪，最多 2 次'], ['heavy', '大号钉', '每第 8 发是一颗大钉，伤害 4 倍'], ['crit', '瞄准'], ['exec', '补订'], ['elite', '装订重点'], ['mark', '钉住'], ['boom', '爆钉']],
   shotgun:  [['back', '前后开花', '同时向背后也喷一扇'], ['pierce', '硬橡皮', '橡皮多穿 1 只怪'], ['near', '贴脸', '离你 3 米内的怪受到的伤害 +70%'], ['knockback', '击退'], ['kb', '崩飞'], ['stun', '砸晕'], ['cd', '快速装填'], ['twice', '双响'], ['first', '开门红'], ['two', '多装一块', '每次多喷 1 块橡皮']],
   bolt:     [['fork', '分叉', '每一跳有 35% 概率多电旁边一只'], ['back', '回路', '最后一跳电回第一只怪，伤害 150%'], ['far', '远距放电', '起手距离和跳跃距离 +60%'], ['stun', '麻痹'], ['mark', '感电'], ['crit', '高压'], ['cd', '快充'], ['elite', '避雷针'], ['two', '多跳一次', '荧光闪电的连锁跳跃次数 +1']],
-  coffee:   [['two', '续杯', '一次扔两杯'], ['long', '慢慢喝', '旋风多留 2.5 秒'], ['pull', '搅拌', '旋风把怪往中心吸得更狠'], ['big', '大杯'], ['cd', '速溶'], ['exec', '提神'], ['mark', '咖啡渍'], ['boom', '烫嘴']],
+  coffee:   [['two', '续杯', '每次多扔一杯咖啡'], ['long', '慢慢喝', '旋风多留 2.5 秒'], ['pull', '搅拌', '旋风把怪往中心吸得更狠'], ['big', '大杯'], ['cd', '速溶'], ['exec', '提神'], ['mark', '咖啡渍'], ['boom', '烫嘴']],
   sock:     [['pulse', '抖一抖', '每 3 秒臭气猛地爆开一次，范围翻倍，伤害 4 倍，并击退敌人'], ['close', '贴身', '离你越近的怪掉血越快，最多 2.5 倍'], ['linger', '余味', '被熏到的怪减速延长到 2 秒'], ['big', '陈年袜子'], ['mark', '熏透'], ['stun', '熏晕'], ['leech', '神清气爽'], ['gem', '臭名远扬']],
-  rollcall: [['two', '点两个', '每次多点一个'], ['again', '留堂', '被点名没倒下的怪，1 秒后再砸一次，伤害 60%'], ['fear', '杀鸡儆猴', '书落地时把周围的怪吓晕 1 秒'], ['next', '下一个', '点名打倒怪后马上再点一个，最多连点 3 次'], ['cd', '点得勤'], ['crit', '红笔圈出'], ['elite', '重点关照'], ['boom', '厚书']],
+  rollcall: [['two', '多点一个', '每次多点一个'], ['again', '留堂', '被点名没倒下的怪，随后再砸一次，伤害 90%'], ['fear', '杀鸡儆猴', '书落地时把周围的怪吓晕 1 秒'], ['next', '下一个', '点名打倒怪后马上再点一个，最多连点 3 次'], ['cd', '点得勤'], ['crit', '红笔圈出'], ['elite', '重点关照'], ['boom', '厚书']],
   minion:   [['two', '多贴一张', '每次多召一个'], ['long', '强力胶', '小人存在时间 +50%'], ['burst', '自爆便利贴', '小人消失时会爆炸，伤到并击退附近的怪'], ['fast', '打鸡血', '小人跑得更快，出手快 25%'], ['crit', '尖角'], ['stun', '糊脸'], ['mark', '贴标签'], ['leech', '加油打气']],
   lamp:     [['two', '多一盏', '每次多放一盏'], ['long', '充满电', '台灯存在时间 +50%'], ['far', '远光灯', '射程 +50%'], ['flash', '闪光', '台灯放下时闪一下，把周围的怪晃晕 1.5 秒'], ['crit', '聚光'], ['exec', '照妖镜'], ['elite', '追光'], ['mark', '曝光']],
   duck:     [['two', '多一只', '每次多放一只'], ['big', '大黄鸭', '爆炸范围 +30%'], ['echo', '回声', '爆炸后 0.5 秒原地再炸一次，伤害 50%'], ['lure', '嘎嘎嘎', '吸引怪的范围扩大到 14 米'], ['long', '耐泡', '橡皮鸭多待 50% 时间'], ['stun', '震晕'], ['mark', '沾水'], ['gem', '捞到宝']],
@@ -267,7 +267,9 @@ const SP = {
 for (const w in SP) for (const x of SP[w]) if (!x[2]) x[2] = G[x[0]];
 const SPX = (w, k) => !!(player.sp[w] && player.sp[w][k]);
 const knockbackRank = (upgrades) => upgrades?.kb ? 2 : upgrades?.knockback ? 1 : 0;
+const quantityRank = (w) => Number(player.sp[w]?.two || 0);
 function specialUpgradeAvailable(w, id) {
+  if (id === 'two') return quantityRank(w) < UPS.n.max;
   if (id === 'knockback') return knockbackRank(player.sp[w]) === 0;
   return !SPX(w, id) && (id !== 'kb' || SPX(w, 'knockback'));
 }
@@ -275,7 +277,7 @@ function ws(id) {
   const b = WBASE[id], upgrade = player.wup[id], stat = LVUP[id], X = player.sp[id] || {};
   const bonus = (upgrade?.bonus ?? (upgrade?.lv || 0) * skillUpgradeAmount(id)) / 100;
   const dm = stat === 'dmg' ? 1 + bonus : 1, rt = (stat === 'rate' ? 1 + bonus : 1) * (X.cd ? 1.33 : 1), ar = (stat === 'area' ? 1 + bonus : 1) * (X.big ? 1.3 : 1);
-  return { ...b, dmg: b.dmg * dm, cd: b.cd / rt, atk: b.atk ? b.atk / rt : 0, range: (b.range || 0) * ar, rad: (b.rad || 0) * ar, n: (b.n || 0) + (X.two ? 1 : 0),
+  return { ...b, dmg: b.dmg * dm, cd: b.cd / rt, atk: b.atk ? b.atk / rt : 0, range: (b.range || 0) * ar, rad: (b.rad || 0) * ar, n: (b.n || 0) + quantityRank(id),
     pierce: b.pierce || 0, dur: (b.dur || 0) * (X.long ? 1.5 : 1) * (1 + 0.1 * R('bath')) };
 }
 const wLevel = (id) => 1 + (player.wup[id]?.lv || 0);
@@ -1794,9 +1796,7 @@ const BASE_ST = { dmg: 0, crit: 0.05, critDmg: 1.5, atkSpd: 0, luck: 0, dodge: 0
 function classBaseStats(hero) {
   return {
     ...BASE_ST,
-    dmg: BASE_ST.dmg + (hero.baseDmg ?? 0),
-    atkSpd: BASE_ST.atkSpd + (hero.baseAtkSpd ?? 0),
-    crit: BASE_ST.crit + (hero.crit ?? 0),
+    crit: hero.baseCrit ?? BASE_ST.crit,
   };
 }
 const player = { x: 0, z: 0, vx: 0, vz: 0, yaw: 0, hp: 100, maxHp: 100, speed: PLAYER_SPEED, magnet: 2.4, lvl: 1, xp: 0, need: 6, kills: 0, weapons: {}, wup: {}, st: { ...BASE_ST }, relics: {}, evo: {}, alt: {}, duos: {}, elem: {}, sp: {}, arts: {}, revives: 1, koi: 0, shield: false, ph: 0, hit: 0, seed: 0.2, moving: 0, spinT: 0, slowT: 0, stepAcc: 0, stepSide: 1, iframe: 0 };
@@ -1861,13 +1861,13 @@ function hitEnemy(e, dmg, kx = 0, kz = 0, tag = '', opts = {}) {
   const els = !opts.noElem && CW ? player.elem[CW] : null, xs = (!opts.raw && CW && player.sp[CW]) || null;
   const critRate = (xs && xs.crit ? 0.2 : 0) + player.st.crit + (tag === 'gun' ? RELICS.reddot.gunCrit * R('reddot') : 0) + (e.brittle > 0 ? 0.3 : 0);
   const crit = !opts.noCrit && Math.random() < critRate;
-  const critX = player.st.critDmg + 0.5 * R('glass');
+  const critX = player.st.critDmg + 0.5 * R('glass') + (xs?.crit ? 1 : 0);
   if (!opts.noCrit && !(e.fxT > realTime)) { e.fxT = realTime + 0.1; const hc = CW ? EC(CW) ?? WPC[CW]?.[0] ?? 0xffffff : 0xffffff, hy = Math.min(2.4, e.r * 1.6 + 0.5);
     hitStar(e.x, e.z, hc, (crit ? 1.9 : 1.15) * Math.min(2, 0.8 + e.r * 0.5), hy); burst(e.x, hy, e.z, 0xffffff, crit ? 6 : 2, 5.5, 0.2, 0.28, 8); spark(e.x, hy, e.z, hc, crit ? 7 : 3, 5, 0.34, 0.3, 3);
     if (crit) { hitStar(e.x, e.z, 0xffe07a, 2.6 * Math.min(2, 0.8 + e.r * 0.5), hy); ringFx(e.x, e.z, e.r + 1.1, 0xffe07a, 0.2, 0.95); shake = Math.max(shake, 0.07); } }
   const elite = e.type === 'boss' || e.type === 'hourglass';
   let xm = 1;
-  if (xs) { if (xs.exec && e.hp < e.maxHp * 0.3) xm *= 1.8; if (xs.first && e.hp >= e.maxHp) xm *= 1.6; if (xs.elite && elite) xm *= 1.6; if (xs.near && Math.hypot(e.x - player.x, e.z - player.z) < 3) xm *= 1.7; }
+  if (xs) { if (xs.exec && e.hp < e.maxHp * 0.3) xm *= 1.8; if (xs.first && e.hp >= e.maxHp) xm *= 1.6; if (xs.elite && elite) xm *= 1.8; if (xs.near && Math.hypot(e.x - player.x, e.z - player.z) < 3) xm *= 1.7; }
   const baseHit = xm * (opts.raw ? dmg : dmg * dmgMul(tag) * (crit ? critX : 1) * (elite ? 1 + 0.1 * R('redpen') : 1));
   const strongAcidFinisher = els?.[0] === 'acid' && els[1] === 'acid' &&
     e.strongAcid > 0 && e.acidStacks === STRONG_ACID_BONUSES.length - 1;
@@ -2014,9 +2014,11 @@ function applyElems(e, v, els, baseHit) {
     if (path.length > 1) { const zc = F ? 0xffb04a : I ? 0x9fe0ff : AC ? 0xb8f04a : 0x4aa8ff; zap(path, zc, 0.4, 0.28, 6); zap(path, 0xffffff, 0.25, 0.12, 3); spark(e.x, 0.9, e.z, zc, 8, 5, 0.34, 0.3); }
   }
 }
-function boom(x, z, rad, dmg, tag, color, knockback = false) {
+function boom(x, z, rad, dmg, tag, color, knockback = false, edgeDamage = 1) {
   ringFx(x, z, rad, color, 0.25); spark(x, 0.6, z, color, 16, rad * 3, 0.4, 0.35, 2);
-  query(x, z, rad, (o, dx, dz) => { const L = Math.hypot(dx, dz) || 1; hitEnemy(o, dmg, dx / L * 5, dz / L * 5, tag, { noCrit: true, noChain: true, knockback }); });
+  query(x, z, rad, (o, dx, dz) => { const distance = Math.hypot(dx, dz), L = distance || 1;
+    const scale = 1 - (1 - edgeDamage) * clamp(distance / rad, 0, 1);
+    hitEnemy(o, dmg * scale, dx / L * 5, dz / L * 5, tag, { noCrit: true, noChain: true, knockback }); });
 }
 // 受伤：先判闪避（最高 80%），再看护盾，再按护甲减伤
 let defeatSource = null, deathTaunt = null;
@@ -2203,8 +2205,11 @@ function spawnNear(type, minR = 10, maxR = 17, forceGiant = false) {
 }
 
 /* ================= 武器 ================= */
+function spinAngularSpeed(s, evo) {
+  return s.spin * (evo ? 1.3 : 1) * (SPX('spin', 'fast') ? 1.4 : 1);
+}
 function spinPos(i, n, s, rr, evo) {
-  const X = player.sp.spin || {}, a = realTime * s.spin * (evo ? 1.3 : 1) * (X.fast ? 1.4 : 1) + i / n * TAU, ph = realTime % 4;
+  const X = player.sp.spin || {}, a = realTime * spinAngularSpeed(s, evo) + i / n * TAU, ph = realTime % 4;
   const r = rr * (X.outer && i % 2 ? 1.6 : 1) * (X.fling && ph < 0.7 ? 1 + 0.9 * Math.sin(ph / 0.7 * PI) : 1);
   return [player.x + Math.cos(a) * r, player.z + Math.sin(a) * r, a];
 }
@@ -2251,10 +2256,12 @@ function slash(range, dmg, full, yaw = player.yaw) {
   shake = Math.max(shake, 0.1); ripple(player.x, player.z, 0.35);
 }
 // 拖把的水渍：留在地上，踩进去的怪减速并持续掉血
+const WET_TICK_INTERVAL = 0.4;
+let nextWetTickAt = 0;
 function addWet(x, z, s, evo) {
   const X = player.sp.mop || {}, life = 4 + R('bucket') + (X.deep ? 3 : 0);
   if (wet.length >= 64) wet.shift();
-  wet.push({ x, z, life, max: life, tick: 0, evo, dmg: s.dmg * 0.22 * (evo ? 2.5 : 1), r: (evo ? 1.7 : 1.2) * (X.deep ? 1.35 : 1), rot: rnd(0, TAU) });
+  wet.push({ x, z, life, max: life, dmg: s.dmg * 0.12 * (evo ? 2.5 : 1), r: (evo ? 1.7 : 1.2) * (X.deep ? 1.35 : 1), rot: rnd(0, TAU) });
 }
 // 拖把：朝前方 110° 拖一下，留下水渍
 function mopSwipe(s, evo) {
@@ -2281,13 +2288,13 @@ function fire(dt) {
     if (id === 'sock') { sockTick(dt, s, evo); continue; }
     if (id === 'mop' && SPX('mop', 'trail') && player.moving > 0.3) { mopTrail -= dt; if (mopTrail <= 0) { mopTrail = 0.3; addWet(player.x, player.z, s, evo); } }
     cds[id] = (cds[id] ?? 0.3) - dt; if (cds[id] > 0) continue;
-    cds[id] = (evo && id === 'sweep' ? 0.3 : evo && id === 'coffee' ? s.cd * 0.5 : s.cd) * cdMul(tag); if (A('copier') && Math.random() < 0.2) cds[id] = Math.min(cds[id], 0.12); if (SPX(id, 'twice') && Math.random() < 0.25) cds[id] = Math.min(cds[id], 0.15); if (id === 'pencil' && player.alt.pencil) cds[id] *= 0.5;
+    cds[id] = (evo && id === 'sweep' ? 0.3 : evo && id === 'coffee' ? s.cd * 0.5 : s.cd) * cdMul(tag); if (A('copier') && Math.random() < 0.2) cds[id] = Math.min(cds[id], 0.12); if (SPX(id, 'twice') && Math.random() < 0.45) cds[id] = Math.min(cds[id], 0.15); if (id === 'pencil' && player.alt.pencil) cds[id] *= 0.5;
     { const c = EC(id) ?? WPC[id]?.[0] ?? 0xffffff; hitStar(player.x + Math.sin(player.yaw) * 0.6, player.z + Math.cos(player.yaw) * 0.6, c, 0.9, 1.1); spark(player.x, 1.1, player.z, c, 4, 3, 0.3, 0.3, 0); }
     if (id === 'sweep') {
       const range = s.range * area('melee') * (evo ? 1.5 : 1);
       const tg = nearest(player.x, player.z, range + 1.5); if (!tg) { cds[id] = 0.1; sweepAgain = 0; continue; }
       const second = sweepAgain === 1; sweepAgain = SPX('sweep', 'again') && !second ? 1 : 0;
-      slash(range, s.dmg * (evo ? 0.8 : 1) * (second ? 0.6 : 1), !!evo, Math.atan2(tg.x - player.x, tg.z - player.z)); if (player.alt.sweep && !second) quake(Math.atan2(tg.x - player.x, tg.z - player.z), s.dmg); if (sweepAgain) cds[id] = Math.min(cds[id], 0.24);
+      slash(range, s.dmg * (evo ? 0.8 : 1), !!evo, Math.atan2(tg.x - player.x, tg.z - player.z)); if (player.alt.sweep && !second) quake(Math.atan2(tg.x - player.x, tg.z - player.z), s.dmg); if (sweepAgain) cds[id] = Math.min(cds[id], 0.24);
     } else if (id === 'mop') {
       if (!nearest(player.x, player.z, s.range + 1) && !(task && task.type === 'mop')) { cds[id] = 0.1; continue; }
       mopSwipe(s, evo);
@@ -2319,14 +2326,21 @@ function fire(dt) {
       for (let k = 0; k < n; k++) planes.push({ x: h.x, y: 1.2, z: h.z, yaw: player.yaw + (k - (n - 1) / 2) * 0.5, sp: 9, life: (evo ? 5 : 3) * (SPX('plane', 'life') ? 1.7 : 1), dmg: s.dmg, target: null, pierce: (evo ? 4 : 0) + (SPX('plane', 'loop') ? 2 : 0), hit: new Set() });
     } else if (id === 'bolt') {
       let cur = nearest(h.x, h.z, SPX('bolt', 'far') ? 16 : 10); if (!cur) { cds[id] = 0.2; continue; }
-      if (player.alt.bolt) thunder(s); else chain({ x: h.x, y: 1.1, z: h.z }, cur, evo ? 14 + Number(SPX('bolt', 'two')) : s.n + R('ink'), s.dmg, evo);
+      if (player.alt.bolt) thunder(s); else chain({ x: h.x, y: 1.1, z: h.z }, cur, evo ? 14 + quantityRank('bolt') : s.n + R('ink'), s.dmg, evo);
     } else if (id === 'coffee') {
       const tg = nearest(player.x, player.z, 9); if (!tg) { cds[id] = 0.3; continue; }
       cups.push({ x0: h.x, z0: h.z, x: tg.x, z: tg.z, t: 0, rad: s.rad * area('magic') * (evo ? 1.35 : 1), dmg: s.dmg, evo });
       if (player.alt.coffee) { const used = new Set([tg]); for (let k = 0; k < 2; k++) { const t2 = nearest(player.x, player.z, 11, used); if (!t2) break; used.add(t2); cups.push({ x0: h.x, z0: h.z, x: t2.x, z: t2.z, t: -0.15 * (k + 1), rad: s.rad * area('magic'), dmg: s.dmg, evo }); } }
-      if (SPX('coffee', 'two')) { const t2 = nearest(player.x, player.z, 11, new Set([tg])), a2 = rnd(0, TAU); cups.push({ x0: h.x, z0: h.z, x: t2 ? t2.x : tg.x + Math.cos(a2) * 3, z: t2 ? t2.z : tg.z + Math.sin(a2) * 3, t: -0.25, rad: s.rad * area('magic') * (evo ? 1.35 : 1), dmg: s.dmg, evo }); }
+      if (s.n > 0) {
+        const used = new Set([tg]);
+        for (let k = 0; k < s.n; k++) {
+          const target = nearest(player.x, player.z, 11, used), angle = rnd(0, TAU);
+          if (target) used.add(target);
+          cups.push({ x0: h.x, z0: h.z, x: target?.x ?? tg.x + Math.cos(angle) * 3, z: target?.z ?? tg.z + Math.sin(angle) * 3, t: -0.25, rad: s.rad * area('magic') * (evo ? 1.35 : 1), dmg: s.dmg, evo });
+        }
+      }
     } else if (id === 'rollcall') {
-      const n = evo ? 5 : s.n; if (!rollCall(n, s.dmg, evo)) cds[id] = 0.3;
+      const n = evo ? 5 + quantityRank(id) : s.n; if (!rollCall(n, s.dmg, evo)) cds[id] = 0.3;
     } else if (id === 'minion') {
       const n = Math.min(30 - minions.length, (s.n + R('poster')) * (evo ? 2 : 1));
       for (let k = 0; k < n; k++) addMinion(s.dur);
@@ -2349,7 +2363,7 @@ function quake(yaw, dmg) {
 }
 function thunder(s) {
   const cand = shuffle(enemies.filter((e) => !e.dead && !e.inv && e.spawn <= 0 && Math.hypot(e.x - player.x, e.z - player.z) < 12)).slice(0, 6);
-  for (const e of cand) { chain({ x: e.x + rnd(-1, 1), y: 9, z: e.z + rnd(-1, 1) }, e, 1, s.dmg * 1.6, false); ringFx(e.x, e.z, 2.2, EC('bolt') ?? 0x4aa8ff, 0.3); spark(e.x, 0.4, e.z, pc('bolt'), 10, 4, 0.35, 0.35, 0);
+  for (const e of cand) { chain({ x: e.x + rnd(-1, 1), y: 9, z: e.z + rnd(-1, 1) }, e, 1 + quantityRank('bolt'), s.dmg * 1.6, false); ringFx(e.x, e.z, 2.2, EC('bolt') ?? 0x4aa8ff, 0.3); spark(e.x, 0.4, e.z, pc('bolt'), 10, 4, 0.35, 0.35, 0);
     query(e.x, e.z, 2.2, (o) => { if (o !== e) hitEnemy(o, s.dmg * 0.7, 0, 0, 'magic', { noChain: true }); }); }
   if (!cand.length) cds.bolt = 0.2;
 }
@@ -2823,6 +2837,7 @@ let titleStep = 'home', selF = 0;
 function clearField() {
   queuedEnemySpawns.length = 0;
   nextEnemySpawnAt = nextBatchSpawnAt = 0;
+  nextWetTickAt = 0;
   bossHazards.clear(); gifts = []; enemies = []; shots = []; planes = []; gems = []; chests = []; eshots = []; minions = []; lamps = []; ducks = []; slippers = []; books = []; wet = []; blasts = []; bolts = []; corpses = []; drops = []; altars = []; pendingInfuse = []; pools.length = 0; cups = []; pendingUlt = []; tele.visible = false; task = null; taskHudT = 0; boss = null;
 }
 function showTitle(step) {
@@ -4232,7 +4247,7 @@ function statsHtml() {
   return `<div class="stats-grid">${Object.keys(STATS).map((id) => `<div>${illustratedBadge('stats', id, STATS[id].c)}<span>${STATS[id].name}</span><b>${STATS[id].show(player.st[id])}</b></div>`).join('')}</div>`;
 }
 function buildSummary() {
-  const ex = [...Object.keys(player.arts).map((a) => `遗物：${ARTS[a].name}`), ...Object.keys(player.relics).map((r) => `${RELICS[r].name}×${R(r)}`), ...Object.keys(player.elem).map((w) => `${WEAPONS[w].name}：${player.elem[w].map((e) => ELEMS[e].name).join('+')}`), ...Object.keys(player.evo).map((w) => `终极：${WEAPONS[w].evo.name}`), ...Object.keys(player.alt).map((w) => `终极：${ALT[w].name}`), ...Object.keys(player.sp).flatMap((w) => Object.keys(player.sp[w]).map((k) => `${WEAPONS[w].name}·${SP[w].find((q) => q[0] === k)[1]}`)), ...Object.keys(player.duos).map((d) => `联动：${DUOS[d].name}`)];
+  const ex = [...Object.keys(player.arts).map((a) => `遗物：${ARTS[a].name}`), ...Object.keys(player.relics).map((r) => `${RELICS[r].name}×${R(r)}`), ...Object.keys(player.elem).map((w) => `${WEAPONS[w].name}：${player.elem[w].map((e) => ELEMS[e].name).join('+')}`), ...Object.keys(player.evo).map((w) => `终极：${WEAPONS[w].evo.name}`), ...Object.keys(player.alt).map((w) => `终极：${ALT[w].name}`), ...Object.keys(player.sp).flatMap((w) => Object.keys(player.sp[w]).map((k) => `${WEAPONS[w].name}·${SP[w].find((q) => q[0] === k)[1]}${k === 'two' ? ' ×' + quantityRank(w) : ''}`)), ...Object.keys(player.duos).map((d) => `联动：${DUOS[d].name}`)];
   return ex.length ? `<div class="summary" style="color:#9a5a12;font-weight:800">${ex.join(' · ')}</div>` : '';
 }
 let slotSig = {};
@@ -4376,6 +4391,7 @@ function optionCard(o, i, theme) {
     if (!cb) foot = '<span class="build">下次注入时，两种元素会组合</span>';
   } else if (o.kind === 'x') {
     const w = WEAPONS[o.w], x = SP[o.w].find((q) => q[0] === o.id); c = w.c; kind = w.name; rn = '任务'; name = x[1]; desc = x[2];
+    if (o.id === 'two') sub = `数量强化 ${quantityRank(o.w) + 1}/${UPS.n.max}`;
     if (o.id === 'knockback' || o.id === 'kb') sub = o.id === 'knockback' ? '击退 Lv 1' : '击退 Lv 2';
   } else {
     const S = STATS[o.id], v = statVal(o.id, o.tier), after = Math.min(S.max ?? Infinity, player.st[o.id] + v);
@@ -4440,7 +4456,8 @@ function applyUpgrade(o) {
   else if (o.kind === 'x') {
     const special = SP[o.w]?.find(([id]) => id === o.id);
     if (!special || !W(o.w) || !specialUpgradeAvailable(o.w, o.id)) return;
-    (player.sp[o.w] = player.sp[o.w] || {})[o.id] = 1;
+    const upgrades = (player.sp[o.w] ??= {});
+    upgrades[o.id] = o.id === 'two' ? quantityRank(o.w) + 1 : 1;
     banner(special[1], WEAPONS[o.w].name + ' · 特殊升级'); spark(player.x, 1, player.z, 0xc9a7ff, 80, 8, 0.4, 0.8); ripple(player.x, player.z, 1);
   }
   else if (o.kind === 'el') { (player.elem[o.w] = player.elem[o.w] || []).push(o.id); spark(player.x, 1, player.z, +('0x' + ELEMS[o.id].c.slice(1)), 70, 8, 0.4, 0.8); }
@@ -5098,9 +5115,10 @@ function update(dt) {
   CW = 'spin';
   if (player.weapons.spin) {
     const s = ws('spin'), evo = player.evo.spin, n = s.n * (evo ? 2 : 1), rr = s.rad * area('melee') * (evo ? 1.3 : 1);
+    const hitInterval = Math.max(0.3, 0.95 * TAU / (n * spinAngularSpeed(s, evo)));
     for (let i = 0; i < n; i++) {
       const [x, z] = spinPos(i, n, s, rr, evo);
-      query(x, z, 0.6, (e) => { if (e.spinCd > 0) return; e.spinCd = 0.3; hitEnemy(e, s.dmg, 0, 0, 'melee'); spark(e.x, 0.6, e.z, ecRand('spin') ?? 0xffd84d, 4, 3, 0.25, 0.2);
+      query(x, z, 0.6, (e) => { if (e.spinCd > 0) return; e.spinCd = hitInterval; hitEnemy(e, s.dmg, 0, 0, 'melee'); spark(e.x, 0.6, e.z, ecRand('spin') ?? 0xffd84d, 4, 3, 0.25, 0.2);
         if (player.duos.boomer && Math.random() < 0.35) shoot('pencilP', x, 0.7, z, Math.atan2(x - player.x, z - player.z), 16, 0.8, 10 + 4 * W('pencil'), 'ranged', { pierce: 1 }); });
     }
   }
@@ -5120,13 +5138,28 @@ function update(dt) {
   }
   for (let i = pools.length - 1; i >= 0; i--) if (pools[i].life <= 0) pools.splice(i, 1);
   CW = 'mop';
-  for (const w of wet) {
-    w.life -= dt; w.tick -= dt; if (w.tick > 0) continue; w.tick = 0.4;
-    const dmgW = w.dmg + (player.duos.cleanup ? 6 : 0), slip = SPX('mop', 'slip');
-    query(w.x, w.z, w.r, (e) => { e.slow = 0.5; hitEnemy(e, dmgW, 0, 0, 'melee', { noCrit: true }); if (Math.random() < 0.5) spark(e.x, 0.25, e.z, ecRand('mop') ?? 0xbfe6ff, 2, 2.5, 0.28, 0.35, 7); if (slip && e.type !== 'boss' && Math.random() < 0.1) { e.frz = Math.max(e.frz || 0, 0.6); dmgNum(e.x, e.z, '滑倒', 'tag', e.r * 2 + 1); } });
-    if (player.duos.cleanup && Math.random() < 0.5) spark(w.x, 0.3, w.z, 0x9ad04a, 2, 1, 0.35, 0.8, -0.5);
-  }
+  for (const w of wet) w.life -= dt;
   wet = wet.filter((w) => w.life > 0);
+  if (wet.length && T >= nextWetTickAt) {
+    nextWetTickAt = T + WET_TICK_INTERVAL;
+    const damageByEnemy = new Map(), cleanup = player.duos.cleanup, slip = SPX('mop', 'slip');
+    for (const w of wet) {
+      query(w.x, w.z, w.r, (e) => {
+        damageByEnemy.set(e, Math.max(damageByEnemy.get(e) || 0, w.dmg));
+      });
+      if (cleanup && Math.random() < 0.5) spark(w.x, 0.3, w.z, 0x9be0fa, 2, 1, 0.35, 0.8, -0.5);
+    }
+    for (const [e, damage] of damageByEnemy) {
+      if (e.dead) continue;
+      e.slow = Math.max(e.slow, 0.5);
+      hitEnemy(e, damage + (cleanup ? 6 : 0), 0, 0, 'melee', { noCrit: true });
+      if (Math.random() < 0.5) spark(e.x, 0.25, e.z, ecRand('mop') ?? 0xbfe6ff, 2, 1, 0.35, 0.3, 6);
+      if (slip && e.type !== 'boss' && Math.random() < 0.1) {
+        e.frz = Math.max(e.frz || 0, 0.6);
+        dmgNum(e.x, e.z, '滑倒', 'tag', 1.6);
+      }
+    }
+  }
   CW = null;
   for (const b of blasts) { b.t -= dt; if (b.t <= 0) explodeAt(b.x, b.z); }
   blasts = blasts.filter((b) => b.t > 0);
@@ -5155,7 +5188,7 @@ function update(dt) {
       query(bk.x, bk.z, 1.3, (o) => hitEnemy(o, bk.dmg * (o.type === 'boss' || o.type === 'hourglass' ? 2 : 1), 0, 0, 'magic'));
       { const X = player.sp.rollcall || {}; elemBurst('rollcall', bk.x, bk.z, 1.6);
         if (X.fear) { ringFx(bk.x, bk.z, 3.2, 0xffffff, 0.3, 0.7); query(bk.x, bk.z, 3.2, (o) => { if (o.type !== 'boss') o.frz = Math.max(o.frz || 0, 1); }); }
-        if (X.again && !bk.re && bk.target && !bk.target.dead) books.push({ x: bk.x, z: bk.z, target: bk.target, t: 1.45, dmg: bk.dmg * 0.6, evo: bk.evo, done: false, after: 0, re: true });
+        if (X.again && !bk.re && bk.target && !bk.target.dead) books.push({ x: bk.x, z: bk.z, target: bk.target, t: 1.45, dmg: bk.dmg * 0.9, evo: bk.evo, done: false, after: 0, re: true });
         if (X.next && bk.target && bk.target.dead && (bk.ch || 0) < 3 && rollCall(1, bk.dmg, bk.evo)) books[books.length - 1].ch = (bk.ch || 0) + 1; }
       if (bk.evo) { ringFx(bk.x, bk.z, 2.8, 0xff8a6b, 0.3); query(bk.x, bk.z, 2.8, (o, dx, dz) => { const Lb = Math.hypot(dx, dz) || 1; if (Lb > 1.3) hitEnemy(o, bk.dmg * 0.4, 0, 0, 'magic', { noCrit: true }); }); }
     }
@@ -5352,7 +5385,7 @@ function update(dt) {
     if (!p.target || p.target.dead) p.target = nearest(p.x, p.z, 12, p.hit);
     if (p.target) { const ty = Math.atan2(p.target.x - p.x, p.target.z - p.z); let dd = ty - p.yaw; dd = Math.atan2(Math.sin(dd), Math.cos(dd)); p.yaw += clamp(dd, -5 * dt, 5 * dt); }
     p.sp = Math.min(15, p.sp + dt * 10); p.x += Math.sin(p.yaw) * p.sp * dt; p.z += Math.cos(p.yaw) * p.sp * dt;
-    query(p.x, p.z, 0.3, (e) => { if (p.life <= 0 || p.hit.has(e)) return; p.hit.add(e); hitEnemy(e, p.dmg, 0, 0, 'ranged'); spark(p.x, 0.8, p.z, ecRand('plane') ?? 0xffffff, 8, 4, 0.3, 0.3); if (PX.bomb) boom(p.x, p.z, 1.6, p.dmg * 0.5, 'ranged', EC('plane') ?? 0xbfe0ff, true);
+    query(p.x, p.z, 0.3, (e) => { if (p.life <= 0 || p.hit.has(e)) return; p.hit.add(e); hitEnemy(e, p.dmg, 0, 0, 'ranged'); spark(p.x, 0.8, p.z, ecRand('plane') ?? 0xffffff, 8, 4, 0.3, 0.3); if (PX.bomb) boom(p.x, p.z, 1.6, p.dmg * 0.5, 'ranged', EC('plane') ?? 0xbfe0ff, true, 0.4);
       if (PX.split && !p.small) for (const da of [-0.9, 0.9]) bornP.push({ x: p.x, y: p.y, z: p.z, yaw: p.yaw + da, sp: 9, life: 1.8, dmg: p.dmg * 0.5, target: null, pierce: 0, hit: new Set(p.hit), small: true });
       if (--p.pierce < 0) p.life = 0; else p.target = null; });
   }
