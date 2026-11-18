@@ -45,6 +45,8 @@ import { StudentClassroomPage } from './components/StudentClassroomPage';
 import { TeachPage } from './components/TeachPage';
 import { AdminPage } from './components/AdminPage';
 import { GamePage } from './components/GamePage';
+import { GameNudge, useGameNudge, useGameStudy } from './components/GameNudge';
+import { gameStreakHint } from './lib/game-nudge';
 import { OnboardingCoach } from './components/OnboardingCoach';
 import { SpeedupPhoneDialog } from './components/SpeedupPhoneDialog';
 import { readLoginIntent } from './lib/login-intent';
@@ -536,6 +538,34 @@ function AuthenticatedApp() {
   };
   const practiceExpanded = practiceSession !== null && !practiceMinimized;
 
+  // 「去玩一把」：手机没有游戏，老师不提示；做题、上课和别的整页功能打开时先不打扰。
+  const gameAvailable = !phoneLayout && !teacherLogin;
+  const gameNudgeBlocked =
+    loading || practiceExpanded || globalPage !== null || classroom.state.sessions.length > 0;
+  const gameNudge = useGameNudge({
+    enabled: gameAvailable,
+    playing: globalPage === 'game',
+    blocked: gameNudgeBlocked,
+  });
+  // 做完题、从游戏回来后重新问一次：连续学习天数、能领的限定奖励、免费单抽、待领积分。
+  const [gameStudyRevision, setGameStudyRevision] = useState(0);
+  const refreshGameStudy = useCallback(() => setGameStudyRevision((value) => value + 1), []);
+  const gameStudy = useGameStudy({
+    enabled: gameAvailable && !loading,
+    blocked: gameNudgeBlocked,
+    refreshKey:
+      gameStudyRevision + (practiceExpanded ? 0 : 0.5) + (globalPage === 'game' ? 0 : 0.25),
+  });
+  const openGame = () => {
+    gameNudge.played();
+    gameStudy.markSeen();
+    setGlobalPage('game');
+  };
+  const playGame = () => {
+    if (practiceExpanded) minimizePractice();
+    openGame();
+  };
+
   // 做题页「问 AI」：做题收成右下角弹珠，题目上下文交给课程聊天。
   const askAiInCourseChat = (attachment: ProblemChatAttachment, move: ProblemCoachMove) => {
     minimizePractice();
@@ -741,7 +771,8 @@ function AuthenticatedApp() {
     onOpenCalendar: () => setGlobalPage('calendar'),
     onOpenStore: () => setGlobalPage('store'),
     // 手机屏幕太小玩不了，只在 iPad、电脑和网页版放入口。
-    onOpenGame: phoneLayout ? undefined : () => setGlobalPage('game'),
+    onOpenGame: phoneLayout ? undefined : openGame,
+    gameHint: gameNudge.hint || gameStudy.hint,
     onOpenSettings: () => setGlobalPage('profile'),
     // 老师从「教学」卡片进入班级；学生保留独立的上课入口。
     onOpenClassroom:
@@ -823,6 +854,20 @@ function AuthenticatedApp() {
               onBack={minimizePractice}
               onMinimize={minimizePractice}
               onAskAi={phoneLayout ? undefined : askAiInCourseChat}
+              gameInvite={
+                gameAvailable
+                  ? {
+                      onPlay: playGame,
+                      // 作答要先同步到服务器，积分才会变，所以隔几秒再问一次。
+                      onMilestone: () => {
+                        refreshGameStudy();
+                        window.setTimeout(refreshGameStudy, 4000);
+                      },
+                      points: gameStudy.status?.pendingPoints,
+                      hint: gameStreakHint(gameStudy.status),
+                    }
+                  : undefined
+              }
             />
           </PracticeOverlay>
         ) : null}
@@ -1005,6 +1050,28 @@ function AuthenticatedApp() {
               setClassroomTarget(classroom.state.sessions[0]?.id ?? null);
               setGlobalPage('student-classroom');
             }}
+          />
+        ) : null}
+
+        {gameStudy.prompt ? (
+          <GameNudge
+            key={gameStudy.prompt.key}
+            kind={gameStudy.prompt.kind}
+            eyebrow={gameStudy.prompt.eyebrow}
+            title={gameStudy.prompt.title}
+            onPlay={playGame}
+            onDismiss={gameStudy.markSeen}
+          />
+        ) : gameNudge.minutes !== null ? (
+          <GameNudge
+            eyebrow={
+              gameStudy.status?.pendingPoints
+                ? `学了 ${gameNudge.minutes} 分钟 · 攒了 ${gameStudy.status.pendingPoints} 积分`
+                : `学了 ${gameNudge.minutes} 分钟`
+            }
+            title="去玩一把"
+            onPlay={playGame}
+            onDismiss={gameNudge.dismiss}
           />
         ) : null}
 

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { readBrawlStudy } from '@/lib/server/brawl-study';
 import type { PrismaClient } from '@/lib/server/generated-prisma';
 
 const MAX_POINTS = 1_000_000_000;
@@ -43,6 +44,15 @@ const saveSchema = z.object({
     })
     .default({ runs: 0, kills: 0, wins: 0, hardWin: 0, pulls: 0, pity: 0 }),
   best: counter.default(0),
+  /** 学习奖励：哪一天用掉了免费单抽。 */
+  study: z
+    .object({
+      freeDay: z
+        .string()
+        .regex(/^(\d{4}-\d{2}-\d{2})?$/)
+        .default(''),
+    })
+    .default({ freeDay: '' }),
 });
 
 type Save = z.infer<typeof saveSchema>;
@@ -55,6 +65,7 @@ export const brawlCloudActionSchema = z.discriminatedUnion('action', [
   z.object({
     action: z.literal('open'),
     account: z.string().min(1).max(200),
+    timeZone: z.string().max(64).optional(),
     legacy: legacySchema.optional(),
   }),
   z.object({
@@ -153,8 +164,9 @@ export async function openBrawlSave(db: PrismaClient, userId: string, input: Ope
         where: { id: userId },
         data: { brawlPracticePoints: { decrement: account.brawlPracticePoints } },
       });
+    const study = await readBrawlStudy(tx, userId, input.timeZone);
     if (current && !practicePoints && !importedLegacy)
-      return { revision: current.revision, data, practicePoints };
+      return { revision: current.revision, data, practicePoints, study };
     data.pts = Math.min(MAX_POINTS, data.pts + practicePoints);
     const revision = (current?.revision ?? 0) + 1;
     const fields = { revision, data, legacyBalance, imported: [...imported] };
@@ -163,7 +175,7 @@ export async function openBrawlSave(db: PrismaClient, userId: string, input: Ope
       create: { userId, ...fields },
       update: fields,
     });
-    return { revision, data, practicePoints };
+    return { revision, data, practicePoints, study };
   });
 }
 

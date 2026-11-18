@@ -295,3 +295,8 @@
   color: #8d799d;
   font-size: 12px;
 }
+
+.mock-shell > .game-nudge {
+  bottom: 18px;
+  left: 94px;
+}

@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, type CSSProperties } from 'react';
-import { ArrowRight, Check, Sparkles, X } from 'lucide-react';
+import { ArrowRight, Check, Gamepad2, Sparkles, X } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { ClassStandingArt } from './class-standing';
 import { CLASS_STANDING_ILLUSTRATIONS } from './class-standing-art';
@@ -31,10 +31,19 @@ export function PracticeCelebration({
   snapshot,
   onClose,
   onContinue,
+  onPlayGame,
+  gamePoints = 0,
+  gameHint,
 }: {
   snapshot: PracticeCelebrationSnapshot;
   onClose: () => void;
   onContinue: () => void;
+  /** 有游戏入口时（非手机、非上课）：把「先歇一下」换成一键去玩。 */
+  onPlayGame?: () => void;
+  /** 做题赚到、还没带进游戏的积分。 */
+  gamePoints?: number;
+  /** 例如「连续学习 2 天 · 再 1 天解锁限定饰品」。 */
+  gameHint?: string | null;
 }) {
   const titleId = useId();
   const descriptionId = useId();
@@ -147,9 +156,21 @@ export function PracticeCelebration({
           <button ref={continueButton} type="button" className="pc-continue" onClick={onContinue}>
             {remaining ? '再做几题' : '回看本组'} <ArrowRight size={17} />
           </button>
-          <button type="button" className="pc-rest" onClick={onClose}>
-            先歇一下
-          </button>
+          {onPlayGame ? (
+            <button type="button" className="pc-play" onClick={onPlayGame}>
+              <span aria-hidden="true">
+                <img src={marbleImages.purple} alt="" />
+                <Gamepad2 size={13} strokeWidth={2.2} />
+              </span>
+              歇一下，去玩一把
+              {gamePoints > 0 ? <b>+{gamePoints} 积分</b> : null}
+            </button>
+          ) : (
+            <button type="button" className="pc-rest" onClick={onClose}>
+              先歇一下
+            </button>
+          )}
+          {onPlayGame && gameHint ? <small className="pc-streak">{gameHint}</small> : null}
           <small className="pc-saved">
             <Check size={12} /> 作答已保存
           </small>
