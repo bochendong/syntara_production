@@ -1,0 +1,16 @@
+{
+  "status": "deployed",
+  "at": "2026-11-18T03:29:55.036356+00:00",
+  "environment": "staging",
+  "revision": "077ca2be706ddb66f334df46571f766cf30b6741",
+  "deploymentId": "f81044da-8b4a-43be-9391-1c5e079e5b66",
+  "previousRevision": "fa0d213dd95962c0b726c55cdbd39c8cde3c98fc",
+  "changes": [
+    "Reset tile progress without damage for a wrong step.",
+    "Halve chalk, ghost, and mole spawn weights and reduce their event counts. Cap concurrent chalk and ghost counts at three each and moles at two."
+  ],
+  "verification": {
+    "staging": "Verified health, revision, test entry, and exact game HTML and JavaScript.",
+    "gameJsSha256": "632ecd46160d2d1b9642c6d04e83d1657b8a92012e11b3ac0b6a2f9037adba32"
+  }
+}
