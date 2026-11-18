@@ -2,6 +2,8 @@
 
 核对日期：2026-11-17（America/Toronto）。当前测试服已更新，源码基线与实际部署对应。
 
+2026-11-17「期末在嘲讽」已上线开局技能与特殊卡平衡。15 个技能基础伤害翻倍，任务宝箱的数量卡可选三级。见[发布记录](releases/staging-2026-11-17-brawl-skill-balance.json)。
+
 2026-11-17「期末在嘲讽」错峰刷怪已上线。开场、事件、传送门和 Boss 召唤的怪物逐只刷出，普通刷怪共用出怪间隔。模拟标准模式和无尽前三波时，整分钟交界处的单帧刷怪峰值从 10 只降至 1 只。应用源码 `22639f66`，Railway 发布 `c047c080` 成功。见[发布记录](releases/staging-2026-11-17-brawl-spawn-pacing.json)。
 
 2026-11-17「期末在嘲讽」双元素平衡与刷怪血量额度已上线。调整全部十种双元素组合并同步卡牌文案，联机同步易伤和冰控。标准模式使用第一波额度，无尽下一波从上一波 7:00–8:00 的额度起步，Boss 血量独立。应用源码 `bbdbf4c0`，Railway 发布 `305f3bb9` 成功。见[发布记录](releases/staging-2026-11-17-brawl-elements-and-waves.json)。
@@ -140,7 +142,7 @@ MAT102 双语讲义的学习进度已统一：24 个语言版本按 12 本讲义
 
 | 用途 | 分支或标签 | 内容 |
 | --- | --- | --- |
-| 测试服源码基线 | `codex/staging-baseline` | `4fd726a7` 的应用源码，对应 Railway 发布 `d40bf086`，发布记录见上方 |
+| 测试服源码基线 | `codex/staging-baseline` | `fa0d213d` 的应用源码，对应 Railway 发布 `c88b4cdf`，发布记录见上方 |
 | 上一次发布标记 | `staging/2026-10-25-b8d0b5c6` | 布局修复前的发布，继续保留 |
 | 测试服主要发布分支 | `codex/staging-next` | GitHub 是发布源；已授权目标仓库并启用自动部署 |
 | 主分支 | `main` | 仍为 `88de1691`，不是当前测试服源码 |
@@ -181,8 +183,8 @@ MAT102 双语讲义的学习进度已统一：24 个语言版本按 12 本讲义
 ## 基线怎样确认
 
 - Railway 服务：`native-api-staging`，环境：`staging`。
-- 当前应用发布：`c047c080-cebc-4179-80d2-6ebd736ccbfb`，源码提交：`22639f6688e77b6cf9c4620bd6dbc518998dab6b`。
-- 本次验证涵盖 Railway 构建与类型检查、线上游戏文件，以及标准模式和无尽前三波的刷怪节奏模拟。
+- 当前应用发布：`c88b4cdf-bb2d-4b1c-9f2a-4617650c9952`，源码提交：`fa0d213dd95962c0b726c55cdbd39c8cde3c98fc`。
+- 本次验证涵盖线上版本、健康状态、测试入口、游戏文件逐字节比对和 15 个开局技能的本地伤害模拟。
 - 旧基线 `a5849b24` 和 `staging/2026-10-24-7dbd3393` 标签继续保留。
 - 测试服直接拉取 GitHub 的 `codex/staging-next`，使用 `railway.toml` 的 `staging` 覆盖配置；不再依赖本机源码快照上传。
 - 前次侧栏菜单对齐、宽度和头像 hover 背景：[staging-2026-10-25-sidebar-hover.json](releases/staging-2026-10-25-sidebar-hover.json)。

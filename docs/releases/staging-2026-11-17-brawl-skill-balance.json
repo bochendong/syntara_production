@@ -1,0 +1,16 @@
+{
+  "status": "deployed",
+  "at": "2026-11-18T03:06:15.690248+00:00",
+  "environment": "staging",
+  "revision": "fa0d213dd95962c0b726c55cdbd39c8cde3c98fc",
+  "deploymentId": "c88b4cdf-bb2d-4b1c-9f2a-4617650c9952",
+  "previousRevision": "22639f6688e77b6cf9c4620bd6dbc518998dab6b",
+  "changes": [
+    "Double starting damage for all fifteen weapons and rebalance special upgrades.",
+    "Allow quantity cards to reach rank three in task chests."
+  ],
+  "verification": {
+    "staging": "Health OK. Verified revision, test entry, and exact bytes of game HTML and JavaScript.",
+    "gameJsSha256": "5720ca715f62d663f6b82a89e34260afcf127009305cdac6905715a535b07f8e"
+  }
+}
