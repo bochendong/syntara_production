@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   campusLayout,
+  campusStudentRadius,
   insideCampusObstacle,
   portalSites,
   resolveCampusObstacles,
@@ -9,7 +10,7 @@ import {
 } from '../../apps/native/public/games/sandbox-brawl/campus.js';
 
 const { walls } = campusLayout();
-const radius = 0.45;
+const radius = campusStudentRadius;
 const blocked = (x, z, r = radius) => insideCampusObstacle(walls, x, z, r);
 
 // Walk using the match collision resolver at a normal simulation step.

@@ -1,5 +1,5 @@
 import { createCampusItems, ITEM } from './campus-items.js';
-import { createCampus, campusElevation, taskSites, portalSites, insideCampusObstacle, resolveCampusObstacles } from './campus.js';
+import { createCampus, campusElevation, campusStudentScale, campusStudentRadius, taskSites, portalSites, insideCampusObstacle, resolveCampusObstacles } from './campus.js';
 import { createGameAudio } from './game-audio.js';
 import { BrawlSaveConflict, createBrawlSaveQueue } from './brawl-cloud.js';
 import { DEATH_TAUNTS } from './death-taunts.js';
@@ -786,7 +786,7 @@ let marksDirty = false, marksClock = 0, fadeClock = 0;
 const MS = 1024 / 96; const mk = (x, z) => [(x + 48) * MS, (z + 48) * MS];
 function blot(x, z, r, color, n = 1, spread = 0) { const [cx, cz] = mk(x, z); mctx.fillStyle = color; for (let i = 0; i < n; i++) { const a = Math.random() * TAU, d = Math.random() * spread * MS; mctx.beginPath(); mctx.ellipse(cx + Math.cos(a) * d, cz + Math.sin(a) * d, r * MS * rnd(0.6, 1.1), r * MS * rnd(0.6, 1.1), rnd(0, 3), 0, TAU); mctx.fill(); } marksDirty = true; }
 function ringMark(x, z, r, color, w = 4) { const [cx, cz] = mk(x, z); mctx.strokeStyle = color; mctx.lineWidth = w; mctx.beginPath(); mctx.arc(cx, cz, r * MS, 0, TAU); mctx.stroke(); marksDirty = true; }
-function footprint(x, z, yaw, side) { const ox = Math.cos(yaw) * 0.16 * side, oz = -Math.sin(yaw) * 0.16 * side; const [cx, cz] = mk(x + ox, z + oz); mctx.save(); mctx.translate(cx, cz); mctx.rotate(-yaw); mctx.fillStyle = 'rgba(70,44,24,.14)'; mctx.beginPath(); mctx.ellipse(0, 0, 2.6, 4.2, 0, 0, TAU); mctx.fill(); mctx.restore(); marksDirty = true; }
+function footprint(x, z, yaw, side) { const ox = Math.cos(yaw) * 0.16 * campusStudentScale * side, oz = -Math.sin(yaw) * 0.16 * campusStudentScale * side; const [cx, cz] = mk(x + ox, z + oz); mctx.save(); mctx.translate(cx, cz); mctx.rotate(-yaw); mctx.fillStyle = 'rgba(70,44,24,.14)'; mctx.beginPath(); mctx.ellipse(0, 0, 2.6, 4.2, 0, 0, TAU); mctx.fill(); mctx.restore(); marksDirty = true; }
 const RIPS = Array.from({ length: 8 }, () => new THREE.Vector4(0, 0, -100, 0));
 const artLoader = new THREE.TextureLoader(new THREE.LoadingManager());
 const campus = createCampus(artLoader, markTex, uTime, RIPS);
@@ -1411,6 +1411,11 @@ function heroRig(h, sk = skinOf(h)) {
   if (!RIGS[key]) RIGS[key] = new Rig(heroSkinParts(h, S), 4, true);
   return RIGS[key];
 }
+function drawCampusStudent(rig, pose, x, y, z, yaw) {
+  const bounce = 1 + Math.sin(pose.ph * 2) * 0.02 * pose.moving;
+  rig.push(pose, worldM(x, y, z, yaw, campusStudentScale, campusStudentScale * bounce, campusStudentScale));
+  shadow(x, z, 0.55 * campusStudentScale);
+}
 /* ---------- 大鹅抽卡与碎片成长 ---------- */
 const GACHA = { one: 30, ten: 270, pity: 80, legendary: 0.05, rareSkin: 0.05, rareFragment: 0.30, duplicateBack: { 1: 10, 2: 25 } };
 const G_LEG = [...Object.keys(SKINS).filter((k) => SKINS[k].r === 2), ...GACHA_ULT.map((w) => 'ult_' + w)], G_RARE = Object.keys(SKINS).filter((k) => SKINS[k].r === 1);
@@ -1949,7 +1954,11 @@ function spinPos(i, n, s, rr, evo) {
   const r = rr * (X.outer && i % 2 ? 1.6 : 1) * (X.fling && ph < 0.7 ? 1 + 0.9 * Math.sin(ph / 0.7 * PI) : 1);
   return [player.x + Math.cos(a) * r, player.z + Math.sin(a) * r, a];
 }
-const hand = () => ({ x: player.x + Math.sin(player.yaw) * 0.35 + Math.cos(player.yaw) * 0.35, y: 0.85, z: player.z + Math.cos(player.yaw) * 0.35 - Math.sin(player.yaw) * 0.35 });
+const hand = () => {
+  const offset = 0.35 * campusStudentScale;
+  const sin = Math.sin(player.yaw), cos = Math.cos(player.yaw);
+  return { x: player.x + (sin + cos) * offset, y: 0.85 * campusStudentScale, z: player.z + (cos - sin) * offset };
+};
 function shoot(rig, x, y, z, yaw, sp, life, dmg, tag, o = {}) {
   const ec_ = ecRand(CW); if (ec_ != null) o = { el: ec_, tint: new THREE.Color(ec_), elc: ELT[ec_] || (ELT[ec_] = new THREE.Color(ec_)), ...o };
   const xs = player.sp[CW]; if (xs) { o = { ...o }; if (xs.pierce) o.pierce = (o.pierce || 0) + (CW === 'shotgun' ? 1 : 2); if (xs.split) o.split = true; if (xs.bounce) o.bounce = Math.max(o.bounce || 0, 2); }
@@ -3726,7 +3735,7 @@ const graveFx = TEAM_COLORS.map((color) => {
   const mound = new THREE.Mesh(new THREE.SphereGeometry(0.6, 20, 10, 0, TAU, 0, HP_), toonOf(0x8a6a4a)); mound.scale.set(1, 0.32, 1.4); mound.position.set(0, 0, 0.7); g.add(mound);
   g.visible = false; g.userData = { ring, fill }; scene.add(g); return g;
 });
-const teamRingGeo = new THREE.RingGeometry(0.66, 0.82, 36);
+const teamRingGeo = new THREE.RingGeometry(0.66 * campusStudentScale, 0.82 * campusStudentScale, 36);
 const teamRings = TEAM_COLORS.map((color) => {
   const ring = new THREE.Mesh(teamRingGeo, new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.94, depthWrite: false }));
   ring.rotation.x = -HP_;
@@ -3782,8 +3791,8 @@ function drawPeers(team) {
     ring.visible = !!p && !(me ? p.ghost : p.dead);
     if (ring.visible) ring.position.set(p.x, 0.06, p.z);
     if (!p || me || !CLASSES[p.h]) return;
-    heroRig(p.h, SKINS[p.sk] ? p.sk : '').push(p.ps, worldM(p.x, p.dead ? 0.35 + Math.sin(realTime * 3 + p.ps.seed * 9) * 0.12 : 0, p.z, p.yaw || 0, 1, 1 + Math.sin(p.ps.ph * 2) * 0.02 * (p.mv || 0)));
-    shadow(p.x, p.z, 0.55);
+    const lift = p.dead ? 0.35 + Math.sin(realTime * 3 + p.ps.seed * 9) * 0.12 : 0;
+    drawCampusStudent(heroRig(p.h, SKINS[p.sk] ? p.sk : ''), p.ps, p.x, lift, p.z, p.yaw || 0);
   });
 }
 
@@ -3823,7 +3832,7 @@ function drawPeerMarkers(team) {
     marker.el.classList.toggle('grave', !!dead);
     const name = me ? '你的坟墓' : dead ? `${p.name}的坟墓` : p.name;
     if (marker.label.textContent !== name) marker.label.textContent = name;
-    v3.set(target.x, dead ? 1.15 : 2.65, target.z).applyMatrix4(camera.matrixWorldInverse);
+    v3.set(target.x, dead ? 1.15 : 2.65 * campusStudentScale, target.z).applyMatrix4(camera.matrixWorldInverse);
     const depth = camera.isOrthographicCamera ? 1 : Math.max(Math.abs(v3.z), 0.001);
     const dx = cx * axes[0] * v3.x / depth;
     const dy = -cy * axes[5] * v3.y / depth || (v3.z >= 0 && !dx ? 1 : 0);
@@ -4770,7 +4779,7 @@ function updateMatch(dt) {
   const pullStep = pulled ? Math.min(pullDistance, 2.8 * dt) / (pullDistance || 1) : 0;
   player.x += player.vx * dt + pullX * pullStep;
   player.z += player.vz * dt + pullZ * pullStep;
-  pushOutProps(player, 0.45);
+  pushOutProps(player, campusStudentRadius);
   const sp = Math.hypot(player.vx, player.vz); player.moving = clamp(sp / 3, 0, 1); player.ph += sp * dt * 2.6;
   if (sp > 0.5) { const ty = Math.atan2(player.vx, player.vz); let d = ty - player.yaw; d = Math.atan2(Math.sin(d), Math.cos(d)); player.yaw += d * Math.min(1, dt * 12); }
   player.spinT = Math.max(0, player.spinT - dt * 5); player.hit = Math.max(0, player.hit - dt * 5);
@@ -5290,10 +5299,11 @@ function draw(dt) {
   drawBossHazards();
   if (state !== 'title') {
     player.glowMul = 2.4; const yaw = player.yaw + (player.spinT > 0 ? (1 - player.spinT) * TAU : 0);
-    heroRig(clsId).push(player, worldM(player.x, player.ghost ? 0.35 + Math.sin(realTime * 3) * 0.12 : 0, player.z, yaw, 1, 1 + Math.sin(player.ph * 2) * 0.02 * player.moving)); shadow(player.x, player.z, 0.55);
+    const lift = player.ghost ? 0.35 + Math.sin(realTime * 3) * 0.12 : 0;
+    drawCampusStudent(heroRig(clsId), player, player.x, lift, player.z, yaw);
     if (sweepFx.t > 0) { sweepFx.t -= dt * 4.2; const p = 1 - sweepFx.t, arc = sweepFx.arc || TAU, a0 = HP_ - (sweepFx.yaw || 0) + arc / 2, r = sweepFx.r, sc = r / 1.6; STILL.etint = elT('sweep');
       // 尺子本体加几道残影，注入元素后本体和残影都变成元素的颜色
-      for (let g = 0; g < 4; g++) { const pp = p - g * 0.08; if (pp < 0) break; const a = a0 - pp * arc, k = 1 - g * 0.17; if (g) STILL.etint = elT('sweep', g) || STILL.etint; RIGS.ruler.push(STILL, worldM(player.x + Math.cos(a) * r * 0.52, 0.8 - g * 0.03, player.z + Math.sin(a) * r * 0.52, -a, sc * k, 1.6 * k, sc * 0.8 * k)); }
+      for (let g = 0; g < 4; g++) { const pp = p - g * 0.08; if (pp < 0) break; const a = a0 - pp * arc, k = 1 - g * 0.17; if (g) STILL.etint = elT('sweep', g) || STILL.etint; RIGS.ruler.push(STILL, worldM(player.x + Math.cos(a) * r * 0.52, 0.8 * campusStudentScale - g * 0.03, player.z + Math.sin(a) * r * 0.52, -a, sc * k, 1.6 * k, sc * 0.8 * k)); }
       STILL.etint = null; const a = a0 - p * arc;
       spark(player.x + Math.cos(a) * r * 0.98, 0.8, player.z + Math.sin(a) * r * 0.98, pc('sweep'), EC('sweep') != null ? 6 : 4, 2.5, 0.38, 0.35, EC('sweep') === ELC.fire ? -3 : 0); }
   } else {
@@ -5319,8 +5329,7 @@ function draw(dt) {
   }
   if (demoSockAlly) {
     const { x, z } = demoSockAlly;
-    heroRig('scholar', '').push(STILL, worldM(x, 0, z, HP_, 1));
-    shadow(x, z, 0.55);
+    drawCampusStudent(heroRig('scholar', ''), STILL, x, 0, z, HP_);
   }
   gStage.visible = state === 'title' && titleStep === 'gacha';
   let fi = 0;
@@ -5492,7 +5501,7 @@ function draw(dt) {
     const x = camLook.x + rnd(-shk, shk), z = camLook.z + rnd(-shk, shk);
     camera.position.set(x, camLook.y + 32*Math.sin(campusElevation), z + 32*Math.cos(campusElevation));
     camera.lookAt(x, camLook.y, z);
-    torch.position.set(player.x, 3.2, player.z);
+    torch.position.set(player.x, 3.2 * campusStudentScale, player.z);
   }
   if (debugCam) { camera.position.set(...debugCam.pos); camera.lookAt(...debugCam.look); }
   if (team) drawPeerMarkers(team);

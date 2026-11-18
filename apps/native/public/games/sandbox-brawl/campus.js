@@ -8,6 +8,10 @@ const SX = 18.25,
   SZ = 13.4,
   OX = 768,
   OZ = 510;
+// A student's shoulders span about half a painted desk. Ground clearance
+// follows the feet, which are narrower than the chibi head.
+export const campusStudentScale = 2;
+export const campusStudentRadius = 0.34 * campusStudentScale;
 export const campusElevation = Math.asin(SZ / SX);
 const SY = SX * Math.cos(campusElevation);
 const worldX = (px) => (px - OX) / SX;
