@@ -28,18 +28,24 @@ scene.add(sunlight);
 canvas.style.background = 'radial-gradient(ellipse at 48% 36%,#faf5e9 0%,#e8e2da 58%,#c9c5c1 100%)';
 const views = {
   portrait: [-0.22, 0.09, 1.71, 1.25],
+  grip: [3.05, 0.37, 1.43, 0.405, -0.116, 0.31],
   full: [0.22, 0.1, 1.1, 2.67],
   arena: [0.55, 0.82, 0.95, 4.4],
 };
 let yaw,
   pitch,
   target,
+  targetX,
+  targetZ,
   height,
   paused = false,
   elapsed = 1.74,
   last = 0;
 function view(key) {
-  [yaw, pitch, target, height] = views[key];
+  [yaw, pitch, target, height, targetX = 0, targetZ = 0] = views[key];
+  for (const [node, joint] of nodes)
+    node.visible = key !== 'grip' || ['elbowR', 'handR', 'handL', 'page', 'elbowL'].includes(joint);
+  base.visible = key !== 'grip';
   document
     .querySelectorAll('[data-view]')
     .forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.view === key)));
@@ -67,7 +73,7 @@ canvas.addEventListener(
   'wheel',
   (e) => {
     e.preventDefault();
-    height = T.MathUtils.clamp(height * Math.exp(e.deltaY * 0.001), 0.55, 5);
+    height = T.MathUtils.clamp(height * Math.exp(e.deltaY * 0.001), 0.24, 5);
   },
   { passive: false },
 );
@@ -94,11 +100,11 @@ function frame(ms) {
   camera.near = 0.05;
   camera.far = 30;
   camera.position.set(
-    5 * Math.sin(yaw) * Math.cos(pitch),
+    targetX + 5 * Math.sin(yaw) * Math.cos(pitch),
     target + 5 * Math.sin(pitch),
-    5 * Math.cos(yaw) * Math.cos(pitch),
+    targetZ + 5 * Math.cos(yaw) * Math.cos(pitch),
   );
-  camera.lookAt(0, target, 0);
+  camera.lookAt(targetX, target, targetZ);
   camera.updateProjectionMatrix();
   renderer.render(scene, camera);
   requestAnimationFrame(frame);
