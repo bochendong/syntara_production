@@ -1,14 +1,15 @@
 import * as THREE from './vendor/three.module.js';
+import { buildCampusModels } from './campus-models.js';
 
-// Coordinates below are feet on the approved 1536 × 1024 painting. The same
-// footprints drive physics, navigation and the foreground depth mesh.
+// The floor plan uses the approved 1536 × 1024 overview as its coordinate grid.
+// Furniture placement and ground navigation share these footprints.
 const WIDTH = 1536,
   HEIGHT = 1024;
 const SX = 18.25,
   SZ = 13.4,
   OX = 768,
   OZ = 510;
-// A student's shoulders span about half a painted desk. Ground clearance
+// A student's shoulders span about half a desk. Ground clearance
 // follows the feet, which are narrower than the chibi head.
 export const campusStudentScale = 2;
 export const campusStudentRadius = 0.34 * campusStudentScale;
@@ -34,24 +35,8 @@ export const portalSites = [
 ];
 
 export function campusLayout() {
-  const walls = [],
-    positions = [],
-    uvs = [],
-    indices = [];
-  function vertex(px, py, height) {
-    positions.push(worldX(px), height / SY, worldZ(py));
-    uvs.push(px / WIDTH, 1 - (py - height) / HEIGHT);
-  }
-  function face(points, height) {
-    const start = positions.length / 3,
-      n = points.length;
-    for (const [x, y] of points) vertex(x, y, 0);
-    for (const [x, y] of points) vertex(x, y, height);
-    for (let i = 0; i < n; i++) {
-      const j = (i + 1) % n;
-      indices.push(start + i, start + j, start + n + i, start + j, start + n + j, start + n + i);
-    }
-    for (let i = 1; i < n - 1; i++) indices.push(start + n, start + n + i, start + n + i + 1);
+  const walls = [];
+  function face(kind, points, height) {
     const corners = points.map(([x, y]) => [worldX(x), worldZ(y)]);
     // Normalize the winding for the outward normal when a body lands exactly on an edge.
     const area = corners.reduce((sum, [x, z], i) => {
@@ -62,6 +47,8 @@ export function campusLayout() {
     const xs = corners.map((p) => p[0]),
       zs = corners.map((p) => p[1]);
     walls.push({
+      kind,
+      height: height / SY,
       corners,
       x0: Math.min(...xs),
       x1: Math.max(...xs),
@@ -69,8 +56,9 @@ export function campusLayout() {
       z1: Math.max(...zs),
     });
   }
-  function box(left, back, right, front, height) {
+  function box(kind, left, back, right, front, height) {
     face(
+      kind,
       [
         [left, back],
         [right, back],
@@ -81,19 +69,19 @@ export function campusLayout() {
     );
   }
   // Perimeter, classroom dividers and the four open hallway thresholds.
-  box(0, 52, 1536, 94, 51);
-  box(0, 970, 1536, 1023, 24);
-  box(0, 65, 45, 983, 42);
-  box(1482, 65, 1535, 983, 42);
-  box(736, 58, 786, 424, 40);
-  box(740, 584, 784, 987, 35);
+  box('wall', 0, 52, 1536, 94, 51);
+  box('wall', 0, 970, 1536, 1023, 24);
+  box('wall', 0, 65, 45, 983, 42);
+  box('wall', 1482, 65, 1535, 983, 42);
+  box('wall', 736, 58, 786, 424, 40);
+  box('wall', 740, 584, 784, 987, 35);
   for (const [left, right] of [
     [35, 349],
     [449, 1092],
     [1181, 1498],
   ]) {
-    box(left, 425, right, 441, 43);
-    box(left, 576, right, 589, 36);
+    box('wall', left, 425, right, 441, 43);
+    box('wall', left, 576, right, 589, 36);
   }
   // Classroom: staggered shelves, desks and teacher's station.
   for (const [x, y, w] of [
@@ -101,7 +89,7 @@ export function campusLayout() {
     [183, 357, 187],
     [447, 302, 182],
   ])
-    box(x, y - 29, x + w, y, 53);
+    box('shelf', x, y - 29, x + w, y, 53);
   for (const [x, y] of [
     [343, 220],
     [421, 218],
@@ -110,23 +98,23 @@ export function campusLayout() {
     [520, 382],
     [666, 280],
   ])
-    box(x, y - 18, x + 49, y, 41);
-  box(578, 143, 721, 165, 62);
-  box(88, 95, 134, 118, 38);
+    box('desk', x, y - 18, x + 49, y, 41);
+  box('teacher', 578, 143, 721, 165, 62);
+  box('plant', 88, 95, 134, 118, 38);
   // Two bent lab islands and a demonstration bench.
-  box(833, 198, 884, 341, 31);
-  box(857, 173, 1017, 215, 30);
-  box(852, 331, 977, 366, 26);
-  box(1349, 207, 1408, 330, 28);
-  box(1217, 182, 1381, 214, 26);
-  box(1294, 329, 1397, 365, 26);
-  box(1020, 282, 1216, 336, 42);
-  box(849, 91, 1408, 126, 32);
+  box('lab', 833, 198, 884, 341, 31);
+  box('lab', 857, 173, 1017, 215, 30);
+  box('lab', 852, 331, 977, 366, 26);
+  box('lab', 1349, 207, 1408, 330, 28);
+  box('lab', 1217, 182, 1381, 214, 26);
+  box('lab', 1294, 329, 1397, 365, 26);
+  box('lab', 1020, 282, 1216, 336, 42);
+  box('lab', 849, 91, 1408, 126, 32);
   // Three separate runs of curved display wall. Each quad is a slice of the
-  // same arc on the painting. The gaps between runs remain completely open.
+  // same arc in the plan. The gaps between runs remain completely open.
   function ribbon(edgeA, edgeB, height) {
     for (let i = 1; i < edgeA.length; i++)
-      face([edgeA[i - 1], edgeA[i], edgeB[i], edgeB[i - 1]], height);
+      face('gallery', [edgeA[i - 1], edgeA[i], edgeB[i], edgeB[i - 1]], height);
   }
   ribbon(
     [
@@ -193,9 +181,9 @@ export function campusLayout() {
     [90, 963],
     [620, 966],
   ])
-    box(x, y - 18, x + 57, y, 69);
-  box(55, 793, 110, 834, 49);
-  box(651, 787, 724, 830, 48);
+    box('easel', x, y - 18, x + 57, y, 69);
+  box('paint', 55, 793, 110, 834, 49);
+  box('paint', 651, 787, 724, 830, 48);
   // Gym: standing foam pads joined into angular runs with open lanes between them.
   const pads = [
     [838, 753, 860, 865],
@@ -221,118 +209,33 @@ export function campusLayout() {
     [1289, 829, 1309, 943],
     [1297, 924, 1421, 944],
   ];
-  for (const pad of pads) box(...pad, 23);
-  box(802, 646, 907, 664, 36);
-  box(1085, 642, 1190, 658, 39);
-  box(1356, 637, 1433, 649, 29);
-  box(1448, 778, 1479, 802, 77);
+  for (const pad of pads) box('pad', ...pad, 23);
+  box('mats', 802, 646, 907, 664, 36);
+  box('ballRack', 1085, 642, 1190, 658, 39);
+  box('vault', 1356, 637, 1433, 649, 29);
+  box('basket', 1448, 778, 1479, 802, 77);
   // Hall furniture sits against the edges, leaving a continuous centre lane.
-  box(48, 512, 145, 528, 68);
-  box(1395, 511, 1490, 528, 67);
-  for (const x of [292, 1124]) box(x, 510, x + 109, 527, 29);
-  for (const x of [228, 1256]) box(x, 506, x + 39, 530, 44);
+  box('locker', 48, 512, 145, 528, 68);
+  box('locker', 1395, 511, 1490, 528, 67);
+  for (const x of [292, 1124]) box('bench', x, 510, x + 109, 527, 29);
+  for (const x of [228, 1256]) box('plant', x, 506, x + 39, 530, 44);
 
-  // Narrow silhouettes above benches and shelves also cover actors walking
-  // behind them. They sit on the existing furniture and add no floor obstacle.
-  function cutout(foot, outline) {
-    const start = positions.length / 3;
-    for (const [x, y] of outline) vertex(x, foot, foot - y);
-    const contour = outline.map(([x, y]) => new THREE.Vector2(x, y));
-    for (const tri of THREE.ShapeUtils.triangulateShape(contour, [])) {
-      indices.push(...tri.map((i) => start + i));
-    }
-  }
-  cutout(304, [
-    [1084, 169],
-    [1107, 169],
-    [1106, 187],
-    [1122, 203],
-    [1128, 223],
-    [1123, 245],
-    [1133, 256],
-    [1129, 264],
-    [1064, 264],
-    [1061, 254],
-    [1070, 241],
-    [1066, 220],
-    [1074, 201],
-    [1087, 187],
-  ]);
-  cutout(296, [
-    [535, 209],
-    [554, 208],
-    [559, 201],
-    [579, 210],
-    [598, 220],
-    [591, 234],
-    [600, 239],
-    [586, 245],
-    [573, 258],
-    [554, 258],
-    [547, 243],
-    [532, 240],
-    [538, 229],
-    [525, 227],
-  ]);
-  cutout(233, [
-    [137, 151],
-    [151, 149],
-    [161, 140],
-    [181, 149],
-    [194, 161],
-    [191, 177],
-    [177, 182],
-    [171, 198],
-    [147, 198],
-    [143, 182],
-    [125, 180],
-    [133, 165],
-    [122, 164],
-  ]);
-  cutout(527, [
-    [223, 462],
-    [240, 444],
-    [255, 454],
-    [265, 450],
-    [284, 467],
-    [274, 484],
-    [261, 494],
-    [242, 495],
-    [230, 482],
-    [217, 478],
-  ]);
-  cutout(525, [
-    [1247, 463],
-    [1262, 445],
-    [1275, 452],
-    [1284, 446],
-    [1305, 462],
-    [1298, 481],
-    [1285, 492],
-    [1265, 496],
-    [1259, 483],
-    [1243, 477],
-  ]);
-  return { walls, positions, uvs, indices };
+  return { walls };
 }
 
-export function createCampus(loader, markTexture, time, ripples) {
-  const { walls, positions, uvs, indices } = campusLayout();
-  const texture = loader.load(new URL('./campus.webp', import.meta.url).href);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  const group = new THREE.Group();
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-  geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
-  geo.setIndex(indices);
-  const art = new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide, fog: false });
-  group.add(new THREE.Mesh(geo, art));
-  const floor = new THREE.Mesh(new THREE.PlaneGeometry(WIDTH / SX, HEIGHT / SZ), art.clone());
+export function createCampus(markTexture, time, ripples) {
+  const { walls } = campusLayout();
+  const group = buildCampusModels(walls);
+  const shadows = group.getObjectByName('cast shadows');
+  const floor = new THREE.Mesh(
+    new THREE.PlaneGeometry(WIDTH / SX, HEIGHT / SZ),
+    new THREE.MeshBasicMaterial(),
+  );
   floor.rotation.x = -Math.PI / 2;
   floor.position.set(worldX(WIDTH / 2), -0.002, worldZ(HEIGHT / 2));
   group.add(floor);
   // Only the ground receives footprints, paint and combat ripples.
-  floor.material.onBeforeCompile = (shader) => {
+  function groundShader(shader, inShadow) {
     Object.assign(shader.uniforms, {
       marks: { value: markTexture },
       now: time,
@@ -350,6 +253,47 @@ export function createCampus(loader, markTexture, time, ripples) {
         '#include <map_fragment>',
         `
       #include <map_fragment>
+      vec2 p=groundXZ;
+      vec2 tile=floor(p/2.2);
+      float check=mod(tile.x+tile.y,2.);
+      vec3 paint=mix(vec3(.94,.78,.65),vec3(.96,.81,.69),check);
+      vec2 joint=min(fract(p/2.2),1.-fract(p/2.2));
+      float grout=1.-smoothstep(.002,.015,min(joint.x,joint.y));
+      if(abs(p.y)<5.55){
+        float band=min(abs(abs(p.y)-4.43),abs(abs(p.y)-4.69));
+        paint=mix(vec3(.66,.40,.41),paint,smoothstep(.035,.075,band));
+        if(mod(tile.x+tile.y,5.)==0.){
+          float dotTile=abs(fract(p.x/2.2)-.5)+abs(fract(p.y/2.2)-.5);
+          paint=mix(vec3(.82,.61,.51),paint,smoothstep(.07,.09,dotTile));
+        }
+      }
+      if(p.y < -5.7 && p.x<0.){
+        float row=floor(p.y/1.45);
+        vec2 wood=vec2(p.x/6.0+mod(row,2.)*.5,p.y/1.45);
+        float grain=fract(sin(dot(floor(wood),vec2(29.7,17.3)))*382.65);
+        paint=mix(vec3(.83,.53,.28),vec3(.98,.74,.43),grain*.7+.2);
+        vec2 edge=min(fract(wood),1.-fract(wood))/max(fwidth(wood),vec2(.0001));
+        paint*=.89+.11*smoothstep(.3,1.8,min(edge.x,edge.y));
+      }else if(p.y < -5.7){paint=mix(vec3(.69,.83,.75),vec3(.73,.86,.78),check);
+        paint=mix(paint,vec3(.54,.71,.67),grout*.68);
+        vec2 crossMark=abs(mod(p+4.4,8.8)-4.4);
+        if(max(crossMark.x,crossMark.y)<.24 && min(crossMark.x,crossMark.y)<.058)paint=vec3(.48,.69,.63);}
+      else if(p.y>5.5 && p.x<0.){
+        paint=mix(vec3(.94,.72,.57),vec3(.97,.76,.60),check*.8);
+        paint*=1.-grout*.06;
+        float arc=abs(length((p-vec2(-20.5,22.6))*vec2(1.,.85))-8.7);
+        paint=mix(vec3(.99,.84,.66),paint,smoothstep(.07,.13,arc));
+      }
+      else if(p.y>5.5){
+        paint=mix(vec3(.48,.67,.34),vec3(.56,.74,.39),mod(floor(p.x/4.),2.)*.6);
+        vec2 q=p-vec2(20.,20.);
+        float border=abs(max(abs(q.x)-17.4,abs(q.y)-11.9));
+        float line=min(border,abs(length(q)-3.2));
+        if(abs(q.y)<11.9) line=min(line,abs(q.x));
+        if(abs(q.x)<17.4) line=min(line,abs(length(vec2(abs(q.x)-17.4,q.y))-6.1));
+        paint=mix(vec3(.99,.91,.72),paint,smoothstep(.085,.16,line));
+      }
+      diffuseColor.rgb=pow(paint,vec3(2.2)) * ${inShadow ? 'vec3(.70,.63,.70)' : 'vec3(1.)'};
       vec4 mark = texture2D(marks, vec2((groundXZ.x+48.)/96.,1.-(groundXZ.y+48.)/96.));
       diffuseColor.rgb = mix(diffuseColor.rgb, mark.rgb, mark.a);
       for(int i=0;i<8;i++){float age=now-ripples[i].z;
@@ -357,8 +301,10 @@ export function createCampus(loader, markTexture, time, ripples) {
           diffuseColor.rgb+=vec3(.23,.14,.045)*exp(-d*d)*(1.-age)*ripples[i].w;}}
     `,
       );
-  };
-  return { group, walls, texture };
+  }
+  floor.material.onBeforeCompile = (shader) => groundShader(shader, false);
+  shadows.material.onBeforeCompile = (shader) => groundShader(shader, true);
+  return { group, walls };
 }
 
 // A circle against a convex footprint. The broad phase also saves work when

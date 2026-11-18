@@ -1,3 +1,4 @@
+import { buildInkPortal, buildPortraitRoom } from './campus-models.js';
 import { createCampusItems, ITEM } from './campus-items.js';
 import { createCampus, campusElevation, campusStudentScale, campusStudentRadius, taskSites, portalSites, insideCampusObstacle, resolveCampusObstacles } from './campus.js';
 import { createGameAudio } from './game-audio.js';
@@ -372,24 +373,23 @@ composer.addPass(finalPass);
 composer.addPass(new OutputPass());
 
 /* ================= 卡通墨线材质 + 拟人骨架 ================= */
-const grad = new THREE.DataTexture(Uint8Array.from({ length: 64 }, (_, i) => { const k = Math.min(1, Math.max(0, (i / 63 - 0.4) / 0.1)); return 96 + (255 - 96) * k * k * (3 - 2 * k); }), 64, 1, THREE.RedFormat);
-grad.minFilter = grad.magFilter = THREE.LinearFilter; grad.needsUpdate = true;
-const RIM = { value: new THREE.Color(0xfff3d6) };
 function inkToon(mat) {
   mat.onBeforeCompile = (sh) => {
-    sh.uniforms.uRim = RIM;
-    sh.fragmentShader = 'uniform vec3 uRim;\n' + sh.fragmentShader.replace('#include <opaque_fragment>', `
-      { vec3 vd=normalize(vViewPosition); float rim=pow(1.0-clamp(dot(normal,vd),0.0,1.0),3.0);
-        outgoingLight*=0.95+0.09*clamp(normal.y,0.0,1.0);
-        outgoingLight+=uRim*smoothstep(0.5,0.95,rim)*0.2; }
+    sh.fragmentShader = sh.fragmentShader.replace('#include <opaque_fragment>', `
+      vec3 facet=normalize(cross(dFdx(vViewPosition),dFdy(vViewPosition)));
+      float lightSide=dot(facet,normalize(mat3(viewMatrix)*vec3(-.55,.84,.36)));
+      outgoingLight=diffuseColor.rgb;
+      if(lightSide<.02) outgoingLight=mix(outgoingLight*vec3(.57,.39,.52),vec3(.0395,.0086,.0252),.06);
+      else if(lightSide<.47) outgoingLight*=vec3(.83,.70,.73);
+      else if(lightSide>.83) outgoingLight=mix(outgoingLight,vec3(1.,.88,.72),.07);
       #include <opaque_fragment>`);
   };
   return mat;
 }
-const toonMat = inkToon(new THREE.MeshToonMaterial({ color: 0xffffff, gradientMap: grad }));
-const outlineMat = new THREE.MeshBasicMaterial({ color: 0x311428, side: THREE.BackSide });
-const OUTLINE_W = { value: 0.052 };
-const outlineRigMat = new THREE.MeshBasicMaterial({ color: 0x311428, side: THREE.BackSide });
+const toonMat = inkToon(new THREE.MeshToonMaterial({ color: 0xffffff }));
+const outlineMat = new THREE.MeshBasicMaterial({ color: 0x38172c, side: THREE.BackSide });
+const OUTLINE_W = { value: 0.064 };
+const outlineRigMat = new THREE.MeshBasicMaterial({ color: 0x38172c, side: THREE.BackSide });
 outlineRigMat.onBeforeCompile = (sh) => {
   sh.uniforms.uOutW = OUTLINE_W;
   sh.vertexShader = 'uniform float uOutW;\n' + sh.vertexShader.replace('#include <project_vertex>', `
@@ -406,10 +406,10 @@ outlineRigMat.onBeforeCompile = (sh) => {
     vec4 wp = modelMatrix * lp; if (onL > 1e-6 && onL < 1e12) wp.xyz += on / onL * uOutW * ow;
     vec4 mvPosition = viewMatrix * wp; gl_Position = projectionMatrix * mvPosition;`);
 };
-const toonOf = (c) => inkToon(new THREE.MeshToonMaterial({ color: c, gradientMap: grad }));
+const toonOf = (c) => inkToon(new THREE.MeshToonMaterial({ color: c }));
 const GEO = {
-  sph: new THREE.SphereGeometry(0.5, 32, 22), box: roundedBox(0.09), cyl: new THREE.CylinderGeometry(0.5, 0.5, 1, 32),
-  cone: new THREE.ConeGeometry(0.5, 1, 32), tor: new THREE.TorusGeometry(0.5, 0.14, 12, 36), cap: new THREE.CapsuleGeometry(0.5, 0.6, 8, 24),
+  sph: new THREE.SphereGeometry(0.5, 14, 10), box: roundedBox(0.09), cyl: new THREE.CylinderGeometry(0.5, 0.5, 1, 14),
+  cone: new THREE.ConeGeometry(0.5, 1, 12), tor: new THREE.TorusGeometry(0.5, 0.14, 12, 36), cap: new THREE.CapsuleGeometry(0.5, 0.6, 4, 14),
   tet: new THREE.TetrahedronGeometry(0.6, 0), bowl: new THREE.CylinderGeometry(0.7, 0.4, 0.5, 28),
   arc: new THREE.TorusGeometry(0.5, 0.07, 10, 20, Math.PI), ring: new THREE.TorusGeometry(0.5, 0.05, 10, 36), dod: new THREE.DodecahedronGeometry(0.5, 0),
 };
@@ -756,7 +756,7 @@ class Rig {
     for (const P of this.parts) {
       CM.multiplyMatrices(world, partMatrix(P.pt, e)); P.m.setMatrixAt(i, CM);
       tC.copy(P.tint && e.tint ? e.tint : P.color); if (e.etint) tC.lerp(e.etint, 0.72).multiplyScalar(1.3);
-      if (P.glow) tC.multiplyScalar(e.glowMul || 2.6);
+      if (P.glow) tC.multiplyScalar(Math.min(e.glowMul || 1.2, 1.2));
       if (burning(e)) tC.lerp(ORANGE, 0.6 + 0.25 * Math.sin(realTime * 20 + i));
       if (e.hit) tC.lerp(HITC, Math.min(1, e.hit * 1.4));
       if (e.dark) tC.multiplyScalar(0.035);
@@ -788,10 +788,9 @@ function blot(x, z, r, color, n = 1, spread = 0) { const [cx, cz] = mk(x, z); mc
 function ringMark(x, z, r, color, w = 4) { const [cx, cz] = mk(x, z); mctx.strokeStyle = color; mctx.lineWidth = w; mctx.beginPath(); mctx.arc(cx, cz, r * MS, 0, TAU); mctx.stroke(); marksDirty = true; }
 function footprint(x, z, yaw, side) { const ox = Math.cos(yaw) * 0.16 * campusStudentScale * side, oz = -Math.sin(yaw) * 0.16 * campusStudentScale * side; const [cx, cz] = mk(x + ox, z + oz); mctx.save(); mctx.translate(cx, cz); mctx.rotate(-yaw); mctx.fillStyle = 'rgba(70,44,24,.14)'; mctx.beginPath(); mctx.ellipse(0, 0, 2.6, 4.2, 0, 0, TAU); mctx.fill(); mctx.restore(); marksDirty = true; }
 const RIPS = Array.from({ length: 8 }, () => new THREE.Vector4(0, 0, -100, 0));
-const artLoader = new THREE.TextureLoader(new THREE.LoadingManager());
-const campus = createCampus(artLoader, markTex, uTime, RIPS);
+const campus = createCampus(markTex, uTime, RIPS);
 scene.add(campus.group);
-const itemArt = createCampusItems(scene, artLoader);
+const itemArt = createCampusItems(scene);
 const GEM_CELLS = [ITEM.green, ITEM.blue, ITEM.gold];
 const WALLS = campus.walls;
 const inWall = (x, z, clearance = 0) => insideCampusObstacle(WALLS, x, z, clearance);
@@ -840,24 +839,8 @@ function flowDir(e, target) {
   if (!bi && !bj) return false;
   const dx = i + bi - HX + 0.5 - e.x, dz = j + bj - HZ + 0.5 - e.z, L = Math.hypot(dx, dz) || 1; FD[0] = dx / L; FD[1] = dz / L; return true;
 }
-// Title portraits retain a front-facing camera. The classroom backdrop is a
-// crop of the same painting as the arena, behind the group of classmates.
-const titleRoom = new THREE.Group();
-const photoGeometry = new THREE.PlaneGeometry(34, 15);
-const photoUV = photoGeometry.attributes.uv;
-for (let i = 0; i < photoUV.count; i++) {
-  photoUV.setXY(i, (42 + photoUV.getX(i) * 697) / 1536, 1 - (392 - photoUV.getY(i) * 388) / 1024);
-}
-const photoBackdrop = new THREE.Mesh(
-  photoGeometry,
-  new THREE.MeshBasicMaterial({ map: campus.texture }),
-);
-photoBackdrop.position.set(TX, 4.5, TZ - 9);
-titleRoom.add(photoBackdrop);
-const photoFloor = new THREE.Mesh(new THREE.PlaneGeometry(85, 65), toonOf(0xe6a760));
-photoFloor.rotation.x = -HP_;
-photoFloor.position.set(TX, -0.01, TZ);
-titleRoom.add(photoFloor);
+const titleRoom = buildPortraitRoom();
+titleRoom.position.set(TX,0,TZ);
 scene.add(titleRoom);
 const shCanvas = document.createElement('canvas'); shCanvas.width = shCanvas.height = 64;
 { const c = shCanvas.getContext('2d'); const g = c.createRadialGradient(32, 32, 0, 32, 32, 32); g.addColorStop(0, 'rgba(0,0,0,1)'); g.addColorStop(0.6, 'rgba(0,0,0,.65)'); g.addColorStop(1, 'rgba(0,0,0,0)'); c.fillStyle = g; c.fillRect(0, 0, 64, 64); }
@@ -2277,7 +2260,7 @@ function symTex(k) {
   c.stroke(); const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; return t;
 }
 const plateMeshes = PLATE_C.map((c, k) => {
-  const g = new THREE.Group(); const top = new THREE.Mesh(new THREE.BoxGeometry(1.35, 0.2, 1.35), new THREE.MeshToonMaterial({ color: c, gradientMap: grad })); g.add(top);
+  const g = new THREE.Group(); const top = new THREE.Mesh(new THREE.BoxGeometry(1.35, 0.2, 1.35), new THREE.MeshToonMaterial({ color: c })); g.add(top);
   const o = new THREE.Mesh(top.geometry, outlineMat); o.scale.set(1.07, 1.3, 1.07); g.add(o);
   const s = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: symTex(k), transparent: true, depthWrite: false, toneMapped: false })); s.rotation.x = -HP_; s.position.y = 0.105; g.add(s);
   g.visible = false; g.userData = { top, s }; scene.add(g); return g;
@@ -2426,13 +2409,11 @@ const rBeam = new THREE.Mesh(beam.geometry, new THREE.ShaderMaterial({ uniforms:
 rBeam.visible = false; scene.add(rBeam);
 // 四个角落各有一个出怪口：每隔几秒轮流涌出一小队，朝玩家走过来
 const PORTALS = portalSites.map(([x,z]) => ({x, z, flash: 0}));
-const portalTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 256; const g = c.getContext('2d'); g.translate(128, 128);
-  const rg = g.createRadialGradient(0, 0, 8, 0, 0, 124); rg.addColorStop(0, '#120a1e'); rg.addColorStop(0.62, '#3a1f5e'); rg.addColorStop(0.86, '#8a4ad8'); rg.addColorStop(1, 'rgba(138,74,216,0)'); g.fillStyle = rg; g.beginPath(); g.arc(0, 0, 126, 0, TAU); g.fill();
-  g.lineCap = 'round'; for (let k = 0; k < 5; k++) { g.rotate(TAU / 5); g.strokeStyle = k % 2 ? 'rgba(255,200,255,.55)' : 'rgba(160,220,255,.5)'; g.lineWidth = 7; g.beginPath(); for (let t = 0; t <= 1; t += 0.04) { const r = 14 + t * 96, a = t * 3.2; g.lineTo(Math.cos(a) * r, Math.sin(a) * r); } g.stroke(); }
-  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t; })();
-for (const p of PORTALS) {
-  p.mesh = new THREE.Mesh(new THREE.CircleGeometry(2.6, 40), new THREE.MeshBasicMaterial({ map: portalTex, transparent: true, depthWrite: false })); p.mesh.rotation.x = -HP_; p.mesh.position.set(p.x, 0.06, p.z); p.mesh.renderOrder = 2; scene.add(p.mesh);
-  p.rim = new THREE.Mesh(new THREE.RingGeometry(2.45, 2.75, 48), new THREE.MeshBasicMaterial({ color: 0xc89aff, transparent: true, opacity: 0.8, depthWrite: false })); p.rim.rotation.x = -HP_; p.rim.position.set(p.x, 0.07, p.z); scene.add(p.rim);
+for (const portal of PORTALS) {
+  Object.assign(portal, buildInkPortal());
+  portal.mesh.position.set(portal.x, 0, portal.z);
+  portal.rim.position.copy(portal.mesh.position);
+  scene.add(portal.mesh, portal.rim);
 }
 let portalAcc = 0, portalI = 0;
 function portalWave() {
@@ -2444,7 +2425,13 @@ function portalWave() {
   p.flash = 1; ringFx(p.x, p.z, 3.4, 0xc89aff, 0.6); spark(p.x, 0.6, p.z, 0xc89aff, 30, 7, 0.4, 0.7); dust(p.x, p.z, 16, 5);
 }
 function drawPortals(dt) {
-  for (const p of PORTALS) { p.mesh.visible = p.rim.visible = state !== 'title'; p.flash = Math.max(0, p.flash - dt * 1.2); p.mesh.rotation.z -= dt * (0.7 + p.flash * 5); const k = 1 + Math.sin(realTime * 2.2 + p.x) * 0.04 + p.flash * 0.25; p.mesh.scale.setScalar(k); p.rim.scale.setScalar(k); p.rim.material.opacity = 0.55 + p.flash * 0.45; }
+  for (const p of PORTALS) {
+    p.mesh.visible = p.rim.visible = state !== 'title';
+    p.flash = Math.max(0, p.flash - dt * 1.2);
+    p.mesh.rotation.y += dt * (0.7 + p.flash * 5);
+    p.mesh.scale.setScalar(1 + Math.sin(realTime * 2.2 + p.x) * 0.035 + p.flash * 0.10);
+    p.mesh.material.color.setScalar(1 + p.flash);
+  }
 }
 function spawnAltar() {
   let x = 0,
@@ -4767,7 +4754,7 @@ function updateMatch(dt) {
   if (state !== 'play') mx = mz = 0;
   if (player.ghost && NET && NET.on) netGhostStep(dt);
   const L = Math.hypot(mx, mz); if (L > 1) { mx /= L; mz /= L; }
-  const wx = mx, wz = mz; // The painted campus is north-up.
+  const wx = mx, wz = mz; // The campus is north-up.
   player.slowT -= dt; player.iframe -= dt;
   const pullPhase = bossPullPhase();
   const pullX = boss ? boss.x - player.x : 0, pullZ = boss ? boss.z - player.z : 0;
@@ -5773,7 +5760,6 @@ if (staticMatchPreview) {
     renderPreview();
     requestAnimationFrame(renderPreview);
   });
-  artLoader.manager.onLoad = () => requestAnimationFrame(renderPreview);
   addEventListener('resize', () => requestAnimationFrame(renderPreview));
 } else if (cloudGame) {
   titleEl.hidden = true;

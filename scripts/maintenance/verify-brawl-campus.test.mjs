@@ -82,3 +82,61 @@ test('task sites fit mop scatter and all nine multiplayer floor plates', () => {
     }
   }
 });
+
+test('the ball rack, desk legs and laboratory tubes have open sightlines', async () => {
+  const { buildCampusModels } =
+    await import('../../apps/native/public/games/sandbox-brawl/campus-models.js');
+  const { Raycaster, Vector3 } =
+    await import('../../apps/native/public/games/sandbox-brawl/vendor/three.module.js');
+  const lab = walls.find((w) => w.kind === 'lab' && w.x1 - w.x0 > 6 && w.z1 - w.z0 < 4);
+  const models = buildCampusModels([
+    ...walls.filter((w) => ['desk', 'ballRack'].includes(w.kind)),
+    lab,
+  ]);
+  models.updateMatrixWorld(true);
+  function hits(name, x, y) {
+    const mesh = models.getObjectByName(name);
+    const ray = new Raycaster(
+      new Vector3(mesh.position.x + x, y, mesh.position.z + 3),
+      new Vector3(0, 0, -1),
+    );
+    return ray.intersectObject(mesh).length > 0;
+  }
+  assert.equal(hits('ballRack', 0, 1.96), true);
+  assert.equal(hits('ballRack', 0.69, 1.96), false);
+  assert.equal(hits('ballRack', 0.49, 1.32), false);
+  assert.equal(hits('desk', 0.81, 0.57), false);
+  assert.equal(hits('desk', 0.81, 1.5), true);
+  const middleTube = -(lab.x1 - lab.x0) * 0.24;
+  assert.equal(hits('lab', middleTube, 2.89), true);
+  assert.equal(hits('lab', middleTube + 0.215, 2.89), false);
+});
+
+test('modeled pickups retain all instances when a dense XP field exceeds capacity', async () => {
+  const { createCampusItems, ITEM } =
+    await import('../../apps/native/public/games/sandbox-brawl/campus-items.js');
+  const { Scene, Matrix4 } =
+    await import('../../apps/native/public/games/sandbox-brawl/vendor/three.module.js');
+  const scene = new Scene(),
+    art = createCampusItems(scene);
+  art.begin();
+  for (let i = 0; i < 300; i++) art.draw(ITEM.green, i, 0, -i, 0.6);
+  art.draw(ITEM.satchel, 1, 0, 3, 1.4);
+  art.end();
+  const gems = scene.children.find((m) => m.count === 300);
+  assert.ok(gems?.visible);
+  assert.equal(scene.children.filter((m) => m.visible).length, 2);
+  const matrix = new Matrix4();
+  for (const i of [0, 200, 299]) {
+    gems.getMatrixAt(i, matrix);
+    assert.equal(matrix.elements[12], i);
+    assert.equal(matrix.elements[14] + i, 0);
+  }
+  for (const m of scene.children) {
+    m.geometry.computeBoundingBox();
+    assert.ok(m.geometry.boundingBox.max.z - m.geometry.boundingBox.min.z > 0.1);
+  }
+  art.begin();
+  art.end();
+  assert.equal(scene.children.filter((m) => m.visible).length, 0);
+});
