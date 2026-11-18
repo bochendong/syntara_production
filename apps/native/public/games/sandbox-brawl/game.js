@@ -1,3 +1,4 @@
+import { createScholarSculpt, poseScholar, scholarToon } from './scholar.js';
 import { buildInkPortal, buildPortraitRoom } from './campus-models.js';
 import { createCampusItems, ITEM } from './campus-items.js';
 import { createCampus, campusElevation, campusStudentScale, campusStudentRadius, taskSites, portalSites, insideCampusObstacle, resolveCampusObstacles } from './campus.js';
@@ -386,6 +387,7 @@ function inkToon(mat) {
   };
   return mat;
 }
+const scholarMaterial = scholarToon(0xffffff);
 const toonMat = inkToon(new THREE.MeshToonMaterial({ color: 0xffffff }));
 const outlineMat = new THREE.MeshBasicMaterial({ color: 0x38172c, side: THREE.BackSide });
 const OUTLINE_W = { value: 0.064 };
@@ -430,7 +432,9 @@ function smoothNormals(src) {
   return g;
 }
 const OGEO = {}; for (const k in GEO) OGEO[k] = smoothNormals(GEO[k]);
-const SMOOTH_CACHE = new Map(Object.keys(GEO).map((k) => [GEO[k], OGEO[k]]));
+const scholarSculpt = createScholarSculpt();
+Object.assign(GEO, scholarSculpt.geometries);
+const SMOOTH_CACHE = new Map(Object.keys(OGEO).map((k) => [GEO[k], OGEO[k]]));
 const smoothOf = (geo) => { if (!SMOOTH_CACHE.has(geo)) SMOOTH_CACHE.set(geo, smoothNormals(geo)); return SMOOTH_CACHE.get(geo); };
 const tone = (c, k) => { const q = new THREE.Color(c); return (k > 0 ? q.lerp(new THREE.Color(0xffffff), k) : q.multiplyScalar(1 + k)).getHex(); };
 const eyes = (y, z, sp = 0.16, s = 0.2, pu = 0.11, k = 'eye', pc = 0x1a1020) => [
@@ -440,7 +444,8 @@ const eyes = (y, z, sp = 0.16, s = 0.2, pu = 0.11, k = 'eye', pc = 0x1a1020) => 
 ];
 const brows = (y, z, sp, w = 0.18, ang = 0.45, k = '') => [['box', 0x1a1020, [-sp, y, z], [w, 0.05, 0.04], [0, 0, -ang], k, 0], ['box', 0x1a1020, [sp, y, z], [w, 0.05, 0.04], [0, 0, ang], k, 0]];
 const legs = (c, sp = 0.14, h = 0.26, w = 0.15) => [['cap', c, [-sp, h * 0.55, 0], [w, h, w], 0, 'legL', 1], ['cap', c, [sp, h * 0.55, 0], [w, h, w], 0, 'legR', 1]];
-function heroParts(look) {
+function heroParts(look, hero) {
+  if (hero === 'scholar') return scholarSculpt.parts(look);
   // Q 版：头身比约 1:1。圆润的身体、带高光的大眼睛、一缕一缕的刘海；每个同学有自己的发型、衣服和手里的东西
   const skin = look.skin || 0xffdcbc, H = look.hair, T = look.top, B = look.pants, G = !!look.girl, W = look.big ? 1.12 : 1, AC = look.accent ?? 0xffffff, O = look.outfit;
   const HL = tone(H, 0.32), ink = 0x2a1a22, IR = look.iris, IRL = tone(IR, 0.5);
@@ -704,7 +709,7 @@ RIGS_DEF.kraken = (() => {
   return o;
 })();
 RIGS_DEF.sockP = [['cap', 0xf2f2e6, [0, 0.16, 0], [0.2, 0.42, 0.2], 0, '', 1], ['sph', 0x9ac84a, [0, -0.08, 0.14], [0.22, 0.18, 0.4], 0, '', 1], ['box', 0xe2453a, [0, 0.32, 0], [0.21, 0.06, 0.21], 0, '', 0], ['sph', 0x9ac84a, [0, 0.7, 0], [0.1, 0.16, 0.1], 0, 'hover glow', 0]];
-for (const id in CLASSES) RIGS_DEF['hero_' + id] = heroParts(CLASSES[id].look);
+for (const id in CLASSES) RIGS_DEF['hero_' + id] = heroParts(CLASSES[id].look, id);
 const RIG_CAP = { sockP: 6, sleepy: 260, cross: 300, bat: 220, clock: 120, ink: 260, ghost: 100, phone: 90, snail: 60, hourglass: 6, boss: 1, bossMissile: 12, minion: 24, lamp: 6, pencilP: 400, planeP: 120, staple: 500, eraser: 260, ruler: 48, paper: 100, bomber: 160, slipperP: 40, duck: 12, bookP: 12, chalk: 90, chalkP: 80, mole: 60, mound: 60, };
 const tP = new THREE.Vector3(), tQ = new THREE.Quaternion(), tS = new THREE.Vector3(), tE = new THREE.Euler();
 const wP = new THREE.Vector3(), wQ = new THREE.Quaternion(), wS = new THREE.Vector3(), wE = new THREE.Euler(0, 0, 0, 'YXZ');
@@ -717,6 +722,7 @@ function partMatrix(pt, e) {
   const p = pt[2], s = pt[3], r = pt[4] || [0, 0, 0], k = pt[5] || '';
   let px = p[0], py = p[1], pz = p[2], sx = s[0], sy = s[1], sz = s[2], rx = r[0], ry = r[1], rz = r[2];
   const ph = e.ph || 0, t = realTime + (e.seed || 0) * 7, st = Math.sin(ph), mv = e.moving ?? 1;
+  if (k.startsWith('scholar:')) return poseScholar(k.slice(8), ph, mv, t, realTime - (e.scholarShotAt ?? -99));
   if (k.includes('legL') || k.includes('legR')) { const g = k.includes('legL') ? 1 : -1; pz += st * 0.17 * g * mv; py += Math.max(0, Math.cos(ph) * g) * 0.08 * mv; rx -= st * 0.45 * g * mv; }
   else py += Math.abs(st) * 0.06 * mv;
   if (k.includes('armL') || k.includes('armR')) { const g = k.includes('armL') ? -1 : 1; pz += st * 0.13 * g * mv; py += Math.abs(st) * 0.03 * mv; }
@@ -744,7 +750,7 @@ class Rig {
   constructor(parts, cap, lean) {
     this.n = 0; this.cap = cap; this.lean = !!lean;
     this.parts = parts.map((pt) => {
-      const m = new THREE.InstancedMesh(GEO[pt[0]], toonMat, cap); m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); m.frustumCulled = false; m.count = 0; m.setColorAt(0, WHITE); scene.add(m);
+      const m = new THREE.InstancedMesh(GEO[pt[0]], pt[0].startsWith('scholar_') ? scholarMaterial : toonMat, cap); m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); m.frustumCulled = false; m.count = 0; m.setColorAt(0, WHITE); scene.add(m);
       let ol = null; if (pt[6]) { ol = new THREE.InstancedMesh(OGEO[pt[0]], outlineRigMat, cap); ol.instanceMatrix.setUsage(THREE.DynamicDrawUsage); ol.frustumCulled = false; ol.count = 0; scene.add(ol); }
       const k = pt[5] || '';
       return { pt, m, ol, color: new THREE.Color(pt[1]), glow: k.includes('glow'), tint: k.includes('tint') };
@@ -1380,7 +1386,7 @@ for (const h in RARE_SK) SKINS[h + '_r'] = { h, n: RARE_SK[h][0], r: 1, over: RA
 for (const h in LEG_SK) SKINS[h + '_l'] = { h, n: LEG_SK[h][0], r: 2, over: LEG_SK[h][1], aura: LEG_SK[h][2] };
 const skinOf = (h) => { const k = meta.skinOn[h]; return k && SKINS[k] && meta.skins.includes(k) ? k : ''; };
 function heroSkinParts(hero, skin) {
-  const parts = heroParts({ ...CLASSES[hero].look, ...skin.over });
+  const parts = heroParts({ ...CLASSES[hero].look, ...skin.over }, hero);
   if (skin.aura) parts.push(
     ['tor', skin.aura, [0, 2.02, 0], [0.64, 0.64, 0.42], [HP_, 0, 0], 'glow hover', 0],
     ['tor', skin.aura, [0, 0.05, 0], [1.8, 1.8, 0.2], [HP_, 0, 0], 'glow pulse', 0],
@@ -2029,6 +2035,7 @@ function fire(dt) {
     } else if (id === 'pencil') {
       const used = new Set(), n = s.n + extraRanged;
       for (let k = 0; k < n; k++) { const e = nearest(h.x, h.z, 14, used) || nearest(h.x, h.z, 14); if (!e) { cds[id] = 0.15; break; } used.add(e); shoot('pencilP', h.x, h.y, h.z, Math.atan2(e.x - h.x, e.z - h.z), 18, 1.1, s.dmg, 'ranged', { pierce: s.pierce + rangedPierce + (player.alt.pencil ? 3 : 0) }); }
+      if (used.size && clsId === 'scholar') player.scholarShotAt = realTime;
       if (SPX('pencil', 'back')) { const e0 = nearest(h.x, h.z, 14); if (e0) { const yb = Math.atan2(e0.x - h.x, e0.z - h.z) + PI; for (let k = 0; k < n; k++) shoot('pencilP', h.x, h.y, h.z, yb + (k - (n - 1) / 2) * 0.14, 18, 1.1, s.dmg, 'ranged', { pierce: s.pierce + rangedPierce }); } }
       if (evo) for (let k = 0; k < 10; k++) shoot('pencilP', player.x, 0.85, player.z, k / 10 * TAU + realTime, 16, 0.9, s.dmg * 0.7, 'ranged', { pierce: 1 + rangedPierce });
     } else if (id === 'slipper') {
@@ -2787,8 +2794,9 @@ function skinPortrait(hero, skinId, rigId) {
   const materials = new Map();
   for (const [shape, color, position, scale, rotation, effect, outlined] of parts) {
     const glow = effect.includes('glow');
-    const materialKey = glow ? color + 0x1000000 : color;
-    if (!materials.has(materialKey)) materials.set(materialKey, glow ? new THREE.MeshBasicMaterial({ color }) : toonOf(color));
+    const sculpted = shape.startsWith('scholar_');
+    const materialKey = color + (glow ? 0x1000000 : sculpted ? 0x2000000 : 0);
+    if (!materials.has(materialKey)) materials.set(materialKey, glow ? new THREE.MeshBasicMaterial({ color }) : sculpted ? scholarToon(color) : toonOf(color));
     const part = new THREE.Mesh(GEO[shape], materials.get(materialKey));
     part.position.fromArray(position);
     part.scale.fromArray(scale);
