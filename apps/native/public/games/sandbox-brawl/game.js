@@ -2167,12 +2167,17 @@ function killEnemy(e, tag) {
 }
 // 经验球分三档：小怪掉小的，中等怪掉中的，大怪和精英掉大的
 const gemSize = (v) => (v >= 10 ? 2 : v >= 3 ? 1 : 0);
+const isProjectileEnemy = (type) => type === 'chalk' || type === 'ghost';
+const SPECIAL_ENEMY_LIMITS = { chalk: 3, ghost: 3, mole: 2 };
+const specialEnemyLimitReached = (type) => SPECIAL_ENEMY_LIMITS[type] &&
+  enemies.filter((e) => e.type === type && !e.dead).length >= SPECIAL_ENEMY_LIMITS[type];
 const GIANT_OK = ['sleepy', 'cross', 'ink', 'snail', 'clock'], GIANT_T = 420;
 function spawn(type, x, z, forceGiant = false) {
   const bossUnit = type === 'boss' || type === 'bossMissile';
   if (enemies.length >= (bossUnit ? 472 : 460)) return null;
   if (NET && NET.on && !NET.host && !NET.mirroring) return null;
   const active = state === 'play' || state === 'paused';
+  if (active && !NET?.mirroring && specialEnemyLimitReached(type)) return null;
   const budget = active && !bossUnit && !NET?.mirroring ? enemySpawnBudget() : null;
   const t = ET[type];
   const baseHp = t.hp * (active ? enemyHpScale() : DF().hp * netHp());
@@ -2651,10 +2656,10 @@ function updateTask(dt) {
   else if (task.type === 'traps') {
     for (const p of task.plates) {
       p.flash = Math.max(0, p.flash - dt * 3); p.bad = Math.max(0, p.bad - dt * 2.5);
-      const on = (b) => Math.abs(b.x - p.x) < 0.7 && Math.abs(b.z - p.z) < 0.7, who = bodies.find(on), inside = !!who;
+      const inside = bodies.some((b) => Math.abs(b.x - p.x) < 0.7 && Math.abs(b.z - p.z) < 0.7);
       if (inside && !p.inside && !p.lit) {
         if (task.order[task.step] === p.i) { p.lit = true; p.flash = 1; task.step++; task.prog = task.step; spark(p.x, 0.5, p.z, PLATE_C[p.i], 24, 5, 0.38, 0.55); ringFx(p.x, p.z, 1.4, PLATE_C[p.i], 0.3); dmgNum(p.x, p.z, '对！', 'tag', 1.6); }
-        else { if (who === player) hurtPlayer(8 * DF().dmg); zap([{ x: p.x, y: 3, z: p.z }, { x: who.x, y: 0.6, z: who.z }], 0xfff1a8, 0.2, 0.5); dmgNum(p.x, p.z, '不对，重来', 'tag', 1.6); for (const q of task.plates) { q.lit = false; q.bad = 1; } task.step = 0; task.prog = 0; shake = Math.max(shake, 0.15); }
+        else { dmgNum(p.x, p.z, '不对，重来', 'tag', 1.6); for (const q of task.plates) { q.lit = false; q.bad = 1; } task.step = 0; task.prog = 0; }
       }
       p.inside = inside;
     }
@@ -2706,7 +2711,7 @@ for (const p of PORTALS) {
 }
 let portalAcc = 0, portalI = 0;
 function portalWave() {
-  const p = PORTALS[portalI++ % 4], pool = SPAWN_TABLE.filter((t) => T >= t[1] && !['bomber', 'chalk', 'mole', 'snail'].includes(t[0])), n = Math.min(12, 4 + Math.floor(T / 50));
+  const p = PORTALS[portalI++ % 4], pool = SPAWN_TABLE.filter((t) => T >= t[1] && !isProjectileEnemy(t[0]) && !['bomber', 'mole', 'snail'].includes(t[0])), n = Math.min(12, 4 + Math.floor(T / 50));
   for (let k = 0; k < n; k++) {
     const a = rnd(0, TAU), r = rnd(0.2, 1.9), type = pool[(Math.random() * pool.length) | 0][0];
     queuedEnemySpawns.push(() => spawn(type, p.x + Math.cos(a) * r, p.z + Math.sin(a) * r));
@@ -4743,8 +4748,8 @@ if (skillDemoMode) {
     resetSkillDemo();
   });
 }
-const SPAWN_TABLE = [['sleepy', 0, 5], ['bomber', 30, 0.3], ['chalk', 60, 1.4], ['cross', 120, 4], ['mole', 180, 0.5], ['clock', 240, 2], ['ink', 330, 2], ['ghost', 390, 1.5], ['phone', 450, 1.1], ['snail', 510, 0.9]];
-const LIVE_TYPE_LIMITS = { bomber: 3, chalk: 10, mole: 3 };
+const SPAWN_TABLE = [['sleepy', 0, 5], ['bomber', 30, 0.3], ['chalk', 60, 0.7], ['cross', 120, 4], ['mole', 180, 0.25], ['clock', 240, 2], ['ink', 330, 2], ['ghost', 390, 0.75], ['phone', 450, 1.1], ['snail', 510, 0.9]];
+const LIVE_TYPE_LIMITS = { bomber: 3 };
 function fillEnemyBudget(dt) {
   const budget = enemySpawnBudget(), hpScale = enemyHpScale();
   const seconds = waveElapsed() - budget.minute * 60;
@@ -4755,8 +4760,9 @@ function fillEnemyBudget(dt) {
   const filler = T >= 120 ? 'cross' : 'sleepy';
   const allowed = due - budget.used;
   if (allowed < ET[filler].hp * hpScale) return null;
+  if (specialEnemyLimitReached(budget.pending)) budget.pending = null;
   if (!budget.pending) {
-    const pool = SPAWN_TABLE.filter(([type, at]) => T >= at &&
+    const pool = SPAWN_TABLE.filter(([type, at]) => T >= at && !specialEnemyLimitReached(type) &&
       (!LIVE_TYPE_LIMITS[type] || enemies.filter((e) => e.type === type && !e.dead).length < LIVE_TYPE_LIMITS[type]));
     let roll = Math.random() * pool.reduce((sum, [, , weight]) => sum + weight, 0);
     budget.pending = pool.find(([, , weight]) => (roll -= weight) < 0)?.[0] ?? filler;
@@ -4800,11 +4806,11 @@ function minuteEvent(m) {
       queuedEnemySpawns.push(() => spawn(type, x, z));
     }
   };
-  if (k === 'mon') { const type = E[1]; monsterArrival(type); ringSpawn(type, type === 'bomber' ? 1 : type === 'mole' ? 3 : type === 'snail' || type === 'phone' ? 5 : 10, type === 'bomber' ? 9 : 12); }
+  if (k === 'mon') { const type = E[1]; monsterArrival(type); ringSpawn(type, isProjectileEnemy(type) ? 3 : type === 'bomber' ? 1 : type === 'mole' ? 2 : type === 'snail' || type === 'phone' ? 5 : 10, type === 'bomber' ? 9 : 12); }
   else if (k === 'task') { if (!task) startTask(); else spawnAltar(); }
   else if (k === 'relic') spawnAltar();
   else if (k === 'elite') { banner('期中考', '两只 DDL 沙漏人，打倒有机会掉宝箱', illustration('mons', 'hourglass')); if (!netGuest()) for (let i = 0; i < 2; i++) queuedEnemySpawns.push(() => spawnNear('hourglass', 12, 15)); }
-  else if (k === 'rush') { banner('考前冲刺', '怪物接连赶来'); for (const t of SPAWN_TABLE) if (T >= t[1] && t[0] !== 'bomber') ringSpawn(t[0], 5, rnd(11, 14)); ringSpawn('bomber', 2, 10); }
+  else if (k === 'rush') { banner('考前冲刺', '怪物接连赶来'); for (const t of SPAWN_TABLE) if (T >= t[1] && t[0] !== 'bomber') ringSpawn(t[0], isProjectileEnemy(t[0]) || t[0] === 'mole' ? 2 : 5, rnd(11, 14)); ringSpawn('bomber', 2, 10); }
 }
 function nextEventText() {
   const m = Math.floor(T / EVT) + 1, left = m * EVT - T;
