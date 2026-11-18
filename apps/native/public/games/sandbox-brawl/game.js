@@ -1,3 +1,5 @@
+import { createCampusItems, ITEM } from './campus-items.js';
+import { createCampus, campusElevation, taskSites, portalSites, insideCampusObstacle, resolveCampusObstacles } from './campus.js';
 import { createGameAudio } from './game-audio.js';
 import { BrawlSaveConflict, createBrawlSaveQueue } from './brawl-cloud.js';
 import { DEATH_TAUNTS } from './death-taunts.js';
@@ -32,8 +34,8 @@ if (!skillDemoMode && !staticMatchPreview) {
     audioButton.title = muted ? '开启声音' : '静音';
   };
 }
-const HX = 40, HZ = 34, CORR = 5, WT = 1.2, HALF = 34, RCX = 20.3, RCZ = 19.8, TX = -20.3, TZ = -19.8, PI = Math.PI, HP_ = PI / 2, TAU = PI * 2;
-const AZ = PI / 4; // 斜 45° 俯视
+const HX = 40, HZ = 34, TX = -20.3, TZ = -19.8, PI = Math.PI, HP_ = PI / 2, TAU = PI * 2;
+
 
 /* ================= 数据 ================= */
 const TAGS = {
@@ -328,12 +330,15 @@ $('stage').appendChild(renderer.domElement);
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0xeadcc2);
 scene.fog = new THREE.Fog(0xeadcc2, 50, 110);
-const camera = new THREE.PerspectiveCamera(32, 1, 0.1, 200);
+const titleCamera = new THREE.PerspectiveCamera(32, 1, 0.1, 200);
+const fieldCamera = new THREE.OrthographicCamera(-16, 16, 10, -10, 0.1, 180);
+let camera = titleCamera;
 scene.add(new THREE.HemisphereLight(0xfff6ea, 0xcfc2ea, 1.4));
 const moon = new THREE.DirectionalLight(0xfff0d8, 1.7); moon.position.set(-12, 16, -4); scene.add(moon);
 const torch = new THREE.PointLight(0xffd8a0, 8, 10, 1.6); scene.add(torch);
 const composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, samples: 4 }));
-composer.addPass(new RenderPass(scene, camera));
+const scenePass = new RenderPass(scene, camera);
+composer.addPass(scenePass);
 const bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.3, 0.4, 0.95);
 composer.addPass(bloom);
 const uTime = { value: 0 };
@@ -382,9 +387,9 @@ function inkToon(mat) {
   return mat;
 }
 const toonMat = inkToon(new THREE.MeshToonMaterial({ color: 0xffffff, gradientMap: grad }));
-const outlineMat = new THREE.MeshBasicMaterial({ color: 0x3a2228, side: THREE.BackSide });
-const OUTLINE_W = { value: 0.042 };
-const outlineRigMat = new THREE.MeshBasicMaterial({ color: 0x3a2228, side: THREE.BackSide });
+const outlineMat = new THREE.MeshBasicMaterial({ color: 0x311428, side: THREE.BackSide });
+const OUTLINE_W = { value: 0.052 };
+const outlineRigMat = new THREE.MeshBasicMaterial({ color: 0x311428, side: THREE.BackSide });
 outlineRigMat.onBeforeCompile = (sh) => {
   sh.uniforms.uOutW = OUTLINE_W;
   sh.vertexShader = 'uniform float uOutW;\n' + sh.vertexShader.replace('#include <project_vertex>', `
@@ -588,10 +593,6 @@ const RIGS_DEF = {
   eraser: [['box', 0xff8fb1, [0, 0, 0], [0.3, 0.16, 0.2], 0, 'tint', 1]],
   ruler: [['box', 0xffd84d, [0, 0, 0], [1.6, 0.06, 0.32], 0, '', 1], ['box', 0xfff3b8, [0, 0.035, -0.08], [1.52, 0.01, 0.1], 0, '', 0], ...Array.from({ length: 11 }, (_, k) => ['box', 0x3a2416, [-0.7 + k * 0.14, 0.036, 0.1], [0.018, 0.01, k % 5 === 0 ? 0.12 : 0.07], 0, '', 0]), ['cyl', 0x3a2416, [0.7, 0.036, -0.08], [0.07, 0.01, 0.07], 0, '', 0]],
   paper: [['sph', 0xf7f4ea, [0, 0, 0], [0.42, 0.38, 0.4], 0, '', 1], ['box', 0xe3dcc6, [0.08, 0.08, 0], [0.2, 0.2, 0.2], [0.5, 0.5, 0], '', 0]],
-  chest: [['box', 0x7a3a22, [0, 0.35, 0], [1.0, 0.6, 0.7], 0, '', 1], ['box', 0x5a2a18, [0, 0.72, 0], [1.04, 0.22, 0.74], 0, 'lid', 1], ['box', 0xffd23f, [0, 0.5, 0.36], [0.2, 0.26, 0.06], 0, 'glow', 1], ['box', 0xffd23f, [0, 0.35, 0], [1.06, 0.1, 0.76], 0, 'glow', 0]],
-  gem: [['tet', 0x5fe08a, [0, 0, 0], [0.26, 0.34, 0.26], 0, 'glow', 0]],
-  gem2: [['tet', 0x4aa8ff, [0, 0.05, 0], [0.4, 0.54, 0.4], 0, 'glow', 1], ['sph', 0xffffff, [0.08, 0.16, 0.1], [0.1, 0.1, 0.06], 0, '', 0]],
-  gem3: [['tet', 0xffc93c, [0, 0.12, 0], [0.6, 0.8, 0.6], 0, 'glow', 1], ['tet', 0xfff3b8, [0, 0.12, 0], [0.3, 0.4, 0.3], [0.6, 0.8, 0], 'glow spin', 0], ['tor', 0xff8a2a, [0, 0.1, 0], [0.9, 0.9, 0.5], [HP_, 0, 0], 'glow spin', 0]],
   bomber: [['cone', 0xffe4d8, [0, 0.98, 0], [0.82, 0.6, 0.82], [PI, 0, 0], '', 1], ['cone', 0xffe4d8, [0, 0.44, 0], [0.82, 0.6, 0.82], 0, '', 1], ['cone', 0xff5a2a, [0, 0.92, 0], [0.56, 0.34, 0.56], [PI, 0, 0], 'glow', 0], ['cyl', 0xff5a2a, [0, 0.26, 0], [0.68, 0.18, 0.68], 0, 'glow', 0],
     ['cyl', 0x8a5a3a, [0, 1.32, 0], [0.75, 0.1, 0.75], 0, '', 1], ['cyl', 0x8a5a3a, [0, 0.12, 0], [0.75, 0.1, 0.75], 0, '', 1], ['cyl', 0x2a1a1a, [0.08, 1.52, 0], [0.06, 0.38, 0.06], [0, 0, -0.35], '', 0], ['sph', 0xffd84d, [0.16, 1.72, 0], [0.18, 0.18, 0.18], 0, 'glow pulse', 0],
     ...eyes(1.0, 0.33, 0.14, 0.17, 0.1), ...brows(1.16, 0.36, 0.15, 0.17, -0.6), ['box', 0x2a1a22, [0, 0.8, 0.3], [0.16, 0.035, 0.02], 0, '', 0], ...legs(0x3a2a2a, 0.22, 0.14, 0.14)],
@@ -610,8 +611,6 @@ Object.assign(RIGS_DEF, {
     ...eyes(0.62, 0.42, 0.17, 0.13, 0.09), ['sph', 0xffc93c, [0, 0.82, -0.02], [0.82, 0.5, 0.82], 0, '', 1], ['box', 0xffc93c, [0, 0.78, 0.36], [0.5, 0.06, 0.24], 0, '', 0], ['sph', 0xfff1a8, [0, 0.95, 0.34], [0.16, 0.16, 0.12], 0, 'glow', 0],
     ['cone', 0xf2e6d8, [-0.5, 0.36, 0.2], [0.22, 0.34, 0.14], [1.3, 0, 0.5], 'armL', 1], ['cone', 0xf2e6d8, [0.5, 0.36, 0.2], [0.22, 0.34, 0.14], [1.3, 0, -0.5], 'armR', 1], ['sph', 0x7a6456, [-0.22, 0.06, 0.1], [0.26, 0.13, 0.3], 0, 'legL', 0], ['sph', 0x7a6456, [0.22, 0.06, 0.1], [0.26, 0.13, 0.3], 0, 'legR', 0]],
   mound: [['sph', 0xa87848, [0, 0.02, 0], [1.2, 0.6, 1.2], 0, '', 1], ['sph', 0x8a5a34, [0.3, 0.2, 0.2], [0.3, 0.24, 0.3], 0, '', 0], ['sph', 0x8a5a34, [-0.32, 0.16, -0.1], [0.26, 0.2, 0.26], 0, '', 0], ['sph', 0xc8a070, [-0.05, 0.27, 0.1], [0.3, 0.14, 0.24], 0, '', 0]],
-  vac: [['box', 0x4a6ad8, [0, 0.3, 0], [0.95, 0.12, 0.68], 0, '', 1], ['box', 0xffffff, [0, 0.38, 0], [0.84, 0.07, 0.6], 0, '', 0], ['sph', 0x7fe0ff, [0, 0.95, 0], [0.42, 0.42, 0.42], 0, 'glow pulse', 0], ['tor', 0x7fe0ff, [0, 0.95, 0], [0.8, 0.8, 0.5], [HP_, 0, 0], 'glow', 0]],
-  altar: [['cyl', 0xe8dcc4, [0, 0.2, 0], [1.5, 0.4, 1.5], 0, '', 1], ['cyl', 0xfff3d0, [0, 0.55, 0], [1.1, 0.3, 1.1], 0, '', 1], ['tet', 0xffc93c, [0, 1.5, 0], [0.7, 0.9, 0.7], 0, 'glow hover', 1], ['tor', 0xffe07a, [0, 0.78, 0], [1.0, 1.0, 0.4], [HP_, 0, 0], 'glow', 0]],
 });
 // 自爆闹钟：大号红色闹钟，头顶一颗会闪的灯，凶眉毛
 RIGS_DEF.bomber = RIGS_DEF.clock.map((p) => { const q = p.slice(); if (q[1] === 0xffc83d) q[1] = 0xe2453a; return q; }).concat([
@@ -619,7 +618,6 @@ RIGS_DEF.bomber = RIGS_DEF.clock.map((p) => { const q = p.slice(); if (q[1] === 
   ...brows(0.88, 0.21, 0.15, 0.17, 0.55), ['cyl', 0x2a1a22, [0, 0.62, -0.02], [0.96, 0.1, 0.96], [HP_, 0, 0], '', 0],
   ['box', 0xffe14d, [0, 0.34, 0.2], [0.3, 0.1, 0.02], 0, 'glow', 0], ['cap', 0x8a2a2a, [-0.26, 0.14, 0], [0.16, 0.2, 0.16], 0, 'legL', 1], ['cap', 0x8a2a2a, [0.26, 0.14, 0], [0.16, 0.2, 0.16], 0, 'legR', 1],
 ]);
-RIGS_DEF.cup = [['cyl', 0xffffff, [0, 0, 0], [0.4, 0.44, 0.4], 0, '', 1], ['cyl', 0x6a3f1e, [0, 0.21, 0], [0.34, 0.04, 0.34], 0, '', 0], ['tor', 0xffffff, [0.24, 0, 0], [0.2, 0.2, 0.3], 0, '', 0]];
 RIGS_DEF.bossMissile = [
   ['cyl', 0xb52d48, [0, 0, 0], [0.32, 0.92, 0.32], [HP_, 0, 0], '', 1],
   ['cone', 0xff634e, [0, 0, 0.62], [0.32, 0.4, 0.32], [HP_, 0, 0], 'glow', 1],
@@ -707,7 +705,7 @@ RIGS_DEF.kraken = (() => {
 })();
 RIGS_DEF.sockP = [['cap', 0xf2f2e6, [0, 0.16, 0], [0.2, 0.42, 0.2], 0, '', 1], ['sph', 0x9ac84a, [0, -0.08, 0.14], [0.22, 0.18, 0.4], 0, '', 1], ['box', 0xe2453a, [0, 0.32, 0], [0.21, 0.06, 0.21], 0, '', 0], ['sph', 0x9ac84a, [0, 0.7, 0], [0.1, 0.16, 0.1], 0, 'hover glow', 0]];
 for (const id in CLASSES) RIGS_DEF['hero_' + id] = heroParts(CLASSES[id].look);
-const RIG_CAP = { cup: 8, sockP: 6, gem2: 420, gem3: 160, sleepy: 260, cross: 300, bat: 220, clock: 120, ink: 260, ghost: 100, phone: 90, snail: 60, hourglass: 6, boss: 1, bossMissile: 12, minion: 24, lamp: 6, pencilP: 400, planeP: 120, staple: 500, eraser: 260, ruler: 48, paper: 100, chest: 12, gem: 600, bomber: 160, slipperP: 40, duck: 12, bookP: 12, chalk: 90, chalkP: 80, mole: 60, mound: 60, vac: 6, altar: 4 };
+const RIG_CAP = { sockP: 6, sleepy: 260, cross: 300, bat: 220, clock: 120, ink: 260, ghost: 100, phone: 90, snail: 60, hourglass: 6, boss: 1, bossMissile: 12, minion: 24, lamp: 6, pencilP: 400, planeP: 120, staple: 500, eraser: 260, ruler: 48, paper: 100, bomber: 160, slipperP: 40, duck: 12, bookP: 12, chalk: 90, chalkP: 80, mole: 60, mound: 60, };
 const tP = new THREE.Vector3(), tQ = new THREE.Quaternion(), tS = new THREE.Vector3(), tE = new THREE.Euler();
 const wP = new THREE.Vector3(), wQ = new THREE.Quaternion(), wS = new THREE.Vector3(), wE = new THREE.Euler(0, 0, 0, 'YXZ');
 const PM = new THREE.Matrix4(), WM = new THREE.Matrix4(), CM = new THREE.Matrix4(), OM = new THREE.Matrix4();
@@ -790,191 +788,40 @@ function blot(x, z, r, color, n = 1, spread = 0) { const [cx, cz] = mk(x, z); mc
 function ringMark(x, z, r, color, w = 4) { const [cx, cz] = mk(x, z); mctx.strokeStyle = color; mctx.lineWidth = w; mctx.beginPath(); mctx.arc(cx, cz, r * MS, 0, TAU); mctx.stroke(); marksDirty = true; }
 function footprint(x, z, yaw, side) { const ox = Math.cos(yaw) * 0.16 * side, oz = -Math.sin(yaw) * 0.16 * side; const [cx, cz] = mk(x + ox, z + oz); mctx.save(); mctx.translate(cx, cz); mctx.rotate(-yaw); mctx.fillStyle = 'rgba(70,44,24,.14)'; mctx.beginPath(); mctx.ellipse(0, 0, 2.6, 4.2, 0, 0, TAU); mctx.fill(); mctx.restore(); marksDirty = true; }
 const RIPS = Array.from({ length: 8 }, () => new THREE.Vector4(0, 0, -100, 0));
-const BRAZ = [[-38.6, -32.6], [38.6, -32.6], [-38.6, 32.6], [38.6, 32.6], [-2.4, -32.6], [2.4, -32.6], [-2.4, 32.6], [2.4, 32.6]];
-const SNOISE = `
-vec3 mod289(vec3 x){return x-floor(x*(1.0/289.0))*289.0;} vec4 mod289(vec4 x){return x-floor(x*(1.0/289.0))*289.0;}
-vec4 permute(vec4 x){return mod289(((x*34.0)+1.0)*x);} vec4 taylorInvSqrt(vec4 r){return 1.79284291400159-0.85373472095314*r;}
-float snoise(vec3 v){ const vec2 C=vec2(1.0/6.0,1.0/3.0); const vec4 D=vec4(0.0,0.5,1.0,2.0);
- vec3 i=floor(v+dot(v,C.yyy)); vec3 x0=v-i+dot(i,C.xxx); vec3 g=step(x0.yzx,x0.xyz); vec3 l=1.0-g; vec3 i1=min(g.xyz,l.zxy); vec3 i2=max(g.xyz,l.zxy);
- vec3 x1=x0-i1+C.xxx; vec3 x2=x0-i2+C.yyy; vec3 x3=x0-D.yyy; i=mod289(i);
- vec4 p=permute(permute(permute(i.z+vec4(0.0,i1.z,i2.z,1.0))+i.y+vec4(0.0,i1.y,i2.y,1.0))+i.x+vec4(0.0,i1.x,i2.x,1.0));
- float n_=0.142857142857; vec3 ns=n_*D.wyz-D.xzx; vec4 j=p-49.0*floor(p*ns.z*ns.z); vec4 x_=floor(j*ns.z); vec4 y_=floor(j-7.0*x_);
- vec4 x=x_*ns.x+ns.yyyy; vec4 y=y_*ns.x+ns.yyyy; vec4 h=1.0-abs(x)-abs(y); vec4 b0=vec4(x.xy,y.xy); vec4 b1=vec4(x.zw,y.zw);
- vec4 s0=floor(b0)*2.0+1.0; vec4 s1=floor(b1)*2.0+1.0; vec4 sh=-step(h,vec4(0.0)); vec4 a0=b0.xzyw+s0.xzyw*sh.xxyy; vec4 a1=b1.xzyw+s1.xzyw*sh.zzww;
- vec3 p0=vec3(a0.xy,h.x); vec3 p1=vec3(a0.zw,h.y); vec3 p2=vec3(a1.xy,h.z); vec3 p3=vec3(a1.zw,h.w);
- vec4 norm=taylorInvSqrt(vec4(dot(p0,p0),dot(p1,p1),dot(p2,p2),dot(p3,p3))); p0*=norm.x;p1*=norm.y;p2*=norm.z;p3*=norm.w;
- vec4 m=max(0.6-vec4(dot(x0,x0),dot(x1,x1),dot(x2,x2),dot(x3,x3)),0.0); m=m*m; return 42.0*dot(m*m,vec4(dot(p0,x0),dot(p1,x1),dot(p2,x2),dot(p3,x3))); }`;
-const sandMat = new THREE.ShaderMaterial({
-  uniforms: { uMarks: { value: markTex }, uTime, uRip: { value: RIPS }, uPlayer: { value: new THREE.Vector3() }, uBraz: { value: BRAZ.map(([x, z]) => new THREE.Vector2(x, z)) }, uTorch: { value: 1 } },
-  vertexShader: `varying vec3 vW; varying vec2 vUv; void main(){ vUv=uv; vec4 w=modelMatrix*vec4(position,1.); vW=w.xyz; gl_Position=projectionMatrix*viewMatrix*w; }`,
-  fragmentShader: SNOISE + `
-  uniform sampler2D uMarks; uniform float uTime; uniform vec4 uRip[8]; uniform vec3 uPlayer; uniform vec2 uBraz[8]; uniform float uTorch; varying vec3 vW; varying vec2 vUv;
-  void main(){
-    vec2 p=vW.xz;
-    // 木地板：0.9 宽的长条，错缝，木纹 + 小节疤
-    float bw=0.9; float row=floor(p.y/bw); float off=fract(sin(row*91.7)*437.5)*4.0;
-    float bx=(p.x+off)/4.0; float bid=floor(bx); float fx=fract(bx), fz=fract(p.y/bw);
-    float tr=fract(sin(dot(vec2(bid,row),vec2(12.9898,78.233)))*43758.5453);
-    float seam=min(min(fz,1.0-fz)*bw,min(fx,1.0-fx)*4.0);
-    float grain=snoise(vec3(p.x*0.5,p.y*7.0+tr*20.0,tr*5.0))*0.5+0.5;
-    float knots=smoothstep(0.78,0.95,snoise(vec3(p*0.8,tr*3.0))*0.5+0.5);
-    vec3 base=mix(vec3(0.83,0.62,0.4),vec3(0.9,0.7,0.47),tr);
-    base*=0.95+0.06*grain; base*=1.0-knots*0.07;
-    base*=1.0-smoothstep(0.035,0.0,seam)*0.22;
-    // 中间一块圆地毯
-    vec2 rp=vec2(abs(p.x)-20.3,abs(p.y)-19.8); vec2 lc=vec2(p.x-sign(p.x)*20.3,p.y-sign(p.y)*19.8);
-    float rid=step(0.0,p.x)+2.0*step(0.0,p.y);   // 0 教室 1 实验室 2 美术室 3 体育馆
-    float rr=length(rp); float th=atan(rp.y,rp.x);
-    if(rid<0.5){
-      // 教室：木地板 + 花朵圆地毯
-      float sc=6.7+0.2*cos(th*26.0); float rug=smoothstep(sc+0.04,sc-0.04,rr);
-      vec3 rugc=vec3(0.99,0.95,0.86);
-      rugc=mix(rugc,vec3(1.0,0.56,0.5),smoothstep(0.62,0.56,sc-rr));
-      float band=smoothstep(4.95,5.0,rr)*smoothstep(5.45,5.4,rr); rugc=mix(rugc,vec3(0.5,0.8,0.76),band*step(0.3,fract(th/6.28318*20.0)));
-      float pet=smoothstep(0.05,-0.05,rr-(2.3+0.75*cos(th*8.0))); rugc=mix(rugc,vec3(1.0,0.83,0.42),pet);
-      rugc=mix(rugc,vec3(1.0,0.6,0.52),smoothstep(1.05,0.98,rr)); rugc=mix(rugc,vec3(1.0),smoothstep(0.42,0.38,rr));
-      rugc=mix(rugc,vec3(0.23,0.13,0.16),smoothstep(0.07,0.02,abs(sc-rr))*0.8);
-      base=mix(base,rugc*(0.8+0.04*grain),rug);
-    } else if(rid<1.5){
-      // 实验室：薄荷色方砖 + 警示边 + 原子图案
-      vec2 t=p/1.7; vec2 f=fract(t); vec2 id=floor(t); float ck=mod(id.x+id.y,2.0);
-      float sp=fract(sin(dot(id,vec2(12.9898,78.233)))*43758.5453);
-      vec3 c0=mix(vec3(0.90,0.95,0.94),vec3(0.68,0.85,0.85),ck); c0*=0.97+0.05*sp;
-      float g=min(min(f.x,1.0-f.x),min(f.y,1.0-f.y))*1.7; c0=mix(c0,vec3(0.50,0.64,0.66),smoothstep(0.05,0.0,g));
-      float edge=max(abs(lc.x)-17.6,abs(lc.y)-11.6); float hz=smoothstep(0.0,0.05,edge)*smoothstep(0.75,0.7,edge);
-      c0=mix(c0,mix(vec3(0.98,0.80,0.2),vec3(0.2,0.2,0.24),step(0.5,fract((lc.x+lc.y)*0.55))),hz);
-      float disc=smoothstep(6.74,6.66,rr); vec3 em=vec3(0.13,0.36,0.46);
-      em=mix(em,vec3(0.20,0.52,0.60),smoothstep(6.0,5.9,rr));
-      float orb=0.0; for(int i=0;i<3;i++){ float a=float(i)*1.0472; vec2 q=vec2(lc.x*cos(a)+lc.y*sin(a),-lc.x*sin(a)+lc.y*cos(a)); float e=length(q/vec2(5.2,1.9)); orb=max(orb,smoothstep(0.075,0.04,abs(e-1.0))); }
-      em=mix(em,vec3(0.66,0.98,0.90),orb);
-      em=mix(em,vec3(1.0,0.82,0.3),smoothstep(1.0,0.93,rr)); em=mix(em,vec3(1.0,0.96,0.8),smoothstep(0.45,0.4,length(lc-vec2(-0.2,-0.2))));
-      em=mix(em,vec3(0.07,0.16,0.22),smoothstep(0.09,0.03,abs(rr-6.35))*0.9);
-      base=mix(c0,em,disc);
-    } else if(rid<2.5){
-      // 美术室：浅色宽木板 + 颜料泼溅 + 色轮地毯
-      float bw2=1.3; float row2=floor(p.y/bw2); float o2=fract(sin(row2*37.3)*91.7)*5.0; float bx2=(p.x+o2)/5.0;
-      float t2=fract(sin(dot(vec2(floor(bx2),row2),vec2(41.3,17.7)))*4375.5);
-      float sm=min(min(fract(p.y/bw2),1.0-fract(p.y/bw2))*bw2,min(fract(bx2),1.0-fract(bx2))*5.0);
-      vec3 c0=mix(vec3(0.80,0.74,0.64),vec3(0.86,0.80,0.70),t2); c0*=0.97+0.04*grain; c0*=1.0-smoothstep(0.035,0.0,sm)*0.14;
-      float n1=snoise(vec3(p*0.16,1.0)), n2=snoise(vec3(p*0.16+7.3,4.0)), n3=snoise(vec3(p*0.2-3.1,9.0)), n4=snoise(vec3(p*0.9,2.0))*0.08;
-      c0=mix(c0,vec3(0.95,0.36,0.42),smoothstep(0.52,0.56,n1+n4)*0.92);
-      c0=mix(c0,vec3(0.22,0.55,0.92),smoothstep(0.55,0.59,n2+n4)*0.92);
-      c0=mix(c0,vec3(0.96,0.72,0.16),smoothstep(0.58,0.62,n3+n4)*0.92);
-      c0=mix(c0,vec3(0.32,0.72,0.42),smoothstep(0.58,0.62,-n1-n4)*0.92);
-      c0=mix(c0,vec3(0.58,0.40,0.88),smoothstep(0.60,0.64,-n2+n4)*0.92);
-      float disc=smoothstep(6.74,6.66,rr); float an=(atan(lc.y,lc.x)+3.14159)/6.28318*12.0; float seg=floor(an);
-      vec3 hue=0.52+0.36*cos(6.28318*(seg/12.0+vec3(0.0,0.33,0.67)));
-      vec3 em=vec3(0.9,0.87,0.8);
-      float gap=smoothstep(0.05,0.11,min(fract(an),1.0-fract(an))*rr*0.5236);
-      float wheel=smoothstep(2.3,2.4,rr)*smoothstep(5.9,5.8,rr)*gap;
-      em=mix(em,hue,wheel); em=mix(em,mix(hue,vec3(1.0),0.5),wheel*smoothstep(4.2,4.1,rr));
-      em=mix(em,vec3(1.0,0.78,0.3),smoothstep(1.3,1.22,rr)); em=mix(em,vec3(1.0),smoothstep(0.5,0.44,rr));
-      em=mix(em,vec3(0.25,0.16,0.2),smoothstep(0.08,0.03,abs(rr-6.35))*0.85);
-      base=mix(c0,em*(0.86+0.04*grain),disc);
-    } else {
-      // 体育馆：细条枫木 + 球场线
-      float bw3=0.5; float row3=floor(p.x/bw3); float t3=fract(sin(row3*53.1)*917.3);
-      vec3 c0=mix(vec3(0.93,0.70,0.36),vec3(0.99,0.79,0.45),t3); c0*=0.96+0.05*grain;
-      c0*=1.0-smoothstep(0.03,0.0,min(fract(p.x/bw3),1.0-fract(p.x/bw3))*bw3)*0.12;
-      vec2 a=abs(lc); float lw=0.12;
-      float key=step(a.y,3.0)*step(11.0,a.x)*step(a.x,17.0); c0=mix(c0,vec3(0.25,0.62,0.86),key*0.9);
-      c0=mix(c0,vec3(0.95,0.36,0.3),smoothstep(3.3,3.22,rr)*0.92);
-      c0=mix(c0,vec3(1.0,0.86,0.4),smoothstep(1.2,1.12,rr));
-      float L=smoothstep(lw,lw*0.5,abs(max(a.x-17.0,a.y-11.6)));
-      L=max(L,smoothstep(lw,lw*0.5,abs(lc.x))*step(a.y,11.6));
-      L=max(L,smoothstep(lw,lw*0.5,abs(rr-3.3)));
-      L=max(L,smoothstep(lw,lw*0.5,abs(max(a.y-3.0,11.0-a.x)))*step(a.x,17.0)*step(a.y,3.2)*step(10.8,a.x));
-      float d3=length(vec2(a.x-17.0,a.y)); L=max(L,smoothstep(lw,lw*0.5,abs(d3-9.2))*step(a.x,17.0)*step(a.y,11.6));
-      float d4=length(vec2(a.x-11.0,a.y)); L=max(L,smoothstep(lw,lw*0.5,abs(d4-3.0))*step(a.x,11.0));
-      base=mix(c0,vec3(1.0),L*0.95);
-    }
-    // 走廊：浅色方砖
-    float cor=step(abs(p.y),5.0); vec2 tl=floor(p/2.5); vec2 tf=fract(p/2.5); float ck=mod(tl.x+tl.y,2.0);
-    vec3 tile=mix(vec3(0.9,0.92,0.86),vec3(0.72,0.84,0.8),ck); tile*=1.0-smoothstep(0.03,0.0,min(min(tf.x,1.0-tf.x),min(tf.y,1.0-tf.y)))*0.2; tile*=0.96+0.05*grain;
-    float stripe=smoothstep(0.5,0.42,abs(abs(p.y)-4.2)); tile=mix(tile,vec3(0.98,0.74,0.36),stripe*0.85);
-    base=mix(base,tile,cor);
-    vec4 mkc=texture2D(uMarks,vec2((p.x+48.0)/96.0,1.0-(p.y+48.0)/96.0)); base=mix(base,mkc.rgb,mkc.a);
-    vec3 light=vec3(1.0,0.96,0.9)*0.72;
-    if(cor<0.5) light*=rid<0.5?vec3(1.03,1.0,0.95):rid<1.5?vec3(0.95,1.0,1.05):rid<2.5?vec3(1.03,0.99,1.01):vec3(1.01,1.01,0.95);
-    // 西墙窗户投下来的斜阳光斑
-    float dx=p.x+43.0; float pz=p.y+dx*0.35; float lw=mod(pz+22.0+7.0,14.0)-7.0;
-    float pane=step(abs(lw),3.6)*step(0.18,abs(lw))*step(0.18,abs(fract(dx*0.12)-0.5)*8.0);
-    light+=vec3(1.0,0.86,0.6)*0.42*pane*exp(-dx/26.0);
-    float dp=length(p-uPlayer.xz); light+=vec3(1.0,0.85,0.6)*0.12*exp(-dp*dp/30.0)*uTorch;
-    float rip=0.0; for(int i=0;i<8;i++){ vec4 r=uRip[i]; float age=uTime-r.z; if(age<0.0||age>1.0) continue; float L=length(p-r.xy); rip+=exp(-((L-age*9.0)*1.3)*((L-age*9.0)*1.3))*(1.0-age)*r.w; }
-    light+=vec3(1.0,0.85,0.5)*min(rip,1.0)*0.4;
-    vec3 col=base*light*1.25;
-    gl_FragColor=vec4(pow(max(col,vec3(0.0)),vec3(2.2)),1.0);
-  }`,
-});
-const sand = new THREE.Mesh(new THREE.PlaneGeometry(2 * HX + 6, 2 * HZ + 6.8), sandMat); sand.rotation.x = -HP_; scene.add(sand);
-const ground = new THREE.Mesh(new THREE.PlaneGeometry(400, 400), toonOf(0xd9c8a8)); ground.rotation.x = -HP_; ground.position.y = -0.05; scene.add(ground);
+const artLoader = new THREE.TextureLoader(new THREE.LoadingManager());
+const campus = createCampus(artLoader, markTex, uTime, RIPS);
+scene.add(campus.group);
+const itemArt = createCampusItems(scene, artLoader);
+const GEM_CELLS = [ITEM.green, ITEM.blue, ITEM.gold];
+const WALLS = campus.walls;
+const inWall = (x, z, clearance = 0) => insideCampusObstacle(WALLS, x, z, clearance);
+const pushOutWalls = (body, radius) => resolveCampusObstacles(WALLS, body, radius);
+
 function solid(geo, color, pos, scale, rot = [0, 0, 0], outline = true) {
   const g = new THREE.Group(); g.add(new THREE.Mesh(geo, toonOf(color)));
   if (outline) g.add(new THREE.Mesh(smoothOf(geo), outlineRigMat));
   g.position.set(...pos); g.scale.set(...scale); g.rotation.set(rot[0], rot[1], rot[2], 'YXZ'); scene.add(g); return g;
 }
-const WOOD = 0xa8743f;
-const PROPS = []; const prop = (x, z, r) => PROPS.push({ x, z, r });
-// 四个教室 + 中间一条走廊。墙做矮，不挡视线；门洞可以走
-const WALLS = [];
-// 四个教室：1 教室（左上）、2 实验室（右上）、3 美术室（左下）、4 体育馆（右下），0 是走廊
-const roomIx = (x, z) => (Math.abs(z) < CORR + WT + 0.05 || Math.abs(x) < 1 ? 0 : (z < 0 ? 1 : 3) + (x < 0 ? 0 : 1));
-const ROOM_THEME = [
-  { name: '走廊', wall: 0xf3e7cc, trim: 0x9a6a3e },
-  { name: '教室', wall: 0xf6e6c4, trim: 0x9a6a3e, sign: '#ff8a7a' },
-  { name: '实验室', wall: 0xe2f1ee, trim: 0x2f8f94, sign: '#2fa3a8' },
-  { name: '美术室', wall: 0xfde8e2, trim: 0xe8785a, sign: '#a46bff' },
-  { name: '体育馆', wall: 0xeef0d8, trim: 0x3f8f5a, sign: '#3fae5a' },
-];
-const glowSolid = (geo, color, pos, scale, rot = [0, 0, 0]) => { const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: new THREE.Color(color).multiplyScalar(0.92), toneMapped: false })); m.position.set(...pos); m.scale.set(...scale); m.rotation.set(rot[0], rot[1], rot[2], 'YXZ'); scene.add(m); m.add(new THREE.Mesh(smoothOf(geo), outlineRigMat)); return m; };
-function wall(x0, x1, z0, z1) { WALLS.push({ x0, x1, z0, z1 }); const w = x1 - x0, d = z1 - z0, cx = (x0 + x1) / 2, cz = (z0 + z1) / 2, th = ROOM_THEME[roomIx(cx, cz)];
-  solid(GEO.box, th.wall, [cx, 0.7, cz], [w, 1.4, d]); solid(GEO.box, th.trim, [cx, 1.47, cz], [w + 0.18, 0.14, d + 0.18], [0, 0, 0], false); }
-const DOORS_X = [-30, -12, 12, 30], DOOR_W = 6;
-for (const sg of [-1, 1]) {
-  const z0 = sg > 0 ? CORR : -CORR - WT, z1 = z0 + WT; let x = -HX - 2.6;
-  for (const dx of DOORS_X) { wall(x, dx - DOOR_W / 2, z0, z1); x = dx + DOOR_W / 2; } wall(x, HX + 2.6, z0, z1);
-  for (const [p, q] of [[CORR + WT, 17], [23, HZ + 2.6]]) wall(-WT / 2, WT / 2, sg > 0 ? p : -q, sg > 0 ? q : -p);
-  for (const dx of DOORS_X) for (const e of [-1, 1]) solid(GEO.box, 0x9a6a3e, [dx + e * (DOOR_W / 2 + 0.05), 1.15, sg * (CORR + WT / 2)], [0.55, 2.3, WT + 0.3]);
-  for (const zz of [17, 23]) solid(GEO.box, 0x9a6a3e, [0, 1.15, sg * zz], [WT + 0.3, 2.3, 0.55]);
-}
-const inWall = (x, z, m = 0) => WALLS.some((w) => x > w.x0 - m && x < w.x1 + m && z > w.z0 - m && z < w.z1 + m);
-function pushOutWalls(o, r) {
-  for (const w of WALLS) {
-    const nx = clamp(o.x, w.x0, w.x1), nz = clamp(o.z, w.z0, w.z1), dx = o.x - nx, dz = o.z - nz, d2 = dx * dx + dz * dz; if (d2 >= r * r) continue;
-    if (d2 > 1e-6) { const d = Math.sqrt(d2); o.x = nx + dx / d * r; o.z = nz + dz / d * r; }
-    else { const l = o.x - w.x0, rr = w.x1 - o.x, t = o.z - w.z0, b = w.z1 - o.z, m = Math.min(l, rr, t, b); if (m === l) o.x = w.x0 - r; else if (m === rr) o.x = w.x1 + r; else if (m === t) o.z = w.z0 - r; else o.z = w.z1 + r; }
-  }
-}
 // 寻路：按追击目标缓存距离图，隔墙时顺着格子走门
 const FW = 2 * HX, FH = 2 * HZ, fBlock = new Uint8Array(FW * FH), fQ = new Int32Array(FW * FH), FD = [0, 0];
 const flowFields = new WeakMap();
-{ const pil = (x, z, w = 1.3) => { wall(x - w / 2, x + w / 2, z - w / 2, z + w / 2); const r = roomIx(x, z);
-    if (r === 1) { solid(GEO.bowl, 0xd0683e, [x, 1.75, z], [0.7, 0.9, 0.7]); for (let k = 0; k < 3; k++) solid(GEO.sph, k % 2 ? 0x5fb04f : 0x4a9a44, [x + rnd(-0.2, 0.2), 2.3 + k * 0.22, z + rnd(-0.2, 0.2)], [0.8, 0.7, 0.8]); }
-    else if (r === 2) { glowSolid(GEO.cyl, [0x5fe0b0, 0x7fd0ff, 0xff9ad0][Math.abs((x + z) | 0) % 3], [x, 2.1, z], [0.8, 1.1, 0.8]); solid(GEO.cyl, 0x2f4a55, [x, 2.7, z], [0.86, 0.12, 0.86], [0, 0, 0], false); }
-    else if (r === 3) { solid(GEO.cyl, 0xffffff, [x, 1.8, z], [0.5, 0.5, 0.5]); solid(GEO.sph, 0xffffff, [x, 2.45, z], [0.95, 1.0, 0.95]); solid(GEO.sph, 0xf2f0ea, [x, 2.95, z - 0.05], [0.8, 0.5, 0.8], [0, 0, 0], false); solid(GEO.cone, 0xffffff, [x, 2.4, z + 0.5], [0.16, 0.26, 0.16], [HP_, 0, 0], false); }
-    else if (r === 4) { solid(GEO.sph, [0xf08a3a, 0x4aa8ff, 0xffffff][Math.abs((x * 3 + z) | 0) % 3], [x, 2.0, z], [1.1, 1.1, 1.1]); }
-  };
-  // 一班（左上，也是首页合影的教室）：靠黑板一侧两根柱子
-  pil(-RCX - 7.5, -RCZ - 4); pil(-RCX + 7.5, -RCZ - 4); pil(-RCX - 4, -RCZ + 9.5); pil(-RCX + 4, -RCZ + 9.5);
-  // 二班（右上）：两道错开的竖隔断
-  wall(RCX - 7.9, RCX - 7.2, -RCZ - 6, -RCZ + 1.5); wall(RCX + 7.2, RCX + 7.9, -RCZ - 1.5, -RCZ + 6); pil(RCX, -RCZ + 9.5);
-  // 三班（左下）：两道错开的横隔断
-  wall(-RCX - 7, -RCX + 1, RCZ - 5.2, RCZ - 4.5); wall(-RCX - 1, -RCX + 7, RCZ + 4.5, RCZ + 5.2); pil(-RCX - 7.5, RCZ + 8); pil(-RCX + 7.5, RCZ - 8.5);
-  // 四班（右下）：四根柱子围一圈，中间再围半圈矮墙
-  for (const [a, b] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) pil(RCX + a * 5.5, RCZ + b * 5.5);
-  wall(RCX - 2.6, RCX + 2.6, RCZ - 8.6, RCZ - 8); wall(RCX - 2.6, RCX + 2.6, RCZ + 8, RCZ + 8.6);
-  // 走廊：长椅左右交错，不能直线冲到底
-  wall(-22, -18.5, 1.9, 3.1); wall(-6.5, -3, -3.1, -1.9); wall(3, 6.5, 1.9, 3.1); wall(18.5, 22, -3.1, -1.9); wall(-37, -34.5, -1, 1); wall(34.5, 37, -1, 1); }
 for (let j = 0; j < FH; j++) for (let i = 0; i < FW; i++) if (inWall(i - HX + 0.5, j - HZ + 0.5, 0.4)) fBlock[j * FW + i] = 1;
-const lineBlocked = (x0, z0, x1, z1) => { for (let k = 1; k < 6; k++) if (inWall(x0 + (x1 - x0) * k / 6, z0 + (z1 - z0) * k / 6, 0.25)) return true; return false; };
+function lineBlocked(x0, z0, x1, z1) {
+  const steps = Math.ceil(Math.max(Math.abs(x1 - x0), Math.abs(z1 - z0)) * 2);
+  for (let k = 1; k < steps; k++) {
+    const i = Math.floor(x0 + ((x1 - x0) * k) / steps + HX);
+    const j = Math.floor(z0 + ((z1 - z0) * k) / steps + HZ);
+    if (i >= 0 && i < FW && j >= 0 && j < FH && fBlock[j * FW + i]) return true;
+  }
+  return false;
+}
 function buildFlow(fDist, ci, cj) {
   fDist.fill(-1); let h = 0, t = 0; fQ[t++] = cj * FW + ci; fDist[cj * FW + ci] = 0;
   while (h < t) { const c = fQ[h++], i = c % FW, j = (c / FW) | 0, d = fDist[c] + 1;
     if (i > 0 && fDist[c - 1] < 0 && !fBlock[c - 1]) { fDist[c - 1] = d; fQ[t++] = c - 1; } if (i < FW - 1 && fDist[c + 1] < 0 && !fBlock[c + 1]) { fDist[c + 1] = d; fQ[t++] = c + 1; }
     if (j > 0 && fDist[c - FW] < 0 && !fBlock[c - FW]) { fDist[c - FW] = d; fQ[t++] = c - FW; } if (j < FH - 1 && fDist[c + FW] < 0 && !fBlock[c + FW]) { fDist[c + FW] = d; fQ[t++] = c + FW; } }
 }
-const regionOf = (x, z) => (Math.abs(z) < CORR + WT ? 0 : (z < 0 ? 1 : 3) + (x < 0 ? 0 : 1));
+const regionOf = (x, z) => (z > -5.2 && z < 5.6 ? 0 : (z < 0 ? 1 : 3) + (x < 0 ? 0 : 1));
 function flowDir(e, target) {
   const ci = clamp(Math.floor(target.x + HX), 0, FW - 1), cj = clamp(Math.floor(target.z + HZ), 0, FH - 1);
   let field = flowFields.get(target);
@@ -993,140 +840,25 @@ function flowDir(e, target) {
   if (!bi && !bj) return false;
   const dx = i + bi - HX + 0.5 - e.x, dz = j + bj - HZ + 0.5 - e.z, L = Math.hypot(dx, dz) || 1; FD[0] = dx / L; FD[1] = dz / L; return true;
 }
-for (let i = 0; i < 26; i++) { const x = rnd(-HX + 2, HX - 2), z = rnd(-HZ + 2, HZ - 2); if (!inWall(x, z, 0.8)) solid(GEO.sph, 0xe8e2d4, [x, 0.06, z], [rnd(0.4, 0.9), 0.35, rnd(0.4, 0.8)], [0, rnd(0, 3), 0], false); }
-// 火盆
-const orbMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(0xfff6c8).multiplyScalar(1.4), toneMapped: false });
-for (const [x, z] of BRAZ) { solid(GEO.bowl, 0xd0683e, [x, 0.5, z], [1.1, 1.6, 1.1]); for (let k = 0; k < 4; k++) solid(GEO.sph, k % 2 ? 0x5fb04f : 0x4a9a44, [x + rnd(-0.4, 0.4), 1.5 + k * 0.25, z + rnd(-0.4, 0.4)], [1.1, 0.9, 1.1]); prop(x, z, 1.0); }
-// 北墙：黑板（粉笔字用 canvas 画）、时钟、海报；西墙：一排窗户
-const bbCv = document.createElement('canvas'); bbCv.width = 1024; bbCv.height = 192;
-{ const c = bbCv.getContext('2d'); c.fillStyle = '#2f5a46'; c.fillRect(0, 0, 1024, 192); for (let i = 0; i < 400; i++) { c.fillStyle = `rgba(255,255,255,${Math.random() * 0.05})`; c.fillRect(Math.random() * 1024, Math.random() * 192, rnd(4, 40), rnd(1, 6)); }
-  c.fillStyle = 'rgba(250,248,235,.92)'; c.font = '700 54px "Ma Shan Zheng", "Noto Sans SC", sans-serif'; c.fillText('期末加油！', 40, 82); c.font = '600 34px "Noto Sans SC", sans-serif'; c.fillText('距离期末还有 3 天', 44, 150);
-  c.font = 'italic 40px serif'; c.fillText("f(x) = x² · sin x", 420, 70); c.fillText('lim sin(3x)/x = 3', 420, 140); c.fillStyle = 'rgba(255,214,120,.9)'; c.fillText('s[1:4] → "ynt"', 760, 70);
-  c.strokeStyle = 'rgba(255,170,190,.9)'; c.lineWidth = 5; c.beginPath(); c.arc(900, 132, 34, 0, TAU); c.stroke(); c.beginPath(); c.arc(900, 140, 18, 0.2, PI - 0.2); c.stroke(); c.fillStyle = 'rgba(255,170,190,.9)'; c.fillRect(886, 118, 6, 8); c.fillRect(908, 118, 6, 8); }
-const bbTex = new THREE.CanvasTexture(bbCv); bbTex.colorSpace = THREE.SRGBColorSpace;
-const bbCv2 = document.createElement('canvas'); bbCv2.width = 1024; bbCv2.height = 192;
-{ const c = bbCv2.getContext('2d'); c.fillStyle = '#1f3d4a'; c.fillRect(0, 0, 1024, 192); for (let i = 0; i < 400; i++) { c.fillStyle = `rgba(255,255,255,${Math.random() * 0.05})`; c.fillRect(Math.random() * 1024, Math.random() * 192, rnd(4, 40), rnd(1, 6)); }
-  // 元素周期表的一角
-  const cols = ['rgba(255,170,190,.85)', 'rgba(255,214,120,.85)', 'rgba(150,230,200,.85)', 'rgba(150,200,255,.85)'];
-  for (let r = 0; r < 4; r++) for (let k = 0; k < 9; k++) { if (r === 0 && k > 0 && k < 8) continue; c.strokeStyle = cols[(r + k) % 4]; c.lineWidth = 3; c.strokeRect(36 + k * 40, 20 + r * 40, 34, 34); }
-  c.fillStyle = 'rgba(250,248,235,.92)'; c.font = '700 22px sans-serif'; c.fillText('H', 46, 45); c.fillText('He', 359, 45); c.fillText('Li', 44, 85); c.fillText('Na', 42, 125);
-  c.font = 'italic 44px serif'; c.fillText('2H₂ + O₂ → 2H₂O', 430, 70); c.fillStyle = 'rgba(150,230,200,.95)'; c.fillText('E = mc²', 440, 140); c.fillStyle = 'rgba(255,214,120,.9)'; c.fillText('pH < 7', 660, 140);
-  // 烧瓶涂鸦
-  c.strokeStyle = 'rgba(250,248,235,.9)'; c.lineWidth = 5; c.beginPath(); c.moveTo(900, 30); c.lineTo(900, 80); c.lineTo(860, 160); c.lineTo(960, 160); c.lineTo(920, 80); c.lineTo(920, 30); c.stroke();
-  c.fillStyle = 'rgba(150,230,200,.6)'; c.beginPath(); c.moveTo(880, 120); c.lineTo(860, 160); c.lineTo(960, 160); c.lineTo(940, 120); c.fill();
-  for (const [x, y, r] of [[905, 100, 6], [922, 60, 4], [912, 20, 7]]) { c.beginPath(); c.arc(x, y, r, 0, TAU); c.stroke(); } }
-const bbTex2 = new THREE.CanvasTexture(bbCv2); bbTex2.colorSpace = THREE.SRGBColorSpace;
-if (document.fonts) document.fonts.ready.then(() => { const c = bbCv.getContext('2d'); c.fillStyle = '#2f5a46'; c.fillRect(30, 30, 360, 70); c.fillStyle = 'rgba(250,248,235,.92)'; c.font = '700 54px "Ma Shan Zheng", sans-serif'; c.fillText('期末加油！', 40, 82); bbTex.needsUpdate = true; });
-const WALLC = 0xf3e7cc, TRIM = 0x9a6a3e, NZ_ = -(HZ + 3.4), WX_ = HX + 3.4;
-const paneMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(0xd8f0ff).multiplyScalar(1.15), toneMapped: false });
-solid(GEO.box, WOOD, [0, 0.55, HZ + 1.9], [2 * WX_, 1.3, 1.4]);
-solid(GEO.box, WALLC, [0, 3.6, NZ_], [2 * WX_ + 1.6, 7.2, 1.6]); solid(GEO.box, TRIM, [0, 0.8, NZ_ + 0.9], [2 * WX_, 1.6, 0.3]); solid(GEO.box, 0xffffff, [0, 7.3, NZ_ + 1.0], [2 * WX_, 0.3, 0.5], [0, 0, 0], false);
-solid(GEO.cyl, 0xffffff, [0, 5.4, NZ_ + 1.0], [1.8, 0.2, 1.8], [HP_, 0, 0]); solid(GEO.box, 0x2a1a22, [0, 5.65, NZ_ + 1.15], [0.08, 0.6, 0.05], [0, 0, 0], false); solid(GEO.box, 0x2a1a22, [0.2, 5.4, NZ_ + 1.15], [0.45, 0.08, 0.05], [0, 0, 0.3], false);
-for (const sx of [-1, 1]) {
-  solid(GEO.box, WALLC, [sx * WX_, 3.6, 0], [1.6, 7.2, 2 * HZ + 8]); solid(GEO.box, TRIM, [sx * (WX_ - 0.9), 0.8, 0], [0.3, 1.6, 2 * HZ + 8]); solid(GEO.box, 0xffffff, [sx * (WX_ - 1.0), 7.3, 0], [0.5, 0.3, 2 * HZ + 8], [0, 0, 0], false);
-  const bx = sx * RCX;
-  solid(GEO.box, 0x8a5a34, [bx, 4.4, NZ_ + 1.0], [25, 5.4, 0.3]);
-  { const bb = new THREE.Mesh(new THREE.PlaneGeometry(24, 4.5), new THREE.MeshToonMaterial({ map: sx < 0 ? bbTex : bbTex2, gradientMap: grad })); bb.position.set(bx, 4.4, NZ_ + 1.2); scene.add(bb); }
-  solid(GEO.box, 0x8a5a34, [bx, 1.7, NZ_ + 1.4], [25, 0.15, 0.6]);
-  for (let i = 0; i < 6; i++) solid(GEO.cyl, [0xffffff, 0xffd84d, 0xff9ab0][i % 3], [bx - 8 + i * 0.6, 1.83, NZ_ + 1.5], [0.1, 0.5, 0.1], [0, 0, HP_], false);
-  for (const [dx, c] of [[-15.6, sx < 0 ? 0xff9ab0 : 0x9fe08a], [15.6, sx < 0 ? 0x7fc8ff : 0xffd84d]]) { solid(GEO.box, 0xffffff, [bx + dx, 4.2, NZ_ + 0.9], [3.2, 4.2, 0.12], [0, 0, 0], false); solid(GEO.box, c, [bx + dx, 4.5, NZ_ + 1.0], [2.6, 2.4, 0.12], [0, 0, 0], false); solid(GEO.box, 0x3a2a2a, [bx + dx, 3.0, NZ_ + 1.0], [2.2, 0.15, 0.12], [0, 0, 0], false); }
-  for (const z of [-26, -13, 13, 26]) {
-    const wx = sx * (WX_ - 1.0);
-    solid(GEO.box, 0xffffff, [wx, 4.2, z], [0.4, 4.6, 7.8]);
-    const pn = new THREE.Mesh(new THREE.PlaneGeometry(7.2, 4.0), paneMat); pn.position.set(sx * (WX_ - 1.25), 4.2, z); pn.rotation.y = -sx * HP_; scene.add(pn);
-    solid(GEO.box, 0xffffff, [sx * (WX_ - 1.3), 4.2, z], [0.15, 4.0, 0.2], [0, 0, 0], false); solid(GEO.box, 0xffffff, [sx * (WX_ - 1.3), 4.2, z], [0.15, 0.2, 7.2], [0, 0, 0], false);
-    solid(GEO.box, 0xffffff, [sx * (WX_ - 1.4), 1.95, z], [0.6, 0.18, 8.2]);
-    solid(GEO.box, 0xffb8a0, [sx * (WX_ - 1.4), 4.3, z - 4.3], [0.2, 4.8, 0.9]); solid(GEO.box, 0xffb8a0, [sx * (WX_ - 1.4), 4.3, z + 4.3], [0.2, 4.8, 0.9]);
-  }
+// Title portraits retain a front-facing camera. The classroom backdrop is a
+// crop of the same painting as the arena, behind the group of classmates.
+const titleRoom = new THREE.Group();
+const photoGeometry = new THREE.PlaneGeometry(34, 15);
+const photoUV = photoGeometry.attributes.uv;
+for (let i = 0; i < photoUV.count; i++) {
+  photoUV.setXY(i, (42 + photoUV.getX(i) * 697) / 1536, 1 - (392 - photoUV.getY(i) * 388) / 1024);
 }
-// 班牌：挂在走廊墙上的门边
-for (const [k, name] of ROOM_THEME.slice(1).map((t) => t.name).entries()) {
-  const cv = document.createElement('canvas'); cv.width = 256; cv.height = 128; const c = cv.getContext('2d'); c.fillStyle = ROOM_THEME[k + 1].sign; c.fillRect(0, 0, 256, 128); c.strokeStyle = '#3a2228'; c.lineWidth = 14; c.strokeRect(0, 0, 256, 128);
-  c.fillStyle = '#fff'; c.font = '700 70px "ZCOOL KuaiLe", "Noto Sans SC", sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(name, 128, 68);
-  const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; if (document.fonts) document.fonts.ready.then(() => { c.fillStyle = ROOM_THEME[k + 1].sign; c.fillRect(10, 10, 236, 108); c.fillStyle = '#fff'; c.fillText(name, 128, 68); t.needsUpdate = true; });
-  const m = new THREE.Mesh(new THREE.PlaneGeometry(3.4, 1.7), new THREE.MeshBasicMaterial({ map: t })); const sx = k % 2 ? 1 : -1, sz = k < 2 ? -1 : 1;
-  m.position.set(sx * 21, 2.5, sz * CORR + (sz < 0 ? 0.05 : WT + 0.05)); scene.add(m); solid(GEO.box, 0x3a2228, [sx * 21, 1.9, sz * (CORR + WT / 2)], [0.2, 1.2, 0.2], [0, 0, 0], false);
-}
-// 课桌椅（障碍物）、讲台、书架
-function desk(x, z, yaw) {
-  const c = Math.cos(yaw), s_ = Math.sin(yaw), at = (dx, dz) => [x + dx * c + dz * s_, z - dx * s_ + dz * c];
-  let [a, b] = at(0, 0); solid(GEO.box, 0xe0b070, [a, 1.25, b], [2.4, 0.16, 1.4], [0, yaw, 0]);
-  for (const [lx, lz] of [[-1, -0.55], [1, -0.55], [-1, 0.55], [1, 0.55]]) { [a, b] = at(lx, lz); solid(GEO.cyl, 0x8a94a4, [a, 0.6, b], [0.12, 1.2, 0.12], [0, 0, 0], false); }
-  [a, b] = at(0, 1.3); solid(GEO.box, 0x4a8ad8, [a, 0.72, b], [1.1, 0.14, 1.0], [0, yaw, 0]); [a, b] = at(0, 1.78); solid(GEO.box, 0x4a8ad8, [a, 1.25, b], [1.1, 0.9, 0.14], [0, yaw, 0]);
-  [a, b] = at(-0.5, 0); solid(GEO.box, [0xff8fb1, 0x7fc8ff, 0xffd84d][(Math.random() * 3) | 0], [a, 1.4, b], [0.7, 0.14, 0.5], [0, yaw + rnd(-0.3, 0.3), 0]);
-  prop(x, z, 1.4); [a, b] = at(0, 1.4); prop(a, b, 0.7);
-}
-// 实验室：实验台 + 烧瓶 + 圆凳
-function labBench(x, z, yaw) {
-  const c = Math.cos(yaw), s_ = Math.sin(yaw), at = (dx, dz) => [x + dx * c + dz * s_, z - dx * s_ + dz * c];
-  let [a, b] = at(0, 0); solid(GEO.box, 0xf4f8f8, [a, 0.6, b], [2.3, 1.2, 1.3], [0, yaw, 0]); solid(GEO.box, 0x2f4a55, [a, 1.27, b], [2.6, 0.16, 1.6], [0, yaw, 0]);
-  solid(GEO.box, 0x2f8f94, [a, 0.6, b], [2.34, 0.2, 1.34], [0, yaw, 0], false);
-  const liq = [0x5fe0b0, 0x7fd0ff, 0xff9ad0, 0xffd84d];
-  [a, b] = at(-0.65, 0.05); glowSolid(GEO.cone, liq[(Math.random() * 4) | 0], [a, 1.72, b], [0.76, 0.76, 0.76]); solid(GEO.cyl, 0xf4fffd, [a, 2.16, b], [0.2, 0.44, 0.2]); solid(GEO.cyl, 0xf4fffd, [a, 2.4, b], [0.28, 0.06, 0.28], [0, 0, 0], false);
-  [a, b] = at(0.45, -0.2); glowSolid(GEO.cyl, liq[(Math.random() * 4) | 0], [a, 1.6, b], [0.5, 0.5, 0.5]); solid(GEO.cyl, 0xf4fffd, [a, 1.92, b], [0.52, 0.14, 0.52], [0, 0, 0], false);
-  for (let k = 0; k < 3; k++) { [a, b] = at(0.25 + k * 0.26, 0.42); glowSolid(GEO.cyl, liq[k], [a, 1.62, b], [0.12, 0.5, 0.12]); }
-  [a, b] = at(0, 1.4); solid(GEO.cyl, 0x2f8f94, [a, 0.82, b], [0.95, 0.16, 0.95]); solid(GEO.cyl, 0x8a94a4, [a, 0.38, b], [0.16, 0.76, 0.16], [0, 0, 0], false);
-  prop(x, z, 1.4); prop(a, b, 0.7);
-}
-// 美术室：画架 + 颜料桶
-function easel(x, z, yaw) {
-  const c = Math.cos(yaw), s_ = Math.sin(yaw), at = (dx, dz) => [x + dx * c + dz * s_, z - dx * s_ + dz * c];
-  const paint = [0xff6b7a, 0x4aa8ff, 0xffd23f, 0x5fd07a, 0xa98bff, 0xff9a4a], pk = () => paint[(Math.random() * paint.length) | 0];
-  let [a, b] = at(-0.75, 0.15); solid(GEO.box, 0xc89058, [a, 1.2, b], [0.14, 2.5, 0.14], [0.12, yaw, 0.1]);
-  [a, b] = at(0.75, 0.15); solid(GEO.box, 0xc89058, [a, 1.2, b], [0.14, 2.5, 0.14], [0.12, yaw, -0.1]);
-  [a, b] = at(0, -0.55); solid(GEO.box, 0xa8743f, [a, 1.1, b], [0.14, 2.3, 0.14], [-0.3, yaw, 0], false);
-  [a, b] = at(0, 0.24); solid(GEO.box, 0xc89058, [a, 0.95, b], [1.9, 0.12, 0.36], [0, yaw, 0]);
-  [a, b] = at(0, 0.16); solid(GEO.box, 0xfffdf6, [a, 1.75, b], [1.8, 1.5, 0.1], [0.12, yaw, 0]);
-  [a, b] = at(0, 0.23); solid(GEO.box, pk(), [a, 1.76, b], [1.5, 1.2, 0.06], [0.12, yaw, 0], false);
-  [a, b] = at(rnd(-0.4, 0.4), 0.27); solid(GEO.sph, pk(), [a, 1.75 + rnd(-0.2, 0.3), b], [0.6, 0.6, 0.06], [0.12, yaw, 0], false);
-  [a, b] = at(rnd(-0.4, 0.4), 0.28); solid(GEO.sph, 0xffffff, [a, 1.5, b], [0.4, 0.3, 0.06], [0.12, yaw, 0], false);
-  [a, b] = at(0, 1.4); solid(GEO.cyl, 0xe8e2d4, [a, 0.42, b], [0.9, 0.84, 0.9]); const pc_ = pk(); solid(GEO.cyl, pc_, [a, 0.87, b], [0.8, 0.06, 0.8], [0, 0, 0], false); solid(GEO.box, pc_, [a + 0.3, 0.5, b + 0.38], [0.16, 0.5, 0.1], [0, 0, 0.2], false);
-  prop(x, z, 1.4); prop(a, b, 0.7);
-}
-// 体育馆：跳箱 + 篮球 / 标志桶
-function gymBox(x, z, yaw) {
-  const c = Math.cos(yaw), s_ = Math.sin(yaw), at = (dx, dz) => [x + dx * c + dz * s_, z - dx * s_ + dz * c];
-  let [a, b] = at(0, 0);
-  for (let k = 0; k < 3; k++) solid(GEO.box, k % 2 ? 0xe2594a : 0xfaf4e6, [a, 0.24 + k * 0.46, b], [2.5 - k * 0.22, 0.46, 1.5 - k * 0.14], [0, yaw, 0]);
-  solid(GEO.box, 0x8a5a34, [a, 1.5, b], [2.1, 0.2, 1.2], [0, yaw, 0]);
-  [a, b] = at(0, 1.4);
-  if (Math.random() < 0.5) { solid(GEO.sph, 0xf08a3a, [a, 0.55, b], [1.1, 1.1, 1.1]); solid(GEO.tor, 0x3a2228, [a, 0.55, b], [1.1, 1.1, 0.3], [0, yaw, 0], false); }
-  else { solid(GEO.cone, 0xff7a3a, [a, 0.6, b], [0.9, 1.2, 0.9]); solid(GEO.cyl, 0xffffff, [a, 0.62, b], [0.52, 0.2, 0.52], [0, 0, 0], false); solid(GEO.box, 0xff7a3a, [a, 0.05, b], [1.1, 0.1, 1.1], [0, 0, 0], false); }
-  prop(x, z, 1.4); prop(a, b, 0.7);
-}
-const ROOM_DESK = [desk, desk, labBench, easel, gymBox];
-for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
-  const cx = sx * RCX, cz = sz * RCZ, room = roomIx(cx, cz);
-  for (const dx of [-11, 11]) for (const dz of [-7, 0, 7]) ROOM_DESK[room](cx + dx + rnd(-0.5, 0.5), cz + dz + rnd(-0.5, 0.5), rnd(-0.25, 0.25));
-  if (sz < 0) {
-    if (room === 2) { solid(GEO.box, 0xf4f8f8, [cx + 6, 1.0, -HZ + 1.2], [4.2, 2.0, 1.6]); solid(GEO.box, 0x2f4a55, [cx + 6, 2.05, -HZ + 1.2], [4.6, 0.15, 1.9]); glowSolid(GEO.sph, 0x5fe0b0, [cx + 5.2, 2.75, -HZ + 1.2], [1.3, 1.3, 1.3]); solid(GEO.cyl, 0xf4fffd, [cx + 5.2, 3.6, -HZ + 1.2], [0.36, 0.7, 0.36]); glowSolid(GEO.cyl, 0xff9ad0, [cx + 7.2, 2.6, -HZ + 1.2], [0.3, 1.0, 0.3]); }
-    else { solid(GEO.box, 0xa8743f, [cx + 6, 1.0, -HZ + 1.2], [4.2, 2.0, 1.6]); solid(GEO.box, 0xc89058, [cx + 6, 2.05, -HZ + 1.2], [4.6, 0.15, 1.9]); }
-    prop(cx + 6, -HZ + 1.2, 2.2);
-  }
-  const sxw = sx * (HX + 0.9), szb = cz + sz * 0.5;
-  if (room === 4) {
-    // 篮球架
-    solid(GEO.cyl, 0x3a4658, [sxw, 2.4, szb], [0.5, 4.8, 0.5]); solid(GEO.box, 0x3a4658, [sxw - sx * 0.8, 4.6, szb], [1.8, 0.3, 0.3], [0, 0, 0], false);
-    solid(GEO.box, 0xffffff, [sxw - sx * 1.7, 4.9, szb], [0.2, 2.2, 3.4]); solid(GEO.box, 0xe2594a, [sxw - sx * 1.82, 4.6, szb], [0.06, 0.9, 1.2], [0, 0, 0], false);
-    solid(GEO.tor, 0xf08a3a, [sxw - sx * 2.6, 4.2, szb], [1.5, 1.5, 0.7], [HP_, 0, 0], false); solid(GEO.cyl, 0xffffff, [sxw - sx * 2.6, 3.7, szb], [1.1, 0.9, 1.1], [0, 0, 0], false);
-    for (let k = 0; k < 4; k++) solid(GEO.sph, [0xf08a3a, 0xffffff, 0x4aa8ff, 0xf08a3a][k], [sxw - sx * 0.2, 0.55, szb - 1.8 + k * 1.2], [1.0, 1.0, 1.0]);
-  } else {
-    const th = ROOM_THEME[room];
-    solid(GEO.box, room === 1 ? 0x9a6a3e : room === 2 ? 0xf4f8f8 : 0xc89058, [sxw, 2.2, szb], [1.4, 4.4, 5]);
-    const pal = room === 2 ? [0x5fe0b0, 0x7fd0ff, 0xff9ad0, 0xffd84d, 0xb69cff] : room === 3 ? [0xff6b7a, 0x4aa8ff, 0xffd23f, 0x5fd07a, 0xa98bff] : [0xe25a4a, 0x4a8ad8, 0xffd84d, 0x5fb04f, 0xff9ab0];
-    for (let i = 0; i < 3; i++) for (let k = 0; k < 6; k++) {
-      const pos = [sxw - sx * 0.4, 0.9 + i * 1.4, szb - 2.2 + k * 0.8];
-      if (room === 2) { glowSolid(GEO.cyl, pal[(i + k) % 5], pos, [0.6, 0.9, 0.6]); solid(GEO.cyl, 0x2f4a55, [pos[0], pos[1] + 0.5, pos[2]], [0.64, 0.12, 0.64], [0, 0, 0], false); }
-      else if (room === 3) { solid(GEO.cyl, pal[(i * 2 + k) % 5], pos, [0.62, 0.8, 0.62], [0, 0, 0], false); solid(GEO.cyl, 0xe8e2d4, [pos[0], pos[1] + 0.42, pos[2]], [0.66, 0.08, 0.66], [0, 0, 0], false); }
-      else solid(GEO.box, pal[(i + k) % 5], pos, [0.8, 1.0, 0.5], [0, 0, rnd(-0.1, 0.1)], false);
-    }
-    solid(GEO.box, th.trim, [sxw - sx * 0.1, 4.45, szb], [1.5, 0.14, 5.1], [0, 0, 0], false);
-  }
-  prop(sxw, szb, 2.7);
-}
-// 走廊两头的储物柜
-for (const sx of [-1, 1]) { for (let k = 0; k < 3; k++) solid(GEO.box, [0x7fc8ff, 0xffb8a0, 0x9fe08a][k], [sx * (HX + 0.8), 1.6, -2.9 + k * 2.9], [1.4, 3.2, 2.7]); prop(sx * (HX + 2.4), 0, 4.6); }
-for (let j = 0; j < FH; j++) for (let i = 0; i < FW; i++) { const x = i - HX + 0.5, z = j - HZ + 0.5; if (PROPS.some((p) => Math.hypot(x - p.x, z - p.z) < p.r + 0.25)) fBlock[j * FW + i] = 1; }
+const photoBackdrop = new THREE.Mesh(
+  photoGeometry,
+  new THREE.MeshBasicMaterial({ map: campus.texture }),
+);
+photoBackdrop.position.set(TX, 4.5, TZ - 9);
+titleRoom.add(photoBackdrop);
+const photoFloor = new THREE.Mesh(new THREE.PlaneGeometry(85, 65), toonOf(0xe6a760));
+photoFloor.rotation.x = -HP_;
+photoFloor.position.set(TX, -0.01, TZ);
+titleRoom.add(photoFloor);
+scene.add(titleRoom);
 const shCanvas = document.createElement('canvas'); shCanvas.width = shCanvas.height = 64;
 { const c = shCanvas.getContext('2d'); const g = c.createRadialGradient(32, 32, 0, 32, 32, 32); g.addColorStop(0, 'rgba(0,0,0,1)'); g.addColorStop(0.6, 'rgba(0,0,0,.65)'); g.addColorStop(1, 'rgba(0,0,0,0)'); c.fillStyle = g; c.fillRect(0, 0, 64, 64); }
 const shadowMesh = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(shCanvas), color: 0x000000, transparent: true, opacity: 0.55, depthWrite: false }), 1400);
@@ -1399,7 +1131,7 @@ function query(x, z, R, cb) {
   for (let cx = c0; cx <= c1; cx++) for (let cz = r0; cz <= r1; cz++) { const a = grid.get(key(cx, cz)); if (!a) continue; for (const e of a) { if (e.dead || e.inv || e.spawn > 0.3) continue; const dx = e.x - x, dz = e.z - z, rr = R + e.r; if (dx * dx + dz * dz < rr * rr) cb(e, dx, dz); } }
 }
 function nearest(x, z, maxD = 14, skip) { let best = null, bd = maxD * maxD; for (const e of enemies) { if (e.dead || e.inv || e.spawn > 0.3 || (skip && skip.has(e))) continue; const dx = e.x - x, dz = e.z - z, d = dx * dx + dz * dz; if (d < bd) { bd = d; best = e; } } return best; }
-function pushOutProps(o, r) { for (const p of PROPS) { const dx = o.x - p.x, dz = o.z - p.z, d = Math.hypot(dx, dz), m = p.r + r; if (d < m && d > 0.001) { o.x = p.x + dx / d * m; o.z = p.z + dz / d * m; } } pushOutWalls(o, r); o.x = clamp(o.x, -HX, HX); o.z = clamp(o.z, -HZ, HZ); }
+function pushOutProps(o, r) { pushOutWalls(o, r); o.x = clamp(o.x, -HX, HX); o.z = clamp(o.z, -HZ, HZ); }
 
 /* ================= 游戏状态 ================= */
 const DIFFS = {
@@ -2203,7 +1935,6 @@ function spawnNear(type, minR = 10, maxR = 17, forceGiant = false) {
   for (let k = 0; k < 8; k++) {
     const a = Math.random() * TAU, Rr = rnd(minR, maxR), x = origin.x + Math.cos(a) * Rr, z = origin.z + Math.sin(a) * Rr;
     if (Math.abs(x) > HX - 0.5 || Math.abs(z) > HZ - 0.5 || inWall(x, z, 1)) continue;
-    if (PROPS.some((p) => Math.hypot(x - p.x, z - p.z) < p.r + 1)) continue;
     const e = spawn(type, x, z, forceGiant); if (e && !e.fly) blot(x, z, e.r * 0.9, 'rgba(120,80,50,.12)'); return e;
   }
   return null;
@@ -2553,9 +2284,7 @@ const sockAuraMeshes = Array.from({ length: 4 }, () => {
   return mesh;
 });
 const shroomMeshes = Array.from({ length: 26 }, () => {
-  const g = new THREE.Group(), add = (geo, color, pos, scale, outlined) => { const m = new THREE.Mesh(geo, toonOf(color)); m.position.set(...pos); m.scale.set(...scale); if (outlined) m.add(new THREE.Mesh(smoothOf(geo), outlineRigMat)); g.add(m); return m; };
-  add(GEO.cyl, 0xfff3dc, [0, 0.3, 0], [0.42, 0.6, 0.42], true); add(GEO.sph, 0xe2453a, [0, 0.72, 0], [1.15, 0.8, 1.15], true);
-  for (const [x, y, z, r] of [[0.28, 0.95, 0.25, 0.26], [-0.32, 0.9, 0.12, 0.2], [0.02, 1.08, -0.1, 0.24], [-0.1, 0.84, 0.46, 0.16], [0.38, 0.84, -0.26, 0.16]]) add(GEO.sph, 0xffffff, [x, y, z], [r, r * 0.6, r], false);
+  const g = new THREE.Group();
   const halo = new THREE.Mesh(new THREE.RingGeometry(0.75, 0.95, 32), new THREE.MeshBasicMaterial({ color: 0xffe07a, transparent: true, opacity: 0.7, depthWrite: false })); halo.rotation.x = -HP_; halo.position.y = 0.05; g.add(halo);
   g.userData.halo = halo; g.visible = false; scene.add(g); return g;
 });
@@ -2572,7 +2301,7 @@ function taskHud() {
 function edgeMark(wx, wy, wz, pad = [70, 70, 178, 136]) {
   camera.updateMatrixWorld();
   const W = innerWidth, H = innerHeight, cx = W / 2, cy = H / 2, ax = camera.projectionMatrix.elements;
-  const proj = (x, y, z) => { v3.set(x, y, z).applyMatrix4(camera.matrixWorldInverse); const d = Math.max(Math.abs(v3.z), 0.001); return [cx + cx * ax[0] * v3.x / d, cy - cy * ax[5] * v3.y / d, v3.z < 0]; };
+  const proj = (x, y, z) => { v3.set(x, y, z).applyMatrix4(camera.matrixWorldInverse); const d = camera.isOrthographicCamera ? 1 : Math.max(Math.abs(v3.z), 0.001); return [cx + cx * ax[0] * v3.x / d, cy - cy * ax[5] * v3.y / d, v3.z < 0]; };
   const [tx, ty, front] = proj(wx, wy, wz), [px, py] = proj(player.x, 1, player.z);
   const left = pad[0], right = W - pad[1], top = pad[2], bottom = H - pad[3];
   if (front && tx >= left && tx <= right && ty >= top && ty <= bottom) return { x: tx, y: ty, off: false, ang: 0 };
@@ -2590,25 +2319,12 @@ function placeMark(mk, wx, wy, wz) {
   return m;
 }
 // 任务只出现在固定的 7 个空地上：四个教室各一个、正中间一个、再加两个走廊口，离墙和桌椅都够远
-let TASK_SPOTS = null, lastSpot = -1;
-function taskSpots() {
-  if (TASK_SPOTS) return TASK_SPOTS;
-  for (const clear of [4.6, 4, 3.4, 2.8]) {
-    const free = [];
-    for (let x = -HX + 5; x <= HX - 5; x += 1) for (let z = -HZ + 5; z <= HZ - 5; z += 1) if (!inWall(x, z, clear) && !PROPS.some((p) => Math.hypot(x - p.x, z - p.z) < p.r + clear)) free.push({ x, z });
-    if (free.length < 7) continue;
-    const pick = [], near = (tx, tz) => free.reduce((b, f) => (Math.hypot(f.x - tx, f.z - tz) < Math.hypot(b.x - tx, b.z - tz) ? f : b));
-    for (const [tx, tz] of [[-RCX, -RCZ], [RCX, -RCZ], [-RCX, RCZ], [RCX, RCZ], [0, 0]]) { const f = near(tx, tz); if (!pick.includes(f)) pick.push(f); }
-    while (pick.length < 7) { let best = null, bd = -1; for (const f of free) { const d = Math.min(...pick.map((q) => Math.hypot(f.x - q.x, f.z - q.z))); if (d > bd) { bd = d; best = f; } } if (!best || bd < 6) break; pick.push(best); }
-    if (pick.length >= 6) { TASK_SPOTS = pick; break; }
-  }
-  return TASK_SPOTS || (TASK_SPOTS = [{ x: 0, z: 0 }]);
-}
+let lastSpot = -1;
 function scatterPoints(n, gap = 5) {
   const out = [];
   for (let i = 0; i < n; i++) for (let k = 0; k < 60; k++) {
     const qx = i % 2 ? 1 : -1, qz = (i >> 1) % 2 ? 1 : -1, x = qx * rnd(3, HX - 3), z = qz * rnd(3, HZ - 3);
-    if (inWall(x, z, 1.3) || PROPS.some((p) => Math.hypot(x - p.x, z - p.z) < p.r + 1.1) || out.some((o) => Math.hypot(x - o.x, z - o.z) < (k < 40 ? gap : 2))) continue;
+    if (inWall(x, z, 1.3) || out.some((o) => Math.hypot(x - o.x, z - o.z) < (k < 40 ? gap : 2))) continue;
     out.push({ x, z, s: rnd(0.9, 1.15), on: true }); break;
   }
   return out;
@@ -2616,7 +2332,7 @@ function scatterPoints(n, gap = 5) {
 function startTask(force) {
   const types = Object.keys(TASKS), type = TASKS[force] ? force : types[(Math.random() * types.length) | 0];
 
-  const spots = taskSpots(), far = (q) => Math.hypot(q.x - player.x, q.z - player.z);
+  const spots = taskSites, far = (q) => Math.hypot(q.x - player.x, q.z - player.z);
   let pool = spots.filter((q, i) => i !== lastSpot && far(q) > 7 && far(q) < 36); if (!pool.length) pool = spots.filter((q, i) => i !== lastSpot); if (!pool.length) pool = spots;
   const spot = pool[(Math.random() * pool.length) | 0]; lastSpot = spots.indexOf(spot);
   const x = spot.x, z = spot.z, crew = NET && NET.on ? NET.n : 1;
@@ -2700,7 +2416,7 @@ function drawTask(dt) {
 const rBeam = new THREE.Mesh(beam.geometry, new THREE.ShaderMaterial({ uniforms: { uColor: { value: new THREE.Color(0xffc93c) }, uTime }, transparent: true, depthWrite: false, toneMapped: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, vertexShader: beamMat.vertexShader, fragmentShader: beamMat.fragmentShader }));
 rBeam.visible = false; scene.add(rBeam);
 // 四个角落各有一个出怪口：每隔几秒轮流涌出一小队，朝玩家走过来
-const PORTALS = [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([a, b]) => ({ x: a * (HX - 5), z: b * (HZ - 5), flash: 0 }));
+const PORTALS = portalSites.map(([x,z]) => ({x, z, flash: 0}));
 const portalTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 256; const g = c.getContext('2d'); g.translate(128, 128);
   const rg = g.createRadialGradient(0, 0, 8, 0, 0, 124); rg.addColorStop(0, '#120a1e'); rg.addColorStop(0.62, '#3a1f5e'); rg.addColorStop(0.86, '#8a4ad8'); rg.addColorStop(1, 'rgba(138,74,216,0)'); g.fillStyle = rg; g.beginPath(); g.arc(0, 0, 126, 0, TAU); g.fill();
   g.lineCap = 'round'; for (let k = 0; k < 5; k++) { g.rotate(TAU / 5); g.strokeStyle = k % 2 ? 'rgba(255,200,255,.55)' : 'rgba(160,220,255,.5)'; g.lineWidth = 7; g.beginPath(); for (let t = 0; t <= 1; t += 0.04) { const r = 14 + t * 96, a = t * 3.2; g.lineTo(Math.cos(a) * r, Math.sin(a) * r); } g.stroke(); }
@@ -2722,9 +2438,21 @@ function drawPortals(dt) {
   for (const p of PORTALS) { p.mesh.visible = p.rim.visible = state !== 'title'; p.flash = Math.max(0, p.flash - dt * 1.2); p.mesh.rotation.z -= dt * (0.7 + p.flash * 5); const k = 1 + Math.sin(realTime * 2.2 + p.x) * 0.04 + p.flash * 0.25; p.mesh.scale.setScalar(k); p.rim.scale.setScalar(k); p.rim.material.opacity = 0.55 + p.flash * 0.45; }
 }
 function spawnAltar() {
-  let x = 0, z = 0;
-  for (let k = 0; k < 40; k++) { const a = rnd(0, TAU), r = rnd(14, 22); x = clamp(player.x + Math.cos(a) * r, -HX + 4, HX - 4); z = clamp(player.z + Math.sin(a) * r, -HZ + 4, HZ - 4); if (Math.hypot(x - player.x, z - player.z) > 11 && !inWall(x, z, 2.8) && !PROPS.some((p) => Math.hypot(x - p.x, z - p.z) < p.r + 2.5)) break; }
-  altars.push({ id: ++worldSeq, x, z, age: 0 }); altarPin();
+  let x = 0,
+    z = 0;
+  for (let k = 0; k < 40; k++) {
+    const a = rnd(0, TAU),
+      r = rnd(14, 22);
+    x = clamp(player.x + Math.cos(a) * r, -HX + 4, HX - 4);
+    z = clamp(player.z + Math.sin(a) * r, -HZ + 4, HZ - 4);
+    if (Math.hypot(x - player.x, z - player.z) > 11 && !inWall(x, z, 2.8)) break;
+  }
+  if (Math.hypot(x - player.x, z - player.z) <= 11 || inWall(x, z, 2.8)) {
+    const safe = taskSites.filter((p) => Math.hypot(p.x - player.x, p.z - player.z) > 11);
+    ({ x, z } = safe[Math.floor(Math.random() * safe.length)]);
+  }
+  altars.push({ id: ++worldSeq, x, z, age: 0 });
+  altarPin();
 }
 function altarPin() {
   banner('遗物出现', '跟着金色标记去找，三选一');
@@ -4096,7 +3824,7 @@ function drawPeerMarkers(team) {
     const name = me ? '你的坟墓' : dead ? `${p.name}的坟墓` : p.name;
     if (marker.label.textContent !== name) marker.label.textContent = name;
     v3.set(target.x, dead ? 1.15 : 2.65, target.z).applyMatrix4(camera.matrixWorldInverse);
-    const depth = Math.max(Math.abs(v3.z), 0.001);
+    const depth = camera.isOrthographicCamera ? 1 : Math.max(Math.abs(v3.z), 0.001);
     const dx = cx * axes[0] * v3.x / depth;
     const dy = -cy * axes[5] * v3.y / depth || (v3.z >= 0 && !dx ? 1 : 0);
     const x = cx + dx, y = cy + dy;
@@ -4653,7 +4381,7 @@ function showWin() {
 const camLook = new THREE.Vector3(), camPos = new THREE.Vector3(TX, 9, TZ + 26), camTgt = new THREE.Vector3(TX, 1, TZ - 1), tV = new THREE.Vector3(), tL = new THREE.Vector3(); let camK = 1;
 function resize() {
   const w = innerWidth, h = innerHeight;
-  renderer.setSize(w, h, false); composer.setSize(w, h); camera.aspect = w / h; camera.updateProjectionMatrix();
+  renderer.setSize(w, h, false); composer.setSize(w, h); titleCamera.aspect = w / h; titleCamera.updateProjectionMatrix();
   camK = w / h < 0.8 ? 1.55 : w / h < 1.2 ? 1.2 : 1; finalPass.uniforms.uRes.value.set(w, h);
   PART.mat.uniforms.uScale.value = GLOW.mat.uniforms.uScale.value = h * 0.9;
 }
@@ -4665,7 +4393,7 @@ let demoSkill = null;
 let demoForm = 'base';
 let demoSockAlly = null;
 let skillDemoRound = 0;
-const DEMO_X = RCX - 2, DEMO_Z = RCZ;
+const DEMO_X = -23, DEMO_Z = 21;
 const DEMO_TARGETS = {
   sweep: [[2.2, -.65], [2.4, .8]],
   spin: [[2.4, .2], [-2.4, -.4]],
@@ -5030,7 +4758,7 @@ function updateMatch(dt) {
   if (state !== 'play') mx = mz = 0;
   if (player.ghost && NET && NET.on) netGhostStep(dt);
   const L = Math.hypot(mx, mz); if (L > 1) { mx /= L; mz /= L; }
-  const wx = mx * Math.cos(AZ) + mz * Math.sin(AZ), wz = -mx * Math.sin(AZ) + mz * Math.cos(AZ);
+  const wx = mx, wz = mz; // The painted campus is north-up.
   player.slowT -= dt; player.iframe -= dt;
   const pullPhase = bossPullPhase();
   const pullX = boss ? boss.x - player.x : 0, pullZ = boss ? boss.z - player.z : 0;
@@ -5549,6 +5277,12 @@ function drawBossHazards() {
 
 let fireClock = 0, previewTeam = null;
 function draw(dt) {
+  itemArt.begin();
+  const title = state === 'title';
+  scene.background.setHex(title ? 0xeadcc2 : 0x321c31);
+  campus.group.visible = !title;
+  titleRoom.visible = title && titleStep !== 'gacha';
+  camera = scenePass.camera = title ? titleCamera : fieldCamera;
   const team = state === 'title' ? null : NET?.on ? NET : previewTeam;
   leanAngle = state !== 'title' && !debugCam ? 0.34 : 0;
   if (leanAngle) LEAN_ROT.makeRotationAxis(LEAN_AX.setFromMatrixColumn(camera.matrixWorld, 0).setY(0).normalize(), -leanAngle);
@@ -5645,13 +5379,41 @@ function draw(dt) {
     for (let i = 0; i < n; i++) { const [sx_, sz_, a] = spinPos(i, n, s, rr, evo); STILL.etint = elT('spin', i); RIGS.ruler.push(STILL, worldM(sx_, 0.6, sz_, -a + HP_ * 0.5, evo ? 1.3 : 1)); STILL.etint = null; if (STILL.etint === null && elOf('spin').includes('elec') && state === 'play' && Math.random() < dt * 5) { const [bx, bz] = spinPos((i + 1) % n, n, s, rr, evo); zap([{ x: sx_, y: 0.7, z: sz_ }, { x: bx, y: 0.7, z: bz }], 0x8fd0ff, 0.12, 0.25, 2); } const sc_ = ecRand('spin'); if (state === 'play' && Math.random() < dt * (sc_ != null ? 60 : 14)) spark(player.x + Math.cos(a) * (rr + rnd(-0.6, 0.8)), 0.6, player.z + Math.sin(a) * (rr + rnd(-0.6, 0.8)), sc_ ?? 0xffe07a, 1, 0.6, sc_ != null ? 0.42 : 0.3, sc_ != null ? 0.5 : 0.3, sc_ === ELC.fire ? -3 : 0); }
     if (state === 'play' && EC('spin') != null && Math.random() < dt * 2.5) { ringFx(player.x, player.z, rr + 0.8, ecRand('spin'), 0.45, 0.6); if (elOf('spin').includes('elec')) elemBurst('spin', player.x, player.z, rr + 0.8); }
   }
-  for (const c of chests) { RIGS.chest.push({ ph: 0, hit: 0, seed: 0.5, moving: 0 }, worldM(c.x, Math.abs(Math.sin(realTime * 3)) * 0.2, c.z, realTime * 0.8, 1)); shadow(c.x, c.z, 0.7); if (Math.random() < 0.4) spark(c.x, 1, c.z, 0xffd23f, 1, 1.2, 0.35, 0.9, -2); }
-  for (const g of gifts) { const col = RELICS[g.id].curse ? 0x6a8aff : RAR3[RELICS[g.id].r], bl = g.t > 34 ? (Math.sin(realTime * 20) > 0 ? 1 : 0.3) : 1; RIGS.chest.push({ ph: 0, hit: 0, seed: 0.5, moving: 0 }, worldM(g.x, 0.15 + Math.abs(Math.sin(realTime * 4 + g.x)) * 0.15, g.z, realTime * 1.6, 0.5 * bl)); shadow(g.x, g.z, 0.35); if (Math.random() < 0.5) spark(g.x + rnd(-0.2, 0.2), 0.7, g.z + rnd(-0.2, 0.2), col, 1, 1, 0.4, 0.8, -3); }
-  for (const d of drops) { RIGS.vac.push({ ph: 0, hit: 0, seed: 0.3, moving: 0, glowMul: 2.4 }, worldM(d.x, 0.2 + Math.sin(realTime * 3) * 0.12, d.z, realTime * 1.5, 1.1)); shadow(d.x, d.z, 0.5); }
-  for (const a of altars) { RIGS.altar.push({ ph: 0, hit: 0, seed: 0.1, moving: 0, glowMul: 2.6 }, worldM(a.x, 0, a.z, realTime * 0.6, Math.min(1, a.age * 2))); shadow(a.x, a.z, 0.9); if (Math.random() < 0.3) spark(a.x, 1.6, a.z, 0xffd23f, 1, 1.2, 0.3, 0.9, -2); }
+  for (const c of chests) {
+    itemArt.draw(ITEM.satchel, c.x, Math.abs(Math.sin(realTime * 3)) * 0.2, c.z, 1.4);
+    shadow(c.x, c.z, 0.7);
+    if (Math.random() < 0.4) spark(c.x, 1, c.z, 0xffd23f, 1, 1.2, 0.35, 0.9, -2);
+  }
+  for (const g of gifts) {
+    const col = RELICS[g.id].curse ? 0x6a8aff : RAR3[RELICS[g.id].r],
+      bl = g.t > 34 ? (Math.sin(realTime * 20) > 0 ? 1 : 0.3) : 1;
+    itemArt.draw(
+      ITEM.satchel,
+      g.x,
+      0.15 + Math.abs(Math.sin(realTime * 4 + g.x)) * 0.15,
+      g.z,
+      0.96 * bl,
+    );
+    shadow(g.x, g.z, 0.35);
+    if (Math.random() < 0.5)
+      spark(g.x + rnd(-0.2, 0.2), 0.7, g.z + rnd(-0.2, 0.2), col, 1, 1, 0.4, 0.8, -3);
+  }
+  for (const d of drops) {
+    itemArt.draw(ITEM.magnet, d.x, 0.2 + Math.sin(realTime * 3) * 0.12, d.z, 1.16);
+    shadow(d.x, d.z, 0.5);
+  }
+  for (const a of altars) {
+    itemArt.draw(ITEM.altar, a.x, 0, a.z, 2.15 * Math.min(1, a.age * 2));
+    shadow(a.x, a.z, 0.9);
+    if (Math.random() < 0.3) spark(a.x, 1.6, a.z, 0xffd23f, 1, 1.2, 0.3, 0.9, -2);
+  }
   drawAltarMark(); drawPortals(dt);
-  const gemObj = { ph: 0, hit: 0, seed: 0, moving: 0, glowMul: 2 };
-  for (const g of gems) { const z = g.sz || 0; gemObj.glowMul = z === 2 ? 1.6 : 2; gemObj.ph = g.ph; RIGS[z === 2 ? 'gem3' : z === 1 ? 'gem2' : 'gem'].push(gemObj, worldM(g.x, 0.4 + z * 0.12 + Math.sin(realTime * 4 + g.ph) * 0.1, g.z, realTime * (2 - z * 0.5) + g.ph, 1)); if (z === 2 && Math.random() < dt * 3) spark(g.x, 0.9, g.z, 0xffe07a, 1, 1, 0.3, 0.5, -1); }
+
+  for (const g of gems) {
+    const z = g.sz || 0;
+    itemArt.draw(GEM_CELLS[z], g.x, 0.12 + Math.sin(realTime * 4 + g.ph) * 0.1, g.z, 0.44 + z * 0.19);
+    if (z === 2 && Math.random() < dt * 3) spark(g.x, 0.9, g.z, 0xffe07a, 1, 1, 0.3, 0.5, -1);
+  }
   for (const id in RIGS) RIGS[id].end();
   drawFx(dt);
   shadowMesh.count = shN; shadowMesh.instanceMatrix.needsUpdate = true;
@@ -5659,11 +5421,33 @@ function draw(dt) {
   poolMeshes.forEach((m, i) => { const p = pools[i]; m.visible = !!p; if (!p) return; const grow = Math.min(1, ((p.max || 3) - p.life) * 5 + 0.2); m.position.set(p.x, 0.045, p.z); m.scale.setScalar(p.rad * grow); m.rotation.z -= dt * 6; m.material.color.set(p.zap ? 0x9fd0ff : 0xffffff); { const pc = EC('coffee'); if (pc != null) m.material.color.set(pc).lerp(WHITE_C, 0.35); } m.material.opacity = Math.min(0.9, p.life * 1.5);
     if (Math.random() < dt * 14) { const a = rnd(0, TAU), r = rnd(0.3, 1) * p.rad; spark(p.x + Math.cos(a) * r, 0.25, p.z + Math.sin(a) * r, ecRand('coffee') ?? (Math.random() < 0.5 ? 0xf2e0c0 : 0x8a5a2b), 1, 1.2, 0.36, 0.45, -3); }
     if (EC('coffee') != null && Math.random() < dt * 1.6) ringFx(p.x, p.z, p.rad, ecRand('coffee'), 0.5, 0.55); });
-  STILL.etint = elT('coffee'); for (const c of cups) if (c.t >= 0) RIGS.cup.push(STILL, worldM(c.x0 + (c.x - c.x0) * c.t, 0.9 + Math.sin(c.t * PI) * 3, c.z0 + (c.z - c.z0) * c.t, c.t * 9, 1.3)); STILL.etint = null;
+  for (const c of cups)
+    if (c.t >= 0)
+      itemArt.draw(
+        ITEM.coffee,
+        c.x0 + (c.x - c.x0) * c.t,
+        0.9 + Math.sin(c.t * PI) * 3,
+        c.z0 + (c.z - c.z0) * c.t,
+        1.1,
+        c.t * 2,
+        elT('coffee'),
+      );
+  if (task?.type === 'shroom')
+    for (const [i, q] of task.dirt.entries()) {
+      if (q.on)
+        itemArt.draw(
+          ITEM.mushroom,
+          q.x,
+          Math.abs(Math.sin(realTime * 2.4 + i)) * 0.12,
+          q.z,
+          1.2 * q.s * clamp(task.age * 2.5 - i * 0.06, 0, 1),
+        );
+    }
+  itemArt.end();
   // 火盆的火 + 漂浮的火星
   fireClock += dt;
-  const airRoom = roomIx(camLook.x, camLook.z);
-  while (fireClock > 0.03) { fireClock -= 0.03; if (Math.random() < 0.25) { const ax = camLook.x + rnd(-15, 15), az = camLook.z + rnd(-15, 15), rm = roomIx(ax, az);
+  const airRoom = regionOf(camLook.x, camLook.z);
+  while (fireClock > 0.03) { fireClock -= 0.03; if (Math.random() < 0.25) { const ax = camLook.x + rnd(-15, 15), az = camLook.z + rnd(-15, 15), rm = regionOf(ax, az);
     if (rm === 2) emit(GLOW, ax, rnd(0.2, 1.5), az, [0x9ff5d8, 0x9fdcff, 0xffb8dc][(Math.random() * 3) | 0], 1, 0.15, 0.16, 3.2, -0.5, 1, 0.3);
     else if (rm === 3) emit(GLOW, ax, rnd(0.5, 3), az, [0xff8a9a, 0x7fc0ff, 0xffe07a, 0x9fe8a8, 0xc8b0ff][(Math.random() * 5) | 0], 1, 0.2, 0.15, 3, 0.05, 1, 0.3);
     else if (rm === 4) emit(GLOW, ax, rnd(0.3, 2), az, 0xffffff, 1, 0.3, 0.1, 2.4, -0.05, 1, 0.3);
@@ -5694,23 +5478,21 @@ function draw(dt) {
     tV.x += TX; tV.z += TZ; tL.x += TX; tL.z += TZ;
     if (titleStep === 'gacha') { tV.set(0.2 + rnd(-shk, shk) * 0.4, port ? 4.6 : 3.4, GZ + (port ? 19 : 11)); tL.set(port ? -0.4 : -0.4, port ? 1.3 : 1.8, GZ); if (gch.snap) { gch.snap = false; camPos.copy(tV); camTgt.copy(tL); } }
     const ck = Math.min(1, dt * 4); camPos.lerp(tV, ck); camTgt.lerp(tL, ck); camera.position.copy(camPos); camera.lookAt(camTgt);
-    if (titleStep === 'gacha') torch.position.set(0.2, 4.6, GZ + 4); else torch.position.set(TX, 4.2, TZ + 4.5); sandMat.uniforms.uPlayer.value.set(TX, 0, TZ);
-  } else if (skillDemoMode) {
-    const closeRange = ['sweep', 'mop', 'spin', 'sock'].includes(demoSkill) &&
-      !(demoForm === 'alt' && demoSkill === 'sweep') &&
-      !(demoForm !== 'base' && demoSkill === 'sock');
-    const targetX = DEMO_X + (closeRange ? .8 : 3.1);
-    const zoom = Math.max(1, 1.65 / camera.aspect);
-    const distance = closeRange && demoForm === 'base' ? .78 : 1;
-    camera.position.set(targetX + 8 * zoom * distance, 13 * zoom * distance, DEMO_Z + 10 * zoom * distance);
-    camera.lookAt(targetX, .8, DEMO_Z - .6);
-    torch.position.set(player.x, 3.2, player.z);
-    sandMat.uniforms.uPlayer.value.set(player.x, 0, player.z);
+    if (titleStep === 'gacha') torch.position.set(0.2, 4.6, GZ + 4); else torch.position.set(TX, 4.2, TZ + 4.5);
   } else {
-    camLook.lerp(v3.set(player.x, 0, player.z), Math.min(1, dt * 6));
-    const D = 17.5 * camK, H = 18.5 * camK;
-    camera.position.set(camLook.x + Math.sin(AZ) * D + rnd(-shk, shk), H, camLook.z + Math.cos(AZ) * D + rnd(-shk, shk)); camera.lookAt(camLook.x, 0, camLook.z);
-    torch.position.set(player.x, 3.2, player.z); sandMat.uniforms.uPlayer.value.set(player.x, 0, player.z);
+    const aspect = innerWidth / innerHeight;
+    const halfHeight = skillDemoMode ? 4.2 * Math.max(1, 1.65/aspect) : 10.8 * camK;
+    if (camera.top !== halfHeight || camera.right !== halfHeight * aspect) {
+      camera.top = halfHeight; camera.bottom = -halfHeight;
+      camera.right = halfHeight * aspect; camera.left = -camera.right;
+      camera.updateProjectionMatrix();
+    }
+    if (skillDemoMode) camLook.set(DEMO_X+2, 0.65, DEMO_Z);
+    else camLook.lerp(v3.set(player.x, 0, player.z), Math.min(1, dt*6));
+    const x = camLook.x + rnd(-shk, shk), z = camLook.z + rnd(-shk, shk);
+    camera.position.set(x, camLook.y + 32*Math.sin(campusElevation), z + 32*Math.cos(campusElevation));
+    camera.lookAt(x, camLook.y, z);
+    torch.position.set(player.x, 3.2, player.z);
   }
   if (debugCam) { camera.position.set(...debugCam.pos); camera.lookAt(...debugCam.look); }
   if (team) drawPeerMarkers(team);
@@ -5982,6 +5764,7 @@ if (staticMatchPreview) {
     renderPreview();
     requestAnimationFrame(renderPreview);
   });
+  artLoader.manager.onLoad = () => requestAnimationFrame(renderPreview);
   addEventListener('resize', () => requestAnimationFrame(renderPreview));
 } else if (cloudGame) {
   titleEl.hidden = true;
