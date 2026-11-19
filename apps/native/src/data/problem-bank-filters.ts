@@ -7,6 +7,12 @@ export function namedMidtermYear(label: string): string | undefined {
   );
 }
 
+export const courseSeries =
+  /^(?:Worksheet \d+|Tutorial \d+|Extra Practice \d+|Sample Test \d+-\d+|Practice Exam [ABC]|Examlet 3 模考 [A-D])$/;
+export function courseQuestionNumber(tags: readonly string[] = []) {
+  return tags.find((tag) => /^(?:(?:W|T|EP|PE)\d+\.\d+|(?:[ABC]-)?Q\d+[ab]?)$/.test(tag)) ?? '';
+}
+
 const reviewPaper = /^(?:UTM Term Test 2 Review [A-C]|UTSG Quiz 2 Review [A-E])$/;
 
 const legacyPaperAliases = new Map([
@@ -30,6 +36,7 @@ export function paperLabels(tags: readonly string[] = []): string[] {
     const renamed = legacyPaperAliases.get(tag);
     if (renamed && tags.includes(renamed)) continue;
     if (
+      courseSeries.test(tag) ||
       year ||
       reviewPaper.test(tag) ||
       renamedPapers.has(tag) ||

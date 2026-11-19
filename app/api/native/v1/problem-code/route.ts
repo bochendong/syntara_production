@@ -185,6 +185,10 @@ export async function POST(request: NextRequest) {
     });
     if (
       loaded.problem.publicContent.type === 'code' &&
+      !(
+        loaded.problem.publicContent.courseRubric === 'weighted' &&
+        loaded.secretJudge?.courseRubricSuite
+      ) &&
       (loaded.problem.publicContent.publicTestCode?.trim() ||
         loaded.problem.publicContent.publicTests.length > 0)
     ) {

@@ -10,6 +10,9 @@ import { ArrowLeft, Check, ChevronLeft, LayoutGrid, List, Play } from 'lucide-re
 
 import { difficultyLabel, problemTypeLabel } from '../data/local-problem-grading';
 import {
+  courseSeries,
+  courseQuestionNumber,
+  paperLabels,
   matchesProblemFilters,
   namedMidtermYear,
   problemPaperSeries,
@@ -260,7 +263,14 @@ function ProblemRow({
         </strong>
         <small>
           <span className="pb-row-type">{problemTypeLabel(problem.type)}</span>
-          {[problem.chapterName, ...problem.tags.slice(0, 2)].filter(Boolean).join(' · ')}
+          {[
+            problem.chapterName,
+            ...(problem.tags.some((tag) => courseSeries.test(tag))
+              ? [...paperLabels(problem.tags), courseQuestionNumber(problem.tags)]
+              : problem.tags.slice(0, 2)),
+          ]
+            .filter(Boolean)
+            .join(' · ')}
         </small>
       </span>
       <span className="pb-row-play" aria-hidden>
@@ -642,7 +652,13 @@ export function ProblemBankPage({
       }),
     );
     // Imported named midterms use course order even when their questions span several topics.
-    if (namedMidtermYear(activeSeries)) {
+    if (courseSeries.test(activeSeries)) {
+      filtered.sort((a, b) =>
+        courseQuestionNumber(a.tags).localeCompare(courseQuestionNumber(b.tags), 'en', {
+          numeric: true,
+        }),
+      );
+    } else if (namedMidtermYear(activeSeries)) {
       filtered.sort((a, b) =>
         problemOrder(sourceProblems.get(a.id) ?? a, sourceProblems.get(b.id) ?? b),
       );
@@ -1026,7 +1042,9 @@ export function ProblemBankPage({
                           onClick={() =>
                             startPractice(
                               searchResults,
-                              firstUnpassed(searchResults),
+                              courseSeries.test(activeSeries)
+                                ? searchResults[0]
+                                : firstUnpassed(searchResults),
                               filterTitle,
                               null,
                             )

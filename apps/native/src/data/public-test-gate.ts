@@ -10,6 +10,7 @@ export function codeReadyToSubmit(
   receipt: PublicTestReceipt | undefined,
   code: string,
 ) {
+  if (content.courseRubric === 'weighted') return true;
   if (
     content.language === 'racket' &&
     (!Array.isArray(content.publicTests) || content.publicTests.length === 0) &&

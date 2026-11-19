@@ -1,3 +1,4 @@
+import { courseSeries, courseQuestionNumber, paperLabels } from '../data/problem-bank-filters';
 import { createTeacherPracticeStore } from '../data/teacher-practice-store';
 import { classroomDraftAccount, classroomProblemDocument } from '../data/classroom-practice-scope';
 import { createPracticeMilestones } from '../lib/practice-milestones';
@@ -1120,6 +1121,31 @@ export function ProblemPracticePage({
           );
           grade = tableResult;
           tableCells = tableResult.cells;
+          if (
+            currentProblem.id === 'cpsc103-examlet3-c-q1' ||
+            currentProblem.id === 'cpsc103-examlet3-c-q2'
+          ) {
+            const missing = tableCells.filter((cell) => !cell.correct);
+            const trace = currentProblem.id.endsWith('q2');
+            if (trace) {
+              const rows = (currentProblem.publicContent as NotebookProblemPublicTable).rows.length;
+              grade.score = 1 - new Set(missing.map((cell) => cell.key.split(':')[0])).size / rows;
+              grade.status = grade.score === 1 ? 'passed' : grade.score > 0 ? 'partial' : 'failed';
+            }
+            if (missing.length)
+              grade.feedback =
+                (trace ? '按完整行计分。' : '') +
+                '请检查：' +
+                missing
+                  .map((cell) => {
+                    const [row, column] = cell.key.split(':');
+                    const number = Number(row.slice(1)) + 1;
+                    return trace
+                      ? '第 ' + number + ' 次循环的 ' + (column === '1' ? 'has_time(s)' : 'acc')
+                      : '第 ' + number + ' 空';
+                  })
+                  .join('、');
+          }
         }
         if (structuredRacket?.mode === 'template' && submittedAnswer.kind === 'text') {
           const checks = checkRacketTemplate(
@@ -1871,6 +1897,14 @@ export function ProblemPracticePage({
               onClick={() => setSheetOpen((open) => !open)}
             >
               {chapterTitle ? <span className="pp-question-chapter">{chapterTitle}</span> : null}
+              {displayedProblem &&
+                paperLabels(displayedProblem.tags)
+                  .filter((label) => courseSeries.test(label) && label !== chapterTitle)
+                  .map((label) => <span key={label}>{label}</span>)}
+              {displayedProblem &&
+                paperLabels(displayedProblem.tags).some((label) => courseSeries.test(label)) && (
+                  <span>{courseQuestionNumber(displayedProblem.tags)}</span>
+                )}
               <span className="pp-question-count">
                 第 {currentIndex + 1} / {total} 题
               </span>
@@ -2571,7 +2605,11 @@ export function ProblemPracticePage({
                       runAllTarget={runAllTarget}
                       example={codeContent?.sampleIO?.[0]?.input}
                       language={codeLanguage}
-                      onRunTests={serverRunsCode ? serverRunPublicTests : undefined}
+                      onRunTests={
+                        serverRunsCode || publicContent.courseRubric
+                          ? serverRunPublicTests
+                          : undefined
+                      }
                       onPublicTestResult={(code, passed) => {
                         publicTestReceipts.current.set(JSON.stringify([currentProblem.id, '']), {
                           code,

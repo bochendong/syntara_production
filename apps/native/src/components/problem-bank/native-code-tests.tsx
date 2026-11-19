@@ -168,7 +168,11 @@ export function NativeCodeTests({
             >
               <div className="native-code-test-call">
                 <span className="native-code-test-number">{index + 1}</span>
-                <pre>{highlightCode(test.expression, language)}</pre>
+                {test.expression === 'course_check()' && test.description ? (
+                  <span style={{ flex: 1, fontSize: 14 }}>{test.description}</span>
+                ) : (
+                  <pre>{highlightCode(test.expression, language)}</pre>
+                )}
                 <button
                   type="button"
                   aria-label={
@@ -192,7 +196,19 @@ export function NativeCodeTests({
               ) : null}
               <div className="native-code-test-values">
                 <span>
-                  预期 <code>{test.expected}</code>
+                  {test.expression === 'course_check()' ? (
+                    test.coursePoints ? (
+                      (result && !stale ? (result.passed ? test.coursePoints : 0) : '–') +
+                      ' / ' +
+                      test.coursePoints
+                    ) : (
+                      '课程检查'
+                    )
+                  ) : (
+                    <>
+                      预期 <code>{test.expected}</code>
+                    </>
+                  )}
                 </span>
                 {result ? (
                   <span data-status={stale ? 'stale' : result.passed ? 'passed' : 'failed'}>
@@ -205,7 +221,7 @@ export function NativeCodeTests({
                     )}
                     {result.actual ? (
                       <>
-                        实际 <code>{result.actual}</code>
+                        {result.passed ? '实际' : '失败原因'} <code>{result.actual}</code>
                       </>
                     ) : result.passed ? (
                       '通过'

@@ -412,14 +412,15 @@ function buildCodePayload(
     throw new Error('Only code problems can be judged');
   }
 
+  const publicSuite = secretJudge?.courseRubricSuite ?? problem.publicContent.publicTestCode;
   const publicCases =
-    problem.publicContent.publicTestCode !== undefined
+    publicSuite !== undefined
       ? [
           {
             id: '__suite__',
             expression: '',
             expected: '',
-            testCode: problem.publicContent.publicTestCode,
+            testCode: publicSuite,
           },
         ]
       : problem.publicContent.publicTests.map((testCase) => ({
@@ -1329,7 +1330,13 @@ export async function judgeNotebookCodeProblem(args: {
     };
   }
 
-  if ((args.kind === 'submit' || runTarget === 'secret') && payload.secretCases.length === 0) {
+  const weighted =
+    content.courseRubric === 'weighted' && Boolean(args.secretJudge?.courseRubricSuite);
+  if (
+    !weighted &&
+    (args.kind === 'submit' || runTarget === 'secret') &&
+    payload.secretCases.length === 0
+  ) {
     return {
       status: 'error',
       score: 0,
@@ -1432,6 +1439,40 @@ export async function judgeNotebookCodeProblem(args: {
       label: 'public',
       locale,
     });
+
+    if (weighted && (args.kind === 'submit' || runTarget === 'public')) {
+      const rows = content.publicTests.map((test, index) => {
+        const result = publicCaseResults.find((row) =>
+          row.id.endsWith('.test_visible_' + (index + 1)),
+        );
+        const reason = (result?.error ?? publicCaseResults[0]?.error ?? '评分项未返回结果')
+          .trim()
+          .split('\n')
+          .at(-1);
+        return { test, points: test.coursePoints ?? 1, passed: result?.passed === true, reason };
+      });
+      const total = rows.reduce((sum, row) => sum + row.points, 0);
+      const earned = rows.reduce((sum, row) => sum + (row.passed ? row.points : 0), 0);
+      const score = total ? (problem.points * earned) / total : 0;
+      const correct = total > 0 && earned === total;
+      const feedback = [
+        earned + ' / ' + total + ' 分',
+        ...rows
+          .filter((row) => !row.passed)
+          .map((row) => row.test.description + '（−' + row.points + '） ' + row.reason),
+      ].join('\n');
+      return {
+        status: correct ? 'passed' : earned ? 'partial' : 'failed',
+        score,
+        result: {
+          correct,
+          feedback,
+          earnedPoints: score,
+          publicCases: publicCaseResults,
+          publicSummary,
+        },
+      };
+    }
 
     if (args.kind === 'run') {
       const allPassed = publicFailed === 0;

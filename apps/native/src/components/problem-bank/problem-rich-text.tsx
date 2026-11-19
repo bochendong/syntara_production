@@ -252,7 +252,7 @@ function renderInlineMarkdown(text: string): string {
       continue;
     }
     held += hold(
-      `<code class="problem-rich-inline-code">${escapeHtml(text.slice(tickStart + 1, tickEnd))}</code>`,
+      `<code class="problem-rich-inline-code">${renderHighlightedPythonCode(text.slice(tickStart + 1, tickEnd))}</code>`,
     );
     cursor = tickEnd + 1;
   }

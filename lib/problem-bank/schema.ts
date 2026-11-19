@@ -315,6 +315,7 @@ export const notebookProblemPublicTableSchema = notebookProblemPublicBaseSchema.
 });
 
 export const notebookCodeTestSchema = z.object({
+  coursePoints: z.number().positive().optional(),
   id: z.string().trim().min(1).max(64),
   description: z.string().trim().min(1).max(500).optional(),
   expression: z.string().trim().min(1).max(4000),
@@ -380,6 +381,7 @@ export const notebookProblemPublicCodeSchema = notebookProblemPublicBaseSchema.e
   starterCode: z.string().max(40000).optional(),
   functionSignature: z.string().trim().min(1).max(4000).optional(),
   constraints: z.array(z.string().trim().min(1).max(500)).max(16).default([]),
+  courseRubric: z.enum(['checks', 'weighted']).optional(),
   publicTestCode: z.string().max(80000).optional(),
   publicTests: z.array(notebookCodeTestSchema).max(24).default([]),
   sampleIO: z.array(notebookCodeSampleIoSchema).max(12).default([]),
@@ -421,7 +423,7 @@ export const notebookProblemPublicMultipartSchema = notebookProblemPublicBaseSch
   responseKind: z.literal('multipart').optional(),
   /// 共享题干：背景、条件、表格、图，所有小问共用，只写一次
   stem: z.string().trim().min(1).max(16000),
-  parts: z.array(notebookProblemPartSchema).min(1).max(12),
+  parts: z.array(notebookProblemPartSchema).min(1).max(20),
 });
 
 export const notebookProblemPublicContentSchema = z.discriminatedUnion('type', [
@@ -567,7 +569,7 @@ export const notebookProblemGradingMultipartSchema = z.object({
         grading: notebookProblemPartGradingSchema,
       }),
     )
-    .max(12)
+    .max(20)
     .default([]),
   analysis: z.string().trim().min(1).max(12000).optional(),
 });
@@ -613,6 +615,7 @@ export const racketDesignRecipeSchema = z.object({
 export type RacketDesignRecipe = z.infer<typeof racketDesignRecipeSchema>;
 
 export const notebookProblemSecretJudgeSchema = z.object({
+  courseRubricSuite: z.string().max(80000).optional(),
   /// Private reference helpers, added only after the student's locked ranges are validated.
   supportCode: z.string().max(40000).optional(),
   language: z.string().trim().min(1).max(40).default('python'),
