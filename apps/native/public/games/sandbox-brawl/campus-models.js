@@ -197,6 +197,74 @@ function desk(b, w, d, large) {
     rail(b, gold, w * 0.2, h + 0.06, 0.14, 0.67, 0.065, 0.071, 0.01);
   }
 }
+// Japanese classroom furniture at the scholar's scale: steel-tube frames,
+// light plywood tops, a chair tucked behind each desk facing the blackboard.
+const steel = 0x8d949c,
+  steelDark = 0x6c737c,
+  ply = 0xd9bc92,
+  plyEdge = 0xa98660;
+function schoolChair(b, x, z, pull = 0) {
+  const seat = 1.0,
+    zc = z + pull;
+  for (const sx of [-1, 1])
+    for (const sz of [-1, 1]) rail(b, steel, x + sx * 0.4, seat / 2, zc + sz * 0.36, 0.07, seat, 0.07);
+  for (const sx of [-1, 1]) rail(b, steel, x + sx * 0.4, seat + 0.5, zc + 0.4, 0.07, 1.0, 0.07);
+  b.box(ply, x, seat + 0.03, zc, 0.96, 0.08, 0.88, 0, 0.012);
+  b.box(ply, x, seat + 0.78, zc + 0.43, 0.92, 0.42, 0.07, 0, 0.012);
+}
+function schoolDesk(b, x, z, seed) {
+  const h = 1.72,
+    w = 1.62,
+    d = 1.08;
+  for (const sx of [-1, 1]) {
+    rail(b, steel, x + sx * (w / 2 - 0.1), h / 2, z - d / 2 + 0.12, 0.08, h, 0.08);
+    rail(b, steel, x + sx * (w / 2 - 0.1), h / 2, z + d / 2 - 0.12, 0.08, h, 0.08);
+    rail(b, steel, x + sx * (w / 2 - 0.1), 0.25, z, 0.07, 0.07, d - 0.2);
+  }
+  // Storage tray under the top, open toward the chair.
+  b.box(steelDark, x, h - 0.32, z - 0.08, w - 0.26, 0.05, d - 0.36, 0, 0.01);
+  b.box(steel, x, h - 0.2, z - d / 2 + 0.2, w - 0.26, 0.24, 0.05, 0, 0.01);
+  b.box(plyEdge, x, h - 0.05, z, w, 0.1, d, 0, 0.012);
+  b.box(ply, x, h + 0.01, z, w - 0.04, 0.03, d - 0.04, 0, 0);
+  const r = (k) => (Math.sin(seed * 12.9898 + k * 78.233) * 43758.5453) % 1;
+  const v = Math.abs(r(1));
+  if (v < 0.45) {
+    b.box(paper, x - 0.18, h + 0.05, z + 0.05, 0.62, 0.03, 0.46, 0.25 * r(2), 0.008);
+    rail(b, gold, x + 0.22, h + 0.07, z + 0.12, 0.4, 0.035, 0.035, 0, 0);
+  } else if (v < 0.7) {
+    b.box(bookColors[Math.floor(Math.abs(r(3)) * 6)], x + 0.2, h + 0.08, z - 0.05, 0.5, 0.1, 0.36, 0.3 * r(4), 0.01);
+  }
+  // A school bag on the side hook of some desks.
+  if (Math.abs(r(5)) > 0.6) {
+    const sx = r(6) > 0 ? 1 : -1;
+    b.box(navy, x + sx * (w / 2 + 0.1), h - 0.62, z + 0.05, 0.2, 0.62, 0.62, 0, 0.012);
+    rail(b, navy, x + sx * (w / 2 + 0.06), h - 0.2, z + 0.05, 0.04, 0.32, 0.36);
+  }
+}
+function deskRow(b, w, d, seed) {
+  const n = Math.max(1, Math.floor(w / 1.95)),
+    gap = w / n;
+  for (let i = 0; i < n; i++) {
+    const x = -w / 2 + gap * (i + 0.5);
+    schoolDesk(b, x, -d / 2 + 0.56, seed * 7 + i);
+    schoolChair(b, x, d / 2 - 0.45, 0.04 * Math.sin(seed + i * 2.1));
+  }
+}
+function teacherDesk(b, w, d) {
+  const h = 2.0;
+  for (const sx of [-1, 1]) {
+    b.box(steel, sx * (w / 2 - 0.35), h / 2 - 0.05, 0, 0.6, h - 0.1, d - 0.15, 0, 0.012);
+  }
+  b.box(steel, 0, h / 2 + 0.2, -d / 2 + 0.12, w - 0.9, h - 0.6, 0.06, 0, 0.01);
+  b.box(plyEdge, 0, h + 0.0, 0, w, 0.12, d, 0, 0.012);
+  b.box(0x7c8b84, 0, h + 0.07, 0, w - 0.06, 0.03, d - 0.06, 0, 0);
+  // Lectern, attendance book and a chalk box.
+  b.box(plyEdge, -w * 0.05, h + 0.42, -d * 0.05, 1.5, 0.75, 1.05, 0, 0.012);
+  b.box(ply, -w * 0.05, h + 0.81, -d * 0.05, 1.42, 0.05, 0.98, 0, 0);
+  b.box(navy, -w * 0.05, h + 0.87, -d * 0.05, 0.7, 0.07, 0.5, 0.1, 0.008);
+  b.box(paper, w * 0.3, h + 0.12, 0.05, 0.36, 0.14, 0.24, 0, 0.008);
+  plant(b, w * 0.4, h + 0.04, 0, 0.62);
+}
 function tubeRack(b, x, y, z) {
   const width = 1.56;
   b.box(honey, x, y + 0.1, z, width, 0.16, 0.66);
@@ -685,11 +753,13 @@ export function buildCampusModels(walls) {
         wall(b, w, d, Math.min(3.4, obstacle.height));
         break;
       case 'shelf':
-        shelf(b, w, d);
+        deskRow(b, w, d, x + z);
         break;
       case 'desk':
+        deskRow(b, w, d, x * 3 + z);
+        break;
       case 'teacher':
-        desk(b, w, d, kind === 'teacher');
+        teacherDesk(b, w, d);
         break;
       case 'lab':
         lab(b, w, d);

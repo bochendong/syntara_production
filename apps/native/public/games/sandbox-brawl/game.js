@@ -1,6 +1,7 @@
 import { advanceScholar, scholarSize } from './scholar.js';
 import { buildScholar, poseSchoolUniform as poseScholar } from './scholar-model.js';
 import { buildInkPortal, buildPortraitRoom } from './campus-models.js';
+import { castShadowMatrix } from './campus-mesh.js';
 import { createCampusItems, ITEM } from './campus-items.js';
 import { createCampus, campusElevation, campusStudentScale, campusStudentRadius, taskSites, portalSites, insideCampusObstacle, resolveCampusObstacles } from './campus.js';
 import { createGameAudio } from './game-audio.js';
@@ -755,6 +756,7 @@ class Rig {
       const m = new THREE.InstancedMesh(GEO[pt[0]], scholarSculpt.materials[pt[0]] ?? toonMat, cap); m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); m.frustumCulled = false; m.count = 0; m.setColorAt(0, WHITE); scene.add(m);
       let ol = null; if (pt[6]) { ol = new THREE.InstancedMesh(OGEO[pt[0]], outlineRigMat, cap); ol.instanceMatrix.setUsage(THREE.DynamicDrawUsage); ol.frustumCulled = false; ol.count = 0; scene.add(ol); }
       const k = pt[5] || '';
+      if (this.scholar) { const map = scholarSculpt.materials[pt[0]]?.map; m.userData.shadow = new THREE.InstancedMesh(GEO[pt[0]], castShadowMat(map), cap); const sm = m.userData.shadow; sm.instanceMatrix.setUsage(THREE.DynamicDrawUsage); sm.frustumCulled = false; sm.count = 0; sm.renderOrder = -1; scene.add(sm); }
       return { pt, m, ol, joint: k.startsWith('scholar:') ? k.slice(8) : null, color: new THREE.Color(pt[1]), glow: k.includes('glow'), tint: k.includes('tint') };
     });
   }
@@ -773,14 +775,18 @@ class Rig {
       if (e.warn) tC.lerp(REDC, e.warn); if (e.frz > 0) tC.lerp(ICEC, 0.92); else { if (e.chill > 0) tC.lerp(ICEC, 0.72); if (e.acid > 0) tC.lerp(ACIDC, 0.74 + 0.1 * Math.sin(realTime * 9)); } if (e.shock > 0 && Math.sin(realTime * 70 + i) > 0) tC.lerp(SHOCKC, 0.8);
       P.m.setColorAt(i, tC);
       if (P.ol) P.ol.setMatrixAt(i, CM);
+      if (P.m.userData.shadow) P.m.userData.shadow.setMatrixAt(i, SHM.multiplyMatrices(castShadowMatrix, CM));
     }
   }
   end() {
-    for (const P of this.parts) { P.m.count = this.n; P.m.instanceMatrix.needsUpdate = true; if (P.m.instanceColor) P.m.instanceColor.needsUpdate = true; if (P.ol) { P.ol.count = this.n; P.ol.instanceMatrix.needsUpdate = true; } }
+    for (const P of this.parts) { P.m.count = this.n; P.m.instanceMatrix.needsUpdate = true; if (P.m.instanceColor) P.m.instanceColor.needsUpdate = true; if (P.ol) { P.ol.count = this.n; P.ol.instanceMatrix.needsUpdate = true; } const sm = P.m.userData.shadow; if (sm) { sm.count = this.n; sm.instanceMatrix.needsUpdate = true; } }
     this.n = 0;
   }
 }
 const GHOSTC = new THREE.Color(0xdcefff);
+const SHM = new THREE.Matrix4(), shadowMats = new Map();
+// Rigs are built before the campus; the floor shader is attached once the campus exists.
+function castShadowMat(map) { const key = map ?? 'solid'; if (!shadowMats.has(key)) shadowMats.set(key, { map, mat: new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }) }); return shadowMats.get(key).mat; }
 // 镜头是俯视的：角色整体往后仰一点，脸和身体才看得见，不会只看到头顶
 const LW = new THREE.Matrix4(), LEAN_ROT = new THREE.Matrix4(), LEAN_AX = new THREE.Vector3(); let leanAngle = 0;
 const LEAN_RIGS = new Set([...Object.keys(ET), 'dean', 'coach', 'kraken', 'minion']);
@@ -798,6 +804,7 @@ function ringMark(x, z, r, color, w = 4) { const [cx, cz] = mk(x, z); mctx.strok
 function footprint(x, z, yaw, side) { const ox = Math.cos(yaw) * 0.16 * campusStudentScale * side, oz = -Math.sin(yaw) * 0.16 * campusStudentScale * side; const [cx, cz] = mk(x + ox, z + oz); mctx.save(); mctx.translate(cx, cz); mctx.rotate(-yaw); mctx.fillStyle = 'rgba(70,44,24,.14)'; mctx.beginPath(); mctx.ellipse(0, 0, 2.6, 4.2, 0, 0, TAU); mctx.fill(); mctx.restore(); marksDirty = true; }
 const RIPS = Array.from({ length: 8 }, () => new THREE.Vector4(0, 0, -100, 0));
 const campus = createCampus(markTex, uTime, RIPS);
+for (const entry of shadowMats.values()) { const real = campus.castShadowMaterial(entry.map); Object.assign(entry.mat, { map: real.map, alphaTest: real.alphaTest }); entry.mat.onBeforeCompile = real.onBeforeCompile; entry.mat.needsUpdate = true; }
 scene.add(campus.group);
 const itemArt = createCampusItems(scene);
 const GEM_CELLS = [ITEM.green, ITEM.blue, ITEM.gold];
@@ -1407,7 +1414,8 @@ function drawCampusStudent(rig, pose, x, y, z, yaw) {
   const bounce = rig.scholar ? 1 : 1 + Math.sin(pose.ph * 2) * 0.02 * pose.moving;
   const s = campusStudentScale * (rig.scholar ? scholarSize : 1);
   rig.push(pose, worldM(x, y, z, yaw, s, s * bounce, s));
-  shadow(x, z, 0.55 * s);
+  // The scholar casts a projected shadow with the furniture; keep a faint contact blob.
+  shadow(x, z, (rig.scholar ? 0.3 : 0.55) * s);
 }
 /* ---------- 大鹅抽卡与碎片成长 ---------- */
 const GACHA = { one: 30, ten: 270, pity: 80, legendary: 0.05, rareSkin: 0.05, rareFragment: 0.30, duplicateBack: { 1: 10, 2: 25 } };

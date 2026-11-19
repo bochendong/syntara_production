@@ -85,6 +85,8 @@ function source(geometry) {
 }
 
 // Orthographic silhouette on the ground, used only for the cast shadow.
+// Ground projection of the light that props and characters share: x += 0.42y, z -= 0.2y.
+export const castShadowMatrix = new T.Matrix4().set(1, 0.42, 0, 0, 0, 0, 0, 0.016, 0, -0.2, 1, 0, 0, 0, 0, 1);
 function footprint(points) {
   const sorted = points
     .map((v) => [v.x + v.y * 0.42, v.z - v.y * 0.2])

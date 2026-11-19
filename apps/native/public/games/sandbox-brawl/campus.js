@@ -245,7 +245,7 @@ export function createCampus(markTexture, time, ripples) {
       'varying vec2 groundXZ;\n' +
       shader.vertexShader.replace(
         '#include <project_vertex>',
-        '#include <project_vertex>\n groundXZ = (modelMatrix * vec4(transformed,1.)).xz;',
+        '#include <project_vertex>\n#ifdef USE_INSTANCING\n groundXZ = (modelMatrix * instanceMatrix * vec4(transformed,1.)).xz;\n#else\n groundXZ = (modelMatrix * vec4(transformed,1.)).xz;\n#endif',
       );
     shader.fragmentShader =
       'varying vec2 groundXZ; uniform sampler2D marks; uniform float now; uniform vec4 ripples[8];\n' +
@@ -336,7 +336,18 @@ export function createCampus(markTexture, time, ripples) {
   }
   floor.material.onBeforeCompile = (shader) => groundShader(shader, false);
   shadows.material.onBeforeCompile = (shader) => groundShader(shader, true);
-  return { group, walls };
+  // Characters flattened along the same light as the furniture shadows. The map
+  // only supplies alpha, so cut-out hair cards cast strands instead of quads.
+  function castShadowMaterial(map) {
+    const material = new THREE.MeshBasicMaterial({
+      map: map ?? null,
+      alphaTest: map ? 0.32 : 0,
+      side: THREE.DoubleSide,
+    });
+    material.onBeforeCompile = (shader) => groundShader(shader, true);
+    return material;
+  }
+  return { group, walls, castShadowMaterial };
 }
 
 // A circle against a convex footprint. The broad phase also saves work when
