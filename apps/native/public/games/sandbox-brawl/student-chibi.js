@@ -1,21 +1,51 @@
 import * as THREE from './vendor/three.module.js';
 
-// The first row holds the game poses. The second row raises
-// the pencil in small increments for the character-selection podium.
-const columns = 8, rows = 2;
+// Row 0 holds the run poses (idle, blink, four walk steps, jab, reading).
+// Row 1 raises the item in small increments for the character-selection podium.
+// Row 2 holds combat poses and row 3 idle-show poses; see POSES below.
+const columns = 8, rows = 4;
 export const scholarLook = { style: 'long', outfit: 'sailor', girl: true, hair: 0x1e1a2e, top: 0xfaf8f2, pants: 0x2c3a6e, iris: 0x3a6ad8, accent: 0xe2453a, item: 'pencil', glasses: true };
 export const studentCardGeometry = () => new THREE.PlaneGeometry(2.12, 2.12).translate(0, 2.12 * (232 / 256 - 0.5), 0);
 const textures = new Map();
 const ink = '#342638';
 const css = (color) => '#' + color.toString(16).padStart(6, '0');
+// Each pose is a set of joint angles (radians, canvas rotation) plus a face.
+// item / free: item-hand and free-hand shoulder angles; head: head tilt;
+// lean: whole body about the feet; bob: body drop in pixels (crouch > 0);
+// legL / legR: leg swings; armK: arm length for raised arms drawn in front of the head.
+const POSES = {
+  windup: { item: -0.72, free: -0.3, head: -0.07, lean: -0.08, bob: 3, eyes: 'focus', mouth: 'grit' },
+  strike: { item: 1.3, free: 0.55, head: 0.06, lean: 0.11, legL: 0.3, legR: 0.1, eyes: 'focus', mouth: 'shout' },
+  follow: { item: 0.95, free: 0.3, head: 0.03, lean: 0.05, legL: 0.15, eyes: 'open', mouth: 'open' },
+  hurt: { item: -0.55, free: -0.85, head: -0.13, lean: -0.14, bob: 1, legL: -0.2, legR: 0.25, eyes: 'shut', mouth: 'ouch', sweat: true },
+  down: { item: 0.35, free: 0.35, head: 0.08, legL: 0.12, legR: -0.12, eyes: 'x', mouth: 'o', stars: true },
+  cheer: { item: -0.45, free: 1.7, freeFront: true, armK: 1.5, bob: -2, eyes: 'happy', mouth: 'shout' },
+  wave1: { item: -0.15, free: 1.25, freeFront: true, armK: 1.5, head: 0.05, eyes: 'happy', mouth: 'open' },
+  wave2: { item: -0.15, free: 1.85, freeFront: true, armK: 1.5, head: 0.08, eyes: 'happy', mouth: 'open' },
+  lookL: { head: 0.07, eyes: 'open', look: -4, free: -0.08 },
+  lookR: { head: -0.06, eyes: 'open', look: 4, item: 0.08 },
+  stretch: { item: -0.6, free: 1.6, freeFront: true, armK: 1.4, bob: -2, eyes: 'closed', mouth: 'yawn' },
+  crouch: { item: 0.25, free: -0.25, bob: 5, eyes: 'focus', mouth: 'smile' },
+  air: { item: -0.4, free: 1.3, freeFront: true, armK: 1.3, bob: -2, legL: 0.5, legR: -0.5, eyes: 'happy', mouth: 'shout' },
+  flourish: { item: -0.8, free: 0.65, head: -0.05, eyes: 'open', mouth: 'grin' },
+  proud: { item: 0.32, free: -0.42, head: -0.09, eyes: 'happy', mouth: 'smile' },
+  startle: { item: -0.35, free: 0.75, bob: -2, head: -0.05, eyes: 'wide', mouth: 'o', sweat: true },
+};
+const ROW2 = ['windup', 'strike', 'follow', 'hurt', 'down', 'cheer', 'wave1', 'wave2'];
+const ROW3 = ['lookL', 'lookR', 'stretch', 'crouch', 'air', 'flourish', 'proud', 'startle'];
+export const CHIBI_CELL = {};
+ROW2.forEach((name, i) => { CHIBI_CELL[name] = [i, 2]; });
+ROW3.forEach((name, i) => { CHIBI_CELL[name] = [i, 3]; });
 
-function paintStudent(ctx, look, frame, lift = 0) {
+function paintStudent(ctx, look, frame, lift = 0, pose = null) {
   const hair = css(look.hair), navy = css(look.pants), bow = css(look.accent ?? 0xffd25a);
   const skin = css(look.skin ?? 0xffdfbe), cream = css(look.top);
   const scholar = look.item === 'pencil';
   const skirt = ['sailor', 'cardigan', 'cheer', 'apron'].includes(look.outfit);
-  const stride = [0, 0, -1, -0.36, 1, 0.36, 0, 0][frame];
-  const jab = frame === 6, reading = frame === 7;
+  const stride = pose ? 0 : [0, 0, -1, -0.36, 1, 0.36, 0, 0][frame];
+  const jab = !pose && frame === 6, reading = !pose && frame === 7;
+  // The scholar's free hand carries her book, so it stretches less.
+  const P = pose || {}, armK = 1 + ((P.armK || 1) - 1) * (scholar ? 0.35 : 1);
   ctx.lineJoin = 'round';
   ctx.lineCap = 'round';
   function shape(path, fill, width = 3.6) {
@@ -50,13 +80,15 @@ function paintStudent(ctx, look, frame, lift = 0) {
     shape('M-9 22 Q-1 25 8 21 Q18 21 19 29 Q18 36 -9 34 Q-13 31 -9 22Z', look.big ? '#fff4dc' : '#664051');
     ctx.restore();
   }
-  leg(108, stride * 0.40);
-  leg(145, -stride * 0.42);
   ctx.save();
-  ctx.translate(0, -Math.abs(stride) * 3);
+  if (P.lean) { ctx.translate(126, 230); ctx.rotate(P.lean); ctx.translate(-126, -230); }
+  leg(108, P.legL ?? stride * 0.40);
+  leg(145, P.legR ?? -stride * 0.42);
+  ctx.save();
+  ctx.translate(0, -Math.abs(stride) * 3 + (P.bob || 0));
   // The pencil, sleeve and mitten rotate about the same shoulder.
   function itemArm() {
-    pivot(154, 152, jab ? 0.72 : stride * 0.075 - lift * 0.27, () => {
+    pivot(154, 152, P.item ?? (jab ? 0.72 : stride * 0.075 - lift * 0.27), () => {
       shape('M155 147 Q169 146 179 158 L172 171 Q157 169 150 161Z', cream);
       if (scholar) pivot(176, 159, 0.37 + lift * 0.39, () => {
         shape('M170 108 L182 108 L182 194 Q176 198 170 194Z', '#f4b73f');
@@ -76,15 +108,17 @@ function paintStudent(ctx, look, frame, lift = 0) {
     shape('M125 153 L135 155 L144 173 L134 169 L128 177 L124 161Z', bow, 2.5);
   } else drawUniform(look, shape, oval, cream, bow);
   itemArm();
-  pivot(104, 154, reading ? 0.28 : -stride * 0.055, () => {
+  const freeArm = () => pivot(104, 154, P.free ?? (reading ? 0.28 : -stride * 0.055), () => {
+    if (armK !== 1) { ctx.translate(104, 154); ctx.scale(armK, armK); ctx.translate(-104, -154); }
     if (scholar) shape('M93 154 L113 149 L124 178 L102 185Z', '#4c9990');
     if (scholar) shape('M96 155 L112 151 L113 155 L97 159Z', '#ffedcb', 1.3);
     shape('M94 152 Q86 152 86 164 Q86 171 95 172 L102 167Z', cream);
     if (look.armband) shape('M89 155 L97 151 L101 159 L91 164Z', css(look.armband), 2);
     shape('M94 162 Q100 158 105 163 Q109 169 102 173 Q94 178 91 171Z', skin, 2.8);
   });
+  if (!P.freeFront) freeArm();
 
-  pivot(125, 132, jab ? -0.055 : reading ? 0.065 : stride * 0.025 + lift * 0.035, () => {
+  pivot(125, 132, P.head ?? (jab ? -0.055 : reading ? 0.065 : stride * 0.025 + lift * 0.035), () => {
     // A single rounded bob with a blunt hem and two broad swept fringe shapes.
     drawBackHair(look, shape, hair);
     if (look.style === 'long' || look.style === 'bob') shape('M59 93 Q54 50 83 31 Q100 18 131 20 Q171 17 187 51 Q198 73 191 101 L193 125 Q182 140 161 143 Q116 157 68 138 Q55 133 53 123Z', hair, 4.5);
@@ -97,10 +131,8 @@ function paintStudent(ctx, look, frame, lift = 0) {
     } else drawFringe(look, shape, hair);
     oval(108, 118, 9, 4, '#f1ab95');
     oval(174, 113, 7, 3.5, '#f1ab95');
-    const blink = frame === 1 || reading;
-    oval(121, 99, 5, blink ? 1.5 : look.tired ? 3 : 8, ink);
-    oval(165, 95, 4.4, blink ? 1.5 : look.tired ? 3 : 7, ink);
-    if (!blink && !look.tired) { oval(122, 96, 1.6, 2, '#fff6da'); oval(166, 92, 1.4, 1.7, '#fff6da'); }
+    const eyes = P.eyes || (frame === 1 || reading ? 'blink' : 'open');
+    paintEyes(ctx, oval, eyes, look, P.look || 0);
     if (look.glasses) {
       ctx.strokeStyle = '#513748'; ctx.lineWidth = 4.6;
       ctx.beginPath(); ctx.ellipse(119, 99, 19, 17, -0.08, 0, Math.PI * 2); ctx.stroke();
@@ -108,13 +140,67 @@ function paintStudent(ctx, look, frame, lift = 0) {
       ctx.beginPath(); ctx.moveTo(138, 96); ctx.quadraticCurveTo(145, 91, 149, 94);
       ctx.moveTo(100, 98); ctx.lineTo(78, 94); ctx.stroke();
     }
-    ctx.strokeStyle = ink;
-    ctx.beginPath(); ctx.moveTo(139, 120); ctx.quadraticCurveTo(145, 124, 151, 116);
-    ctx.lineWidth = 2.8; ctx.stroke();
+    paintMouth(ctx, oval, P.mouth || 'smile');
+    if (P.sweat) shape('M182 66 Q189 76 187 82 Q183 88 178 82 Q176 76 182 66Z', '#bfe8ff', 2.4);
     if (scholar) shape('M74 62 L89 51 L93 57 L78 69Z', bow, 2.3);
     else drawHeadwear(look, shape, oval, bow);
   });
+  if (P.freeFront) freeArm();
   ctx.restore();
+  if (P.stars) for (const [x, y, r] of [[60, 40, 8], [184, 32, 7], [122, 15, 6]]) star(ctx, x, y, r);
+  ctx.restore();
+}
+
+function star(ctx, x, y, r) {
+  ctx.beginPath();
+  for (let k = 0; k < 10; k++) {
+    const a = -Math.PI / 2 + k * Math.PI / 5, d = k % 2 ? r * 0.45 : r;
+    ctx.lineTo(x + Math.cos(a) * d, y + Math.sin(a) * d);
+  }
+  ctx.closePath();
+  ctx.fillStyle = '#ffd84a'; ctx.fill();
+  ctx.strokeStyle = ink; ctx.lineWidth = 2.4; ctx.stroke();
+}
+
+const EYES = [[121, 99, 5, 8, 1.6, 2], [165, 95, 4.4, 7, 1.4, 1.7]];
+function paintEyes(ctx, oval, kind, look, look_) {
+  ctx.strokeStyle = ink; ctx.lineWidth = 3.2;
+  EYES.forEach(([x, y, rx, ry, hx, hy], i) => {
+    const side = i ? 1 : -1;
+    ctx.beginPath();
+    if (kind === 'happy' || kind === 'closed') {
+      // ^ ^ when happy, a soft downward lid line when the eyes are only closed.
+      if (kind === 'happy') { ctx.moveTo(x - 6, y + 2); ctx.quadraticCurveTo(x, y - 7, x + 6, y + 2); }
+      else { ctx.moveTo(x - 6, y); ctx.quadraticCurveTo(x, y + 5, x + 6, y); }
+      ctx.stroke();
+    } else if (kind === 'shut') {
+      // > <
+      ctx.moveTo(x - 6 * side, y - 6); ctx.lineTo(x + 5 * side, y); ctx.lineTo(x - 6 * side, y + 6); ctx.stroke();
+    } else if (kind === 'x') {
+      ctx.moveTo(x - 5, y - 5); ctx.lineTo(x + 5, y + 5); ctx.moveTo(x + 5, y - 5); ctx.lineTo(x - 5, y + 5); ctx.stroke();
+    } else if (kind === 'blink') oval(x, y, rx, 1.5, ink);
+    else if (kind === 'wide') {
+      oval(x, y, rx + 2.5, ry + 1.5, '#fffaf0'); ctx.lineWidth = 2.4; ctx.beginPath(); ctx.ellipse(x, y, rx + 2.5, ry + 1.5, 0, 0, Math.PI * 2); ctx.stroke();
+      oval(x, y + 1, rx * 0.5, ry * 0.5, ink);
+    } else {
+      const focus = kind === 'focus', tired = look.tired && !focus;
+      const h = tired ? 3 : focus ? ry * 0.72 : ry;
+      oval(x + look_, y + (focus ? 1 : 0), rx, h, ink);
+      if (!tired) oval(x + look_ + 1 - i * 0.2, y - 3 + (focus ? 1 : 0), hx, hy, '#fff6da');
+      if (focus) { ctx.lineWidth = 2.6; ctx.beginPath(); ctx.moveTo(x - 7, y - 11 - side * 2); ctx.lineTo(x + 7, y - 11 + side * 2); ctx.stroke(); }
+    }
+  });
+}
+
+function paintMouth(ctx, oval, kind) {
+  ctx.strokeStyle = ink; ctx.lineWidth = 2.8; ctx.beginPath();
+  if (kind === 'smile') { ctx.moveTo(139, 120); ctx.quadraticCurveTo(145, 124, 151, 116); ctx.stroke(); return; }
+  if (kind === 'grit') { ctx.moveTo(139, 120); ctx.lineTo(151, 117); ctx.stroke(); return; }
+  if (kind === 'grin') { ctx.moveTo(137, 117); ctx.quadraticCurveTo(145, 129, 153, 114); ctx.closePath(); ctx.fillStyle = '#7a3442'; ctx.fill(); ctx.stroke(); return; }
+  const [rx, ry] = kind === 'shout' ? [7, 6.5] : kind === 'yawn' ? [4.5, 6.5] : kind === 'o' ? [3.4, 3.8] : kind === 'ouch' ? [6, 3.4] : [5, 4.2];
+  ctx.ellipse(145, 120, rx, ry, -0.12, 0, Math.PI * 2);
+  ctx.fillStyle = '#7a3442'; ctx.fill(); ctx.stroke();
+  if (ry > 4) oval(145, 120 + ry * 0.45, rx * 0.55, ry * 0.3, '#ff8f8f');
 }
 
 export function studentTexture(look) {
@@ -131,6 +217,7 @@ export function studentTexture(look) {
       ctx.translate(tile * frame, tile * row);
       ctx.scale(tile / 256, tile / 256);
       if (row === 1) paintStudent(ctx, look, 0, frame / (columns - 1));
+      else if (row > 1) paintStudent(ctx, look, 0, 0, POSES[(row === 2 ? ROW2 : ROW3)[frame]]);
       else paintStudent(ctx, look, frame);
       ctx.restore();
     }
@@ -170,23 +257,119 @@ export function useStudentCells(material) {
 }
 
 const position = new THREE.Vector3(), scale = new THREE.Vector3();
+const spin = new THREE.Quaternion(), turn = new THREE.Quaternion(), viewAxis = new THREE.Vector3(0, 0, 1);
+const clamp01 = (v) => Math.min(1, Math.max(0, v));
+const easeOut = (v) => 1 - (1 - v) ** 3;
+// Damped spring: starts at 1, overshoots a little and settles to 0.
+const settle = (t, rate = 9, wobble = 14) => Math.exp(-t * rate) * Math.cos(t * wobble);
+
+// Timed actions, newest wins: down (knocked out), rise (getting up), hurt, attack, then
+// title-screen acts, then walking / idle. Times are seconds since the action started.
+// Roll leans the card about the feet on the screen plane; lift raises it (world units).
+function chibiAction(actor, now, faceLeft) {
+  const dir = faceLeft ? -1 : 1;
+  const age = (key) => (actor[key] == null ? Infinity : now - actor[key]);
+  const out = { cell: null, roll: 0, sx: 1, sy: 1, lift: 0 };
+  const down = age('downAt');
+  if (down < Infinity) {
+    // Recoil, topple backwards, hit the floor with a squash, bounce once and lie still.
+    if (down < 0.1) { out.cell = 'hurt'; out.roll = dir * 0.35 * (down / 0.1); out.sx = 1.12; out.sy = 0.9; return out; }
+    const fall = clamp01((down - 0.1) / 0.3), floor = down - 0.4;
+    out.cell = fall < 0.5 ? 'hurt' : 'down';
+    out.roll = dir * (0.35 + (Math.PI / 2 - 0.35) * fall * fall);
+    out.lift = fall < 1 ? Math.sin(fall * Math.PI) * 0.25 : 0;
+    if (floor > 0) {
+      const b = Math.max(0, Math.sin(floor * 9) * Math.exp(-floor * 6));
+      out.roll = dir * (Math.PI / 2 - b * 0.22);
+      out.lift = b * 0.28;
+      out.sx = 1 + 0.16 * Math.exp(-floor * 10);
+      out.sy = 1 - 0.14 * Math.exp(-floor * 10);
+    }
+    return out;
+  }
+  const rise = age('riseAt');
+  if (rise < 0.7) {
+    const t = clamp01(rise / 0.45);
+    out.cell = rise < 0.32 ? 'crouch' : 'cheer';
+    out.roll = dir * Math.PI / 2 * (1 - easeOut(t)) + (t >= 1 ? dir * 0.12 * settle(rise - 0.45) : 0);
+    out.lift = rise > 0.3 ? Math.sin(clamp01((rise - 0.3) / 0.4) * Math.PI) * 0.45 : 0;
+    out.sy = 1 + 0.1 * Math.sin(clamp01(rise / 0.7) * Math.PI);
+    return out;
+  }
+  const hurt = age('hurtAt');
+  if (hurt < 0.34) {
+    out.cell = 'hurt';
+    // Snap back away from the hit, then wobble upright.
+    out.roll = dir * 0.32 * settle(hurt, 10, 16);
+    out.sx = 1 + 0.14 * settle(hurt, 12, 22);
+    out.sy = 1 - 0.12 * settle(hurt, 12, 22);
+    out.lift = Math.max(0, Math.sin(hurt / 0.2 * Math.PI)) * 0.12 * (hurt < 0.2 ? 1 : 0);
+    return out;
+  }
+  const atk = age('atkAt');
+  if (atk < 0.3) {
+    // Anticipation, strike, follow-through, recover.
+    if (atk < 0.06) { out.cell = 'windup'; out.sx = 1.07; out.sy = 0.93; out.roll = dir * 0.06; }
+    else if (atk < 0.15) { out.cell = 'strike'; const k = 1 - (atk - 0.06) / 0.09; out.sx = 1 - 0.07 * k; out.sy = 1 + 0.09 * k; out.roll = -dir * 0.1; }
+    else { out.cell = atk < 0.24 ? 'follow' : null; out.roll = -dir * 0.1 * settle(atk - 0.15, 8, 12); }
+    return out;
+  }
+  if (actor.act) Object.assign(out, titleAct(actor.act, now - actor.actAt, dir, actor));
+  return out;
+}
+
+// Short show-off loops for the title and selection screens.
+function titleAct(kind, t, dir, actor) {
+  const o = {};
+  const hop = (t0, len, height) => {
+    // crouch -> launch stretch -> air -> land squash
+    const u = (t - t0) / len;
+    if (u < 0) return;
+    if (u < 0.18) { o.cell = 'crouch'; const k = Math.sin(u / 0.18 * Math.PI / 2); o.sx = 1 + 0.1 * k; o.sy = 1 - 0.12 * k; return; }
+    if (u < 0.82) { const a = (u - 0.18) / 0.64; o.cell = 'air'; o.lift = Math.sin(a * Math.PI) * height; const s = 1 - Math.abs(a - 0.5) * 2; o.sx = 1 - 0.06 * (1 - s); o.sy = 1 + 0.1 * (1 - s); return; }
+    if (u < 1) { const k = Math.sin((u - 0.82) / 0.18 * Math.PI); o.cell = 'crouch'; o.sx = 1 + 0.12 * k; o.sy = 1 - 0.12 * k; }
+  };
+  switch (kind) {
+    case 'wave': if (t < 1.7) { o.cell = Math.floor(t / 0.17) % 2 ? 'wave2' : 'wave1'; o.roll = -dir * 0.05 * Math.sin(t * 6); } break;
+    case 'cheer': hop(0, 0.75, 0.75); if (t > 0.75 && t < 1.5) { o.cell = 'cheer'; o.sy = 1 + 0.03 * Math.sin(t * 20); } break;
+    case 'double': hop(0, 0.6, 0.5); hop(0.6, 0.7, 0.85); if (t > 1.3 && t < 1.9) o.cell = 'cheer'; break;
+    case 'look': if (t < 2.2) o.cell = t < 0.25 ? null : t < 0.95 ? 'lookL' : t < 1.15 ? null : t < 1.9 ? 'lookR' : null; break;
+    case 'stretch': if (t < 1.8) { const k = Math.sin(clamp01(t / 1.8) * Math.PI); o.cell = t > 0.15 && t < 1.6 ? 'stretch' : null; o.sy = 1 + 0.07 * k; o.sx = 1 - 0.03 * k; } break;
+    case 'swing': if (t < 1.4) {
+      if (t < 0.22) { o.cell = 'windup'; o.sx = 1.06; o.sy = 0.94; o.roll = dir * 0.08 * (t / 0.22); }
+      else if (t < 0.34) { o.cell = 'strike'; o.roll = -dir * 0.12; o.sy = 1.06; }
+      else if (t < 0.6) { o.cell = 'follow'; o.roll = -dir * 0.12 * settle(t - 0.34, 6, 12); }
+      else o.cell = 'proud';
+    } break;
+    case 'flourish': if (t < 1.3) { o.cell = t < 0.15 ? 'crouch' : t < 1.1 ? 'flourish' : null; o.lift = t > 0.15 && t < 0.55 ? Math.sin((t - 0.15) / 0.4 * Math.PI) * 0.35 : 0; o.roll = t > 0.15 && t < 0.55 ? -dir * Math.PI * 2 * easeOut((t - 0.15) / 0.4) : 0; } break;
+    case 'startle': if (t < 1.1) { o.cell = 'startle'; o.lift = t < 0.25 ? Math.sin(t / 0.25 * Math.PI) * 0.3 : 0; o.sx = 1 - 0.05 * settle(t, 7, 20); o.sy = 1 + 0.08 * settle(t, 7, 20); } break;
+    case 'proud': if (t < 1.4) { o.cell = 'proud'; o.sy = 1 + 0.02 * Math.sin(t * 7); } break;
+  }
+  return o;
+}
+
 export function poseChibi(matrix, cells, index, world, camera, actor, now) {
   position.setFromMatrixPosition(world);
   scale.setFromMatrixScale(world);
-  const shot = now - (actor.scholarShotAt ?? -99) < 0.18;
+  // Face the target while attacking, otherwise the walking direction.
+  const faceLeft = actor.atkFaceLeft != null && now - (actor.atkAt ?? -99) < 0.4 && actor.downAt == null ? actor.atkFaceLeft : !!actor.scholarFacingLeft;
+  const act = chibiAction(actor, now, faceLeft);
   const moving = actor.scholarGait ?? actor.moving ?? 0;
   let frame = 0;
-  if (shot) frame = 6;
+  let row = 0;
+  if (act.cell) [frame, row] = CHIBI_CELL[act.cell];
   else if (moving > 0.12) {
     const phase = actor.scholarPhase ?? actor.ph ?? 0;
     frame = 2 + (Math.floor(phase * 2 / Math.PI) % 4);
   } else if ((actor.scholarIdle ?? 0) % 6 > 4.6) frame = 7;
   else if ((now + (actor.seed || 0)) % 3.8 < 0.13) frame = 1;
-  let row = 0;
-  if (actor.podiumIdle) {
-    const breath = Math.sin(now * Math.PI * 2 / 3.2);
-    scale.y *= 1 + 0.009 * breath;
-    scale.x *= 1 - 0.003 * breath;
+  if (!act.cell && moving <= 0.12) {
+    // Breathe while standing.
+    const breath = Math.sin((now + (actor.seed || 0) * 5) * Math.PI * 2 / 2.8);
+    scale.y *= 1 + 0.014 * breath;
+    scale.x *= 1 - 0.006 * breath;
+  }
+  if (actor.podiumIdle && !act.cell) {
     // Ease up and settle within one second, with a quiet pause between lifts.
     const beat = now % 4.8;
     if (beat < 1.2) {
@@ -195,8 +378,14 @@ export function poseChibi(matrix, cells, index, world, camera, actor, now) {
       row = 1;
     }
   }
-  cells.setXYZ(index, frame / columns, -row / rows, actor.scholarFacingLeft ? 1 : 0);
-  matrix.compose(position, camera.quaternion, scale);
+  scale.x *= act.sx;
+  scale.y *= act.sy;
+  position.y += act.lift * scale.y;
+  cells.setXYZ(index, frame / columns, -row / rows, faceLeft ? 1 : 0);
+  if (act.roll) {
+    spin.setFromAxisAngle(viewAxis, act.roll);
+    matrix.compose(position, turn.copy(camera.quaternion).multiply(spin), scale);
+  } else matrix.compose(position, camera.quaternion, scale);
 }
 
 // Props share a grip at (176,159). Their silhouettes extend beyond the hand
