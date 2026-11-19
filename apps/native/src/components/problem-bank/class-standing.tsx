@@ -1,109 +1,14 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect } from 'react';
 import { ChevronDown, Play, X } from 'lucide-react';
 
-import { isPlatformCourse } from '../../data/chat-sync';
-import { getNativeClassStanding } from '../../data/platform-api-client';
 import type {
   NativeClassStanding,
   NativeClassStandingMetric,
 } from '../../data/platform-api-contracts';
-import { getLocalRepository } from '../../data/repository';
 import { selectStandingIllustration, type StandingIllustration } from './class-standing-art';
 import './class-standing.css';
 
-/**
- * 题库「和同班比」：首页一根细管（我 / 平均 / 第一），点开是整张卡片，
- * 左边按学习状态轮换手绘与引用，右边四根玻璃管；做完一组题回来，弹出整张卡片看名次变化。
- * 数字都来自服务器的聚合结果，不显示任何同学的名字。
- */
-
 export type StandingPeriod = 'week' | 'all';
-
-const PENDING_KEY = 'syntara.bank-compare-pending.v1';
-const OPEN_KEY = 'syntara.bank-compare-open.v1';
-
-type Pending = { courseId: string; solved: number; rank: number; at: number };
-
-function readSession<T>(key: string): T | null {
-  try {
-    const raw = window.sessionStorage.getItem(key);
-    return raw ? (JSON.parse(raw) as T) : null;
-  } catch {
-    return null;
-  }
-}
-
-function writeSession(key: string, value: unknown) {
-  try {
-    if (value === null) window.sessionStorage.removeItem(key);
-    else window.sessionStorage.setItem(key, JSON.stringify(value));
-  } catch {
-    // 存不了就不弹。
-  }
-}
-
-/** 每门课最近一次拉到的「本周」结果，开始做题前用来记下名次。 */
-const lastWeekStanding = new Map<string, NativeClassStanding>();
-
-/** 开始做一组题前记下现在的名次，做完回来比较。 */
-export function markStandingBeforePractice(courseId: string) {
-  const standing = lastWeekStanding.get(courseId);
-  if (!standing) return;
-  writeSession(PENDING_KEY, {
-    courseId,
-    solved: standing.metrics.solved.me,
-    rank: standing.rank,
-    at: Date.now(),
-  } satisfies Pending);
-}
-
-/** 拉同班对比；refreshKey 变了（比如又做对了题）就隔一会儿再拉一次。做完一组回来名次变了，previousRank 是出发前的名次。 */
-export function useClassStanding(courseId: string, period: StandingPeriod, refreshKey: number) {
-  const [standing, setStanding] = useState<NativeClassStanding | null>(null);
-  const [previousRank, setPreviousRank] = useState<number | null>(null);
-  const first = useRef(true);
-  useEffect(() => {
-    let cancelled = false;
-    const delay = first.current ? 0 : 1500;
-    first.current = false;
-    const timer = window.setTimeout(() => {
-      void (async () => {
-        try {
-          const repository = await getLocalRepository();
-          if (!(await isPlatformCourse(repository, courseId))) {
-            if (!cancelled) setStanding(null);
-            return;
-          }
-          const next = await getNativeClassStanding(courseId, period);
-          if (cancelled) return;
-          setStanding(next);
-          if (next.period === 'week') lastWeekStanding.set(courseId, next);
-          const rank = takeImprovement(next);
-          if (rank !== null) setPreviousRank(rank);
-        } catch {
-          // 离线或服务器没这个接口时不显示。
-          if (!cancelled) setStanding(null);
-        }
-      })();
-    }, delay);
-    return () => {
-      cancelled = true;
-      window.clearTimeout(timer);
-    };
-  }, [courseId, period, refreshKey]);
-  return { standing, previousRank, clearImprovement: () => setPreviousRank(null) };
-}
-
-/** 做完一组回来：做对的题比出发前多了，就返回出发前的名次（只看一次）。 */
-function takeImprovement(standing: NativeClassStanding): number | null {
-  if (standing.period !== 'week') return null;
-  const pending = readSession<Pending>(PENDING_KEY);
-  if (!pending || pending.courseId !== standing.courseId) return null;
-  const stale = Date.now() - pending.at > 6 * 3600_000;
-  const improved = standing.metrics.solved.me > pending.solved;
-  if (stale || improved) writeSession(PENDING_KEY, null);
-  return !stale && improved ? pending.rank : null;
-}
 
 function percent(value: number) {
   return `${Math.round(value * 100)}%`;
@@ -176,7 +81,7 @@ const illustrationImages = import.meta.glob<string>('../../assets/class-standing
   import: 'default',
 });
 
-/** 配图与引用作为一组，首页展开卡片和练习后的弹窗共用。 */
+/** 排名演示和练习进度卡片共用的配图与引用。 */
 export function ClassStandingArt({ illustration }: { illustration: StandingIllustration }) {
   return (
     <figure className="cs-art">
@@ -295,7 +200,7 @@ export function ClassStandingCard({
   );
 }
 
-/** 首页的细条：一根管子 + 名次，点一下展开整张卡片。 */
+/** 排名演示的细条：一根管子 + 名次，点一下展开整张卡片。 */
 export function ClassStandingStrip({
   standing,
   onOpen,
@@ -343,20 +248,4 @@ export function ClassStandingPopup(
       </div>
     </div>
   );
-}
-
-export function readStandingOpen(): boolean {
-  try {
-    return window.localStorage.getItem(OPEN_KEY) === '1';
-  } catch {
-    return false;
-  }
-}
-
-export function writeStandingOpen(open: boolean) {
-  try {
-    window.localStorage.setItem(OPEN_KEY, open ? '1' : '0');
-  } catch {
-    // 记不住就每次收起。
-  }
 }

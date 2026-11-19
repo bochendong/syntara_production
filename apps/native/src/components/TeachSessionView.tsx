@@ -5,7 +5,7 @@ import { createTeacherPracticeStore } from '../data/teacher-practice-store';
 import { progressStatus } from './problem-bank/answer-sheet';
 import type { ClassroomOpenProblem } from './ClassroomPanel';
 import type { ProblemBankLaunch } from './ProblemBankPage';
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import {
   ArrowDown,
@@ -63,7 +63,7 @@ import './teach-session.css';
 import './course-content-manager.css';
 
 /**
- * 一节课：备课（draft）时排题单；上课（live）和回看（ended）时是学生 × 题目的弹珠表和每题统计。
+ * 一节课：备课（draft）时排题单、试做；上课（live）和回看（ended）时是学生 × 题目的弹珠表和每题统计。
  * 点弹珠看这个学生这道题提交过的答案，只看提交，不看草稿。
  */
 
@@ -81,7 +81,7 @@ export function TeachSessionView({
   const [busy, setBusy] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const [tab, setTab] = useState<Tab>('grid');
-  const [practiceView, setPracticeView] = useState<ClassroomProblemView>('list');
+  const [practiceView, setPracticeView] = useState<ClassroomProblemView>();
   const [practice, setPractice] = useState<{
     id: string;
     problems: LocalProblem[];
@@ -98,26 +98,18 @@ export function TeachSessionView({
       setPracticeProgress((previous) => ({ ...previous, [progress.problemId]: progress }));
     }),
   );
-  const launchPractice = (
-    problems: LocalProblem[],
-    launch: ProblemBankLaunch,
-    showStats = false,
-  ) => {
-    teacherPracticeStore.addProblems(problems);
-    setPractice({
-      id: crypto.randomUUID(),
-      problems,
-      launch: { ...launch, teacherPreview: true },
-      showStats,
-    });
-    setPracticeMinimized(false);
-  };
-  const openPractice = (problem: LocalProblem) =>
-    launchPractice([problem], {
-      problemIds: [problem.id],
-      initialProblemId: problem.id,
-      title: '老师试做',
-    });
+  const status = data?.session.status;
+  const editable = status === 'draft' || status === 'live';
+  const practiceItems = data?.items.map((item, index) => {
+    const progress = practiceProgress[item.problemId];
+    return {
+      ...item,
+      number: status === 'draft' ? index + 1 : item.number,
+      myStatus: progressStatus(progress?.status),
+      myAttempts: progress?.attemptedCount ?? 0,
+    };
+  });
+
   const openPracticeProblem = async (
     {
       problemIds,
@@ -131,20 +123,24 @@ export function TeachSessionView({
     if (loadId !== practiceLoad.current) return;
     const available = new Set(problems.map((problem) => problem.id));
     if (!available.has(problemId)) throw new Error('这道题已移出课堂，请刷新题单。');
-    launchPractice(
+    teacherPracticeStore.addProblems(problems);
+    setPractice({
+      id: crypto.randomUUID(),
       problems,
-      {
+      launch: {
         problemIds: problemIds.filter((id) => available.has(id)),
         initialProblemId: problemId,
         title,
+        teacherPreview: true,
         numbers: Object.fromEntries(
-          (data?.items ?? []).flatMap((item) =>
+          (practiceItems ?? []).flatMap((item) =>
             item.number === null ? [] : [[item.problemId, item.number]],
           ),
         ),
       },
       showStats,
-    );
+    });
+    setPracticeMinimized(false);
   };
   const [picking, setPicking] = useState(false);
   const [ending, setEnding] = useState(false);
@@ -164,9 +160,6 @@ export function TeachSessionView({
       setBusy('');
     }
   };
-
-  const status = data?.session.status;
-  const editable = status === 'draft' || status === 'live';
 
   const refresh = async () => {
     if (refreshing) return;
@@ -192,8 +185,9 @@ export function TeachSessionView({
     }
   };
 
-  const openStats = async (problemId: string) => {
+  const openSessionPractice = async (problemId: string, showStats = false) => {
     if (!data) return;
+    setError('');
     try {
       await openPracticeProblem(
         {
@@ -201,10 +195,12 @@ export function TeachSessionView({
           problemId,
           title: classSessionLabel(data.session),
         },
-        true,
+        showStats,
       );
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : '读取统计失败');
+      setError(
+        cause instanceof Error ? cause.message : showStats ? '读取统计失败' : '打不开这道题',
+      );
     }
   };
 
@@ -245,6 +241,26 @@ export function TeachSessionView({
         document.body,
       )
     : null;
+  const practicePanel =
+    data && practiceItems ? (
+      <section aria-label="老师试做">
+        <ClassroomSessionProblems
+          session={{
+            id: sessionId,
+            number: data.session.number,
+            name: data.session.name,
+            status: data.session.status,
+            courseId: data.session.course.id,
+            items: practiceItems,
+          }}
+          teacherView={{
+            view: practiceView ?? (status === 'draft' ? 'grid' : 'list'),
+            onChange: setPracticeView,
+          }}
+          onOpenProblem={openPracticeProblem}
+        />
+      </section>
+    ) : null;
 
   return (
     <PhonePage
@@ -274,7 +290,8 @@ export function TeachSessionView({
           <DraftEditor
             data={data}
             busy={busy}
-            onPractice={openPractice}
+            practicePanel={practicePanel}
+            onPractice={(problemId) => void openSessionPractice(problemId)}
             onStart={() => void start()}
             onAdd={() => setPicking(true)}
             onDelete={() => setDeleting(true)}
@@ -377,37 +394,14 @@ export function TeachSessionView({
               <SessionGrid
                 data={data}
                 editable={status === 'live'}
-                onOpenStats={(problemId) => void openStats(problemId)}
+                onOpenStats={(problemId) => void openSessionPractice(problemId, true)}
                 onOpenAnswer={(userId, problemId) => setViewing({ userId, problemId })}
                 onRemove={(problemId) =>
                   void act(`remove:${problemId}`, { action: 'remove', sessionId, problemId })
                 }
               />
             ) : (
-              <section aria-label="老师试做">
-                <ClassroomSessionProblems
-                  session={{
-                    id: sessionId,
-                    number: data.session.number,
-                    name: data.session.name,
-                    status: data.session.status,
-                    courseId: data.session.course.id,
-                    items: data.items.map((item) => {
-                      const progress = practiceProgress[item.problemId];
-                      return {
-                        ...item,
-                        myStatus: progressStatus(progress?.status),
-                        myAttempts: progress?.attemptedCount ?? 0,
-                      };
-                    }),
-                  }}
-                  teacherView={{
-                    view: practiceView,
-                    onChange: setPracticeView,
-                  }}
-                  onOpenProblem={openPracticeProblem}
-                />
-              </section>
+              practicePanel
             )}
           </>
         ) : null}
@@ -560,7 +554,7 @@ function SessionProblemPreview({
 }: {
   sessionId: string;
   item: TeachSessionItem;
-  onPractice: (problem: LocalProblem) => void;
+  onPractice: (problemId: string) => void;
 }) {
   const detailsId = useId();
   const [expanded, setExpanded] = useState(false);
@@ -628,7 +622,7 @@ function SessionProblemPreview({
             <button
               type="button"
               className="ts-pill is-primary"
-              onClick={() => onPractice(problem)}
+              onClick={() => onPractice(item.problemId)}
             >
               <Play size={14} aria-hidden />
               老师试做
@@ -665,6 +659,7 @@ function SessionProblemPreview({
 
 function DraftEditor({
   onPractice,
+  practicePanel,
   data,
   busy,
   onStart,
@@ -674,7 +669,8 @@ function DraftEditor({
   onRemove,
 }: {
   data: TeachSession;
-  onPractice: (problem: LocalProblem) => void;
+  onPractice: (problemId: string) => void;
+  practicePanel: ReactNode;
   busy: string;
   onStart: () => void;
   onAdd: () => void;
@@ -682,6 +678,7 @@ function DraftEditor({
   onMove: (index: number, delta: number) => void;
   onRemove: (problemId: string) => void;
 }) {
+  const [view, setView] = useState<'practice' | 'manage'>('practice');
   return (
     <>
       <section className="ts-bar">
@@ -714,6 +711,24 @@ function DraftEditor({
         </div>
       </section>
       {data.items.length ? (
+        <div className="ts-tabs" role="group" aria-label="备课显示方式">
+          <button
+            type="button"
+            aria-pressed={view === 'practice'}
+            onClick={() => setView('practice')}
+          >
+            老师试做
+          </button>
+          <button type="button" aria-pressed={view === 'manage'} onClick={() => setView('manage')}>
+            管理题单
+          </button>
+        </div>
+      ) : null}
+      {!data.items.length ? (
+        <PhoneEmpty title="还没有题" hint="可以现在排好，也可以上课时再加。" />
+      ) : view === 'practice' ? (
+        practicePanel
+      ) : (
         <ol className="ts-draft-list">
           {data.items.map((item, index) => (
             <li key={item.id}>
@@ -755,8 +770,6 @@ function DraftEditor({
             </li>
           ))}
         </ol>
-      ) : (
-        <PhoneEmpty title="还没有题" hint="可以现在排好，也可以上课时再加。" />
       )}
     </>
   );

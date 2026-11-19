@@ -1,6 +1,7 @@
 /* 一节课：玻璃顶条、学生 × 题目弹珠表、每题统计、看答案弹窗。 */
 .ts-session-head {
-  flex-wrap: wrap;
+  /* 内容居中后逐步让出标题缩进，窄屏仍给返回键留位置。 */
+  padding-left: clamp(0px, calc((1320px - 100vw) / 2), 52px);
 }
 
 .ts-session-title,
@@ -20,7 +21,7 @@
   max-width: 100%;
   border: 0;
   border-radius: 8px;
-  padding: 2px 4px;
+  padding: 2px 4px 2px 0;
   background: transparent;
   color: inherit;
   font: inherit;

@@ -86,6 +86,7 @@ import {
   gradeNativeCode,
   getNativeHiddenTests,
   runNativeHiddenTests,
+  type NativeDeviceUser,
   type RevealedHiddenTests,
 } from '../data/platform-api-client';
 import { isPlatformCourse } from '../data/chat-sync';
@@ -99,6 +100,9 @@ import {
 import { subscribeVisibleRefresh } from '../lib/visible-refresh';
 import { getLocalRepository } from '../data/repository';
 import { accountStorageKey } from '../data/browser-runtime';
+import { loadNativeAuthSession, subscribeNativeAuth } from '../data/native-auth';
+import { isPrivateProblem, useCourseLayers } from '../lib/course-layers';
+import { PracticeClassroomPicker } from './problem-bank/PracticeClassroomPicker';
 import {
   problemCodeDraftKey,
   readProblemCodeDraftRecord,
@@ -511,6 +515,25 @@ export function ProblemPracticePage({
 
   const currentIndex = Math.max(0, orderedIds.indexOf(currentId));
   const currentProblem = problemMap.get(currentId) || null;
+  const [practiceAccount, setPracticeAccount] = useState<NativeDeviceUser | null>(null);
+  useEffect(() => {
+    let useInitialSession = true;
+    const unsubscribe = subscribeNativeAuth((session) => {
+      useInitialSession = false;
+      setPracticeAccount(session?.user ?? null);
+    });
+    void loadNativeAuthSession()
+      .then((session) => {
+        if (useInitialSession) setPracticeAccount(session?.user ?? null);
+      })
+      .catch(() => undefined);
+    return () => {
+      useInitialSession = false;
+      unsubscribe();
+    };
+  }, []);
+  const teacher = practiceAccount?.role === 'TEACHER' ? practiceAccount : null;
+  const courseLayers = useCourseLayers(currentProblem?.courseId ?? '');
   const displayedProblem = useMemo(
     () => (currentProblem ? localizeProblem(currentProblem, language) : null),
     [currentProblem, language],
@@ -1726,7 +1749,7 @@ export function ProblemPracticePage({
       }
     }
   };
-  const requestSolution = () => {
+  const requestSolution = async () => {
     setSubmissionNotice(null);
     if (!solution || !(solution.answer || solution.code || solution.explanation)) {
       setSolutionError('这道题尚未配置参考答案。');
@@ -1736,17 +1759,22 @@ export function ProblemPracticePage({
       setRightTab('solution');
       return;
     }
-    if (
-      skipsSolutionReminder(
-        window.localStorage,
-        solutionReminderKey(accountStorageKey('syntara.problem-preferences')),
-      )
-    ) {
-      void revealSolution(false);
-    } else {
-      setSolutionError(null);
-      setSolutionConfirm(true);
+    const skipsReminder = skipsSolutionReminder(
+      window.localStorage,
+      solutionReminderKey(accountStorageKey('syntara.problem-preferences')),
+    );
+    if (!skipsReminder) {
+      const sequence = snapshotSequence.current;
+      const session = await loadNativeAuthSession().catch(() => null);
+      if (sequence !== snapshotSequence.current) return;
+      const role = session?.user.role;
+      if (role !== 'TEACHER' && role !== 'ADMIN') {
+        setSolutionError(null);
+        setSolutionConfirm(true);
+        return;
+      }
     }
+    await revealSolution(false);
   };
 
   const revealHiddenTests = async (part: string, remember: boolean) => {
@@ -1898,10 +1926,6 @@ export function ProblemPracticePage({
             >
               {chapterTitle ? <span className="pp-question-chapter">{chapterTitle}</span> : null}
               {displayedProblem &&
-                paperLabels(displayedProblem.tags)
-                  .filter((label) => courseSeries.test(label) && label !== chapterTitle)
-                  .map((label) => <span key={label}>{label}</span>)}
-              {displayedProblem &&
                 paperLabels(displayedProblem.tags).some((label) => courseSeries.test(label)) && (
                   <span>{courseQuestionNumber(displayedProblem.tags)}</span>
                 )}
@@ -1944,18 +1968,30 @@ export function ProblemPracticePage({
               </div>
             ) : null}
           </div>
-          <span
-            className="pp-progress-track"
-            role="progressbar"
-            aria-label="当前题目位置"
-            aria-valuemin={1}
-            aria-valuemax={total}
-            aria-valuenow={currentIndex + 1}
-          >
-            <span style={{ width: Math.round(((currentIndex + 1) / total) * 100) + '%' }}>
-              <img src={marbleImages[DIFFICULTY_MARBLES[currentProblem.difficulty]]} alt="" />
+          {!teacher && !launch.teacherPreview ? (
+            <span
+              className="pp-progress-track"
+              role="progressbar"
+              aria-label="当前题目位置"
+              aria-valuemin={1}
+              aria-valuemax={total}
+              aria-valuenow={currentIndex + 1}
+            >
+              <span style={{ width: Math.round(((currentIndex + 1) / total) * 100) + '%' }}>
+                <img src={marbleImages[DIFFICULTY_MARBLES[currentProblem.difficulty]]} alt="" />
+              </span>
             </span>
-          </span>
+          ) : null}
+          {teacher &&
+          currentProblem.status === 'published' &&
+          !isPrivateProblem(courseLayers, currentProblem.id) ? (
+            <PracticeClassroomPicker
+              key={`${teacher.id}:${currentProblem.courseId}`}
+              teacherId={teacher.id}
+              courseId={currentProblem.courseId}
+              problemId={currentProblem.id}
+            />
+          ) : null}
         </div>
         <div className="pp-top-answer-actions" role="group" aria-label="题目操作">
           {rightTab !== 'stats' && (rightTab !== 'answer' || !handwritingMode) ? (
@@ -1984,7 +2020,7 @@ export function ProblemPracticePage({
                 disabled={loading || submitting || snapshotBusy || debugRunning || photoBusy}
                 onClick={() => {
                   if (rightTab === 'solution') setRightTab(isCode ? 'code' : 'answer');
-                  else requestSolution();
+                  else void requestSolution();
                 }}
               >
                 {snapshotBusy ? (

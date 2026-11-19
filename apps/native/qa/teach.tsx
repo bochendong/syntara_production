@@ -25,10 +25,13 @@ if (
   throw new Error('This fixture is restricted to a disposable loopback browser preview.');
 }
 
-setBrowserAccount('qa-teacher');
 const empty = new URLSearchParams(location.search).has('empty');
 const isPrivate = new URLSearchParams(location.search).has('private');
 const screen = new URLSearchParams(location.search).get('screen');
+const isStudent =
+  screen === 'student' || new URLSearchParams(location.search).get('role') === 'student';
+const fixtureAccountId = isStudent ? 'qa-student' : 'qa-teacher';
+setBrowserAccount(fixtureAccountId);
 const classroomVariant = new URLSearchParams(location.search).get('classroom');
 const now = Date.now();
 const day = 86_400_000;
@@ -791,6 +794,17 @@ window.fetch = async (input, init) => {
     new Response(JSON.stringify({ success: true, data }), {
       headers: { 'content-type': 'application/json' },
     });
+  if (url.pathname === '/api/native/v1/auth/browser') {
+    return reply({
+      user: {
+        id: fixtureAccountId,
+        name: isStudent ? '演示学生' : '演示老师',
+        email: null,
+        image: null,
+        role: isStudent ? 'STUDENT' : 'TEACHER',
+      },
+    });
+  }
   if (url.pathname === '/api/native/v1/teach') {
     if ((init?.method || 'GET') === 'POST') {
       return reply(teachPost(JSON.parse(String(init?.body || '{}'))));
