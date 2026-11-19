@@ -1,4 +1,4 @@
-import { advanceScholar } from './scholar.js';
+import { advanceScholar, scholarSize } from './scholar.js';
 import { buildScholar, poseSchoolUniform as poseScholar } from './scholar-model.js';
 import { buildInkPortal, buildPortraitRoom } from './campus-models.js';
 import { createCampusItems, ITEM } from './campus-items.js';
@@ -1405,8 +1405,9 @@ function heroRig(h, sk = skinOf(h)) {
 }
 function drawCampusStudent(rig, pose, x, y, z, yaw) {
   const bounce = rig.scholar ? 1 : 1 + Math.sin(pose.ph * 2) * 0.02 * pose.moving;
-  rig.push(pose, worldM(x, y, z, yaw, campusStudentScale, campusStudentScale * bounce, campusStudentScale));
-  shadow(x, z, 0.55 * campusStudentScale);
+  const s = campusStudentScale * (rig.scholar ? scholarSize : 1);
+  rig.push(pose, worldM(x, y, z, yaw, s, s * bounce, s));
+  shadow(x, z, 0.55 * s);
 }
 /* ---------- 大鹅抽卡与碎片成长 ---------- */
 const GACHA = { one: 30, ten: 270, pity: 80, legendary: 0.05, rareSkin: 0.05, rareFragment: 0.30, duplicateBack: { 1: 10, 2: 25 } };

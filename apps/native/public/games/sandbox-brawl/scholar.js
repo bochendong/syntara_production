@@ -882,13 +882,16 @@ const ease = (v) => {
 };
 const angleDelta = (a, b) => Math.atan2(Math.sin(a - b), Math.cos(a - b));
 const strideLength = (gait) => 1.38 + 1.3 * gait;
+// The scholar is drawn larger than the chibi students so she reads at real-school scale
+// against the furniture. Cadence follows the drawn size so planted feet stay put.
+export const scholarSize = 1.3;
 export function advanceScholar(p, distance, yaw, dt, referenceSpeed) {
   if (dt <= 0) return;
   const target = saturate(distance / (dt * referenceSpeed));
   const gait =
     (p.scholarGait ?? 0) + (target - (p.scholarGait ?? 0)) * -Math.expm1(-dt * (target > 0.1 ? 15 : 19));
   p.scholarGait = gait < 0.004 ? 0 : gait;
-  p.scholarPhase = ((p.scholarPhase ?? 0) + (tau * distance) / strideLength(gait)) % tau;
+  p.scholarPhase = ((p.scholarPhase ?? 0) + (tau * distance) / (strideLength(gait) * scholarSize)) % tau;
   const turn = Math.max(-1, Math.min(1, angleDelta(yaw, p.scholarYaw ?? yaw) / (dt * 6)));
   p.scholarTurn = (p.scholarTurn ?? 0) + (turn - (p.scholarTurn ?? 0)) * -Math.expm1(-dt * 10);
   p.scholarYaw = yaw;

@@ -4,6 +4,7 @@ import { campusStudentScale } from '../../apps/native/public/games/sandbox-brawl
 import {
   advanceScholar,
   poseScholar,
+  scholarSize,
 } from '../../apps/native/public/games/sandbox-brawl/scholar.js';
 
 test('a planted shoe stays in place as the body advances, then the other shoe takes over', () => {
@@ -13,10 +14,10 @@ test('a planted shoe stays in place as the body advances, then the other shoe ta
     ['footR', 0.62],
   ]) {
     const actor = { scholarGait: 1, scholarPhase: start * 2 * Math.PI };
-    const before = poseScholar(actor, 1)[foot].elements[14] * campusStudentScale;
+    const before = poseScholar(actor, 1)[foot].elements[14] * campusStudentScale * scholarSize;
     const travel = speed / 30;
     advanceScholar(actor, travel, 0, 1 / 30, speed);
-    const after = poseScholar(actor, 1 + 1 / 30)[foot].elements[14] * campusStudentScale + travel;
+    const after = poseScholar(actor, 1 + 1 / 30)[foot].elements[14] * campusStudentScale * scholarSize + travel;
     assert.ok(Math.abs(after - before) < 1e-6);
     const otherFoot = foot === 'footL' ? 'footR' : 'footL';
     const bones = poseScholar(actor, 1 + 1 / 30);
