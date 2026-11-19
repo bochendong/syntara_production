@@ -3,7 +3,7 @@
   <meta charset="utf-8" /><meta
     name="viewport"
     content="width=device-width, initial-scale=1"
-  /><title>学霸 · 角色研究</title>
+  /><title>学霸 · 原版对照</title>
   <style>
     * {
       box-sizing: border-box;
@@ -62,17 +62,42 @@
       background: #41374d;
       color: white;
     }
+    .labels {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+    }
+    .labels span {
+      padding: 17px 0;
+      text-align: center;
+      font-weight: 600;
+      color: #41374d;
+    }
+    .labels span + span {
+      border-left: 1px solid #55455733;
+    }
+    .single .labels {
+      display: none;
+    }
+    header {
+      left: 0;
+      top: 37px;
+      width: 100%;
+      text-align: center;
+    }
     @media (max-width: 600px) {
       header {
-        top: 2vh;
+        top: 43px;
       }
       p {
         margin: 4px 0;
       }
     }</style
-  ><canvas aria-label="可拖动旋转的三维学霸模型"></canvas>
+  ><canvas aria-label="可同步旋转的原版校服与学霸模型"></canvas>
+  <div class="labels"><span>千駄ヶ谷篠 · 校服原版</span><span>学霸 · 游戏版</span></div>
   <header>
-    <h1>学霸</h1>
     <p>拖动旋转 · 滚轮缩放</p>
   </header>
   <nav aria-label="模型控制">

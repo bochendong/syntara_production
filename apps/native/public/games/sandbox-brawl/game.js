@@ -433,7 +433,7 @@ function smoothNormals(src) {
   return g;
 }
 const OGEO = {}; for (const k in GEO) OGEO[k] = smoothNormals(GEO[k]);
-const scholarSculpt = await buildScholar(new URL('./scholar-face.jpg', import.meta.url).href);
+const scholarSculpt = await buildScholar();
 Object.assign(GEO, scholarSculpt.geometries);
 const SMOOTH_CACHE = new Map(Object.keys(OGEO).map((k) => [GEO[k], OGEO[k]]));
 const smoothOf = (geo) => { if (!SMOOTH_CACHE.has(geo)) SMOOTH_CACHE.set(geo, smoothNormals(geo)); return SMOOTH_CACHE.get(geo); };

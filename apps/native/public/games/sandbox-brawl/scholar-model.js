@@ -1,3 +1,4 @@
+import { originalShinoMaterials } from './scholar-original.js';
 import * as T from './vendor/three.module.js';
 import { scholarToon, poseScholar } from './scholar.js';
 // The wrist pivot, fingers and pencil share one rest-space grip transform.
@@ -18,7 +19,7 @@ const wristAtRest = new T.Vector3(-0.144, 1.334, 0.274)
   .sub(tip)
   .multiplyScalar(gripScale)
   .add(tip);
-wristAtRest.y += 0.013 + lift;
+wristAtRest.y += 0.048 + lift;
 const bookPosition = tip
   .clone()
   .add(new T.Vector3(0, 0.013 + lift, 0))
@@ -27,18 +28,19 @@ const bookPosition = tip
       .applyAxisAngle(new T.Vector3(0, 1, 0), writingLeafAngle)
       .applyEuler(bookRotation),
   );
-const supportOffset = bookPosition.clone().sub(new T.Vector3(0.021, 1.219, 0.277));
-export async function buildScholar(faceURL) {
+const supportOffset = new T.Vector3(0.224, -0.01, -0.036)
+  .applyAxisAngle(new T.Vector3(0, 1, 0), -0.47)
+  .applyEuler(bookRotation)
+  .add(bookPosition)
+  .sub(new T.Vector3(0.156, 1.216, 0.264));
+export async function buildScholar() {
   const V = (x, y, z) => new T.Vector3(x, y, z);
   function group(parent) {
     const g = new T.Group();
     parent.add(g);
     return g;
   }
-  const character = new T.Group(),
-    head = group(character),
-    hair = group(head);
-  head.position.y = 1.696;
+  const character = new T.Group();
   const colors = new Map();
   function material(color) {
     if (!colors.has(color)) colors.set(color, scholarToon(color));
@@ -47,12 +49,6 @@ export async function buildScholar(faceURL) {
   function mesh(parent, geometry, color) {
     const m = new T.Mesh(geometry, color.isMaterial ? color : material(color));
     parent.add(m);
-    return m;
-  }
-  function ell(parent, color, pos, scale) {
-    const m = mesh(parent, new T.SphereGeometry(1, 28, 20), color);
-    m.position.set(...pos);
-    m.scale.set(...scale);
     return m;
   }
   function tube(parent, color, points, r, closed = false) {
@@ -88,478 +84,6 @@ export async function buildScholar(faceURL) {
     g.computeVertexNormals();
     return mesh(parent, g, color);
   }
-  // Horizontal sections define chin, cheekbones, temples and forehead.
-  // The front flattens near the eyes and projects continuously into the nose.
-  const sections = [
-    [0, 0.012, 0.026, 0.06],
-    [0.027, 0.049, 0.059, 0.061],
-    [0.071, 0.101, 0.098, 0.046],
-    [0.125, 0.143, 0.132, 0.025],
-    [0.19, 0.173, 0.151, 0.009],
-    [0.255, 0.179, 0.16, 0],
-    [0.323, 0.17, 0.149, -0.013],
-    [0.39, 0.132, 0.119, -0.018],
-    [0.431, 0.062, 0.071, -0.022],
-    [0.447, 0.003, 0.005, -0.022],
-  ];
-  const profile = new T.CatmullRomCurve3(sections.map(([y, x, z]) => V(x, y, z)));
-  function surface(u, v) {
-    const row = profile.getPoint(v),
-      angle = (u - 0.5) * Math.PI * 2,
-      c = Math.cos(angle),
-      x = row.x * Math.sin(angle);
-    const idx = v * (sections.length - 1),
-      k = Math.min(sections.length - 2, Math.floor(idx));
-    const cz = T.MathUtils.lerp(sections[k][3], sections[k + 1][3], idx - k);
-    const nose =
-      0.037 * Math.exp(-((x / 0.024) ** 2) - ((row.y - 0.125) / 0.037) ** 2) +
-      0.013 * Math.exp(-((x / 0.014) ** 2) - ((row.y - 0.17) / 0.05) ** 2);
-    const scalpInset =
-      1 -
-      0.17 * T.MathUtils.smoothstep(row.y, 0.21, 0.34) * (1 - T.MathUtils.smoothstep(c, 0.2, 0.85));
-    return [
-      x * scalpInset,
-      row.y + 0.019 * (1 - T.MathUtils.smoothstep(row.y, 0, 0.21)),
-      cz + row.z * scalpInset * Math.sign(c) * Math.abs(c) ** 0.68 + Math.max(0, c) * nose,
-    ];
-  }
-
-  const faceTexture = await new T.TextureLoader().loadAsync(faceURL);
-  faceTexture.colorSpace = T.SRGBColorSpace;
-  const face = grid(head, new T.MeshBasicMaterial({ map: faceTexture }), 80, 52, surface);
-  const uv = face.geometry.attributes.uv;
-  for (let i = 0; i < uv.count; i++) {
-    const [x, y] = surface(uv.getX(i), uv.getY(i));
-    const front = Math.cos((uv.getX(i) - 0.5) * 2 * Math.PI);
-    const eyeDistance = y - 0.202;
-    const lidHeight = 1 + 0.48 * Math.exp(-((eyeDistance / 0.052) ** 2));
-    const paintedY = 0.202 + eyeDistance / lidHeight;
-    uv.setXY(i, front > 0 ? 0.5 + x / 0.373 : 0.01, (paintedY - 0.022) / 0.342);
-  }
-  for (const s of [-1, 1]) {
-    ell(head, 0xffd9bf, [s * 0.167, 0.16, -0.004], [0.028, 0.047, 0.025]);
-    const ring = Array.from({ length: 48 }, (_, i) => {
-      const a = (i * Math.PI) / 24,
-        x = 0.075 + 0.058 * Math.cos(a);
-      return [s * x, 0.158 + 0.025 * Math.sin(a), 0.204 - 0.39 * x];
-    });
-    tube(head, 0x713c52, ring, 0.0018, true);
-    tube(
-      head,
-      0xb37e58,
-      [
-        [s * 0.132, 0.161, 0.151],
-        [s * 0.176, 0.201, 0.085],
-        [s * 0.181, 0.193, 0.008],
-        [s * 0.177, 0.17, -0.02],
-      ],
-      0.0035,
-    );
-  }
-  tube(
-    head,
-    0x8b5860,
-    [
-      [-0.015, 0.163, 0.199],
-      [0, 0.174, 0.206],
-      [0.015, 0.163, 0.199],
-    ],
-    0.0036,
-  );
-  // Tapered ribbons with a convex cross-section and an under-surface.
-  function lock(parent, points, widths, color, angle = 0) {
-    const curve = new T.CatmullRomCurve3(points.map((p) => V(...p)));
-    function sample(t) {
-      const idx = t * (widths.length - 1),
-        k = Math.min(widths.length - 2, Math.floor(idx));
-      return [curve.getPoint(t), T.MathUtils.lerp(widths[k], widths[k + 1], idx - k)];
-    }
-    // Orient the flattened section along the sweep, including the horizontal
-    // turns above the ear. A fixed cross-section pinches those turns shut.
-    const outward = V(Math.sin(angle), 0, Math.cos(angle));
-    const geom = grid(parent, color, 22, 38, (u, v) => {
-      const [p, w] = sample(v),
-        tangent = curve.getTangent(v);
-      const across = outward.clone().cross(tangent);
-      if (across.lengthSq() < 0.00001) across.set(1, 0, 0);
-      across.normalize();
-      const normal = tangent.clone().cross(across).normalize(),
-        phi = u * Math.PI * 2;
-      return p
-        .addScaledVector(across, w * Math.cos(phi))
-        .addScaledVector(normal, w * 0.21 * Math.sin(phi))
-        .toArray();
-    });
-    geom.userData.strand = true;
-    geom.material.side = T.DoubleSide;
-    return geom;
-  }
-  const dark = 0x302331,
-    mid = 0x493447,
-    gloss = 0x58445d;
-  for (const color of [dark, mid, gloss]) {
-    colors.set(
-      color,
-      new T.MeshPhongMaterial({ color, specular: 0x3d2d49, shininess: 30, side: T.DoubleSide }),
-    );
-  }
-  grid(head, dark, 72, 30, (u, v) => {
-    const a = u * Math.PI * 2,
-      bottom = 2.09 - 0.86 * Math.cos(a),
-      p = bottom * (1 - v) + 0.001;
-    return [
-      0.189 * Math.sin(p) * Math.sin(a),
-      0.227 + 0.231 * Math.cos(p),
-      -0.015 + 0.182 * Math.sin(p) * Math.cos(a),
-    ];
-  });
-  // Fans of hair grow from a side part. Each section follows the dome before
-  // peeling away, so the highlight and the silhouette share the same sweep.
-  for (const side of [-1, 1]) {
-    for (let layer = 0; layer < 7; layer++) {
-      const start = 0.53 + side * 0.1,
-        end = side * (0.72 + layer * 0.41);
-      const section = grid(head, layer % 3 === 1 ? mid : dark, 14, 32, (u, v) => {
-        const phi = 0.14 + v * (1.19 + 0.06 * layer);
-        const width = 0.018 + 0.29 * Math.sin(Math.PI * v) ** 0.66;
-        const a = start + (end - start) * Math.sin(v * 1.57) + (u - 0.5) * width * 2;
-        const relief = 0.005 + 0.009 * Math.sin(Math.PI * u) * Math.sin(Math.PI * v);
-        return [
-          (0.193 + relief) * Math.sin(phi) * Math.sin(a),
-          0.225 + (0.24 + relief) * Math.cos(phi),
-          -0.015 + (0.18 + relief) * Math.sin(phi) * Math.cos(a),
-        ];
-      });
-      section.userData.strand = true;
-    }
-  }
-  for (let i = 0; i < 13; i++) {
-    const a = 1.34 + (i * (2 * Math.PI - 2.68)) / 12,
-      s = Math.sin(a),
-      c = Math.cos(a);
-    const end = -0.4 + 0.115 * Math.sin(1.67 * i);
-    lock(
-      hair,
-      [
-        [s * 0.09, 0.423, c * 0.08 - 0.02],
-        [s * 0.174, 0.31, c * 0.162 - 0.02],
-        [s * 0.188, 0.115, c * 0.18 - 0.034],
-        [s * 0.225 + 0.067 * Math.sin(i * 1.12), -0.105, c * 0.219 - 0.091],
-        [
-          s * (0.229 + 0.049 * Math.sin(i)) + 0.052 * Math.sin(i * 0.9),
-          end + 0.11,
-          c * 0.227 - 0.131,
-        ],
-        [s * 0.254 + 0.093 * Math.sin(i * 0.9), end, c * 0.191 - 0.12],
-      ],
-      [0.015, 0.064, 0.071, 0.058, 0.035, 0.0008],
-      i % 3 === 1 ? mid : dark,
-      a,
-    );
-  }
-  // Temple sections gathered at the nape, with loose, curved ends below the knot.
-  for (const sign of [-1, 1]) {
-    for (let layer = 0; layer < 3; layer++) {
-      const h = layer * 0.027;
-      lock(
-        hair,
-        [
-          [sign * 0.102, 0.418 - h, 0.062],
-          [sign * 0.18, 0.355 - h, 0.049],
-          [sign * 0.192, 0.303 - h, -0.04],
-          [sign * 0.144, 0.29 - h, -0.153],
-          [sign * 0.041, 0.301 - h * 0.45, -0.203],
-        ],
-        [0.012, 0.033, 0.043, 0.032, 0.009],
-        layer === 1 ? mid : dark,
-        sign * 1.38,
-      );
-    }
-    lock(
-      hair,
-      [
-        [sign * 0.045, 0.3, -0.201],
-        [sign * 0.091, 0.167, -0.217],
-        [sign * 0.132, 0.002, -0.226],
-        [sign * 0.157, -0.161, -0.216],
-        [sign * 0.116, -0.249, -0.239],
-      ],
-      [0.03, 0.062, 0.054, 0.037, 0.001],
-      mid,
-      sign * 2.55,
-    );
-  }
-  // The dominant bang crosses the brow and narrows between the lenses.
-  // Adjacent pieces end at different heights and reveal the far eyebrow.
-  const fringe = [
-    { root: 0.069, shoulder: -0.014, end: -0.157, y: 0.185, width: 0.048, depth: 0.159 },
-    { root: 0.079, shoulder: 0.008, end: -0.11, y: 0.207, width: 0.051, depth: 0.18 },
-    { root: 0.082, shoulder: 0.043, end: -0.055, y: 0.183, width: 0.055, depth: 0.195 },
-    { root: 0.086, shoulder: 0.102, end: 0.029, y: 0.202, width: 0.023, depth: 0.184 },
-    { root: 0.085, shoulder: 0.139, end: 0.148, y: 0.162, width: 0.03, depth: 0.105 },
-  ];
-  for (const [i, bang] of fringe.entries()) {
-    lock(
-      head,
-      [
-        [bang.root, 0.438, 0.063],
-        [bang.shoulder + 0.028, 0.402, 0.135],
-        [bang.shoulder, 0.331, 0.169],
-        [bang.end * 0.76 + 0.012, 0.255, bang.depth + 0.004],
-        [bang.end, bang.y, bang.depth - 0.003],
-      ],
-      [0.007, bang.width * 0.68, bang.width, bang.width * 0.6, 0.0006],
-      i === 1 || i === 3 ? dark : mid,
-      bang.end * 2,
-    );
-  }
-  // Loose strands leave air between the long locks and the outline of the cheek.
-  for (const [points, widths, shade] of [
-    [
-      [
-        [-0.179, 0.19, 0.027],
-        [-0.198, 0.078, 0.057],
-        [-0.218, 0.005, 0.09],
-        [-0.243, -0.053, 0.1],
-        [-0.255, -0.104, 0.058],
-        [-0.241, -0.127, 0.046],
-      ],
-      [0.007, 0.009, 0.01, 0.006, 0.004, 0.0006],
-      dark,
-    ],
-    [
-      [
-        [0.142, 0.304, 0.127],
-        [0.177, 0.24, 0.108],
-        [0.181, 0.16, 0.117],
-        [0.167, 0.094, 0.136],
-        [0.148, 0.077, 0.147],
-      ],
-      [0.008, 0.012, 0.009, 0.005, 0.0005],
-      mid,
-    ],
-    [
-      [
-        [-0.18, -0.05, -0.035],
-        [-0.232, -0.126, 0.011],
-        [-0.298, -0.226, 0.008],
-        [-0.308, -0.315, -0.021],
-        [-0.279, -0.353, -0.02],
-      ],
-      [0.006, 0.012, 0.024, 0.014, 0.001],
-      mid,
-    ],
-    [
-      [
-        [0.162, 0.006, 0.077],
-        [0.184, -0.07, 0.06],
-        [0.16, -0.14, 0.058],
-        [0.185, -0.194, 0.064],
-        [0.214, -0.211, 0.045],
-      ],
-      [0.009, 0.018, 0.019, 0.009, 0.001],
-      dark,
-    ],
-  ])
-    lock(hair, points, widths, shade);
-  for (const s of [-1, 1]) {
-    if (s < 0) {
-      // One temple is tucked above the ear; a single fine wisp frames the cheek.
-      lock(
-        hair,
-        [
-          [-0.095, 0.394, 0.108],
-          [-0.153, 0.325, 0.125],
-          [-0.181, 0.259, 0.091],
-          [-0.182, 0.241, 0.016],
-          [-0.16, 0.208, -0.064],
-        ],
-        [0.018, 0.039, 0.026, 0.018, 0.004],
-        mid,
-        -0.86,
-      );
-      lock(
-        hair,
-        [
-          [-0.141, 0.312, 0.136],
-          [-0.158, 0.244, 0.14],
-          [-0.151, 0.169, 0.139],
-          [-0.122, 0.112, 0.134],
-          [-0.129, 0.092, 0.132],
-        ],
-        [0.015, 0.021, 0.015, 0.009, 0.0006],
-        dark,
-        -0.38,
-      );
-      lock(
-        hair,
-        [
-          [-0.167, 0.249, 0.035],
-          [-0.176, 0.139, 0.072],
-          [-0.163, 0.039, 0.124],
-          [-0.14, -0.068, 0.158],
-          [-0.109, -0.148, 0.175],
-          [-0.112, -0.227, 0.19],
-          [-0.148, -0.307, 0.183],
-          [-0.142, -0.365, 0.165],
-        ],
-        [0.011, 0.025, 0.038, 0.044, 0.042, 0.029, 0.014, 0.001],
-        mid,
-        -0.45,
-      );
-      lock(
-        hair,
-        [
-          [-0.179, 0.163, 0.081],
-          [-0.169, 0.048, 0.13],
-          [-0.143, -0.08, 0.173],
-          [-0.114, -0.162, 0.192],
-          [-0.127, -0.246, 0.198],
-        ],
-        [0.002, 0.008, 0.01, 0.007, 0.0005],
-        gloss,
-        -0.37,
-      );
-      ell(head, 0xf4cab7, [-0.179, 0.187, 0.054], [0.025, 0.044, 0.025]);
-      ell(head, 0xe5ac9e, [-0.195, 0.19, 0.064], [0.009, 0.028, 0.015]);
-      continue;
-    }
-    lock(
-      hair,
-      [
-        [s * 0.11, 0.399, 0.09],
-        [s * 0.158, 0.291, 0.115],
-        [s * 0.172, 0.158, 0.103],
-        [0.134, 0.067, 0.146],
-        [0.13, -0.01, 0.142],
-        [0.163, -0.065, 0.152],
-        [0.179, -0.095, 0.165],
-      ],
-      [0.02, 0.043, 0.038, 0.027, 0.02, 0.012, 0.001],
-      mid,
-      s * 0.58,
-    );
-    lock(
-      hair,
-      [
-        [s * 0.147, 0.332, 0.133],
-        [s * 0.166, 0.245, 0.135],
-        [s * 0.178, 0.132, 0.128],
-      ],
-      [0.001, 0.008, 0.001],
-      gloss,
-      s * 0.6,
-    );
-  }
-  for (const s of [-1, 1]) {
-    // Hollow cloth loop: width increases towards the fold, the return meets the knot.
-    grid(hair, 0x873447, 8, 32, (u, v) => {
-      const a = 2 * Math.PI * v,
-        reach = (1 - Math.cos(a)) * 0.5;
-      return [
-        -0.098 + s * 0.105 * reach,
-        0.354 + reach * 0.034 + Math.sin(a) * 0.032 + (u - 0.5) * (0.014 + 0.033 * reach),
-        -0.159 - 0.024 * Math.sin(a) + (u - 0.5) * 0.016,
-      ];
-    }).material.side = T.DoubleSide;
-  }
-  ell(hair, 0xd4aa68, [-0.098, 0.354, -0.176], [0.013, 0.015, 0.013]);
-  tube(
-    head,
-    0xd0a35c,
-    [
-      [0.113, 0.307, 0.183],
-      [0.146, 0.321, 0.166],
-      [0.168, 0.337, 0.139],
-    ],
-    0.008,
-  );
-  for (const sign of [-1, 1]) {
-    lock(
-      hair,
-      [
-        [-0.098 + sign * 0.021, 0.354, -0.176],
-        [-0.098 + sign * 0.06, 0.27, -0.195],
-        [-0.098 + sign * 0.081, 0.19, -0.217],
-        [-0.098 + sign * 0.095, 0.133, -0.218],
-      ],
-      [0.012, 0.019, 0.017, 0.003],
-      0x873447,
-      sign * 0.35,
-    );
-  }
-  tube(
-    head,
-    0x77374d,
-    [
-      [0.113, 0.307, 0.188],
-      [0.146, 0.321, 0.171],
-      [0.168, 0.337, 0.144],
-    ],
-    0.0053,
-  );
-  ell(head, 0xf3c882, [0.158, 0.325, 0.128], [0.006, 0.007, 0.005]);
-  const skirtColor = 0x39364e;
-  for (const sign of [-1, 1]) {
-    const side = sign < 0 ? 'L' : 'R';
-    const thigh = group(character),
-      shin = group(character),
-      shoe = group(character);
-    for (const [piece, joint] of [
-      [thigh, 'leg'],
-      [shin, 'shin'],
-      [shoe, 'foot'],
-    ]) {
-      piece.position.x = sign * 0.124;
-      piece.userData.joint = joint + side;
-    }
-    sectionsMesh(thigh, 0xf8dac9, [
-      [0.467, 0.052, 0.053],
-      [0.525, 0.058, 0.059],
-      [0.72, 0.073, 0.071],
-      [0.865, 0.072, 0.075],
-    ]);
-    ell(shin, 0xf8dac9, [0, 0.48, 0], [0.055, 0.045, 0.058]);
-    sectionsMesh(shin, 0xf8dac9, [
-      [0.165, 0.034, 0.039],
-      [0.261, 0.038, 0.047],
-      [0.368, 0.054, 0.058],
-      [0.454, 0.055, 0.057],
-      [0.484, 0.053, 0.055],
-    ]);
-    sectionsMesh(shin, 0xeee4d5, [
-      [0.13, 0.035, 0.043],
-      [0.23, 0.04, 0.047],
-      [0.322, 0.052, 0.056],
-      [0.35, 0.055, 0.058],
-    ]);
-    sectionsMesh(shin, 0xd7cad0, [
-      [0.329, 0.054, 0.058],
-      [0.335, 0.055, 0.059],
-    ]);
-    ell(shoe, 0x412e3c, [0, 0.061, 0.022], [0.06, 0.059, 0.113]);
-    ell(shoe, 0x332935, [0, 0.025, 0.025], [0.062, 0.022, 0.119]);
-    const strap = ell(shoe, 0x574154, [0, 0.094, 0.044], [0.058, 0.015, 0.029]);
-    strap.rotation.x = -0.3;
-    ell(shoe, 0xc29a69, [sign * 0.05, 0.096, 0.046], [0.012, 0.008, 0.011]);
-  }
-  // Cut the trim from the same pleated surface so the stripe follows every fold.
-  function pleatedBand(bottom, top, color) {
-    grid(character, color, 72, 4, (u, v) => {
-      const y = T.MathUtils.lerp(bottom, top, v),
-        t = (y - 0.65) / 0.56,
-        a = u * 2 * Math.PI;
-      const fold = 1 - (1 - t) * 0.13 * Math.pow(1 - Math.abs(((u * 12) % 1) * 2 - 1), 2);
-      return [
-        (0.292 - 0.092 * t) * fold * Math.sin(a),
-        y,
-        (0.216 - 0.062 * t) * fold * Math.cos(a),
-      ];
-    });
-  }
-  pleatedBand(0.65, 0.69, skirtColor);
-  pleatedBand(0.69, 0.704, 0xd2bdad);
-  pleatedBand(0.704, 1.21, skirtColor);
   function limb(parent, color, a, b, r1, r2) {
     const start = V(...a),
       end = V(...b),
@@ -573,97 +97,6 @@ export async function buildScholar(faceURL) {
     m.position.set(...at);
     return m;
   }
-
-  function sectionsMesh(parent, color, rows) {
-    const curve = new T.CatmullRomCurve3(rows.map(([y, x, z]) => V(x, y, z)));
-    return grid(parent, color, 48, 32, (u, v) => {
-      const p = curve.getPoint(v),
-        a = u * Math.PI * 2;
-      return [p.x * Math.sin(a), p.y, p.z * Math.cos(a)];
-    });
-  }
-  const ivory = 0xf5e8d4,
-    navy = 0x34314d,
-    wine = 0x873447,
-    skin = 0xf8dac9;
-  sectionsMesh(character, skin, [
-    [1.61, 0.072, 0.062],
-    [1.69, 0.064, 0.062],
-    [1.78, 0.059, 0.062],
-    [1.82, 0.064, 0.069],
-  ]);
-  // Cut the blouse, sailor yoke and neckline from one ring profile. Their borders
-  // meet exactly, including where the collar crosses from shoulder to back.
-  const shirt = [
-    [1.163, 0.194, 0.149],
-    [1.203, 0.201, 0.15],
-    [1.31, 0.179, 0.134],
-    [1.436, 0.212, 0.165],
-    [1.53, 0.223, 0.157],
-    [1.576, 0.2, 0.135],
-    [1.623, 0.145, 0.099],
-    [1.66, 0.069, 0.065],
-  ];
-  function blousePoint(a, y) {
-    let k = 0;
-    while (k < shirt.length - 2 && shirt[k + 1][0] < y) k++;
-    const first = shirt[k],
-      next = shirt[k + 1],
-      t = T.MathUtils.clamp((y - first[0]) / (next[0] - first[0]), 0, 1);
-    const fold = 1 + 0.024 * Math.sin(7 * a + 3 * y) * Math.exp(-((y - 1.245) ** 2) / 0.009);
-    return [
-      T.MathUtils.lerp(first[1], next[1], t) * Math.sin(a) * fold,
-      y,
-      T.MathUtils.lerp(first[2], next[2], t) * Math.cos(a) * fold,
-    ];
-  }
-  function collarBounds(a) {
-    const cos = Math.cos(a),
-      front = Math.max(cos, 0);
-    const hem = 1.453 + 0.083 * (1 - Math.abs(cos)) - 0.065 * front ** 4;
-    const inner = 1.584 - 0.183 * front ** 14 + 0.044 * (1 - Math.abs(cos));
-    return [hem, inner];
-  }
-  function shirtBand(color, limits) {
-    grid(character, color, 96, 18, (u, v) => {
-      const a = u * 2 * Math.PI,
-        [hem, inner] = collarBounds(a),
-        [bottom, top] = limits(hem, inner);
-      return blousePoint(a, T.MathUtils.lerp(bottom, top, v));
-    });
-  }
-  shirtBand(ivory, (h) => [1.163, h]);
-  for (const [start, end, color] of [
-    [0, 0.07, navy],
-    [0.07, 0.104, ivory],
-    [0.104, 0.153, navy],
-    [0.153, 0.184, ivory],
-    [0.184, 1, navy],
-  ])
-    shirtBand(color, (h, n) => [T.MathUtils.lerp(h, n, start), T.MathUtils.lerp(h, n, end)]);
-  shirtBand(ivory, (_, inner) => [inner, Math.max(inner, 1.537)]);
-  shirtBand(skin, (_, inner) => [Math.max(inner, 1.537), 1.66]);
-  for (const sign of [-1, 1]) {
-    const loop = ell(character, wine, [sign * 0.035, 1.394, 0.18], [0.041, 0.019, 0.015]);
-    loop.rotation.z = sign * 0.44;
-    lock(
-      character,
-      [
-        [sign * 0.005, 1.392, 0.182],
-        [sign * 0.017, 1.344, 0.172],
-        [sign * 0.037, 1.282, 0.163],
-        [sign * 0.045, 1.243, 0.157],
-      ],
-      [0.008, 0.013, 0.014, 0.009],
-      wine,
-    );
-  }
-  ell(character, wine, [0, 1.393, 0.19], [0.014, 0.018, 0.013]);
-  sectionsMesh(character, navy, [
-    [1.168, 0.204, 0.155],
-    [1.211, 0.202, 0.152],
-  ]);
-  // Sleeves, closed cuffs, palms and individual bent digits are modelled in the writing pose.
   const book = group(character);
   book.userData.joint = 'handL';
   book.position.copy(bookPosition);
@@ -690,125 +123,11 @@ export async function buildScholar(faceURL) {
     (v - 0.5) * 0.221,
     0.023 + 0.006 * Math.sin(Math.PI * u),
   ]);
-  function swept(parent, color, rows) {
-    const curve = new T.CatmullRomCurve3(rows.map(([x, y, z]) => V(x, y, z)));
-    return grid(parent, color, 18, 24, (u, v) => {
-      const p = curve.getPoint(v),
-        dir = curve.getTangent(v),
-        a = V(0, 0, 1).cross(dir).normalize(),
-        b = dir.clone().cross(a);
-      const f = v * (rows.length - 1),
-        k = Math.min(rows.length - 2, Math.floor(f)),
-        r = T.MathUtils.lerp(rows[k][3], rows[k + 1][3], f - k);
-      return p
-        .addScaledVector(a, r * Math.cos(u * 2 * Math.PI))
-        .addScaledVector(b, r * Math.sin(u * 2 * Math.PI))
-        .toArray();
-    });
-  }
-  // Enlarge the grasp about the graphite contact and raise the writing plane
-  // together with the support hand. This keeps the nib seated on the leaf.
   const hand = group(character);
   hand.userData.joint = 'handR';
   hand.scale.setScalar(gripScale);
   hand.position.copy(tip).multiplyScalar(1 - gripScale);
   hand.position.y += 0.013 + lift;
-  for (const sign of [-1, 1]) {
-    const writing = sign < 0,
-      side = writing ? 'R' : 'L';
-    const upper = group(character),
-      fore = group(character);
-    upper.userData.joint = 'arm' + side;
-    fore.userData.joint = 'elbow' + side;
-    const elbow = [sign * 0.257, 1.226, 0.038],
-      wrist = writing ? wristAtRest.toArray() : V(0.156, 1.216, 0.264).add(supportOffset).toArray();
-    swept(upper, ivory, [
-      [sign * 0.18, 1.554, 0.006, 0.047],
-      [sign * 0.207, 1.535, 0.009, 0.071],
-      [sign * 0.247, 1.473, 0.012, 0.071],
-      [sign * 0.245, 1.355, 0.023, 0.056],
-      [...elbow, 0.06],
-    ]);
-    ell(upper, ivory, elbow, [0.059, 0.064, 0.061]);
-    const path = [
-      elbow,
-      [sign * 0.234, 1.239, 0.111],
-      [sign * 0.193, writing ? 1.292 : 1.22, 0.2],
-      wrist,
-    ];
-    swept(
-      fore,
-      ivory,
-      path.map((p, i) => [...p, [0.059, 0.065, 0.048, 0.033][i]]),
-    );
-    const a = V(...path[2]),
-      b = V(...wrist);
-    for (const [from, to, c] of [
-      [0.55, 0.66, navy],
-      [0.66, 0.71, ivory],
-      [0.71, 0.8, navy],
-      [0.8, 0.85, ivory],
-      [0.85, 1.03, navy],
-    ]) {
-      limb(
-        fore,
-        c,
-        a.clone().lerp(b, from).toArray(),
-        a.clone().lerp(b, to).toArray(),
-        0.044,
-        0.043,
-      );
-    }
-  }
-  const support = group(character);
-  support.userData.joint = 'handL';
-  support.position.copy(supportOffset);
-  ell(support, skin, [0.138, 1.219, 0.283], [0.041, 0.026, 0.038]);
-  const coverGrip = group(book);
-  coverGrip.rotation.y = -0.47;
-  for (let i = 0; i < 4; i++) {
-    const y = 0.056 - i * 0.021;
-    swept(coverGrip, skin, [
-      [0.199, y + 0.008, 0.01, 0.009],
-      [0.196, y, -0.006, 0.01],
-      [0.172, y - 0.004, -0.014, 0.009],
-      [0.134 + i * 0.009, y - 0.012, -0.014, 0.007],
-      [0.12 + i * 0.009, y - 0.012, -0.011, 0.0015],
-    ]);
-  }
-  swept(support, skin, [
-    [0.153, 1.23, 0.273, 0.012],
-    [0.151, 1.244, 0.288, 0.013],
-    [0.135, 1.254, 0.294, 0.009],
-    [0.124, 1.254, 0.295, 0.002],
-  ]);
-  const fingers = group(hand);
-  fingers.rotation.z = fingerRoll;
-  fingers.position
-    .copy(grip)
-    .sub(grip.clone().applyEuler(fingers.rotation))
-    .addScaledVector(axis, gripSlide);
-  // A single tapered palm connects wrist to knuckles. The dorsal surface is
-  // broad near the index finger and drops towards the curled little finger.
-  const palmSections = [
-    [-0.151, 1.332, 0.274, 0.017, 0.014],
-    [-0.14, 1.339, 0.277, 0.019, 0.016],
-    [-0.126, 1.348, 0.284, 0.023, 0.017],
-    [-0.109, 1.355, 0.29, 0.023, 0.014],
-    [-0.102, 1.357, 0.293, 0.019, 0.011],
-    [-0.1, 1.356, 0.294, 0.007, 0.006],
-  ];
-  const palmLine = new T.CatmullRomCurve3(palmSections.map(([x, y, z]) => V(x, y, z)));
-  grid(fingers, skin, 28, 26, (u, v) => {
-    const p = palmLine.getPoint(v),
-      f = v * (palmSections.length - 1),
-      i = Math.min(Math.floor(f), palmSections.length - 2);
-    const width = T.MathUtils.lerp(palmSections[i][3], palmSections[i + 1][3], f - i);
-    const depth = T.MathUtils.lerp(palmSections[i][4], palmSections[i + 1][4], f - i);
-    p.y += width * Math.cos(Math.PI * 2 * u);
-    p.z += depth * Math.sin(Math.PI * 2 * u);
-    return p.toArray();
-  });
   const pencilPoint = (t) => tip.clone().addScaledVector(axis, t).toArray();
   const barrel = 0.0049;
   for (const [from, to, near, far, color] of [
@@ -820,76 +139,49 @@ export async function buildScholar(faceURL) {
   ]) {
     limb(hand, color, pencilPoint(from), pencilPoint(to), near, far);
   }
-  for (const points of [
-    [
-      [-0.113, 1.366, 0.291, 0.01],
-      [-0.098, 1.378, 0.297, 0.0105],
-      [-0.085, 1.374, 0.304, 0.0085],
-      [-0.073, 1.358, 0.303, 0.006],
-      [-0.072, 1.355, 0.302, 0.001],
-    ],
-    [
-      [-0.111, 1.355, 0.299, 0.011],
-      [-0.099, 1.363, 0.306, 0.0105],
-      [-0.084, 1.352, 0.308, 0.009],
-      [-0.075, 1.349, 0.301, 0.006],
-      [-0.073, 1.351, 0.297, 0.0015],
-    ],
-    [
-      [-0.129, 1.34, 0.301, 0.009],
-      [-0.111, 1.339, 0.315, 0.008],
-      [-0.096, 1.329, 0.314, 0.007],
-      [-0.102, 1.326, 0.301, 0.004],
-    ],
-    [
-      [-0.136, 1.337, 0.296, 0.008],
-      [-0.123, 1.33, 0.309, 0.007],
-      [-0.116, 1.321, 0.308, 0.006],
-      [-0.122, 1.32, 0.299, 0.003],
-    ],
-    [
-      [-0.131, 1.348, 0.273, 0.012],
-      [-0.113, 1.351, 0.269, 0.012],
-      [-0.094, 1.35, 0.276, 0.0125],
-      [-0.084, 1.358, 0.283, 0.011],
-      [-0.074, 1.362, 0.292, 0.0085],
-      [-0.073, 1.36, 0.295, 0.002],
-    ],
-  ])
-    swept(fingers, skin, points);
-  for (const [x, y, z, angle] of [
-    [-0.072, 1.357, 0.305, -0.6],
-    [-0.079, 1.36, 0.281, 0.83],
-    [-0.077, 1.351, 0.307, -0.35],
-  ]) {
-    const nail = ell(fingers, 0xf0c4b6, [x, y, z], [0.0042, 0.006, 0.0016]);
-    nail.rotation.z = angle;
-  }
-  // Batch fixed colours together while keeping each articulated joint and skin dye independent.
+  const head = group(character);
   head.userData.joint = 'head';
-  hair.userData.joint = 'hair';
+  const frame = 0x783e50;
+  for (const side of [-1, 1]) {
+    const rim = [];
+    for (let i = 0; i < 32; i++) {
+      const angle = (Math.PI * i) / 16;
+      const x = side * (0.049 + 0.045 * Math.cos(angle));
+      rim.push([x, 1.862 + 0.028 * Math.sin(angle), 0.124 - 0.3 * Math.abs(x)]);
+    }
+    tube(head, frame, rim, 0.0025, true);
+    tube(
+      head,
+      frame,
+      [
+        [side * 0.092, 1.868, 0.097],
+        [side * 0.113, 1.869, 0.049],
+        [side * 0.116, 1.856, -0.018],
+      ],
+      0.0023,
+    );
+  }
+  tube(
+    head,
+    frame,
+    [
+      [-0.006, 1.867, 0.122],
+      [0, 1.873, 0.124],
+      [0.006, 1.867, 0.122],
+    ],
+    0.0023,
+  );
   character.updateMatrixWorld(true);
-  const dye = new Map([
-    [dark, 'hair'],
-    [mid, 'hairMid'],
-    [gloss, 'hairShine'],
-    [ivory, 'top'],
-    [navy, 'pants'],
-    [skirtColor, 'pants'],
-    [wine, 'accent'],
-  ]);
   const groups = new Map();
   character.traverse((node) => {
     if (!node.isMesh) return;
     let ancestor = node;
     while (ancestor.parent && !ancestor.userData.joint) ancestor = ancestor.parent;
     const joint = ancestor.userData.joint || 'torso';
-    const isFace = node === face;
     const color = node.material.color,
-      key = dye.get(color.getHex()) || 'fixed';
-    const id = 'scholar_' + joint + '_' + (isFace ? 'face' : key);
-    if (!groups.has(id))
-      groups.set(id, { joint, key, isFace, p: [], n: [], uv: [], c: [], indices: [] });
+      key = 'fixed';
+    const id = 'scholar_' + joint + '_' + key;
+    if (!groups.has(id)) groups.set(id, { joint, key, p: [], n: [], uv: [], c: [], indices: [] });
     const batch = groups.get(id),
       g = node.geometry,
       normalMatrix = new T.Matrix3().getNormalMatrix(node.matrixWorld);
@@ -912,25 +204,6 @@ export async function buildScholar(faceURL) {
         v = g.attributes.uv?.getY(i) ?? 0;
       batch.uv.push(u, v);
       vertexColor.copy(base);
-      if (isFace) {
-        const x = g.attributes.position.getX(i),
-          y = g.attributes.position.getY(i);
-        const underside = Math.exp(-((x / 0.021) ** 2) - ((y - 0.123) / 0.013) ** 2);
-        const side = Math.exp(-(((x - 0.018) / 0.018) ** 2) - ((y - 0.144) / 0.029) ** 2);
-        const jaw = (1 - T.MathUtils.smoothstep(y, 0.021, 0.089)) * 0.17;
-        const shade = 0.24 * underside + 0.15 * side + jaw;
-        vertexColor.setRGB(1 - shade * 0.31, 1 - shade * 0.87, 1 - shade);
-      }
-      if (node.userData.strand) {
-        const stripe = Math.max(0, Math.cos((u - 0.23) * Math.PI * 2));
-        const band = Math.exp(-((v - 0.36 - 0.07 * Math.cos(2 * Math.PI * u)) ** 2) / 0.007);
-        const edge = Math.sin(Math.PI * u);
-        const comb = 0.5 + 0.5 * Math.cos(35 * u + 0.95 * Math.sin(5 * v));
-        const sheen = T.MathUtils.smoothstep(band * stripe, 0.24, 0.64);
-        vertexColor.multiplyScalar(
-          0.72 + 0.32 * stripe + 0.13 * edge + 0.13 * comb + 0.8 * sheen + 0.4 * stripe * band,
-        );
-      }
       batch.c.push(vertexColor.r, vertexColor.g, vertexColor.b);
     }
   });
@@ -940,36 +213,6 @@ export async function buildScholar(faceURL) {
   const cloth = scholarToon(0xffffff);
   cloth.vertexColors = true;
   cloth.side = T.DoubleSide;
-  // Hair uses the same joint batches and skin dyes as the uniform. Paint
-  // directional highlights in the strand UVs so they follow each lock in motion.
-  const hairMaterial = cloth.clone();
-  hairMaterial.onBeforeCompile = (shader) => {
-    shader.vertexShader =
-      'varying vec2 strandUv;\n' +
-      shader.vertexShader.replace(
-        '#include <begin_vertex>',
-        '#include <begin_vertex>\nstrandUv = uv;',
-      );
-    shader.fragmentShader =
-      'varying vec2 strandUv;\n' +
-      shader.fragmentShader.replace(
-        '#include <opaque_fragment>',
-        `
-      vec3 base=diffuseColor.rgb;
-      float sun=dot(normalize(normal),normalize(mat3(viewMatrix)*vec3(-.48,.8,.54)));
-      float lobe=smoothstep(-.16,.42,sun);
-      vec3 tone=mix(base*vec3(.68,.57,.76),base*vec3(1.05,.96,1.09),lobe);
-      float u=strandUv.x, v=strandUv.y;
-      float center=.33+.065*sin(6.283*u)+.014*sin(19.0*u);
-      float broken=smoothstep(.12,.65,cos(6.283*(u-.20))+.25*cos(21.0*u));
-      float glint=(1.0-smoothstep(.011,.052,abs(v-center)))*broken*smoothstep(-.25,.68,sun);
-      float filament=pow(max(0.0,cos(45.0*u+.9*sin(v*5.0))),12.0);
-      outgoingLight=tone*(1.0+.09*filament)+vec3(.046,.022,.051)*glint;
-      #include <opaque_fragment>
-    `,
-      );
-  };
-  const complexion = new T.MeshBasicMaterial({ map: faceTexture, vertexColors: true });
   for (const [id, b] of groups) {
     const g = new T.BufferGeometry();
     for (const [name, data, count] of [
@@ -982,31 +225,50 @@ export async function buildScholar(faceURL) {
     g.setIndex(b.indices);
     g.computeBoundingSphere();
     geometries[id] = g;
-    materials[id] = b.isFace ? complexion : b.key.startsWith('hair') ? hairMaterial : cloth;
+    materials[id] = cloth;
     entries.push([id, b.joint, b.key]);
+  }
+
+  // VRoid Project, Sendagaya Shino / Welcome School Uniform 2019, model 648876553405728395.
+  // Each batch stores xyz and UV followed by triangle indices, in model rest space.
+  const asset = (name) => new URL('./scholar-shino/' + name, import.meta.url);
+  const [batches, bytes] = await Promise.all([
+    fetch(asset('parts.json')).then((r) => r.json()),
+    fetch(asset('mesh.bin')).then((r) => r.arrayBuffer()),
+  ]);
+  const textured = await originalShinoMaterials();
+  for (const [joint, material, offset, count, indexCount] of batches) {
+    const id = 'scholar_shino_' + joint + '_' + material;
+    const values = new T.InterleavedBuffer(new Float32Array(bytes, offset, count * 5), 5);
+    const g = new T.BufferGeometry();
+    g.setAttribute('position', new T.InterleavedBufferAttribute(values, 3, 0));
+    g.setAttribute('uv', new T.InterleavedBufferAttribute(values, 2, 3));
+    g.setIndex(new T.BufferAttribute(new Uint32Array(bytes, offset + count * 20, indexCount), 1));
+    const p = pivots[joint];
+    g.translate(-p.x, -p.y, -p.z);
+    geometries[id] = g;
+    materials[id] = textured[material];
+    entries.push([
+      id,
+      joint,
+      {
+        10: 'shirtDye',
+        11: 'ribbonDye',
+        12: 'skirtDye',
+        14: 'strandDye',
+        15: 'strandDye',
+        16: 'strandDye',
+      }[material] || 'fixed',
+    ]);
   }
   function parts(skin = {}) {
     const palette = {
-      hair: dark,
-      hairMid: mid,
-      hairShine: gloss,
-      pants: navy,
-      top: ivory,
-      accent: wine,
       fixed: 0xffffff,
+      shirtDye: skin.top && skin.top !== 0xfaf8f2 ? skin.top : 0xffffff,
+      skirtDye: skin.pants && skin.pants !== 0x2c3a6e ? skin.pants : 0xffffff,
+      ribbonDye: skin.accent && skin.accent !== 0xe2453a ? skin.accent : 0xffffff,
+      strandDye: skin.hair && skin.hair !== 0x1e1a2e ? skin.hair : 0xffffff,
     };
-    // The arena's default palette predates the approved character sheet.
-    if (skin.hair != null && skin.hair !== 0x1e1a2e) {
-      palette.hair = skin.hair;
-      palette.hairMid = new T.Color(skin.hair).lerp(new T.Color(0xb1859b), 0.22).getHex();
-      palette.hairShine = new T.Color(skin.hair).lerp(new T.Color(0xb1859b), 0.36).getHex();
-    }
-    for (const [key, original] of [
-      ['top', 0xfaf8f2],
-      ['pants', 0x2c3a6e],
-      ['accent', 0xe2453a],
-    ])
-      if (skin[key] != null && skin[key] !== original) palette[key] = skin[key];
     return entries.map(([id, j, k]) => [
       id,
       palette[k],
@@ -1020,7 +282,7 @@ export async function buildScholar(faceURL) {
   function tintedMaterial(id, color) {
     const mat = materials[id].clone();
     mat.onBeforeCompile = materials[id].onBeforeCompile;
-    mat.color.set(color);
+    mat.color.multiply(new T.Color(color));
     return mat;
   }
   return { geometries, materials, parts, tintedMaterial };
@@ -1043,8 +305,8 @@ for (const s of [-1, 1]) {
   pivot('leg' + j, null, s * 0.151 * 0.82, 0.463 * 1.86, 0);
   pivot('shin' + j, null, s * 0.151 * 0.82, 0.26 * 1.86, 0);
   pivot('foot' + j, null, s * 0.151 * 0.82, 0.095 * 1.86, 0);
-  pivot('arm' + j, 'torso', -s * 0.201, 1.55, 0.008);
-  pivot('elbow' + j, 'arm' + j, -s * 0.257, 1.226, 0.038);
+  pivot('arm' + j, 'torso', -s * 0.137, 1.639, -0.0065);
+  pivot('elbow' + j, 'arm' + j, -s * 0.212, 1.3735, j === 'R' ? -0.0017 : -0.0277);
   pivot(
     'hand' + j,
     'elbow' + j,
@@ -1062,7 +324,7 @@ const pos = new T.Vector3(),
   identity = new T.Quaternion();
 const legStretch = new T.Matrix4().makeScale(0.82, 1.86, 1);
 const inverseLegStretch = legStretch.clone().invert();
-const headAngles = new T.Euler();
+
 const axisZ = new T.Vector3(0, 0, 1);
 export function poseSchoolUniform(actor, time) {
   const source = poseScholar(actor, time);
@@ -1104,14 +366,11 @@ export function poseSchoolUniform(actor, time) {
     }
     if (parent) {
       const idle = neutral.identity();
-      if (j === 'head')
-        idle.setFromEuler(
-          headAngles.set(0.27 - 0.145 * look, 0.13 + 0.11 * look, -0.2 - 0.046 * look),
-        );
       if (j === 'hair') idle.setFromAxisAngle(axisZ, 0.016 * Math.sin(time * 2.4));
       if (j === 'handR') idle.setFromAxisAngle(axisZ, (1 - look) * 0.034 * Math.sin(time * 12));
       q.slerp(idle, 1 - activity);
     }
+    if (j === 'head') q.copy(neutral.setFromRotationMatrix(result.torso).invert());
     m.compose(pos, q, scale);
     if (parent) m.premultiply(result[parent]);
   }

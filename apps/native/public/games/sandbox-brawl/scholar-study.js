@@ -1,13 +1,17 @@
 import * as T from './vendor/three.module.js';
 import { buildScholar, poseSchoolUniform } from './scholar-model.js';
 
+import { loadOriginalShino } from './scholar-original.js';
+
 const canvas = document.querySelector('canvas');
 const renderer = new T.WebGLRenderer({ canvas, antialias: true, alpha: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 const scene = new T.Scene(),
   camera = new T.OrthographicCamera();
 
-const model = await buildScholar(new URL('./scholar-face.jpg', import.meta.url).href);
+const [model, original] = await Promise.all([buildScholar(), loadOriginalShino()]);
+const originalScene = new T.Scene();
+originalScene.add(original);
 const nodes = model.parts().map(([id, color, , , , tag]) => {
   const mat = model.tintedMaterial(id, color);
   const m = new T.Mesh(model.geometries[id], mat);
@@ -25,10 +29,11 @@ scene.add(new T.HemisphereLight(0xfff1da, 0xd9cbde, 2));
 const sunlight = new T.DirectionalLight(0xfff0dd, 2);
 sunlight.position.set(-3, 5, 4);
 scene.add(sunlight);
+originalScene.add(base.clone(), sunlight.clone(), new T.HemisphereLight(0xfff1da, 0xd9cbde, 2));
 canvas.style.background = 'radial-gradient(ellipse at 48% 36%,#faf5e9 0%,#e8e2da 58%,#c9c5c1 100%)';
 const views = {
   portrait: [-0.22, 0.09, 1.71, 1.25],
-  grip: [3.05, 0.37, 1.43, 0.405, -0.116, 0.31],
+  grip: [2.65, 0.88, 1.39, 0.5, -0.015, 0.28],
   full: [0.22, 0.1, 1.1, 2.67],
   arena: [0.55, 0.82, 0.95, 4.4],
 };
@@ -41,7 +46,10 @@ let yaw,
   paused = false,
   elapsed = 1.74,
   last = 0;
+let compare = true;
 function view(key) {
+  compare = key !== 'grip';
+  document.body.classList.toggle('single', !compare);
   [yaw, pitch, target, height, targetX = 0, targetZ = 0] = views[key];
   for (const [node, joint] of nodes)
     node.visible = key !== 'grip' || ['elbowR', 'handR', 'handL', 'page', 'elbowL'].includes(joint);
@@ -87,15 +95,17 @@ function frame(ms) {
   }
   const w = canvas.clientWidth,
     h = canvas.clientHeight,
-    aspect = w / h;
+    paneWidth = compare ? Math.floor(w / 2) : w,
+    aspect = paneWidth / h;
   if (
     canvas.width !== Math.floor(w * renderer.getPixelRatio()) ||
     canvas.height !== Math.floor(h * renderer.getPixelRatio())
   )
     renderer.setSize(w, h, false);
-  camera.left = (-height * aspect) / 2;
+  const visibleHeight = Math.max(height, Math.min(height, 0.65) / aspect);
+  camera.left = (-visibleHeight * aspect) / 2;
   camera.right = -camera.left;
-  camera.top = height / 2;
+  camera.top = visibleHeight / 2;
   camera.bottom = -camera.top;
   camera.near = 0.05;
   camera.far = 30;
@@ -106,6 +116,15 @@ function frame(ms) {
   );
   camera.lookAt(targetX, target, targetZ);
   camera.updateProjectionMatrix();
+  renderer.setScissorTest(true);
+  if (compare) {
+    renderer.setViewport(0, 0, paneWidth, h);
+    renderer.setScissor(0, 0, paneWidth, h);
+    renderer.render(originalScene, camera);
+  }
+  const x = compare ? paneWidth : 0;
+  renderer.setViewport(x, 0, w - x, h);
+  renderer.setScissor(x, 0, w - x, h);
   renderer.render(scene, camera);
   requestAnimationFrame(frame);
 }
