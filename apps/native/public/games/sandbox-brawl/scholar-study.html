@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="zh-CN">
+  <meta charset="utf-8" /><meta
+    name="viewport"
+    content="width=device-width, initial-scale=1"
+  /><title>学霸 · 原版对照</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      margin: 0;
+      background: #e8e6e2;
+      color: #29283b;
+      font:
+        15px system-ui,
+        sans-serif;
+    }
+    canvas {
+      display: block;
+      width: 100vw;
+      height: 100dvh;
+      touch-action: none;
+      cursor: grab;
+    }
+    header {
+      position: absolute;
+      left: 5vw;
+      top: 5vh;
+      pointer-events: none;
+    }
+    h1 {
+      font: 600 clamp(24px, 4vw, 46px) serif;
+      letter-spacing: 0.12em;
+      margin: 0;
+    }
+    p {
+      font-size: 13px;
+      color: #565361;
+    }
+    nav {
+      position: absolute;
+      bottom: 4vh;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      padding: 5px;
+      border: 1px solid #fff9;
+      border-radius: 30px;
+      background: #fbfaf3ed;
+      white-space: nowrap;
+    }
+    button {
+      cursor: pointer;
+      border: 0;
+      border-radius: 20px;
+      padding: 8px 14px;
+      background: transparent;
+      color: inherit;
+    }
+    button[aria-pressed='true'] {
+      background: #41374d;
+      color: white;
+    }
+    .labels {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+    }
+    .labels span {
+      padding: 17px 0;
+      text-align: center;
+      font-weight: 600;
+      color: #41374d;
+    }
+    .labels span + span {
+      border-left: 1px solid #55455733;
+    }
+    .single .labels {
+      display: none;
+    }
+    header {
+      left: 0;
+      top: 37px;
+      width: 100%;
+      text-align: center;
+    }
+    @media (max-width: 600px) {
+      header {
+        top: 43px;
+      }
+      p {
+        margin: 4px 0;
+      }
+    }</style
+  ><canvas aria-label="可同步旋转的原版校服与学霸模型"></canvas>
+  <div class="labels"><span>千駄ヶ谷篠 · 校服原版</span><span>学霸 · 游戏版</span></div>
+  <header>
+    <p>拖动旋转 · 滚轮缩放</p>
+  </header>
+  <nav aria-label="模型控制">
+    <button data-view="portrait" aria-pressed="true">近景</button
+    ><button data-view="grip">握笔</button><button data-view="full">全身</button
+    ><button data-view="arena">俯视</button><button id="pause">暂停</button>
+  </nav>
+  <script type="module" src="./scholar-study.js"></script>
+</html>
