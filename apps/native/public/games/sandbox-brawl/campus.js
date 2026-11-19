@@ -254,46 +254,78 @@ export function createCampus(markTexture, time, ripples) {
         `
       #include <map_fragment>
       vec2 p=groundXZ;
-      vec2 tile=floor(p/2.2);
-      float check=mod(tile.x+tile.y,2.);
-      vec3 paint=mix(vec3(.94,.78,.65),vec3(.96,.81,.69),check);
-      vec2 joint=min(fract(p/2.2),1.-fract(p/2.2));
-      float grout=1.-smoothstep(.002,.015,min(joint.x,joint.y));
+      // Anime school floors: real-scale planks and tiles, soft colour noise, window light.
+      float n1=fract(sin(dot(floor(p*3.1),vec2(12.99,78.23)))*43758.5);
+      float n2=fract(sin(dot(floor(p*0.7),vec2(39.35,11.17)))*24634.6);
+      float grain=.5+.5*sin(p.x*7.3+sin(p.y*23.)*1.7+n2*6.);
+      vec3 paint;
       if(abs(p.y)<5.55){
-        float band=min(abs(abs(p.y)-4.43),abs(abs(p.y)-4.69));
-        paint=mix(vec3(.66,.40,.41),paint,smoothstep(.035,.075,band));
-        if(mod(tile.x+tile.y,5.)==0.){
-          float dotTile=abs(fract(p.x/2.2)-.5)+abs(fract(p.y/2.2)-.5);
-          paint=mix(vec3(.82,.61,.51),paint,smoothstep(.07,.09,dotTile));
-        }
+        // Corridor: warm grey vinyl tiles, polished, darker skirting band along the walls.
+        vec2 t=floor(p/1.5);
+        float tv=fract(sin(dot(t,vec2(7.13,31.7)))*917.3);
+        paint=mix(vec3(.76,.74,.69),vec3(.80,.78,.73),tv*.7+n2*.3);
+        vec2 j=min(fract(p/1.5),1.-fract(p/1.5));
+        paint*=1.-.07*(1.-smoothstep(.006,.02,min(j.x,j.y)));
+        float edge=abs(p.y);
+        paint=mix(paint,vec3(.55,.60,.58),smoothstep(4.55,4.62,edge));
+        // centre sheen of a waxed floor
+        paint*=1.+.05*(1.-smoothstep(0.,3.,edge));
+      }else if(p.y < -5.7 && p.x<0.){
+        // Classroom: narrow light-oak boards with staggered butt joints.
+        float row=floor(p.y/.42);
+        float off=fract(sin(row*17.13)*143.7)*4.;
+        vec2 bd=vec2((p.x+off)/4.2,p.y/.42);
+        float tone=fract(sin(dot(floor(bd),vec2(29.7,17.3)))*382.65);
+        paint=mix(vec3(.76,.62,.47),vec3(.86,.74,.58),tone*.75+.1);
+        paint*=.96+.05*grain;
+        vec2 ed=min(fract(bd),1.-fract(bd))/max(fwidth(bd),vec2(.0001));
+        paint*=.86+.14*smoothstep(.4,1.6,min(ed.x*3.,ed.y));
+      }else if(p.y < -5.7){
+        // Laboratory: grey-green vinyl tiles.
+        vec2 t=floor(p/1.1);
+        paint=mix(vec3(.84,.87,.86),vec3(.80,.84,.83),mod(t.x+t.y,2.)*.6+n1*.15);
+        vec2 j=min(fract(p/1.1),1.-fract(p/1.1));
+        paint*=1.-.08*(1.-smoothstep(.006,.02,min(j.x,j.y)));
+      }else if(p.y>5.5 && p.x<0.){
+        // Art room: sealed concrete with old paint drops.
+        paint=mix(vec3(.80,.79,.76),vec3(.85,.84,.80),n2*.7+n1*.2);
+        vec2 c=floor(p/2.6); vec2 o=fract(sin(vec2(dot(c,vec2(12.1,7.7)),dot(c,vec2(3.3,19.9))))*917.3);
+        float splat=length((p-(c+.2+o*.6)*2.6)*vec2(1.,1.6));
+        float pick=fract(o.x*13.1+o.y*7.);
+        vec3 drop=pick<.33?vec3(.86,.55,.50):pick<.66?vec3(.55,.68,.83):vec3(.90,.80,.48);
+        if(pick>.55) paint=mix(mix(drop,paint,.25),paint,smoothstep(.06+.06*o.y,.1+.06*o.y,splat));
       }
-      if(p.y < -5.7 && p.x<0.){
-        float row=floor(p.y/1.45);
-        vec2 wood=vec2(p.x/6.0+mod(row,2.)*.5,p.y/1.45);
-        float grain=fract(sin(dot(floor(wood),vec2(29.7,17.3)))*382.65);
-        paint=mix(vec3(.83,.53,.28),vec3(.98,.74,.43),grain*.7+.2);
-        vec2 edge=min(fract(wood),1.-fract(wood))/max(fwidth(wood),vec2(.0001));
-        paint*=.89+.11*smoothstep(.3,1.8,min(edge.x,edge.y));
-      }else if(p.y < -5.7){paint=mix(vec3(.69,.83,.75),vec3(.73,.86,.78),check);
-        paint=mix(paint,vec3(.54,.71,.67),grout*.68);
-        vec2 crossMark=abs(mod(p+4.4,8.8)-4.4);
-        if(max(crossMark.x,crossMark.y)<.24 && min(crossMark.x,crossMark.y)<.058)paint=vec3(.48,.69,.63);}
-      else if(p.y>5.5 && p.x<0.){
-        paint=mix(vec3(.94,.72,.57),vec3(.97,.76,.60),check*.8);
-        paint*=1.-grout*.06;
-        float arc=abs(length((p-vec2(-20.5,22.6))*vec2(1.,.85))-8.7);
-        paint=mix(vec3(.99,.84,.66),paint,smoothstep(.07,.13,arc));
-      }
-      else if(p.y>5.5){
-        paint=mix(vec3(.48,.67,.34),vec3(.56,.74,.39),mod(floor(p.x/4.),2.)*.6);
+      else{
+        // Gym: varnished maple boards with painted court lines.
+        float row=floor(p.y/.32);
+        float off=fract(sin(row*11.7)*91.3)*3.;
+        vec2 bd=vec2((p.x+off)/3.,p.y/.32);
+        float tone=fract(sin(dot(floor(bd),vec2(21.7,47.3)))*231.5);
+        paint=mix(vec3(.85,.71,.52),vec3(.92,.80,.60),tone*.8);
+        paint*=.97+.04*grain;
+        vec2 ed=min(fract(bd),1.-fract(bd))/max(fwidth(bd),vec2(.0001));
+        paint*=.9+.1*smoothstep(.4,1.6,min(ed.x*3.,ed.y));
         vec2 q=p-vec2(20.,20.);
         float border=abs(max(abs(q.x)-17.4,abs(q.y)-11.9));
         float line=min(border,abs(length(q)-3.2));
         if(abs(q.y)<11.9) line=min(line,abs(q.x));
-        if(abs(q.x)<17.4) line=min(line,abs(length(vec2(abs(q.x)-17.4,q.y))-6.1));
-        paint=mix(vec3(.99,.91,.72),paint,smoothstep(.085,.16,line));
+        float key=1e3; if(abs(q.x)<17.4) key=abs(length(vec2(abs(q.x)-17.4,q.y))-6.1);
+        paint=mix(vec3(.96,.95,.91),paint,smoothstep(.06,.1,line));
+        paint=mix(vec3(.78,.32,.30),paint,smoothstep(.06,.1,key));
       }
-      diffuseColor.rgb=pow(paint,vec3(2.2)) * ${inShadow ? 'vec3(.70,.63,.70)' : 'vec3(1.)'};
+      // Late-afternoon window light falling across the north rooms and the corridor.
+      if(p.y<5.55){
+        float sky=0.;
+        for(int k=0;k<5;k++){
+          float wx=k==0?-33.:k==1?-9.:k==2?7.:k==3?18.:32.;
+          float sx=p.x-wx-(p.y+30.9)*.42;
+          sky=max(sky,(1.-smoothstep(1.35,1.75,abs(sx)))*smoothstep(-31.,-27.,p.y)*(1.-smoothstep(-12.,-5.6,p.y)));
+        }
+        float hall=(1.-smoothstep(1.1,1.5,abs(fract((p.x-p.y*.42)/7.)-.5)*7.))*(1.-smoothstep(3.6,4.4,abs(p.y)));
+        paint*=1.+.13*sky+.06*hall;
+        paint=mix(paint,paint*vec3(1.04,1.,.92),sky*.6);
+      }
+      diffuseColor.rgb=pow(paint,vec3(2.2)) * ${inShadow ? 'vec3(.66,.69,.80)' : 'vec3(1.)'};
       vec4 mark = texture2D(marks, vec2((groundXZ.x+48.)/96.,1.-(groundXZ.y+48.)/96.));
       diffuseColor.rgb = mix(diffuseColor.rgb, mark.rgb, mark.a);
       for(int i=0;i<8;i++){float age=now-ripples[i].z;

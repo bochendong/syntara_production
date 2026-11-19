@@ -1,17 +1,17 @@
 import * as T from './vendor/three.module.js';
 import { forms as f, InkMesh, ink } from './campus-mesh.js';
 
-const cream = 0xffead1,
-  paper = 0xfff3dd,
-  rose = 0xbe8093,
-  wood = 0xc67e54,
-  honey = 0xf6bd76;
-const teal = 0x4b9689,
-  navy = 0x35485b,
-  orange = 0xf98631,
-  red = 0xe35a56,
-  blue = 0x5886bc,
-  gold = 0xf6bb4f;
+const cream = 0xf4efe6,
+  paper = 0xfbf8f1,
+  rose = 0x9db3a6,
+  wood = 0xa97b55,
+  honey = 0xd8bb92;
+const teal = 0x5d8c84,
+  navy = 0x3f4a59,
+  orange = 0xdc8a4f,
+  red = 0xc65e57,
+  blue = 0x5f80a8,
+  gold = 0xdcb35f;
 const bookColors = [teal, red, cream, blue, gold, rose];
 const halfPi = Math.PI / 2;
 function rail(b, color, x, y, z, w, h, d, rz = 0, rx = 0) {
@@ -387,7 +387,7 @@ function pad(b, w, d, index) {
     long = Math.max(w, d),
     n = Math.max(1, Math.round(long / 2.65)),
     seg = long / n;
-  const colors = [red, red, gold, blue];
+  const colors = [0x5a78a0, 0x5a78a0, 0x7a9a86, 0xb06a60];
   for (let j = 0; j < n; j++) {
     const shift = -long * 0.5 + (j + 0.5) * seg,
       x = along ? shift : 0,
@@ -396,7 +396,7 @@ function pad(b, w, d, index) {
       sd = along ? d : seg - 0.07;
     b.box(navy, x, 0.17, z, sw, 0.29, sd);
     b.box(colors[(index + j) % 4], x, 0.88, z, sw, 1.42, sd);
-    const accent = [0xff8a73, 0xfa897e, 0xffda7c, 0x8fb8dc][(index + j) % 4];
+    const accent = [0x7b97bb, 0x7b97bb, 0x9ab5a3, 0xc98e84][(index + j) % 4];
     b.box(accent, x, 1.52, z, sw * 0.96, 0.12, sd * 0.95);
     b.box(colors[(index + j) % 4], x, 1.59, z, sw * 0.91, 0.085, sd * 0.88);
     b.part(
@@ -498,13 +498,13 @@ function wall(b, w, d, h) {
       z = along ? 0 : v;
     const sw = along ? len : w,
       sd = along ? d : len;
-    rail(b, 0xf0cdbb, x, h * 0.5, z, sw, h, sd);
+    rail(b, 0xf1ede6, x, h * 0.5, z, sw, h, sd);
     rail(b, rose, x, 0.4, z, sw, 0.78, sd + 0.02);
     rail(b, honey, x, 0.88, z, sw + 0.025, 0.12, sd + 0.055);
-    b.box(cream, x, h, z, sw + 0.045, 0.17, sd + 0.065);
+    b.box(0xe4ded3, x, h, z, sw + 0.045, 0.17, sd + 0.065);
     const px = along ? x - len * 0.5 : x,
       pz = along ? z : z - len * 0.5;
-    rail(b, 0xddac9f, px, h * 0.52, pz, along ? 0.15 : w + 0.04, h * 0.9, along ? d + 0.04 : 0.15);
+    rail(b, 0xd9d4ca, px, h * 0.52, pz, along ? 0.15 : w + 0.04, h * 0.9, along ? d + 0.04 : 0.15);
   }
 }
 function chalkboard(b, x, y, z, w) {
@@ -537,7 +537,7 @@ function gallery(b, wall, index) {
   poly.closePath();
   const slab = new T.ExtrudeGeometry(poly, { depth: 1, bevelEnabled: false }).rotateX(-halfPi);
   b.part(slab, wood, 0, 0.03, 0, 1, 0.2, 1);
-  b.part(slab, 0xf0bf9f, 0, 0.22, 0, 1, 2.37, 1, 0, 0, 0, 0.024);
+  b.part(slab, 0xe2ddd4, 0, 0.22, 0, 1, 2.37, 1, 0, 0, 0, 0.024);
   b.part(slab, cream, 0, 2.58, 0, 1, 0.15, 1);
   // Hang each painting flush with the edge closest to the centre of the ring.
   const edges = c

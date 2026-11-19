@@ -7,9 +7,13 @@ const light = new T.Vector3(-0.55, 0.84, 0.36).normalize();
 const inkColor = new T.Color(ink),
   cache = new WeakMap();
 
-const shadowTone = new T.Color(0.57, 0.39, 0.52),
-  halfTone = new T.Color(0.83, 0.7, 0.73),
-  sunTone = new T.Color(1, 0.88, 0.72);
+// Anime-background shading: cool blue-grey shade, soft mid tone, warm window light.
+// Outlines are a thin neutral line so props read without the old storybook ink.
+const shadowTone = new T.Color(0.66, 0.7, 0.82),
+  halfTone = new T.Color(0.87, 0.89, 0.94),
+  sunTone = new T.Color(1, 0.95, 0.86);
+const lineColor = new T.Color(0x4a4a58),
+  lineWeight = 0.28;
 
 function prismGeometry() {
   const shape = new T.Shape();
@@ -122,7 +126,7 @@ export class InkMesh {
       ? points.map((v, i) =>
           v
             .clone()
-            .addScaledVector(data.normals[i].clone().applyQuaternion(rotation), stroke * 1.38),
+            .addScaledVector(data.normals[i].clone().applyQuaternion(rotation), stroke * 1.38 * lineWeight),
         )
       : null;
     const base = new T.Color(color),
@@ -135,12 +139,11 @@ export class InkMesh {
     for (const { tri, normal } of data.faces) {
       const dot = n.copy(normal).applyNormalMatrix(normalMatrix).dot(light);
       tone.copy(base);
-      // Plum in the shadows, cream in the light, as in the goose illustration.
-      if (dot < 0.02) tone.multiply(shadowTone).lerp(inkColor, 0.06);
+      if (dot < 0.02) tone.multiply(shadowTone);
       else if (dot < 0.47) tone.multiply(halfTone);
       else if (dot > 0.83) tone.lerp(sunTone, 0.07);
       for (const j of tri) vertex(points[j], tone);
-      if (hull) for (let j = 2; j >= 0; j--) vertex(hull[tri[j]], inkColor);
+      if (hull) for (let j = 2; j >= 0; j--) vertex(hull[tri[j]], lineColor);
     }
   }
   box(color, x, y, z, w, h, d, ry = 0, stroke = 0.045) {
