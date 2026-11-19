@@ -930,7 +930,7 @@ function placeLeg(side, phase, gait, shift, hipDrop) {
     foot = 'foot' + side;
   const cycle = phase - Math.floor(phase),
     contact = 0.56 - 0.18 * gait;
-  const halfTravel = strideLength(gait) * contact * 0.25;
+  const halfTravel = strideLength(gait) * contact * 0.5;
   let z, lift, pitch;
   if (cycle < contact) {
     const t = cycle / contact;
