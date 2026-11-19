@@ -115,6 +115,53 @@ export function createGameAudio() {
     source.start(now);
   }
 
+  // Filtered air on the forward cast, then a short broad-band snap on contact.
+  function whip(sound) {
+    if (hidden || muted || context?.state !== 'running') return;
+    if (!buffers.whipNoise) {
+      buffers.whipNoise = context.createBuffer(1, Math.ceil(context.sampleRate * .28), context.sampleRate);
+      const data = buffers.whipNoise.getChannelData(0);
+      for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+    }
+    const snap = sound === 'snap', now = context.currentTime;
+    const duration = snap ? .065 : .26;
+    const source = context.createBufferSource();
+    source.buffer = buffers.whipNoise;
+    const filter = context.createBiquadFilter();
+    filter.type = snap ? 'highpass' : 'bandpass';
+    filter.frequency.setValueAtTime(snap ? 1100 : 450, now);
+    filter.frequency.exponentialRampToValueAtTime(snap ? 2600 : 3600, now + duration);
+    const gain = context.createGain();
+    gain.gain.setValueAtTime(.0001, now);
+    gain.gain.exponentialRampToValueAtTime(snap ? .44 : .22, now + (snap ? .002 : .14));
+    gain.gain.exponentialRampToValueAtTime(.0001, now + duration);
+    source.connect(filter).connect(gain).connect(output);
+    source.start(now); source.stop(now + duration);
+    source.onended = () => { source.disconnect(); filter.disconnect(); gain.disconnect(); };
+  }
+
+  // Short mallet attack followed by a tier-specific cadence, through the game's mute bus.
+  function reveal(tier) {
+    if (hidden || muted || context?.state !== 'running') return;
+    const notes = [[330, 440, 550], [392, 587, 784], [392, 494, 587, 988]][tier];
+    const start = context.currentTime;
+    for (const [i, hz] of [105, ...notes].entries()) {
+      const time = start + (i ? 0.22 + i * 0.08 : 0);
+      const duration = i === notes.length ? 0.24 : 0.09;
+      const tone = context.createOscillator();
+      const gain = context.createGain();
+      tone.type = i ? 'sine' : 'triangle';
+      tone.frequency.setValueAtTime(hz, time);
+      gain.gain.setValueAtTime(0.0001, time);
+      gain.gain.exponentialRampToValueAtTime(i ? 0.10 : 0.19, time + 0.008);
+      gain.gain.exponentialRampToValueAtTime(0.0001, time + duration);
+      tone.connect(gain).connect(output);
+      tone.start(time);
+      tone.stop(time + duration);
+      tone.onended = () => { tone.disconnect(); gain.disconnect(); };
+    }
+  }
+
   function toggleMute() {
     muted = !muted;
     if (context) ramp(output.gain, muted || hidden ? 0 : 1, context.currentTime, 0.03);
@@ -131,5 +178,5 @@ export function createGameAudio() {
     else if (active) startMusic();
   }
 
-  return { unlock, update, play, toggleMute, setHidden };
+  return { unlock, update, play, whip, reveal, toggleMute, setHidden };
 }

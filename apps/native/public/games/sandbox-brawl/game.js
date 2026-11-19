@@ -5,6 +5,7 @@ import { buildInkPortal, buildPortraitRoom } from './campus-models.js?v=painted-
 import { castShadowMatrix } from './campus-mesh.js';
 import { createCampusItems, ITEM } from './campus-items.js';
 import { createCampus, floorPoint, campusElevation, campusStudentDrawScale, campusStudentScale, campusStudentRadius, taskSites, encounterSites, portalSites, insideCampusObstacle, resolveCampusObstacles } from './campus.js?v=eight-portals';
+import { createGachaTheater, spinTurns, CAST_TIME, CONTACT_TIME, CARD_TIME } from './gacha-theater.js';
 import { createGameAudio } from './game-audio.js';
 import { BrawlSaveConflict, createBrawlSaveQueue } from './brawl-cloud.js';
 import { DEATH_TAUNTS } from './death-taunts.js';
@@ -22,6 +23,7 @@ const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const saveParams = new URLSearchParams(location.search);
 const skillDemoMode = window.parent !== window && saveParams.has('skill-demo');
 const localPreview = location.protocol === 'http:' && ['127.0.0.1', 'localhost', '[::1]'].includes(location.hostname);
+const gachaPreview = localPreview && !skillDemoMode && saveParams.has('gacha-preview');
 const staticMatchPreview = localPreview && !skillDemoMode && saveParams.has('static-match');
 const gameAudio = createGameAudio();
 if (!skillDemoMode && !staticMatchPreview) {
@@ -775,44 +777,6 @@ const shCanvas = document.createElement('canvas'); shCanvas.width = shCanvas.hei
 { const c = shCanvas.getContext('2d'); const g = c.createRadialGradient(32, 32, 0, 32, 32, 32); g.addColorStop(0, 'rgba(0,0,0,1)'); g.addColorStop(0.6, 'rgba(0,0,0,.65)'); g.addColorStop(1, 'rgba(0,0,0,0)'); c.fillStyle = g; c.fillRect(0, 0, 64, 64); }
 const shadowMesh = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(shCanvas), color: 0x000000, transparent: true, opacity: 0.55, depthWrite: false }), 1400);
 shadowMesh.frustumCulled = false; shadowMesh.count = 0; scene.add(shadowMesh);
-const GZ = -80, GPX = 1.7, gStage = new THREE.Group(); gStage.position.set(0, 0, GZ); gStage.visible = false; scene.add(gStage);
-const GACHA_PILLAR_SCALE = 1.76;
-const gAdd = (geo, c, pos, sc, rot = [0, 0, 0], ol = true, par = gStage) => { const m = solid(geo, c, pos, sc, rot || [0, 0, 0], ol); par.add(m); return m; };
-const GS = {};
-{
-  gAdd(GEO.cyl, 0xff8a7a, [0, 0.03, 0], [17, 0.06, 17], 0, false); gAdd(GEO.cyl, 0xfff3d0, [0, 0.07, 0], [15.6, 0.06, 15.6], 0, false); gAdd(GEO.cyl, 0xfffbe8, [0.4, 0.11, 0], [7.5, 0.02, 7.5], 0, false);
-  gAdd(GEO.box, 0xc8323a, [0, 4.6, -5.2], [20, 9.2, 0.3], 0, false); for (let x = -9; x <= 9; x += 1.5) gAdd(GEO.cyl, 0xa8262e, [x, 4.6, -5.0], [0.55, 9.2, 0.3], 0, false);
-  gAdd(GEO.box, 0xffc93c, [0, 8.9, -4.8], [20.4, 1.0, 0.5]); for (let x = -9; x <= 9; x += 1.5) gAdd(GEO.sph, 0xffc93c, [x, 8.35, -4.6], [0.5, 0.5, 0.3], 0, false);
-  for (const sx of [-1, 1]) gAdd(GEO.cone, 0xb02a32, [sx * 8.6, 4.4, -3.6], [3.4, 8.8, 0.6], 0, false);
-  const P = GS.pillar = new THREE.Group(); P.position.set(GPX, 0, 0); gStage.add(P);
-  gAdd(GEO.cyl, 0x8d7268, [0, 0.16, 0], [1.5, 0.3, 1.5], 0, true, P); gAdd(GEO.cyl, 0xffffff, [0, 0.95, 0], [1.0, 1.6, 1.0], 0, true, P);
-  for (let k = 0; k < 4; k++) gAdd(GEO.cyl, 0xff5f6a, [0, 0.35 + k * 0.4, 0], [1.03, 0.16, 1.03], 0, false, P);
-  gAdd(GEO.cyl, 0xffc93c, [0, 1.8, 0], [1.25, 0.18, 1.25], 0, true, P); gAdd(GEO.sph, 0xffe07a, [0, 1.92, 0], [0.9, 0.22, 0.9], 0, false, P);
-  // 大鹅：白身子、橙嘴橙脚、凶眉毛
-  const g = GS.goose = new THREE.Group(); g.position.set(-1.0, 0, 0); gStage.add(g);
-  for (const sx of [-1, 1]) { gAdd(GEO.cyl, 0xff9a2e, [sx * 0.26, 0.36, 0], [0.12, 0.7, 0.12], 0, true, g); gAdd(GEO.box, 0xff9a2e, [sx * 0.26, 0.05, 0.14], [0.32, 0.08, 0.42], 0, true, g); }
-  gAdd(GEO.sph, 0xffffff, [0, 1.05, -0.1], [1.3, 1.0, 1.75], 0, true, g); gAdd(GEO.cone, 0xf0ede6, [0, 1.3, -1.0], [0.55, 0.6, 0.3], [-1.1, 0, 0], true, g);
-  GS.wL = gAdd(GEO.sph, 0xefeae0, [-0.6, 1.15, -0.15], [0.26, 0.62, 1.15], 0, true, g); GS.wR = gAdd(GEO.sph, 0xefeae0, [0.6, 1.15, -0.15], [0.26, 0.62, 1.15], 0, true, g);
-  const nk = GS.neck = new THREE.Group();
-  nk.position.set(0, 1.35, 0.55);
-  nk.rotation.order = 'YXZ';
-  g.add(nk);
-  GS.neckMesh = gAdd(GEO.cap, 0xffffff, [0, 0.45, 0.05], [0.36, 0.55, 0.36], [0.2, 0, 0], true, nk);
-  const hd = GS.head = new THREE.Group(); hd.position.set(0, 1.0, 0.2); nk.add(hd);
-  gAdd(GEO.sph, 0xffffff, [0, 0, 0], [0.62, 0.58, 0.74], 0, true, hd); gAdd(GEO.cone, 0xff9a2e, [0, -0.06, 0.5], [0.28, 0.5, 0.22], [HP_, 0, 0], true, hd); gAdd(GEO.sph, 0xff9a2e, [0, 0.2, 0.3], [0.17, 0.17, 0.17], 0, false, hd);
-  for (const sx of [-1, 1]) { gAdd(GEO.sph, 0x2a1a22, [sx * 0.23, 0.1, 0.24], [0.12, 0.15, 0.08], 0, false, hd); gAdd(GEO.box, 0x2a1a22, [sx * 0.21, 0.25, 0.27], [0.24, 0.06, 0.05], [0, 0, sx * -0.45], false, hd); }
-  // 黄鼠狼：被叼着脖子，身子往下垂；转起来就甩平
-  const wz = GS.weasel = new THREE.Group(); wz.position.set(0, -0.12, 0.66); hd.add(wz);
-  gAdd(GEO.sph, 0xa8703a, [0, 0.12, 0.06], [0.44, 0.4, 0.42], 0, true, wz); gAdd(GEO.sph, 0x2a1a22, [0, 0.08, 0.28], [0.08, 0.07, 0.06], 0, false, wz);
-  for (const sx of [-1, 1]) { gAdd(GEO.sph, 0xa8703a, [sx * 0.16, 0.32, 0.02], [0.13, 0.13, 0.08], 0, true, wz); gAdd(GEO.box, 0x2a1a22, [sx * 0.1, 0.16, 0.26], [0.1, 0.025, 0.02], [0, 0, 0.8], false, wz); gAdd(GEO.box, 0x2a1a22, [sx * 0.1, 0.16, 0.26], [0.1, 0.025, 0.02], [0, 0, -0.8], false, wz); }
-  gAdd(GEO.cap, 0xa8703a, [0, -0.62, 0], [0.34, 0.62, 0.3], 0, true, wz); gAdd(GEO.cap, 0xf4dcb4, [0, -0.55, 0.09], [0.24, 0.5, 0.2], 0, false, wz);
-  for (const sx of [-1, 1]) { gAdd(GEO.cap, 0x8a5a2a, [sx * 0.17, -0.25, 0.1], [0.1, 0.12, 0.1], [0, 0, sx * 0.4], true, wz); gAdd(GEO.cap, 0x8a5a2a, [sx * 0.15, -1.05, 0.06], [0.1, 0.14, 0.1], [0, 0, sx * 0.3], true, wz); }
-  gAdd(GEO.cap, 0xa8703a, [0, -1.45, -0.06], [0.16, 0.42, 0.16], [0.15, 0, 0], true, wz); gAdd(GEO.sph, 0x4a2e1a, [0, -1.82, -0.1], [0.2, 0.28, 0.2], 0, false, wz);
-}
-const GACHA_PILLAR_YAW = Math.atan2(
-  GS.pillar.position.x - GS.goose.position.x,
-  GS.pillar.position.z - GS.goose.position.z,
-);
 const podium = new THREE.Group(); { const a = new THREE.Mesh(GEO.cyl, toonOf(0xff8a7a)); a.scale.set(3.0, 0.14, 3.0); a.position.y = 0.07; const b = new THREE.Mesh(GEO.cyl, toonOf(0xfff3d0)); b.scale.set(2.5, 0.1, 2.5); b.position.y = 0.17; const o = new THREE.Mesh(GEO.cyl, outlineMat); o.scale.set(3.14, 0.2, 3.14); o.position.y = 0.06; podium.add(a, b, o); } podium.position.set(TX, 0, TZ - 1); podium.visible = false; scene.add(podium);
 let shN = 0; const SH_ROT = new THREE.Quaternion().setFromEuler(new THREE.Euler(-HP_, 0, 0));
 function shadow(x, z, r) { if (shN >= 1400) return; shadowMesh.setMatrixAt(shN++, WM.compose(wP.set(x, 0.02, z), SH_ROT, wS.set(r * 2.2, r * 2.2, 1))); }
@@ -1063,7 +1027,7 @@ let diffId = 'easy', modeId = 'std'; const DF = () => DIFFS[diffId];
 const SAVE_PREFIX = localPreview ? 'syntara.brawl.preview' : 'syntara.brawl';
 let META_KEY = `${SAVE_PREFIX}.meta`;
 let BEST_KEY = `${SAVE_PREFIX}.best`;
-const expectedGameAccount = !skillDemoMode && !staticMatchPreview && location.pathname.startsWith('/native-web/games/sandbox-brawl/')
+const expectedGameAccount = !gachaPreview && !skillDemoMode && !staticMatchPreview && location.pathname.startsWith('/native-web/games/sandbox-brawl/')
   ? saveParams.get('account') : null;
 const cloudGame = !!expectedGameAccount;
 let cloudSave = null;
@@ -1096,13 +1060,13 @@ function loadMeta() {
   }
   } catch (e) {}
 }
-if (!cloudGame && !staticMatchPreview) loadMeta();
+if (!cloudGame && !staticMatchPreview && !gachaPreview) loadMeta();
 function cloudSnapshot() {
   const { practiceTransfer: _legacyTransfer, ...data } = meta;
   return structuredClone({ ...data, best: Math.floor(bestEndless) });
 }
 function saveMeta() {
-  if (skillDemoMode || staticMatchPreview) return;
+  if (skillDemoMode || staticMatchPreview || gachaPreview) return;
   if (cloudSave) {
     try { cloudSave.enqueue(cloudSnapshot()); }
     catch (error) { showSaveError(error); }
@@ -2516,7 +2480,7 @@ function showTitle(step) {
   if (state !== 'title') { clearField(); camPos.copy(camera.position); camTgt.copy(camLook); }
   if (typeof step === 'string') titleStep = step; else if (state !== 'title') titleStep = 'prep';
   state = 'title'; $('hud').hidden = true; hide(); $('stage').classList.remove('dead'); titleEl.hidden = false;
-  if (titleStep === 'home') renderHome(); else renderPrep(true);
+  backToTitle();
 }
 function backToTitle() { titleEl.hidden = false; if (titleStep === 'home') renderHome(); else if (titleStep === 'gacha') renderGacha(); else renderPrep(true); }
 function renderHome(focusId = 'hGo') {
@@ -3133,61 +3097,129 @@ function renderPrep(fresh) {
   });
   $('go').onclick = () => { if (!isOpen(clsId)) { if (buy('heroes', clsId)) { renderPrep(); spark(TX, 1.5, TZ - 1, 0xffd23f, 80, 7, 0.4, 0.8); } return; } wipe(startRun); };
 }
-const GACHA_TURN_TIME = 0.65;
-const GACHA_HIT_PHASE = 0.67;
-const GACHA_HIT_RECOIL = 0.32;
-const gch = { on: false, res: [], i: 0, t: 0, beat: 1, turnFrom: 0, hitT: 0, n: 1, hero: null, snap: false };
-function openGacha(n) { wipe(() => { titleStep = 'gacha'; gch.snap = true; gch.hero = null; renderGacha(); if (n) gachaStart(n); }); }
+let theater;
+const gch = { on: false, res: [], t: 0, struck: false, revealed: false, feature: null, n: 1 };
+function openGacha(n) { wipe(() => { titleStep = 'gacha'; renderGacha(); if (n) gachaStart(n); }); }
 function renderGacha() {
   titleEl.className = 'gacha'; titleEl.hidden = false; const p = GACHA.pity - (meta.stat.pity || 0);
   titleEl.innerHTML = `<div class="gTop"><button id="gBack" ${gch.on ? 'hidden' : ''}>返回</button><span class="pill">积分 ${meta.pts}</span></div>
     <div class="gTitle">大鹅抽卡</div>
-    <div class="gSlots">${gch.on ? gch.res.map((q, i) => `<i class="gs" data-i="${i}"></i>`).join('') : ''}</div>
-    <div class="gBot">${gch.on ? '<div class="row"><button id="gSkip">跳过动画</button></div>' : `<div class="row"><button class="big" id="g1" ${meta.pts < GACHA.one ? 'disabled' : ''}>单抽 · ${GACHA.one}</button><button class="primary big" id="g10" ${meta.pts < GACHA.ten ? 'disabled' : ''}>十连 · ${GACHA.ten}</button></div>
+    ${gch.on ? '<div id="gReveal" class="gReveal" aria-live="polite"></div>' : ''}
+    <div class="gBot">${gch.on ? '<button id="gSkip">跳过动画</button>' : gachaPreview ? `<div class="row gExamples">
+      <button data-sample="fragment">碎片单抽</button><button data-sample="skin">皮肤单抽</button>
+      <button data-sample="ultimate">终极形态</button><button class="primary" data-sample="ten">十连预览</button></div>` : `<div class="row"><button class="big" id="g1" ${meta.pts < GACHA.one ? 'disabled' : ''}>单抽 · ${GACHA.one}</button><button class="primary big" id="g10" ${meta.pts < GACHA.ten ? 'disabled' : ''}>十连 · ${GACHA.ten}</button></div>
       <div class="row"><small>传说皮肤或终极形态 ${GACHA.legendary * 100}% · 80 抽保底 · 最多再抽 ${p} 次<br>稀有皮肤 ${GACHA.rareSkin * 100}% · 稀有碎片 ${GACHA.rareFragment * 100}% · 十连至少一张稀有或以上</small><button id="gPool"${unreadDot(hasUnreadDraw())}>看奖池</button></div>`}</div>`;
-  if (gch.on) $('gSkip').onclick = () => {
-    if (!gch.on) return;
-    gch.i = gch.res.length;
-    gch.on = false;
-    gch.hitT = 0;
-    showGachaResults();
-  };
-  else { $('gBack').onclick = () => wipe(() => { titleStep = 'home'; gch.hero = null; renderHome(); }); $('g1').onclick = () => gachaStart(1); $('g10').onclick = () => gachaStart(10); $('gPool').onclick = () => showCodex('gacha'); }
+  theater ??= createGachaTheater();
+  titleEl.prepend(theater.canvas);
+  if (!gch.on) { gch.t = 0; gch.revealed = false; }
+  theater.draw(gch.t, realTime, REDUCED, false, RC[0]);
+  if (gachaPreview) {
+    titleEl.querySelector('.gTop').hidden = true;
+    titleEl.querySelectorAll('[data-sample]').forEach((button) => {
+      button.onclick = () => previewGachaDraw(button.dataset.sample);
+    });
+  }
+  if (gch.on) $('gSkip').onclick = finishGacha;
+  else if (gachaPreview) return;
+  else { $('gBack').onclick = () => wipe(() => { titleStep = 'home'; renderHome(); }); $('g1').onclick = () => gachaStart(1); $('g10').onclick = () => gachaStart(10); $('gPool').onclick = () => showCodex('gacha'); }
 }
 function gachaStart(n) {
-  const res = gachaPull(n);
-  if (!res) return;
+  if (gch.on) return;
+  const rewards = gachaPull(n);
+  if (rewards) animateGacha(rewards);
+}
+function animateGacha(rewards) {
+  // Keep the original draw order for settlement. Spotlight the most interesting card once.
+  const priority = (q) => q.tier + (q.level > q.from || (!q.kind && !q.dup) ? 3 : 0);
+  const feature = rewards.reduce((best, q) => priority(q) > priority(best) ? q : best);
   Object.assign(gch, {
-    on: true, res, i: 0, t: 0, hitT: 0, n, hero: null,
-    beat: n > 1 ? 0.72 : 1.35,
-    turnFrom: GS.goose.rotation.y,
+    on: true, res: rewards, n: rewards.length, feature, t: 0, struck: false, revealed: false,
   });
   renderGacha();
+  $('gSkip').focus({ preventScroll: true });
+}
+function previewGachaDraw(sample) {
+  const fragment = { kind: 'skills', id: 'pencil', tier: 0, amount: 4, from: 0, level: 0, remaining: 4, back: 0, newItem: true };
+  const skin = { tier: 1, id: 'brawler_r', dup: false, back: 0 };
+  const ultimate = { tier: 2, id: 'ult_pencil', dup: false, back: 0 };
+  const examples = { fragment, skin, ultimate };
+  gch.sample = sample;
+  if (sample !== 'ten') return animateGacha([examples[sample]]);
+  const fragments = ['mop', 'plane', 'coffee', 'slipper', 'bolt', 'spin', 'lamp', 'pencil']
+    .map((id) => ({ ...fragment, id }));
+  animateGacha([...fragments, skin, ultimate]);
 }
 function gachaIcon(reward, item, color) {
   if (reward.kind) return illustratedBadge(reward.kind, reward.id, color);
   if (reward.id.startsWith('ult_')) return illustratedBadge('alternateUltimates', item.ic, color);
   return illustratedBadge('heroes', SKINS[reward.id].h, color);
 }
-function gImpact(q) {
-  const c = new THREE.Color(RC[q.tier]).getHex(), el = titleEl.querySelector(`.gs[data-i="${gch.i - 1}"]`), it = gItem(q);
-  if (el) { el.classList.add('on'); el.style.setProperty('--c', RC[q.tier]); el.innerHTML = gachaIcon(q, it, '#fff'); }
-  const x = GPX, y = 2 * GACHA_PILLAR_SCALE, z = GZ;
-  spark(x - 0.3, y, z, c, q.tier === 2 ? 150 : q.tier ? 70 : 30, q.tier === 2 ? 10 : 7, 0.45, 0.8);
-  spark(x - 0.3, y, z, 0xffffff, 16, 5, 0.35, 0.5);
-  ringFx(x, z, q.tier === 2 ? 7 : q.tier ? 4.5 : 3, c, 0.5); shake = q.tier === 2 ? 0.5 : 0.25; if (q.tier === 2) { chroma = 0.6; ringFx(x, z, 10, 0xffe07a, 0.8); }
+function gachaArtwork(q) {
+  if (q.kind) {
+    const art = illustration(q.kind, q.id);
+    return `<div class="grPieces">${['nw', 'ne', 'sw', 'se'].map((corner) =>
+      `<i class="grPiece ${corner}">${art}</i>`).join('')}</div>`;
+  }
+  if (SKINS[q.id]) {
+    const src = q.id === 'brawler_r' ? './gacha-art/winter-uniform.webp' : skinPortrait(SKINS[q.id].h, q.id);
+    return `<img class="grPrint" src="${src}" alt=""><img class="grModel" src="${src}" alt="">`;
+  }
+  if (q.id === 'ult_pencil') {
+    return '<div class="grPaper p1"></div><div class="grPaper p2"></div><div class="grPaper p3"></div><img class="grPencil" src="./gacha-art/mechanical-pencil.webp" alt="">';
+  }
+  return `<div class="grBurst"></div>${illustration('alternateUltimates', q.id.slice(4))}`;
+}
+function revealGachaCard() {
+  const q = gch.feature, item = gItem(q);
+  const family = q.kind ? 'fragment' : SKINS[q.id] ? 'skin' : 'ultimate';
+  const name = q.kind ? fragmentName(q.kind, q.id) + '碎片' : item.name;
+  const tier = ['common', 'rare', 'legendary'][q.tier];
+  const detail = q.kind ? gachaResultStatus(q) : (q.dup ? `重复 · 返 ${q.back} 积分` : `新 · ${item.sub}`);
+  let progress = '';
+  if (q.kind) {
+    const ratio = fragmentComplete(q.kind, q.level) ? 1 : q.remaining / fragmentCost(q.level);
+    progress = `<i class="grProgress" style="--fill:${ratio * 100}%"></i>`;
+  }
+  const rail = gch.n > 1 ? `<div class="grRail">${gch.res.map((entry, i) =>
+    `<i style="--i:${i};--edge:${RC[entry.tier]}">${gachaIcon(entry, gItem(entry), RC[entry.tier])}</i>`).join('')}</div>` : '';
+  $('gReveal').innerHTML = `<div class="grLight"></div><div class="grBack" aria-hidden="true">✦</div><div class="grCard ${tier} ${family}" style="--edge:${RC[q.tier]}">
+    <span class="grTier">${RN[q.tier]}</span><div class="grWindow ${q.level > q.from ? 'grUnlocked' : ''}">${gachaArtwork(q)}</div>
+    <div class="grLabel"><strong>${name}</strong>${q.kind ? `<b>×${q.amount}</b>` : ''}</div>
+    <div class="grDetail">${detail}</div>${progress}</div>${rail}`;
+  gch.revealed = true;
 }
 function updateGacha(dt) {
+  if (!theater || !theater.ready) return;
+  const previous = gch.t;
+  if (gch.on) gch.t += dt;
+  const point = theater.draw(gch.t, realTime, REDUCED, !gch.on && gch.revealed, RC[gch.feature?.tier ?? 0]);
   if (!gch.on) return;
-  gch.t += dt;
-  gch.hitT = Math.max(0, gch.hitT - dt);
-  const elapsedBeats = (gch.t - GACHA_TURN_TIME) / gch.beat;
-  if (gch.i < gch.res.length && elapsedBeats >= gch.i + GACHA_HIT_PHASE) {
-    gImpact(gch.res[gch.i++]);
-    gch.hitT = GACHA_HIT_RECOIL;
+  const sweep = Math.floor(spinTurns(gch.t) + .5) > Math.floor(spinTurns(previous) + .5);
+  if (sweep || (previous < CAST_TIME && gch.t >= CAST_TIME)) gameAudio.whip('air');
+  if (!gch.struck && gch.t >= CONTACT_TIME) {
+    gch.struck = true;
+    gameAudio.whip('snap');
+    gameAudio.reveal(gch.feature.tier);
+    if (point) {
+      $('gReveal').style.setProperty('--launch-x', point.x + 'px');
+      $('gReveal').style.setProperty('--launch-y', point.y + 'px');
+    }
   }
-  if (elapsedBeats >= gch.res.length + 0.5 && gch.hitT === 0) {
-    gch.on = false;
+  if (!gch.revealed && gch.t >= CARD_TIME) revealGachaCard();
+  if (gch.t >= CARD_TIME + [1.85, 2.35, 2.8][gch.feature.tier]) finishGacha();
+}
+function finishGacha() {
+  if (!gch.on) return;
+  gch.on = false;
+  if (gch.n === 1) {
+    if (!gch.revealed) revealGachaCard();
+    $('gReveal').classList.add('grSettled');
+    const q = gch.feature;
+    const hint = q.kind || q.dup ? '' : SKINS[q.id] ? '在准备页可换上这套皮肤' : '对局中技能达到 Lv 10 时可选择';
+    titleEl.querySelector('.gBot').innerHTML = `${hint ? `<small>${hint}</small>` : ''}${gachaActions()}`;
+    bindGachaActions();
+  } else {
+    $('gReveal').remove();
     showGachaResults();
   }
 }
@@ -3210,9 +3242,21 @@ function showGachaResults() {
   show(`${res.some((q) => q.tier === 2) ? confetti(30) : ''}<h2>抽到了</h2>
     <div class="gcards ${res.length === 1 ? 'one' : ''}">${res.map((q, i) => { const it = gItem(q); return `<div class="gcard t${q.tier}" style="--i:${i};--c:${RC[q.tier]}"${unreadDot(newDrawItem(q))}><span class="rr">${RN[q.tier]}</span>${gachaIcon(q, it, RC[q.tier])}<b>${it.name}</b><small>${it.sub}</small>${gachaResultStatus(q)}</div>`; }).join('')}</div>
     ${res.some((q) => !q.kind && q.id.startsWith('ult_') && !q.dup) ? '<p>抽到的终极形态可在对局中技能升到 Lv 10 后选择。</p>' : ''}${best ? '<p>皮肤在准备页选同学时换上。</p>' : ''}
-    <div class="actions"><button class="primary" id="gOk">收下</button><button id="gAgain" ${meta.pts < (gch.n === 10 ? GACHA.ten : GACHA.one) ? 'disabled' : ''}>再来${gch.n === 10 ? '十连' : '一次'}</button></div>`, 'frame gres');
-  if (best) gch.hero = { h: SKINS[best.id].h, sk: best.id, t: 0 };
-  $('gOk').onclick = () => { hide(); renderGacha(); }; $('gAgain').onclick = () => { hide(); gachaStart(gch.n); }; $('gOk').focus();
+    ${gachaActions()}`, 'frame gres');
+  bindGachaActions();
+}
+function gachaActions() {
+  const canRepeat = gachaPreview || meta.pts >= (gch.n === 10 ? GACHA.ten : GACHA.one);
+  return `<div class="actions"><button class="primary" id="gOk">收下</button><button id="gAgain" ${canRepeat ? '' : 'disabled'}>再来${gch.n === 10 ? '十连' : '一次'}</button></div>`;
+}
+function bindGachaActions() {
+  $('gOk').onclick = () => { hide(); renderGacha(); };
+  $('gAgain').onclick = () => {
+    hide();
+    if (gachaPreview) previewGachaDraw(gch.sample);
+    else gachaStart(gch.n);
+  };
+  $('gOk').focus({ preventScroll: true });
 }
 /* ================= 联机：最多 4 人，同一张地图 =================
  * 房主跑整局（刷怪、怪的走位、大魔王、时间线、任务、宝箱、遗物），每 0.1 秒把这些发给队友。
@@ -5119,37 +5163,6 @@ function update(dt) {
 }
 
 const STILL = { ph: 0, hit: 0, seed: 0, moving: 0 };
-function drawGacha(dt) {
-  const h = gch.hitT / GACHA_HIT_RECOIL;
-  const turn = THREE.MathUtils.smoothstep(gch.t, 0, GACHA_TURN_TIME);
-  if (gch.on) GS.goose.rotation.y = THREE.MathUtils.lerp(gch.turnFrom, GACHA_PILLAR_YAW, turn);
-  else GS.goose.rotation.y *= Math.max(0, 1 - dt * 5);
-
-  // 转身站定后，从脖子根部转一整圈，头和黄鼠狼跟着脖子走。
-  const elapsedBeats = (gch.t - GACHA_TURN_TIME) / gch.beat;
-  const phase = gch.on && elapsedBeats >= 0 && elapsedBeats < gch.res.length ? elapsedBeats % 1 : 0;
-  const windup = THREE.MathUtils.smoothstep(phase, 0, 0.2);
-  const spin = THREE.MathUtils.smootherstep(phase, 0.2, GACHA_HIT_PHASE);
-  const reach = THREE.MathUtils.smoothstep(phase, 0.51, GACHA_HIT_PHASE)
-    * (1 - THREE.MathUtils.smoothstep(phase, GACHA_HIT_PHASE, 0.92));
-  const lean = windup * (1 - THREE.MathUtils.smoothstep(phase, GACHA_HIT_PHASE, 1));
-  GS.neck.rotation.y = TAU * spin - 0.45 * windup * (1 - spin);
-  GS.neck.rotation.x = 0.1 + 0.68 * lean - 0.55 * reach;
-
-  // 碰到柱顶时脖子拉长，黄鼠狼甩平，随后弹回。
-  const neckLength = 1 + 1.55 * reach;
-  GS.neckMesh.position.y = 0.45 * neckLength;
-  GS.neckMesh.scale.y = 0.55 * neckLength;
-  GS.head.position.y = neckLength;
-  GS.weasel.rotation.x = -0.15 - 1.42 * lean - GS.neck.rotation.x;
-  GS.weasel.rotation.z = 0.38 * Math.sin(TAU * spin) * lean + Math.sin(realTime * 5) * 0.12 * (1 - lean);
-  const wing = 0.1 + 0.22 * Math.sin(turn * PI) + 0.24 * h;
-  GS.wL.rotation.z = wing; GS.wR.rotation.z = -wing;
-  GS.weasel.scale.set(1 + h * 0.5, 1 - h * 0.35, 1 + h * 0.5);
-  GS.pillar.rotation.z = Math.sin(realTime * 45) * h * 0.08; GS.pillar.scale.y = GACHA_PILLAR_SCALE * (1 - h * 0.12);
-  if (gch.hero) { gch.hero.t += dt; const k = Math.min(1, gch.hero.t * 2.5), pseudo = { ph: realTime * 6, hit: 0, seed: 0.3, moving: 0.4, glowMul: 2.4 };
-    heroRig(gch.hero.h, gch.hero.sk).push(pseudo, worldM(-3.9, Math.abs(Math.sin(realTime * 4)) * 0.2, GZ + 1.6, 0.5 + Math.sin(realTime * 1.2) * 0.3, 1.3 * (0.4 + 0.6 * k))); shadow(-3.9, GZ + 1.6, 0.7); }
-}
 function bossGroundMesh(geometry, color, opacity, height) {
   const mesh = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ color, transparent: true, opacity, depthWrite: false }));
   mesh.rotation.x = -HP_;
@@ -5264,7 +5277,7 @@ function draw(dt) {
   } else {
     const port = innerWidth < 860, prep = titleStep === 'prep'; selF += (selIdx - selF) * Math.min(1, dt * 9);
     podium.visible = prep;
-    if (titleStep === 'gacha') drawGacha(dt); else CLS_IDS.forEach((id, i) => {
+    CLS_IDS.forEach((id, i) => {
       const lk = !isOpen(id), sel = prep && i === selIdx; let x, z, sc, yaw, y = 0, base = 0;
       if (!prep) { const col = Math.floor(i / 3), row = i % 3, sp = port ? 1.15 : 1.6; x = (col - 2 + (row === 1 ? 0.5 : 0)) * sp * (1 + row * 0.06); z = -0.2 - row * 1.5; base = row * 0.62; sc = port ? 0.95 : 1.0; yaw = Math.sin(realTime * 0.8 + i) * 0.25; y = Math.pow(Math.max(0, Math.sin(realTime * 2.4 - i * 0.8)), 10) * 0.6; }
       else if (Math.abs(i - selF) > 2.6) return;
@@ -5288,7 +5301,6 @@ function draw(dt) {
     const { x, z } = demoSockAlly;
     drawCampusStudent(heroRig('scholar', ''), STILL, x, 0, z, HP_);
   }
-  gStage.visible = state === 'title' && titleStep === 'gacha';
   let fi = 0;
   for (const e of enemies) {
     if (e.type === 'bossMissile') {
@@ -5442,9 +5454,8 @@ function draw(dt) {
     if (titleStep === 'home') { tV.set(Math.sin(realTime * 0.15) * 0.8, port ? 6 : 3.0, port ? 29 : 12.5); tL.set(0, port ? 3.4 : 1.6, -1); }
     else if (!port) { tV.set(2.2, 2.4, 8); tL.set(2.2, 1.3, -1); } else { tV.set(0, 3, 20); tL.set(0, -2.0, -1); }
     tV.x += TX; tV.z += TZ; tL.x += TX; tL.z += TZ;
-    if (titleStep === 'gacha') { tV.set(0.2 + rnd(-shk, shk) * 0.4, port ? 4.6 : 3.4, GZ + (port ? 19 : 11)); tL.set(port ? -0.4 : -0.4, port ? 1.3 : 1.8, GZ); if (gch.snap) { gch.snap = false; camPos.copy(tV); camTgt.copy(tL); } }
     const ck = Math.min(1, dt * 4); camPos.lerp(tV, ck); camTgt.lerp(tL, ck); camera.position.copy(camPos); camera.lookAt(camTgt);
-    if (titleStep === 'gacha') torch.position.set(0.2, 4.6, GZ + 4); else torch.position.set(TX, 4.2, TZ + 4.5);
+    torch.position.set(TX, 4.2, TZ + 4.5);
   } else {
     const aspect = innerWidth / innerHeight;
     const halfHeight = skillDemoMode ? 4.2 * Math.max(1, 1.65/aspect) : Math.min(10.8 * camK, HX / aspect);
@@ -5494,13 +5505,19 @@ function frame(now) {
   const raw = Math.min(0.05, (now - last) / 1000); last = now;
   realTime += raw; uTime.value = realTime;
   const dt = raw * timeScale;
+  if (state === 'title' && titleStep === 'gacha' && !skillDemoMode) {
+    updateGacha(raw);
+    gameAudio.update('title', false, 1);
+    requestAnimationFrame(frame);
+    return;
+  }
   if (skillDemoMode && !demoSkill) { requestAnimationFrame(frame); return; }
   if (skillDemoMode) {
     if (T >= (DEMO_DURATION[demoSkill] || 3.6)) resetSkillDemo();
     update(raw);
   } else {
     if (NET?.on && state !== 'title') netTick(raw);
-    if ((state === 'play' && !NET?.phase) || (NET?.on && !NET.phase && state === 'paused')) update(dt); else if (state === 'title') { titleAmbience(raw); if (titleStep === 'gacha') updateGacha(raw); }
+    if ((state === 'play' && !NET?.phase) || (NET?.on && !NET.phase && state === 'paused')) update(dt); else if (state === 'title') titleAmbience(raw);
   }
   if (!skillDemoMode) gameAudio.update(state, !!boss && !boss.dead, player.hp / player.maxHp);
   draw(skillDemoMode || state === 'play' || state === 'title' ? dt : raw * 0.12);
@@ -5733,6 +5750,8 @@ if (staticMatchPreview) {
     requestAnimationFrame(renderPreview);
   });
   addEventListener('resize', () => requestAnimationFrame(renderPreview));
+} else if (gachaPreview) {
+  showTitle('gacha');
 } else if (cloudGame) {
   titleEl.hidden = true;
   show('<h2>正在读取游戏存档</h2>');

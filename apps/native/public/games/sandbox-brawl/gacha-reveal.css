@@ -1,0 +1,129 @@
+/* The illustrated stage covers the game world from the moment the draw room opens. */
+#title.gacha { background: #9e2727 url('./gacha-art/theater.webp') center / 100% 100% no-repeat; }
+#title .gTheater { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.gacha .gTitle { position: relative; }
+.gacha:has(#gSkip) .gTitle { visibility: hidden; }
+.gacha .gTitle { grid-row: 2; }
+.gacha .gTop, .gacha .gBot { z-index: 2; }
+.gacha:has(.grCard) .gTitle { visibility: hidden; }
+.gReveal {
+  position: absolute; inset: 0; display: grid; place-items: center; isolation: isolate;
+  --width: min(59vw,48dvh,370px); --height: calc(var(--width) * 1.34);
+  perspective: 1100px; pointer-events: none !important;
+}
+.grLight {
+  position: absolute; inset: 0; background: radial-gradient(ellipse at 50% 42%, transparent 33%, #46152328 95%);
+  animation: grLightIn .33s ease-out both;
+}
+.grBack, .grCard {
+  position: relative; grid-area: 1/1; width: var(--width); height: var(--height); box-sizing: border-box;
+  border-radius: 5% / 4%; backface-visibility: hidden; container-type: inline-size;
+}
+.grBack {
+  display: grid; place-items: center; border: 5px double #ebbb63; color: #ffdc86; font-size: calc(var(--width) * .34);
+  background: radial-gradient(ellipse, #8c4d3b, #321e32 78%); box-shadow: 0 8px 16px #2a122948;
+  animation: grLaunch .46s cubic-bezier(.18,.75,.25,1) both;
+}
+.grCard {
+  display: grid; grid-template-rows: auto minmax(0,1fr) auto auto; align-items: center; justify-items: center;
+  padding: calc(var(--width) * .075); border: 3px solid #675544; color: #352c29;
+  background: repeating-linear-gradient(-13deg, transparent 0 5px, #b38d5e0b 6px 7px), linear-gradient(135deg,#f6ebd4,#dec6a1);
+  box-shadow: inset 0 0 0 3px #fff5df, inset 0 0 0 5px #997f5e, 0 5px 0 #594139, 0 16px 32px #27132366;
+  animation: grTurn .4s .43s cubic-bezier(.16,.85,.25,1.06) both;
+}
+.grCard.rare {
+  color: #143958; border-color: #123b66;
+  background: repeating-linear-gradient(0deg,transparent 0 7%,#6da7d556 7.2% 7.5%),linear-gradient(120deg,#fff8df,#e1eef9);
+  box-shadow: inset 0 0 0 5px #3c87c6, inset 0 0 0 7px #bfdff6, 0 5px 0 #153a65, 0 12px 30px #12365366;
+}
+.grCard.legendary {
+  color: #ffe7a1; border-color: #693f26; background: radial-gradient(ellipse at 50% 43%,#60385380,transparent 72%), url("./card-backs/legendary.webp") center / 100% 100%;
+  box-shadow: inset 0 0 0 4px #ffe4a1, inset 0 0 0 9px #c98a2a, inset 0 0 0 11px #ffe7a1, 0 5px 0 #835124, 0 0 32px #ffd0647a, 0 16px 32px #27132366;
+}
+.grCard::before, .grCard::after { content: '✦'; position: absolute; top: 5%; color: currentColor; opacity: .55; font-size: 5cqw; }
+.grCard::before { left: 9%; } .grCard::after { right: 9%; }
+.grTier {
+  font: 800 6cqw/1.4 var(--num),sans-serif; letter-spacing: .15em; border-block: 1px solid; padding-inline: .6em;
+}
+.grWindow { position: relative; width: 100%; height: 100%; min-height: 0; display: grid; place-items: center; }
+.grWindow img { width: 80%; height: 90%; object-fit: contain; }
+.grLabel {
+  width: 105%; position: relative; display: flex; flex-wrap: wrap; align-items: baseline; justify-content: center; gap: .15em;
+  padding: 4% 1%; font: 900 9cqw/1.18 var(--disp), sans-serif; text-align: center;
+  background: #fff6df; border-block: 2px solid #8b765a; box-shadow: 0 3px 0 #59382422;
+}
+.rare .grLabel { background: #eaf7ff; border-color: #4c83ad; }
+.legendary .grLabel { background: linear-gradient(110deg,#ffdf89,#fff1c0,#e9ac45); border-color: #b67e35; color: #302235; }
+.grLabel b { font: 900 8cqw/1 var(--num), sans-serif; }
+.grDetail { margin-top: 4%; font-size: 5cqw; font-weight: 800; text-align: center; }
+.grProgress { width: 75%; height: 5px; margin-top: 3%; background: #473b362a; border-radius: 2px; overflow: hidden; }
+.grProgress::after { content: ''; display: block; height: 100%; width: var(--fill); background: #806042; animation: grFill .42s .84s backwards; transform-origin: left; }
+.grPieces { position: relative; width: 82%; height: 85%; }
+.grPiece { position: absolute; inset: 0; display: grid; place-items: center; animation: grFit .44s .6s cubic-bezier(.12,.82,.28,1.15) backwards; }
+.grPiece img { width: 86%; height: 86%; }
+.grPiece.nw { clip-path: polygon(0 0,52% 0,48% 26%,55% 42%,50% 50%,23% 55%,0 49%); --x: -24%; --y: -15%; }
+.grPiece.ne { clip-path: polygon(52% 0,100% 0,100% 49%,80% 46%,50% 50%,55% 42%,48% 26%); --x: 28%; --y: -19%; }
+.grPiece.sw { clip-path: polygon(0 49%,23% 55%,50% 50%,44% 77%,52% 100%,0 100%); --x: -21%; --y: 19%; }
+.grPiece.se { clip-path: polygon(50% 50%,80% 46%,100% 49%,100% 100%,52% 100%,44% 77%); --x: 31%; --y: 22%; animation-delay: .72s; }
+.grPrint,.grModel { position: absolute; }
+.grPrint { filter: saturate(0) sepia(.8) hue-rotate(159deg); opacity: .24; transform: translate(-12%,-3%); }
+.grModel { filter: drop-shadow(3px 7px 2px #16355248); transform: translate(16%,1%) scale(1.34); animation: grStep .72s .6s var(--bounce) backwards; }
+.grBurst { position: absolute; inset: 5% -8%; background: repeating-conic-gradient(from 12deg,transparent 0 18deg,#ffe9a1a6 19deg 21deg,transparent 24deg 38deg); mask-image: radial-gradient(#000,transparent 70%); animation: grLightIn .35s .6s backwards; }
+.ultimate .item-illustration { position: relative; filter: drop-shadow(0 4px 5px #f7cc6a66); animation: grStrike .5s .64s backwards; }
+.grPaper {
+  position: absolute; width: 30%; height: 40%; background: repeating-linear-gradient(0deg,#fff3d9 0 17%,#a6bad2 18% 19%,#fff3d9 20%); border: 1px solid #9c7c61;
+  filter: drop-shadow(2px 4px 1px #24162d66); transform: rotate(var(--rot)) skewY(-9deg); animation: grPaperHit .45s var(--delay) both;
+}
+.grPaper::after { content: ''; position: absolute; background: #362333; width: 15%; height: 12%; top: 52%; left: 44%; border-radius: 50%; }
+.grPaper.p1 { left: 34%; top: 24%; --rot: 5deg; --delay: .85s; }
+.grPaper.p2 { left: 58%; top: 40%; --rot: 12deg; --delay: .93s; }
+.grPaper.p3 { left: 81%; top: 57%; --rot: 17deg; --delay: 1.01s; }
+.grWindow .grPencil {
+  position: absolute; width: 140%; height: 120%; left: -20%; top: -10%; object-fit: contain;
+  filter: drop-shadow(2px 3px 1px #2b163b55);
+  animation: grPierce .62s .66s cubic-bezier(.32,0,.14,1) backwards;
+}
+.grRail { position: absolute; display: flex; justify-content: center; gap: min(.65vw,6px); bottom: max(76px,12dvh); }
+.grRail i { display: grid; place-items: center; border: 2px solid var(--edge); background: #fff4dd; border-radius: 5px; box-shadow: 0 2px 0 #47313a; animation: grRailDeal .23s calc(.48s + var(--i) * .045s) backwards; }
+.grRail .ico { --s: min(6.7vw,4.8dvh,34px); box-shadow: none; border: 0; }
+@keyframes grLightIn { from { opacity: 0; } }
+@keyframes grLaunch { 0% { transform: translate(var(--launch-x,27vw),var(--launch-y,8vh)) rotate(18deg) scale(.08); opacity: 0; } 20% { opacity: 1; } 63% { transform: translate(calc(var(--launch-x,27vw) * .42),-21dvh) rotate(-6deg) scale(.93); } 100% { transform: rotateY(90deg); } }
+@keyframes grTurn { from { transform: rotateY(-89deg) scale(.97); opacity: 0; } 12% { opacity: 1; } }
+@keyframes grFit { from { transform: translate(var(--x),var(--y)); opacity: .25; } }
+@keyframes grStep { from { transform: translate(-12%,-3%) scale(.84); } 68% { transform: translate(13%,-6%) scale(1.2); } }
+@keyframes grStrike { from { transform: translate(-18%,16%) scale(.5); opacity: 0; } }
+@keyframes grPierce { from { transform: translate(-44%,-44%) scale(.76); opacity: 0; } }
+@keyframes grPaperHit { from { opacity: .15; transform: translate(0,-12%) rotate(-12deg); } 55% { transform: translate(9%,4%) rotate(20deg); } }
+@keyframes grFill { from { transform: scaleX(0); } }
+@keyframes grRailDeal { from { transform: translateY(-32px) rotate(-8deg); opacity: 0; } }
+@media (max-height: 450px) {
+  .gReveal { --width: min(42vw,41dvh); }
+  .grRail { bottom: 13dvh; right: 3vw; display: grid; grid-template-columns: repeat(5,1fr); }
+  .gacha .gTitle { font-size: 26px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .gReveal *, .gReveal *::after, .gReveal *::before { animation: none !important; }
+  .grBack { visibility: hidden; }
+}
+.legendary .grDetail { background: #2c2131; color: #fff0c0; border-radius: 1em; padding: .1em .55em; }
+.grDetail { display: flex; flex-wrap: wrap; gap: .35em; align-items: center; justify-content: center; line-height: 1.2; }
+.grDetail small, .grDetail em { font: inherit; }
+.grPieces { filter: drop-shadow(0 2px 1px #6b543a66); }
+.grPiece { background: linear-gradient(130deg,#fff6df,#e4cca6); border: 1px solid #b8a17f; border-radius: 8%; }
+.grUnlocked .grPieces { animation: grUnlock .48s 1.05s both; }
+@keyframes grUnlock { 0% { transform: scale(1); } 62% { transform: scale(1.15) translateY(-4%); filter: drop-shadow(0 0 12px #ffc860); } }
+.grProgress { height: 6px; }
+.grWindow:not(.grUnlocked) .grPiece { translate: calc(var(--x) * .05) calc(var(--y) * .05); }
+.grSettled *, .grSettled *::before, .grSettled *::after { animation-delay: -5s !important; }
+.gacha:has(.grCard) .gTop { visibility: hidden; }
+.gacha .gBot .actions { margin: 0; justify-content: center; }
+@media (max-aspect-ratio: 4/5) {
+  .grLight { background-size: auto 100%; }
+  .gReveal { --width: min(70vw,43dvh); }
+  .grRail { bottom: max(11dvh,65px); }
+}
+@media (max-height: 450px) {
+  .gReveal { --width: min(34vw,44dvh); place-items: start center; padding-top: 4dvh; }
+  .grRail { bottom: 17dvh; }
+  .gacha .gBot { gap: 3px; }
+}
