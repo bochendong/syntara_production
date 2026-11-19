@@ -1,6 +1,7 @@
 // Model space faces +Z. Each batch is relative to a joint, so the pencil,
 // glasses and clothing follow their wearer in the arena and the portrait camera.
 import * as T from './vendor/three.module.js';
+import { campusStudentScale } from './campus.js?v=eight-portals';
 
 const tau = 2 * Math.PI;
 const anchors = {
@@ -895,7 +896,7 @@ export function advanceScholar(p, distance, yaw, dt, referenceSpeed, dx = 0) {
   const gait =
     (p.scholarGait ?? 0) + (target - (p.scholarGait ?? 0)) * -Math.expm1(-dt * (target > 0.1 ? 15 : 19));
   p.scholarGait = gait < 0.004 ? 0 : gait;
-  p.scholarPhase = ((p.scholarPhase ?? 0) + (tau * distance) / (strideLength(gait) * scholarSize)) % tau;
+  p.scholarPhase = ((p.scholarPhase ?? 0) + (tau * distance) / (strideLength(gait) * scholarSize * campusStudentScale)) % tau;
   const turn = Math.max(-1, Math.min(1, angleDelta(yaw, p.scholarYaw ?? yaw) / (dt * 6)));
   p.scholarTurn = (p.scholarTurn ?? 0) + (turn - (p.scholarTurn ?? 0)) * -Math.expm1(-dt * 10);
   p.scholarYaw = yaw;
