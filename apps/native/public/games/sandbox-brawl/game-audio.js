@@ -1,7 +1,16 @@
 const BAR_SECONDS = 4 * 60 / 112;
 const MUSIC_VOLUME = 0.32;
 const EFFECTS = {
-  hit: { gain: 0.23, interval: 0.12 },
+  hit: { gain: 0.23, interval: 0.1 },
+};
+// Synthesized layers on top of hit.wav. buffer: reuse a sample at a pitch;
+// tone: [start Hz, end Hz, seconds, gain, wave]; noise: [seconds, gain, filter Hz].
+const SYNTH = {
+  crit: { interval: 0.06, buffer: 'hit', rate: 1.45, gain: 0.3, tone: [1400, 2600, 0.08, 0.06, 'triangle'] },
+  kill: { interval: 0.05, tone: [620, 180, 0.09, 0.09, 'sine'], noise: [0.05, 0.05, 2200] },
+  bigKill: { interval: 0.12, buffer: 'hit', rate: 0.7, gain: 0.32, tone: [260, 60, 0.22, 0.2, 'sine'], noise: [0.16, 0.12, 900] },
+  hurt: { interval: 0.15, tone: [180, 70, 0.16, 0.22, 'square'], noise: [0.08, 0.1, 700] },
+  down: { interval: 1, tone: [420, 90, 0.6, 0.2, 'triangle'], noise: [0.3, 0.12, 500] },
 };
 
 export function createGameAudio() {
@@ -9,7 +18,7 @@ export function createGameAudio() {
   let music, phase = 'title', muted = false, hidden = document.hidden;
   const buffers = {};
   let lowHealth = false, tense = false;
-  const lastEffect = { hit: -Infinity };
+  const lastEffect = {};
 
   async function load(file) {
     try {
@@ -102,27 +111,59 @@ export function createGameAudio() {
   }
 
   function play(name) {
-    if (hidden || muted || context?.state !== 'running' || !buffers[name]) return;
+    if (hidden || muted || context?.state !== 'running') return;
     const now = context.currentTime;
-    const { gain, interval } = EFFECTS[name];
-    if (now - lastEffect[name] < interval) return;
+    const spec = EFFECTS[name] || SYNTH[name];
+    if (!spec || now - (lastEffect[name] ?? -Infinity) < spec.interval) return;
     lastEffect[name] = now;
-    const source = context.createBufferSource();
-    const volume = context.createGain();
-    volume.gain.value = gain;
-    source.buffer = buffers[name];
-    source.connect(volume).connect(output);
-    source.start(now);
+    const sample = EFFECTS[name] ? name : spec.buffer;
+    if (sample && buffers[sample]) {
+      const source = context.createBufferSource();
+      const volume = context.createGain();
+      volume.gain.value = spec.gain;
+      source.buffer = buffers[sample];
+      // A little pitch spread keeps rapid hits from sounding like one looped sample.
+      source.playbackRate.value = (spec.rate || 1) * (0.92 + Math.random() * 0.16);
+      source.connect(volume).connect(output);
+      source.start(now);
+    }
+    if (spec.tone) {
+      const [from, to, duration, gain, wave] = spec.tone;
+      const tone = context.createOscillator(), level = context.createGain();
+      tone.type = wave;
+      tone.frequency.setValueAtTime(from, now);
+      tone.frequency.exponentialRampToValueAtTime(to, now + duration);
+      level.gain.setValueAtTime(0.0001, now);
+      level.gain.exponentialRampToValueAtTime(gain, now + 0.006);
+      level.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+      tone.connect(level).connect(output);
+      tone.start(now); tone.stop(now + duration + 0.02);
+      tone.onended = () => { tone.disconnect(); level.disconnect(); };
+    }
+    if (spec.noise) {
+      const [duration, gain, hz] = spec.noise;
+      if (!buffers.whipNoise) makeNoise();
+      const source = context.createBufferSource(), filter = context.createBiquadFilter(), level = context.createGain();
+      source.buffer = buffers.whipNoise;
+      filter.type = 'lowpass'; filter.frequency.value = hz;
+      level.gain.setValueAtTime(gain, now);
+      level.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+      source.connect(filter).connect(level).connect(output);
+      source.start(now); source.stop(now + duration);
+      source.onended = () => { source.disconnect(); filter.disconnect(); level.disconnect(); };
+    }
+  }
+
+  function makeNoise() {
+    buffers.whipNoise = context.createBuffer(1, Math.ceil(context.sampleRate * .28), context.sampleRate);
+    const data = buffers.whipNoise.getChannelData(0);
+    for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
   }
 
   // Filtered air on the forward cast, then a short broad-band snap on contact.
   function whip(sound) {
     if (hidden || muted || context?.state !== 'running') return;
-    if (!buffers.whipNoise) {
-      buffers.whipNoise = context.createBuffer(1, Math.ceil(context.sampleRate * .28), context.sampleRate);
-      const data = buffers.whipNoise.getChannelData(0);
-      for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
-    }
+    if (!buffers.whipNoise) makeNoise();
     const snap = sound === 'snap', now = context.currentTime;
     const duration = snap ? .065 : .26;
     const source = context.createBufferSource();
