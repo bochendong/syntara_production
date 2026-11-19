@@ -1,12 +1,12 @@
 import { hallNorth, hallSouth, mapHalfDepth, roomViews } from './campus-map-plan.js?v=campus-doorways';
 import { advanceScholar } from './scholar.js?v=front-mirror';
-import { scholarLook, studentCardGeometry, poseChibi, studentIcon, studentTexture, useStudentCells } from './student-chibi.js?v=room-scale';
+import { scholarLook, studentCardGeometry, poseChibi, studentIcon, studentTexture, useStudentCells } from './student-chibi.js?v=hit-feel';
 import { buildInkPortal, buildPortraitRoom } from './campus-models.js?v=painted-court';
 import { castShadowMatrix } from './campus-mesh.js';
 import { createCampusItems, ITEM } from './campus-items.js';
 import { createCampus, floorPoint, campusElevation, campusStudentDrawScale, campusStudentScale, campusStudentRadius, taskSites, encounterSites, portalSites, insideCampusObstacle, resolveCampusObstacles } from './campus.js?v=eight-portals';
 import { createGachaTheater, spinTurns, CAST_TIME, CONTACT_TIME, CARD_TIME } from './gacha-theater.js';
-import { createGameAudio } from './game-audio.js';
+import { createGameAudio } from './game-audio.js?v=hit-feel';
 import { BrawlSaveConflict, createBrawlSaveQueue } from './brawl-cloud.js';
 import { DEATH_TAUNTS } from './death-taunts.js';
 import * as THREE from './vendor/three.module.js';
@@ -682,7 +682,7 @@ class Rig {
       tC.copy(P.tint && e.tint ? e.tint : P.color); if (e.etint) tC.lerp(e.etint, 0.72).multiplyScalar(1.3);
       if (P.glow) tC.multiplyScalar(Math.min(e.glowMul || 1.2, 1.2));
       if (burning(e)) tC.lerp(ORANGE, 0.6 + 0.25 * Math.sin(realTime * 20 + i));
-      if (e.hit) tC.lerp(HITC, Math.min(1, e.hit * 1.4));
+      if (e.hit) tC.lerp(HITC, e.hit > 0.7 ? 1 : e.hit * 1.2);
       if (e.dark) tC.multiplyScalar(0.035);
       if (e.ghostly) tC.lerp(GHOSTC, 0.72);
       if (e.warn) tC.lerp(REDC, e.warn); if (e.frz > 0) tC.lerp(ICEC, 0.92); else { if (e.chill > 0) tC.lerp(ICEC, 0.72); if (e.acid > 0) tC.lerp(ACIDC, 0.74 + 0.1 * Math.sin(realTime * 9)); } if (e.shock > 0 && Math.sin(realTime * 70 + i) > 0) tC.lerp(SHOCKC, 0.8);
@@ -971,7 +971,37 @@ function ripple(x, z, s = 1) {
 }
 const NUMS = []; for (let k = 0; k < 60; k++) { const s = document.createElement('span'); s.style.opacity = 0; $('nums').appendChild(s); NUMS.push({ el: s, life: 0, x: 0, y: 0, z: 0 }); }
 let numI = 0;
-function dmgNum(x, z, v, cls = '', y = 1.3) { const n = NUMS[numI]; numI = (numI + 1) % NUMS.length; n.x = x + rnd(-0.3, 0.3); n.z = z; n.y = y; n.life = 0.7; n.el.textContent = typeof v === 'number' ? Math.round(v) : v; n.el.className = cls; }
+// 伤害数字：弹出来放大再回弹，往旁边抛一道弧线落下；暴击更大、会抖，伤害越高字越大
+const NUM_LIFE = 0.8;
+function dmgNum(x, z, v, cls = '', y = 1.3) { const n = NUMS[numI]; numI = (numI + 1) % NUMS.length; const flies = typeof v === 'number' && cls !== 'heal'; n.x = x + rnd(-0.3, 0.3); n.z = z; n.y = y; n.life = NUM_LIFE; n.vx = flies ? rnd(-2.4, 2.4) : 0; n.vy = flies ? rnd(5.5, 6.5) : 1.6; n.g = flies ? 13 : 0; n.big = typeof v === 'number' ? clamp(Math.log10(Math.max(1, v)) / 4, 0, 0.6) : 0; n.rot = cls === 'crit' ? rnd(-9, 9) : 0; n.el.textContent = typeof v === 'number' ? Math.round(v) : v; n.el.className = cls; }
+/* ---------- 打击感：顿帧、受击停顿、击退、冲击线 ---------- */
+// 顿帧只在单人时停整个世界（联机由房主推进，停了会不同步）；同一段时间里只留最长的一次
+let hitStopT = 0, hitStopAt = -9, camPunch = 0; const camKick = { x: 0, z: 0 };
+function hitStop(sec, gap = 0.2) {
+  if (NET?.on || skillDemoMode || state !== 'play') return;
+  if (realTime - hitStopAt < gap && sec <= hitStopT) return;
+  hitStopAt = realTime; hitStopT = Math.max(hitStopT, sec);
+}
+function kickCam(dx, dz, amount) { if (REDUCED) return; const L = Math.hypot(dx, dz) || 1; camKick.x += dx / L * amount; camKick.z += dz / L * amount; }
+const impacts = [];
+function impactLines(x, y, z, yaw, color, len = 1.6) { if (impacts.length < 60) impacts.push({ x, y, z, yaw, c: color, len, t: 0 }); }
+function drawImpacts(dt) {
+  for (const m of impacts) {
+    m.t += dt / 0.12; if (m.t >= 1) continue;
+    const k = 1 - m.t, L = m.len * (0.6 + 0.8 * Math.min(1, m.t * 3));
+    for (const [a, w, l] of [[0, 0.32, 1], [HP_ * 0.9, 0.18, 0.55]]) { const yw = m.yaw + a; streak(m.x + Math.sin(yw) * L * l / 2, m.y, m.z + Math.cos(yw) * L * l / 2, yw, L * l, w * k, m.c, 1.6 * k); }
+  }
+  for (let i = impacts.length - 1; i >= 0; i--) if (impacts[i].t >= 1) impacts.splice(i, 1);
+}
+// 沿受击方向喷一小束火花，打在哪边就往哪边飞
+function spray(x, y, z, dx, dz, color, n, spd = 7) {
+  const L = Math.hypot(dx, dz) || 1, ux = dx / L, uz = dz / L;
+  for (let k = 0; k < n; k++) {
+    emit(GLOW, x, y, z, color, 1, 1, 0.34, 0.28, 6);
+    const i = (GLOW.head + GLOW.N - 1) % GLOW.N, s = spd * rnd(0.5, 1), side = rnd(-0.55, 0.55);
+    GLOW.vel[i * 3] = (ux - uz * side) * s; GLOW.vel[i * 3 + 1] = rnd(0.5, 2.5); GLOW.vel[i * 3 + 2] = (uz + ux * side) * s;
+  }
+}
 
 function healFeedback(target, amount) {
   dmgNum(target.x, target.z, '+' + amount, 'heal', 2.7);
@@ -1487,6 +1517,13 @@ function hitEnemy(e, dmg, kx = 0, kz = 0, tag = '', opts = {}) {
   const v = baseHit * (e.stink > 0 ? 1.25 : 1) * (1 + acidBonus(e)) * (strongAcidFinisher ? 1.35 : 1);
   { const dealt = Math.max(0, Math.min(v, e.hp)); run.dmg += dealt; if (dealt > run.top) run.top = dealt; }
   e.hp -= v; e.hit = 1;
+  { // 每次挨打：往后弹一下、短暂停住；暴击再真的推开一点，并喷火花、画冲击线
+    let hx = kx, hz = kz; if (!hx && !hz) { hx = e.x - player.x; hz = e.z - player.z; } const hl = Math.hypot(hx, hz) || 1; hx /= hl; hz /= hl;
+    const heavy = e.type === 'boss' ? 0.15 : e.giant || elite ? 0.45 : 1;
+    e.rdx = hx; e.rdz = hz; e.rcl = Math.min(1.4, (e.rcl || 0) + (crit ? 0.9 : 0.5)) * heavy; e.stun = Math.max(e.stun || 0, (crit ? 0.09 : 0.045) * heavy);
+    if (!opts.noCrit && e.fxT === realTime + 0.1) { const hy = Math.min(2.4, e.r * 1.6 + 0.5), hc = CW ? EC(CW) ?? WPC[CW]?.[0] ?? 0xffffff : 0xffffff; spray(e.x, hy, e.z, hx, hz, crit ? 0xffe07a : hc, crit ? 7 : 3, crit ? 9 : 6); if (crit) { impactLines(e.x, hy, e.z, Math.atan2(hx, hz), 0xfff3c0, 1.4 + e.r); camPunch = Math.max(camPunch, 0.5); hitStop(elite || e.giant ? 0.06 : 0.03, 0.35); } }
+    if (crit && heavy === 1) { e.kx += hx * 3; e.kz += hz * 3; }
+  }
   const rank = knockbackRank(xs);
   if ((kx || kz) && (rank || opts.knockback || opts.pull)) {
     const resistance = (e.giant ? 0.25 : 1) * (e.type === 'boss' ? 0.05 : e.type === 'hourglass' || e.type === 'bomber' ? 0.25 : 1);
@@ -1494,7 +1531,7 @@ function hitEnemy(e, dmg, kx = 0, kz = 0, tag = '', opts = {}) {
     e.kx += kx * force;
     e.kz += kz * force;
   }
-  if (state === 'play' && v > 0) gameAudio.play('hit');
+  if (state === 'play' && v > 0) gameAudio.play(crit ? 'crit' : 'hit');
   if (Math.random() < 0.5 || crit) dmgNum(e.x, e.z, v, crit ? 'crit' : '', e.r * 2 + 0.6);
   if (crit && A('vamp')) restoreHealth(player, Math.min(player.maxHp * VAMP_HEAL_MAX_HP_RATE, v * VAMP_HEAL_RATE));
   if (xs) { if (xs.stun && e.type !== 'boss' && Math.random() < 0.15) { e.frz = Math.max(e.frz || 0, 0.8); spark(e.x, e.r * 2 + 0.5, e.z, 0xffe07a, 5, 2, 0.3, 0.5, 0); } if (xs.mark) e.stink = Math.max(e.stink || 0, 3); }
@@ -1661,7 +1698,7 @@ function hurtPlayer(v, source) {
     const cw = CW; CW = null; query(player.x, player.z, 7, (o, dx, dz) => { const L = Math.hypot(dx, dz) || 1; hitEnemy(o, 20, dx / L * 16, dz / L * 16, '', { noCrit: true, knockback: true }); }); CW = cw;
   }
   if (wasStanding && player.hp <= 0) defeatSource = source || null;
-  player.hit = 1; player.warn = 1; bump($('pcard'), 'hurt'); $('hurtFx').style.setProperty('--k', (0.5 + big * 0.5).toFixed(2)); bump($('hurtFx'), 'hit'); hurt = Math.min(1, hurt + 0.55 + big * 0.4); chroma = Math.max(chroma, 0.35 + big * 0.4); shake = Math.max(shake, 0.14 + big * 0.22);
+  player.hit = 1; player.warn = 1; player.hurtAt = realTime; if (big > 0.5) hitStop(0.04 + big * 0.07, 0.25); kickCam(rnd(-1, 1), rnd(-1, 1), 0.15 + big * 0.25); if (state === 'play') gameAudio.play('hurt'); bump($('pcard'), 'hurt'); $('hurtFx').style.setProperty('--k', (0.5 + big * 0.5).toFixed(2)); bump($('hurtFx'), 'hit'); hurt = Math.min(1, hurt + 0.55 + big * 0.4); chroma = Math.max(chroma, 0.35 + big * 0.4); shake = Math.max(shake, 0.14 + big * 0.22);
   dmgNum(player.x, player.z, '-' + Math.max(0.01, Number(v.toFixed(2))), 'hurt', 2.5); spark(player.x, 1, player.z, 0xff4a58, 10 + Math.round(big * 14), 6, 0.35, 0.4); ringFx(player.x, player.z, 1.3 + big, 0xff4a58, 0.25);
   if (A('thorn')) { const cw = CW; CW = null; ringFx(player.x, player.z, 3, 0x6fd04a, 0.3); query(player.x, player.z, 3, (o, dx, dz) => { const L = Math.hypot(dx, dz) || 1; hitEnemy(o, v * 3, dx / L * 8, dz / L * 8, '', { noCrit: true, knockback: true }); }); CW = cw; }
   return true;
@@ -1706,7 +1743,14 @@ function killEnemy(e, tag) {
   if (R('flower') && Math.random() < 0.03 * R('flower') && !player.ghost) restoreHealth(player, 1);
   if (A('lunch') && (player.lunchN = (player.lunchN || 0) + 1) % 60 === 0 && player.lunchN <= 1800) { player.maxHp += 2; player.hp += 2; dmgNum(player.x, player.z, '加餐 +2', 'tag', 2.4); }
   if (A('bouncy') && !bouncing && !player.ghost && Math.random() < 0.2) bounceBall(e);
-  if (e.type !== 'boss' && corpses.length < 90) corpses.push({ type: e.type, x: e.x, z: e.z, yaw: Math.atan2(player.x - e.x, player.z - e.z), size: e.size, seed: e.seed, t: 0 });
+  if (e.type !== 'boss' && corpses.length < 90) {
+    // 被打飞：沿受击方向抛出去、翻滚、落地弹一下，最后“噗”地散成烟
+    let dx = e.rdx ?? e.x - player.x, dz = e.rdz ?? e.z - player.z; const L = Math.hypot(dx, dz) || 1; dx /= L; dz /= L;
+    const heavy = e.giant || e.type === 'hourglass' || e.type === 'snail' ? 0.45 : 1, sp = rnd(6, 9) * heavy;
+    corpses.push({ type: e.type, x: e.x, z: e.z, y: e.fly ? 1 : 0, vx: dx * sp, vz: dz * sp, vy: rnd(5, 7) * heavy, yaw: Math.atan2(player.x - e.x, player.z - e.z), spin: rnd(9, 14) * (Math.random() < 0.5 ? -1 : 1) * heavy, roll: rnd(-3, 3), size: e.size, seed: e.seed, t: 0, c: RIMC[e.type] ?? 0xffffff, fly: !!e.fly });
+  }
+  if (state === 'play') gameAudio.play(e.giant || e.type === 'hourglass' ? 'bigKill' : 'kill');
+  if (e.giant || e.type === 'hourglass' || e.type === 'snail' || e.type === 'phone') { hitStop(0.08, 0.3); camPunch = Math.max(camPunch, 1); kickCam(e.x - player.x, e.z - player.z, 0.25); }
   const big = e.type === 'boss' ? 260 : e.type === 'hourglass' ? 70 : 14;
   burst(e.x, 0.6, e.z, RIMC[e.type], big, e.r * 6 + 3, e.r * 0.4 + 0.25, 0.8);
   spark(e.x, 0.6, e.z, 0xffd9a0, 5, 4, 0.3, 0.3);
@@ -1911,7 +1955,9 @@ function fire(dt) {
     if (id === 'mop' && SPX('mop', 'trail') && player.moving > 0.3) { mopTrail -= dt; if (mopTrail <= 0) { mopTrail = 0.3; addWet(player.x, player.z, s, evo); } }
     cds[id] = (cds[id] ?? 0.3) - dt; if (cds[id] > 0) continue;
     cds[id] = (evo && id === 'sweep' ? 0.3 : evo && id === 'coffee' ? s.cd * 0.5 : s.cd) * cdMul(tag); if (A('copier') && Math.random() < 0.2) cds[id] = Math.min(cds[id], 0.12); if (SPX(id, 'twice') && Math.random() < 0.45) cds[id] = Math.min(cds[id], 0.15); if (id === 'pencil' && player.alt.pencil) cds[id] *= 0.5;
-    { const c = EC(id) ?? WPC[id]?.[0] ?? 0xffffff; hitStar(player.x + Math.sin(player.yaw) * 0.6, player.z + Math.cos(player.yaw) * 0.6, c, 0.9, 1.1); spark(player.x, 1.1, player.z, c, 4, 3, 0.3, 0.3, 0); }
+    { const c = EC(id) ?? WPC[id]?.[0] ?? 0xffffff; hitStar(player.x + Math.sin(player.yaw) * 0.6, player.z + Math.cos(player.yaw) * 0.6, c, 0.9, 1.1); spark(player.x, 1.1, player.z, c, 4, 3, 0.3, 0.3, 0);
+      // 出手动作：蓄力 → 挥出 → 收招，并转向目标；连发时不打断正在进行的一招
+      if (realTime - (player.atkAt ?? -99) > 0.3) { const tg = nearest(player.x, player.z, 16); if (tg) { player.atkAt = realTime; player.atkFaceLeft = tg.x < player.x; } } }
     if (id === 'sweep') {
       const range = s.range * area('melee') * (evo ? 1.5 : 1);
       const tg = nearest(player.x, player.z, range + 1.5); if (!tg) { cds[id] = 0.1; sweepAgain = 0; continue; }
@@ -3706,7 +3752,7 @@ function netGhostStep(dt) {
   g.prog = rescuer ? g.prog + dt : Math.max(0, g.prog - dt * 0.5);
   if (!rescuer || g.prog < REVIVE_T) return;
   NET.revives[rescuer] = (NET.revives[rescuer] || 0) + 1;
-  player.ghost = 0; player.ghostly = false; player.grave = null; deathTaunt = null; defeatSource = null;
+  player.ghost = 0; player.ghostly = false; player.grave = null; deathTaunt = null; defeatSource = null; player.downAt = null; player.riseAt = realTime;
   player.x = g.x; player.z = g.z; player.vx = player.vz = 0;
   player.hp = player.maxHp * 0.5; player.iframe = 2.5;
   ripple(player.x, player.z, 1.4); spark(player.x, 0.8, player.z, 0xffd23f, 90, 9, 0.45, 0.9); ringFx(player.x, player.z, GRAVE_R + 0.6, 0x7fffb0, 0.5);
@@ -3782,7 +3828,11 @@ function drawPeers(team) {
       ring.scale.setScalar(campusStudentDrawScale(p.x, p.z) / campusStudentScale);
     }
     if (!p || me || !CLASSES[p.h]) return;
-    const lift = p.dead ? 0.35 + Math.sin(realTime * 3 + p.ps.seed * 9) * 0.12 : 0;
+    const ps = p.ps;
+    if (p.dead && !ps.wasDown) { ps.wasDown = true; ps.downAt = realTime; }
+    else if (!p.dead && ps.wasDown) { ps.wasDown = false; ps.downAt = null; ps.riseAt = realTime; }
+    if (p.dead && ps.downAt != null && realTime - ps.downAt > 1.2) ps.downAt = null;
+    const lift = p.dead && ps.downAt == null ? 0.35 + Math.sin(realTime * 3 + ps.seed * 9) * 0.12 : 0;
     drawCampusStudent(heroRig(p.h, SKINS[p.sk] ? p.sk : ''), p.ps, p.x, lift, p.z, p.yaw || 0);
   });
 }
@@ -3964,7 +4014,7 @@ function startRun() {
     const feet = previewRoom === 'art' ? [411, 502] : roomViews[previewRoom].feet;
     [player.x, player.z] = floorPoint(...feet);
   }
-  Object.assign(player, { scholarFacingLeft: false, scholarGait: 0, scholarPhase: 0, scholarTurn: 0, scholarYaw: 0, scholarIdle: 0, scholarShotAt: -99, scholarAim: 0 });
+  Object.assign(player, { scholarFacingLeft: false, scholarGait: 0, scholarPhase: 0, scholarTurn: 0, scholarYaw: 0, scholarIdle: 0, scholarShotAt: -99, scholarAim: 0, atkAt: null, atkFaceLeft: null, hurtAt: null, downAt: null, riseAt: null });
   rerollCost = REROLL_BASE_COST; player.revives = DF().revive; watchT = 12; shieldT = 10; bellT = 30; warmT = 0; player.retakeUsed = false; player.errN = 0; player.lunchN = 0; player.puddleT = -9; $('rmark').hidden = true;
   mctx.clearRect(0, 0, 1024, 1024); marksDirty = true;
   endlessWaveStartedAt = waveSpawnBudget = null;
@@ -4343,6 +4393,13 @@ function deathTauntCard(taunt) {
     <div><figcaption>${taunt.speaker}</figcaption><blockquote>「${taunt.line}」</blockquote></div>
   </figure>`;
 }
+// 倒下：先慢镜头看主角被打飞倒地，再弹出结算
+let dyingAt = 0;
+function startDying() {
+  state = 'dying'; dyingAt = realTime; hitStopT = 0; shake = Math.max(shake, 0.5); chroma = Math.max(chroma, 0.8); camPunch = 1.6;
+  ringFx(player.x, player.z, 2.4, 0xff4a58, 0.35); spark(player.x, 1, player.z, 0xfff1c8, 30, 8, 0.4, 0.5);
+  gameAudio.play('down');
+}
 function showDeath() {
   state = 'dead'; $('stage').classList.add('dead');
   if (modeId === 'endless' && T > bestEndless) { bestEndless = T; try { localStorage.setItem(BEST_KEY, String(Math.floor(T))); } catch (e) {} if (cloudSave) saveMeta(); }
@@ -4358,7 +4415,7 @@ function showDeath() {
 }
 function revive() {
   defeatSource = null;
-  player.revives--; player.hp = player.maxHp; player.healPending = 0; player.iframe = 1.5; $('stage').classList.remove('dead');
+  player.revives--; player.hp = player.maxHp; player.healPending = 0; player.iframe = 1.5; $('stage').classList.remove('dead'); player.downAt = null; player.riseAt = realTime;
   buildGrid(); query(player.x, player.z, 7, (e, dx, dz) => { const L = Math.hypot(dx, dz) || 1; e.kx += dx / L * 20; e.kz += dz / L * 20; hitEnemy(e, 60); });
   eshots = []; ripple(player.x, player.z, 2); spark(player.x, 0.8, player.z, 0xffd23f, 160, 12, 0.45, 1); shake = 0.5; chroma = 0.6; hide(); state = 'play';
 }
@@ -5090,6 +5147,7 @@ function update(dt) {
         break;
     }
     if (sockSlowed) s *= SOCK_ALT_SPEED;
+    if (e.stun > 0) { e.stun -= dt; s = 0; }
     let ax = ux * s, az = uz * s;
     query(e.x, e.z, e.r * 0.9, (o, ox, oz) => { if (o === e || o.fly !== e.fly) return; const L2 = Math.hypot(ox, oz) || 0.01, push = (e.r + o.r - L2) * 2.4; if (push > 0) { ax -= ox / L2 * push; az -= oz / L2 * push; } });
     e.x += (ax + e.kx) * dt; e.z += (az + e.kz) * dt; e.kx *= Math.pow(0.02, dt); e.kz *= Math.pow(0.02, dt);
@@ -5099,10 +5157,10 @@ function update(dt) {
   }
   updateBossHazards();
   // 贴身伤害按 0.45 秒结算一次，每次都能闪避
-  if (touching && player.iframe <= 0) { player.iframe = 0.45; hurtPlayer(touching * 0.45, contactSource.type); }
+  if (touching && player.iframe <= 0) { player.iframe = 0.45; contactSource.lunge = 1; hurtPlayer(touching * 0.45, contactSource.type); }
   for (const b of eshots) { b.x += b.vx * dt; b.z += b.vz * dt; b.life -= dt; if (b.life > 0 && inWall(b.x, b.z, 0.05)) { b.life = 0; burst(b.x, 1, b.z, 0xf7f4ea, 8, 3, 0.28, 0.3); dust(b.x, b.z, 3, 2); } else if (!player.ghost && player.hp > 0 && Math.hypot(b.x - player.x, b.z - player.z) < 0.6) { b.life = 0; hurtPlayer((b.dmg || 8) * DF().dmg * tDmg(), b.source); burst(b.x, 1, b.z, 0xf7f4ea, 10, 3, 0.3, 0.3); } }
   eshots = eshots.filter((b) => b.life > 0);
-  if (player.hp <= 0 && !player.ghost) { player.hp = 0; burst(player.x, 0.8, player.z, 0xd8423a, 60, 7, 0.35, 0.8); if (NET && NET.on) netDie(); else { showDeath(); return; } }
+  if (player.hp <= 0 && !player.ghost) { player.hp = 0; player.downAt = realTime; burst(player.x, 0.8, player.z, 0xd8423a, 60, 7, 0.35, 0.8); if (NET && NET.on) netDie(); else { startDying(); return; } }
 
   // 我方子弹：穿透、分裂、弹射、爆炸
   const born = [];
@@ -5253,6 +5311,24 @@ function drawBossHazards() {
 }
 
 let fireClock = 0, previewTeam = null;
+/* 开始界面：每个同学各演各的小动作（挥手、伸懒腰、东张西望、跳起来欢呼、耍一下武器…），
+   随机错开，不再整齐地一起跳；有人欢呼时旁边的同学会跟着反应 */
+const TITLE_ACTS = ['wave', 'look', 'stretch', 'cheer', 'swing', 'flourish', 'proud', 'look', 'wave', 'double'];
+const TITLE_LEN = { wave: 1.7, look: 2.2, stretch: 1.8, cheer: 1.5, double: 1.9, swing: 1.4, flourish: 1.3, startle: 1.1, proud: 1.4 };
+const titleState = []; let titleSel = -1;
+function titleCue(i, act, delay = 0) { const t = titleState[i]; if (!t) return; t.act = act; t.at = realTime + delay; t.next = t.at + TITLE_LEN[act] + rnd(1.5, 4); }
+function titleActor(i, x, prep, sel, locked) {
+  const t = titleState[i] ??= { act: null, at: 0, next: realTime + 0.6 + i * 0.37 + Math.random() * 2, last: '' };
+  if (REDUCED || locked) return { act: null, at: 0, left: x > 0.4 };
+  if (realTime >= t.next && (!prep || sel || Math.random() < 0.3)) {
+    let act; do act = prep && sel ? ['swing', 'wave', 'flourish', 'cheer'][(Math.random() * 4) | 0] : TITLE_ACTS[(Math.random() * TITLE_ACTS.length) | 0]; while (act === t.last);
+    t.last = act; titleCue(i, act);
+    if (prep) t.next += sel ? 1.5 : 3; // 选人界面里选中的同学和讲台上的抬手动作轮流
+    if (!prep && (act === 'cheer' || act === 'double')) for (const j of [i - 3, i + 3, i - 1, i + 1]) if (titleState[j] && realTime > titleState[j].at + 2 && Math.random() < 0.45) titleCue(j, Math.random() < 0.5 ? 'startle' : 'cheer', rnd(0.25, 0.5));
+  } else if (realTime >= t.next) t.next = realTime + rnd(1, 3);
+  // 屏幕左边的同学看向右边，右边的看向左边，大家都朝中间
+  return { act: realTime >= t.at ? t.act : null, at: t.at, left: prep ? false : x > 0.4 };
+}
 function draw(dt) {
   itemArt.begin();
   const title = state === 'title';
@@ -5267,7 +5343,9 @@ function draw(dt) {
   drawBossHazards();
   if (state !== 'title') {
     player.glowMul = 2.4; const yaw = player.yaw + (player.spinT > 0 ? (1 - player.spinT) * TAU : 0);
-    const lift = player.ghost ? 0.35 + Math.sin(realTime * 3) * 0.12 : 0;
+    // 联机倒下：先播完倒地，再变成飘着的灵魂
+    if (player.ghost && player.downAt != null && realTime - player.downAt > 1.2) player.downAt = null;
+    const lift = player.ghost && player.downAt == null ? 0.35 + Math.sin(realTime * 3) * 0.12 : 0;
     drawCampusStudent(heroRig(clsId), player, player.x, lift, player.z, yaw);
     if (sweepFx.t > 0) { sweepFx.t -= dt * 4.2; const p = 1 - sweepFx.t, arc = sweepFx.arc || TAU, a0 = HP_ - (sweepFx.yaw || 0) + arc / 2, r = sweepFx.r, sc = r / 1.6; STILL.etint = elT('sweep');
       // 尺子本体加几道残影，注入元素后本体和残影都变成元素的颜色
@@ -5277,15 +5355,17 @@ function draw(dt) {
   } else {
     const port = innerWidth < 860, prep = titleStep === 'prep'; selF += (selIdx - selF) * Math.min(1, dt * 9);
     podium.visible = prep;
+    if (titleSel !== selIdx) { titleSel = selIdx; if (prep) titleCue(selIdx, 'cheer', 0); }
     CLS_IDS.forEach((id, i) => {
-      const lk = !isOpen(id), sel = prep && i === selIdx; let x, z, sc, yaw, y = 0, base = 0;
-      if (!prep) { const col = Math.floor(i / 3), row = i % 3, sp = port ? 1.15 : 1.6; x = (col - 2 + (row === 1 ? 0.5 : 0)) * sp * (1 + row * 0.06); z = -0.2 - row * 1.5; base = row * 0.62; sc = port ? 0.95 : 1.0; yaw = Math.sin(realTime * 0.8 + i) * 0.25; y = Math.pow(Math.max(0, Math.sin(realTime * 2.4 - i * 0.8)), 10) * 0.6; }
+      const lk = !isOpen(id), sel = prep && i === selIdx; let x, z, sc, y = 0, base = 0;
+      if (!prep) { const col = Math.floor(i / 3), row = i % 3, sp = port ? 1.15 : 1.6; x = (col - 2 + (row === 1 ? 0.5 : 0)) * sp * (1 + row * 0.06); z = -0.2 - row * 1.5; base = row * 0.62; sc = port ? 0.95 : 1.0; }
       else if (Math.abs(i - selF) > 2.6) return;
-      else { const a = (i - selF) * 0.6, f = Math.max(0, 1 - Math.abs(i - selF)); x = Math.sin(a) * 3.6; z = -1 - (1 - Math.cos(a)) * 5; sc = 0.9 + 0.6 * f; yaw = f > 0.5 ? Math.sin(realTime * 1.3) * 0.4 : -a * 0.5; y = f * 0.22 + (sel && !lk ? Math.abs(Math.sin(realTime * 4.5)) * 0.22 : 0); }
+      else { const a = (i - selF) * 0.6, f = Math.max(0, 1 - Math.abs(i - selF)); x = Math.sin(a) * 3.6; z = -1 - (1 - Math.cos(a)) * 5; sc = 0.9 + 0.6 * f; y = f * 0.22; }
       if (sel) y = .22;
-      const pseudo = { ph: sel && !lk ? realTime * 8 : 0, hit: 0, seed: i * 0.13, moving: 0, glowMul: 2.4, dark: lk && prep };
+      const A_ = titleActor(i, x, prep, sel, lk);
+      const pseudo = { ph: 0, hit: 0, seed: i * 0.13, moving: 0, glowMul: 2.4, dark: lk && prep, act: A_.act, actAt: A_.at, scholarFacingLeft: A_.left };
       if (sel && !lk && !REDUCED) pseudo.podiumIdle = true;
-      heroRig(id).push(pseudo, worldM(x + TX, y + base, z + TZ, yaw, sc)); if (!base) shadow(x + TX, z + TZ, 0.55 * sc);
+      heroRig(id).push(pseudo, worldM(x + TX, y + base, z + TZ, 0, sc)); if (!base) shadow(x + TX, z + TZ, 0.55 * sc);
     });
   }
   if (state !== 'title') podium.visible = false;
@@ -5317,13 +5397,28 @@ function draw(dt) {
     if (facing) e.yaw = Math.atan2(facing.x - e.x, facing.z - e.z);
     const rise = e.spawn > 0 ? e.spawn : 0, hopOk = !e.fly && rise <= 0 && e.type !== 'snail' && e.type !== 'boss', y = e.fly ? 0 : -rise * e.size * 1.3 + (hopOk ? Math.abs(Math.sin(e.ph)) * 0.13 * e.moving : 0), yaw = e.yaw ?? 0, sq = 1 + Math.sin(e.ph * 2) * 0.07 * e.moving;
     if (e.type === 'boss') e.ringing = bossRinging;
-    RIGS[e.kind || RIG_OF(e.type)].push(e, worldM(e.x + (fz ? Math.sin(realTime * 60) * 0.06 * fz : 0), y + popY + (e.type === 'boss' ? bossLeapY : 0), e.z, yaw, sw * (1 + e.hit * 0.24), sw * (sq - e.hit * 0.2), sw * (1 + e.hit * 0.24)));
+    // 受击：沿受击方向弹开再弹回，身体往后仰，刚挨打那几帧抖一下；扑咬玩家时往前一冲
+    e.rcl = (e.rcl || 0) * Math.exp(-dt * 16); const rc = e.rcl * 0.32 * Math.min(1, 1.6 / (e.r + 0.6)), jit = e.hit > 0.6 ? (Math.random() - 0.5) * 0.12 : 0;
+    let lx = 0, lz = 0, ls = 0; if (e.lunge > 0) { e.lunge = Math.max(0, e.lunge - dt * 4); ls = Math.sin(e.lunge * PI); lx = Math.sin(yaw) * ls * 0.55; lz = Math.cos(yaw) * ls * 0.55; }
+    RIGS[e.kind || RIG_OF(e.type)].push(e, worldM(e.x + (fz ? Math.sin(realTime * 60) * 0.06 * fz : 0) + (e.rdx || 0) * rc + jit + lx, y + popY + (e.type === 'boss' ? bossLeapY : 0), e.z + (e.rdz || 0) * rc + lz, yaw, sw * (1 + e.hit * 0.24 - ls * 0.08), sw * (sq - e.hit * 0.2 + ls * 0.12), sw * (1 + e.hit * 0.24 - ls * 0.08), -Math.min(0.5, e.rcl * 0.35) + ls * 0.25));
     shadow(e.x, e.z, e.r * (e.fly ? 0.7 : 1) * (1 - rise * 0.7));
     if (burning(e) || e.frz > 0 || e.chill > 0 || e.acid > 0 || e.shock > 0 || e.fb > 0) statusFx(e, Math.max(0, y));
   }
   for (let k = fi * 2; k < 8; k++) fuseDiscs[k].visible = false;
-  for (const c of corpses) { c.t += dt / 0.2; const k = Math.min(1, c.t); RIGS[RIG_OF(c.type)].push({ ph: 0, hit: 1 - k * 0.4, seed: c.seed, moving: 0 }, worldM(c.x, 0, c.z, c.yaw, c.size * (1 + k * 0.7), c.size * Math.max(0.04, 1 - k), c.size * (1 + k * 0.7))); }
-  corpses = corpses.filter((c) => c.t < 1);
+  for (const c of corpses) {
+    // 0–0.45 s 抛飞翻滚（墙会挡住），落地压扁弹一下，之后缩小成一团烟
+    c.t += dt; const was = c.t - dt;
+    if (c.t < 0.45) {
+      c.vy -= 26 * dt; c.x += c.vx * dt; c.z += c.vz * dt; c.y += c.vy * dt;
+      if (inWall(c.x, c.z, 0.2)) { c.x -= c.vx * dt; c.z -= c.vz * dt; c.vx *= -0.3; c.vz *= -0.3; }
+      if (c.y < 0) { c.y = 0; c.vy = Math.abs(c.vy) * 0.35; c.vx *= 0.5; c.vz *= 0.5; c.spin *= 0.5; if (!c.land) { c.land = 1; dust(c.x, c.z, 4, 2); } }
+      c.vx *= Math.pow(0.2, dt); c.vz *= Math.pow(0.2, dt);
+    }
+    const end = Math.max(0, (c.t - 0.42) / 0.12), sq = c.y < 0.05 && c.land ? 1 + 0.25 * Math.exp(-(c.t - 0.3) * 20) : 1, k = c.size * Math.max(0.02, 1 - end);
+    RIGS[RIG_OF(c.type)].push({ ph: 0, hit: c.t < 0.09 ? 1 : 0.35, seed: c.seed, moving: 0, dark: false }, worldM(c.x, c.y, c.z, c.yaw, k * sq, k / sq, k * sq, -c.t * c.spin, c.roll * c.t));
+    if (was < 0.5 && c.t >= 0.5) { burst(c.x, 0.4 + c.y, c.z, 0xfff6e4, 7, 2.6, 0.5, 0.45, -1); burst(c.x, 0.4 + c.y, c.z, c.c, 5, 3, 0.32, 0.4, 2); }
+  }
+  corpses = corpses.filter((c) => c.t < 0.54);
   for (const m of minions) { m.glowMul = 1; m.etint = elT('minion', (m.seed * 10) | 0); const f = Math.min(1, m.temp * 3, (m.max - m.temp) * 6 + 0.2); RIGS.minion.push(m, worldM(m.x, Math.abs(Math.sin(m.ph)) * 0.15 * m.moving, m.z, m.yaw, 1.1 * f)); shadow(m.x, m.z, 0.35); }
   for (const dk of ducks) { dk.etint = elT('duck'); const f = Math.min(1, dk.life * 4) * (1 + (dk.life < 0.8 ? Math.sin(realTime * 40) * 0.08 : 0)); RIGS.duck.push(dk, worldM(dk.x, dk.drop * 3 + Math.abs(Math.sin(dk.ph)) * 0.12, dk.z, Math.sin(dk.ph * 0.7) * 0.6 + dk.seed * 6, 1.1 * f, 1.1 * f, 1.1 * f, 0, Math.sin(dk.ph) * 0.15)); shadow(dk.x, dk.z, 0.45); }
   slippers.forEach((sl, i) => { STILL.etint = elT('slipper', i); RIGS.slipperP.push(STILL, worldM(sl.x, 0.8, sl.z, sl.spinA, (sl.small ? 0.7 : 1) * (SPX('slipper', 'huge') ? 1.7 : 1))); }); STILL.etint = null;
@@ -5393,6 +5488,7 @@ function draw(dt) {
     if (z === 2 && Math.random() < dt * 3) spark(g.x, 0.9, g.z, 0xffe07a, 1, 1, 0.3, 0.5, -1);
   }
   for (const id in RIGS) RIGS[id].end();
+  drawImpacts(dt);
   drawFx(dt);
   shadowMesh.count = shN; shadowMesh.instanceMatrix.needsUpdate = true;
   // 法阵
@@ -5446,7 +5542,9 @@ function draw(dt) {
   fadeClock += dt; if (fadeClock > 0.4) { fadeClock = 0; mctx.globalCompositeOperation = 'destination-out'; mctx.fillStyle = 'rgba(0,0,0,.025)'; mctx.fillRect(0, 0, 1024, 1024); mctx.globalCompositeOperation = 'source-over'; marksDirty = true; }
   marksClock += dt; if (marksDirty && marksClock > 0.1) { markTex.needsUpdate = true; marksDirty = false; marksClock = 0; }
   const Wd = innerWidth, Hd = innerHeight;
-  for (const nm of NUMS) { if (nm.life <= 0) continue; nm.life -= dt; nm.y += dt * 1.4; v3.set(nm.x, nm.y, nm.z).project(camera); const pop = nm.life > 0.55 ? 1 + (nm.life - 0.55) * 4 : 1; nm.el.style.transform = `translate(${(v3.x * 0.5 + 0.5) * Wd}px, ${(-v3.y * 0.5 + 0.5) * Hd}px) translate(-50%, -50%) scale(${pop})`; nm.el.style.opacity = Math.min(1, nm.life * 3); }
+  for (const nm of NUMS) { if (nm.life <= 0) continue; const ndt = Math.min(dt, 0.05); nm.life -= ndt; nm.x += (nm.vx || 0) * ndt; nm.y += (nm.vy ?? 1.4) * ndt; nm.vy = (nm.vy ?? 1.4) - (nm.g || 0) * ndt; v3.set(nm.x, nm.y, nm.z).project(camera);
+    const age = NUM_LIFE - nm.life, crit = nm.rot !== 0, pop = (age < 0.07 ? 0.5 + age / 0.07 * (crit ? 1.5 : 1.1) : 1 + (crit ? 0.6 : 0.3) * Math.exp(-(age - 0.07) * 14) * Math.cos((age - 0.07) * 30)) * (1 + (nm.big || 0)) * (nm.life < 0.2 ? 0.6 + nm.life * 2 : 1), wob = crit && age < 0.25 ? Math.sin(age * 70) * 6 * (1 - age / 0.25) : 0;
+    nm.el.style.transform = `translate(${(v3.x * 0.5 + 0.5) * Wd}px, ${(-v3.y * 0.5 + 0.5) * Hd}px) translate(-50%, -50%) rotate(${(nm.rot || 0) + wob}deg) scale(${pop})`; nm.el.style.opacity = Math.min(1, nm.life * 5); }
   // 镜头 + 火把光
   const shk = REDUCED ? 0 : shake;
   if (state === 'title') {
@@ -5458,7 +5556,8 @@ function draw(dt) {
     torch.position.set(TX, 4.2, TZ + 4.5);
   } else {
     const aspect = innerWidth / innerHeight;
-    const halfHeight = skillDemoMode ? 4.2 * Math.max(1, 1.65/aspect) : Math.min(10.8 * camK, HX / aspect);
+    camPunch = Math.max(0, camPunch - dt * 6); const dyingZoom = state === 'dying' || state === 'dead' ? 0.82 + 0.18 * Math.exp(-(realTime - dyingAt) * 3) : 1;
+    const halfHeight = (skillDemoMode ? 4.2 * Math.max(1, 1.65/aspect) : Math.min(10.8 * camK, HX / aspect)) * (1 - (REDUCED ? 0 : camPunch * 0.025)) * dyingZoom;
     if (camera.top !== halfHeight || camera.right !== halfHeight * aspect) {
       camera.top = halfHeight; camera.bottom = -halfHeight;
       camera.right = halfHeight * aspect; camera.left = -camera.right;
@@ -5466,9 +5565,12 @@ function draw(dt) {
     }
     if (skillDemoMode) camLook.set(DEMO_X+2, 0.65, DEMO_Z);
     else camLook.lerp(v3.set(player.x, 0, player.z), Math.min(1, dt*6));
-    const x = THREE.MathUtils.clamp(camLook.x + rnd(-shk, shk), -HX + camera.right, HX - camera.right);
+    // 震屏用平滑的抖动（不是每帧乱跳），再叠一个朝受击方向的“踢”，弹簧回位
+    const kd = Math.exp(-dt * 14); camKick.x *= kd; camKick.z *= kd;
+    const nx = Math.sin(realTime * 47.3) * 0.6 + Math.sin(realTime * 89.1 + 1.7) * 0.4, nz = Math.sin(realTime * 53.9 + 2.1) * 0.6 + Math.sin(realTime * 77.7 + 0.4) * 0.4;
+    const x = THREE.MathUtils.clamp(camLook.x + nx * shk * 1.2 + camKick.x, -HX + camera.right, HX - camera.right);
     const depth = halfHeight / Math.sin(campusElevation);
-    const z = THREE.MathUtils.clamp(camLook.z + rnd(-shk, shk), -mapHalfDepth + depth, mapHalfDepth - depth);
+    const z = THREE.MathUtils.clamp(camLook.z + nz * shk * 1.2 + camKick.z, -mapHalfDepth + depth, mapHalfDepth - depth);
     camera.position.set(x, camLook.y + 32*Math.sin(campusElevation), z + 32*Math.cos(campusElevation));
     camera.lookAt(x, camLook.y, z);
     torch.position.set(player.x, 3.2 * campusStudentScale, player.z);
@@ -5504,7 +5606,9 @@ let last = performance.now();
 function frame(now) {
   const raw = Math.min(0.05, (now - last) / 1000); last = now;
   realTime += raw; uTime.value = realTime;
-  const dt = raw * timeScale;
+  let dt = raw * timeScale;
+  if (hitStopT > 0) { hitStopT -= raw; dt *= 0.03; }
+  if (state === 'dying' && realTime - dyingAt > 1.25) showDeath();
   if (state === 'title' && titleStep === 'gacha' && !skillDemoMode) {
     updateGacha(raw);
     gameAudio.update('title', false, 1);
@@ -5520,7 +5624,7 @@ function frame(now) {
     if ((state === 'play' && !NET?.phase) || (NET?.on && !NET.phase && state === 'paused')) update(dt); else if (state === 'title') titleAmbience(raw);
   }
   if (!skillDemoMode) gameAudio.update(state, !!boss && !boss.dead, player.hp / player.maxHp);
-  draw(skillDemoMode || state === 'play' || state === 'title' ? dt : raw * 0.12);
+  draw(skillDemoMode || state === 'play' || state === 'title' ? dt : state === 'dying' ? raw * 0.45 : raw * 0.12);
   composer.render(); requestAnimationFrame(frame);
 }
 let debugCam = null;

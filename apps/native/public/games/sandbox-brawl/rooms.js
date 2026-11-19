@@ -6,7 +6,7 @@ import {
 import { roomViews, plateWidth, plateHeight, mapHalfDepth, hallNorth, hallSouth } from './campus-map-plan.js?v=campus-doorways';
 import { buildInkPortal } from './campus-models.js?v=continuous-campus';
 import { castShadowMatrix } from './campus-mesh.js';
-import { scholarLook, studentCardGeometry, studentTexture } from './student-chibi.js?v=continuous-campus';
+import { scholarLook, studentCardGeometry, studentTexture } from './student-chibi.js?v=hit-feel';
 import { campusDetails, detailURL } from './campus-details.js?v=continuous-campus';
 
 const names = { classroom: '教室', lab: '实验室', art: '美术室', gym: '体育馆' };
