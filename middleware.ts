@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 
 const CLASSROOM_TASK_HISTORY_PATH = /^\/classroom\/([^/]+)\/tasks(?:\/.*)?$/;
+const ADMIN_CHAT_EXPORT_PATH = /^\/api\/admin\/users\/[^/]+\/conversations\/export\/?$/;
 
 export function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
@@ -38,6 +39,7 @@ export function middleware(request: NextRequest) {
       /^\/api\/courses\/[^/]+\/layers\/?$/.test(pathname) ||
       pathname === '/api/downloads/macos' ||
       pathname.startsWith('/api/native/') ||
+      ADMIN_CHAT_EXPORT_PATH.test(pathname) ||
       authPath.test(pathname) ||
       pathname.startsWith('/_next/') ||
       pathname === '/native-login' ||
