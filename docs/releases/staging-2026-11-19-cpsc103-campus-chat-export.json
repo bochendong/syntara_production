@@ -1,0 +1,21 @@
+{
+  "status": "deployed",
+  "at": "2026-11-19T16:12:57.782906+00:00",
+  "environment": "staging",
+  "revision": "2a8f947a57320785234259a37345b0b8e559b6f6",
+  "deploymentId": "dc1a22bd-658d-41fb-b2ec-bd394e01e11d",
+  "previousRevision": "077ca2be706ddb66f334df46571f766cf30b6741",
+  "course": {
+    "id": "cmw0xggcf002ol201yxbjeipz",
+    "version": 65,
+    "updated": 177,
+    "added": 17,
+    "total": 194,
+    "series": 27
+  },
+  "verification": {
+    "course": "Student and managed course readback, 113 teacher preview code checks and 20 short-answer grading cases.",
+    "game": "14 regression tests. Live campus round, gacha entry and seven matching deployed assets.",
+    "export": "Anonymous staging request returned 401. Isolated authorized export verified conversation and message counts, attachment headers and nonexistent-user handling."
+  }
+}
