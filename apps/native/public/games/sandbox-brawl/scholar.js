@@ -885,8 +885,12 @@ const strideLength = (gait) => 1.38 + 1.3 * gait;
 // The scholar is drawn larger than the chibi students so she reads at real-school scale
 // against the furniture. Cadence follows the drawn size so planted feet stay put.
 export const scholarSize = 1.3;
-export function advanceScholar(p, distance, yaw, dt, referenceSpeed) {
+export function advanceScholar(p, distance, yaw, dt, referenceSpeed, dx = 0) {
   if (dt <= 0) return;
+  // Hold the last horizontal facing through stops and minor joystick drift.
+  if (Math.abs(dx) > Math.max(distance * 0.15, dt * referenceSpeed * 0.04)) {
+    p.scholarFacingLeft = dx < 0;
+  }
   const target = saturate(distance / (dt * referenceSpeed));
   const gait =
     (p.scholarGait ?? 0) + (target - (p.scholarGait ?? 0)) * -Math.expm1(-dt * (target > 0.1 ? 15 : 19));

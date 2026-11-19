@@ -1,9 +1,10 @@
-import { advanceScholar, scholarSize } from './scholar.js';
-import { buildScholar, poseSchoolUniform as poseScholar } from './scholar-model.js';
-import { buildInkPortal, buildPortraitRoom } from './campus-models.js';
+import { hallNorth, hallSouth, mapHalfDepth, roomViews } from './campus-map-plan.js?v=campus-doorways';
+import { advanceScholar } from './scholar.js?v=front-mirror';
+import { scholarLook, studentCardGeometry, poseChibi, studentIcon, studentTexture, useStudentCells } from './student-chibi.js?v=room-scale';
+import { buildInkPortal, buildPortraitRoom } from './campus-models.js?v=painted-court';
 import { castShadowMatrix } from './campus-mesh.js';
 import { createCampusItems, ITEM } from './campus-items.js';
-import { createCampus, campusElevation, campusStudentScale, campusStudentRadius, taskSites, portalSites, insideCampusObstacle, resolveCampusObstacles } from './campus.js';
+import { createCampus, floorPoint, campusElevation, campusStudentDrawScale, campusStudentScale, campusStudentRadius, taskSites, encounterSites, portalSites, insideCampusObstacle, resolveCampusObstacles } from './campus.js?v=eight-portals';
 import { createGameAudio } from './game-audio.js';
 import { BrawlSaveConflict, createBrawlSaveQueue } from './brawl-cloud.js';
 import { DEATH_TAUNTS } from './death-taunts.js';
@@ -54,7 +55,7 @@ const CLASSES = {
   brawler:  { name: '体育委员', tag: 'melee',  hp: 150, start: 'sweep',   desc: '血厚，原地抡一圈大尺子，周围全砍', look: { style: 'spiky', outfit: 'track', skin: 0xf2c49a, hair: 0x2b1d18, top: 0xd8423a, pants: 0x2b3a5c, iris: 0x7a3a22, item: 'bat', band: 0xffffff, big: true } },
   geo:      { name: '数学课代表', short: '课代表', tag: 'melee', hp: 120, start: 'spin', desc: '三角尺绕着自己转，站着不动也在算账', look: { style: 'bob', outfit: 'vest', hair: 0x3a2a20, top: 0xfaf8f2, pants: 0x4a5568, iris: 0x4a6a8a, accent: 0x3f7ad8, item: 'tri', glasses: true } },
   duty:     { name: '值日生',   tag: 'melee',  hp: 130, start: 'mop',     desc: '拖把一拖一大片，地板湿了怪就打滑', look: { style: 'bun', outfit: 'apron', girl: true, hair: 0x6a4630, top: 0x7cc8e8, pants: 0x3a6a9a, iris: 0x3a8ab8, accent: 0xffffff, scarf: 0xff8fa8, item: 'mop' } },
-  scholar:  { name: '学霸',     tag: 'ranged', hp: 95,  start: 'pencil',  desc: '铅笔百发百中，开局暴击率 12%', baseCrit: 0.12, look: { style: 'long', outfit: 'sailor', girl: true, hair: 0x1e1a2e, top: 0xfaf8f2, pants: 0x2c3a6e, iris: 0x3a6ad8, accent: 0xe2453a, item: 'pencil', glasses: true } },
+  scholar:  { name: '学霸',     tag: 'ranged', hp: 95,  start: 'pencil',  desc: '铅笔百发百中，开局暴击率 12%', baseCrit: 0.12, look: scholarLook },
   paper:    { name: '后排同学', tag: 'ranged', hp: 100, start: 'plane',   desc: '上课折的纸飞机会自己追怪', look: { style: 'messy', outfit: 'hoodie', hair: 0x4a3426, top: 0x38b2c9, pants: 0x3a3f4a, iris: 0x2a8aa0, accent: 0xffffff, cap: 0xf2f2f2, item: 'plane' } },
   dorm:     { name: '住校生',   tag: 'ranged', hp: 115, start: 'slipper', desc: '穿着睡衣就来了，拖鞋扔出去还会飞回来', look: { style: 'bun2', outfit: 'pajama', girl: true, hair: 0xe8a0b8, top: 0xffd9e4, pants: 0xffd9e4, iris: 0xd85a8a, accent: 0xff7a5a, mask: 0x8a7ad8, item: 'slipper' } },
   engineer: { name: '理科生',   tag: 'gun',    hp: 110, start: 'stapler', desc: '订书机枪高速连发，越升级射得越快', look: { style: 'messy', outfit: 'labcoat', hair: 0x2e3a48, top: 0x3faa6a, pants: 0x34495e, iris: 0x2a8a6a, item: 'gun', goggles: true } },
@@ -434,11 +435,10 @@ function smoothNormals(src) {
   return g;
 }
 const OGEO = {}; for (const k in GEO) OGEO[k] = smoothNormals(GEO[k]);
-const scholarSculpt = await buildScholar();
-Object.assign(GEO, scholarSculpt.geometries);
+// The cutout pivots at the soles (row 232 in its 256-pixel cell).
+GEO.studentCard = studentCardGeometry();
 const SMOOTH_CACHE = new Map(Object.keys(OGEO).map((k) => [GEO[k], OGEO[k]]));
 const smoothOf = (geo) => { if (!SMOOTH_CACHE.has(geo)) SMOOTH_CACHE.set(geo, smoothNormals(geo)); return SMOOTH_CACHE.get(geo); };
-const tone = (c, k) => { const q = new THREE.Color(c); return (k > 0 ? q.lerp(new THREE.Color(0xffffff), k) : q.multiplyScalar(1 + k)).getHex(); };
 const eyes = (y, z, sp = 0.16, s = 0.2, pu = 0.11, k = 'eye', pc = 0x1a1020) => [
   ['sph', 0xffffff, [-sp, y, z], [s, s * 1.15, s * 0.6], 0, k, 0], ['sph', 0xffffff, [sp, y, z], [s, s * 1.15, s * 0.6], 0, k, 0],
   ['sph', pc, [-sp, y - 0.01, z + s * 0.26], [pu, pu * 1.25, pu * 0.6], 0, k, 0], ['sph', pc, [sp, y - 0.01, z + s * 0.26], [pu, pu * 1.25, pu * 0.6], 0, k, 0],
@@ -446,117 +446,8 @@ const eyes = (y, z, sp = 0.16, s = 0.2, pu = 0.11, k = 'eye', pc = 0x1a1020) => 
 ];
 const brows = (y, z, sp, w = 0.18, ang = 0.45, k = '') => [['box', 0x1a1020, [-sp, y, z], [w, 0.05, 0.04], [0, 0, -ang], k, 0], ['box', 0x1a1020, [sp, y, z], [w, 0.05, 0.04], [0, 0, ang], k, 0]];
 const legs = (c, sp = 0.14, h = 0.26, w = 0.15) => [['cap', c, [-sp, h * 0.55, 0], [w, h, w], 0, 'legL', 1], ['cap', c, [sp, h * 0.55, 0], [w, h, w], 0, 'legR', 1]];
-function heroParts(look, hero) {
-  if (hero === 'scholar') return scholarSculpt.parts(look);
-  // Q 版：头身比约 1:1。圆润的身体、带高光的大眼睛、一缕一缕的刘海；每个同学有自己的发型、衣服和手里的东西
-  const skin = look.skin || 0xffdcbc, H = look.hair, T = look.top, B = look.pants, G = !!look.girl, W = look.big ? 1.12 : 1, AC = look.accent ?? 0xffffff, O = look.outfit;
-  const HL = tone(H, 0.32), ink = 0x2a1a22, IR = look.iris, IRL = tone(IR, 0.5);
-  const skirt = ['sailor', 'cardigan', 'cheer', 'apron'].includes(O);
-  const legC = skirt ? skin : B, sporty = O === 'track' || O === 'jersey';
-  const shoe = sporty ? 0xffffff : O === 'pajama' ? AC : G ? 0x7a2e3a : 0x4a2e2a;
-  const sleeve = O === 'labcoat' ? 0xfafafa : O === 'jersey' ? skin : T;
-  const both = (fn) => [...fn(-1, 'L'), ...fn(1, 'R')];
-  const bow = (x, y, z, c, sc = 1, k = '') => [['cone', c, [x - 0.13 * sc, y, z], [0.18 * sc, 0.26 * sc, 0.12 * sc], [0, 0, HP_], k, 1], ['cone', c, [x + 0.13 * sc, y, z], [0.18 * sc, 0.26 * sc, 0.12 * sc], [0, 0, -HP_], k, 1], ['sph', c, [x, y, z + 0.02], [0.1 * sc, 0.1 * sc, 0.1 * sc], 0, k, 0]];
-  const P = [
-    ...both((g, s) => [['cap', legC, [g * 0.13, 0.18, 0], [0.2, 0.2, 0.2], 0, 'leg' + s, 1], ['sph', shoe, [g * 0.13, 0.06, 0.05], [0.25, 0.14, 0.34], 0, 'leg' + s, 1]]),
-    ['cap', O === 'labcoat' ? 0xfafafa : T, [0, 0.5, 0], [0.52 * W, 0.25, 0.42 * W], 0, '', 1],
-    ...both((g, s) => [['cap', sleeve, [g * 0.3 * W, 0.52, 0], [0.15, 0.17, 0.15], [0, 0, g * 0.22], 'arm' + s, 1], ['sph', skin, [g * 0.35 * W, 0.35, 0.03], [0.15, 0.15, 0.15], 0, 'arm' + s, 1]]),
-    ['sph', skin, [0, 1.16, 0], [1.16, 1.04, 1.06], 0, '', 1],
-    ...both((g) => [['sph', skin, [g * 0.57, 1.08, -0.02], [0.17, 0.22, 0.13], 0, '', 1]]),
-  ];
-  if (skirt) P.push(...both((g, s) => [['cyl', 0xffffff, [g * 0.13, 0.16, 0], [0.215, 0.1, 0.215], 0, 'leg' + s, 0]]));
-  else P.push(['sph', B, [0, 0.31, 0], [0.5 * W, 0.22, 0.42 * W], 0, '', 1]);
-  if (sporty) P.push(...both((g, s) => [['box', T, [g * 0.13, 0.085, 0.13], [0.26, 0.04, 0.08], 0, 'leg' + s, 0]]));
-  // 衣服
-  if (O === 'track') P.push(['box', 0xffffff, [0, 0.52, 0.2 * W], [0.05, 0.3, 0.04], 0, '', 0], ['cyl', 0xffffff, [0, 0.69, 0.01], [0.36, 0.07, 0.32], 0, '', 0],
-    ...both((g, s) => [['box', 0xffffff, [g * 0.34 * W, 0.53, 0.0], [0.05, 0.24, 0.16], [0, 0, g * 0.22], 'arm' + s, 0]]),
-    ['sph', 0xffd23f, [0.1, 0.5, 0.22 * W], [0.09, 0.09, 0.06], 0, '', 0], ['box', 0x3a2228, [0.06, 0.6, 0.2 * W], [0.02, 0.2, 0.02], [0, 0, 0.4], '', 0]);
-  if (O === 'sailor') P.push(['bowl', B, [0, 0.3, 0], [0.78, 0.46, 0.72], [PI, 0, 0], '', 1], ['box', tone(B, 0.25), [0, 0.2, 0], [0.8, 0.03, 0.74], 0, '', 0],
-    ['sph', B, [0, 0.67, -0.03], [0.66, 0.12, 0.54], 0, '', 1], ['box', B, [0, 0.54, -0.2], [0.46, 0.22, 0.06], 0, '', 0], ['box', 0xffffff, [0, 0.5, -0.235], [0.4, 0.03, 0.02], 0, '', 0], ...bow(0, 0.56, 0.22, AC, 0.95));
-  if (O === 'labcoat') P.push(['bowl', 0xfafafa, [0, 0.3, 0], [0.74, 0.5, 0.68], [PI, 0, 0], '', 1], ['box', T, [0, 0.52, 0.2], [0.17, 0.28, 0.04], 0, '', 0], ['box', 0xfafafa, [-0.14, 0.56, 0.2], [0.1, 0.2, 0.05], [0, 0, -0.5], '', 0], ['box', 0xfafafa, [0.14, 0.56, 0.2], [0.1, 0.2, 0.05], [0, 0, 0.5], '', 0],
-    ['box', 0xe2453a, [0.2, 0.5, 0.2], [0.03, 0.13, 0.03], 0, '', 0], ['box', 0x3a6ad8, [0.25, 0.5, 0.19], [0.03, 0.13, 0.03], 0, '', 0], ['box', B, [0, 0.18, 0], [0.4, 0.08, 0.3], 0, '', 0]);
-  if (O === 'cardigan') P.push(['bowl', B, [0, 0.3, 0], [0.8, 0.46, 0.74], [PI, 0, 0], '', 1], ['box', 0xffffff, [0, 0.52, 0.2], [0.15, 0.28, 0.04], 0, '', 0], ['cyl', 0xffffff, [0, 0.69, 0.01], [0.36, 0.07, 0.32], 0, '', 0],
-    ['sph', 0xfff1a8, [0, 0.44, 0.225], [0.055, 0.055, 0.03], 0, '', 0], ['sph', 0xfff1a8, [0, 0.55, 0.225], [0.055, 0.055, 0.03], 0, '', 0], ...bow(0, 0.66, 0.22, AC, 0.6));
-  if (O === 'cheer') P.push(['bowl', 0xffffff, [0, 0.3, 0], [0.82, 0.46, 0.76], [PI, 0, 0], '', 1], ['bowl', T, [0, 0.22, 0], [0.86, 0.14, 0.8], [PI, 0, 0], '', 0],
-    ['box', 0xffffff, [-0.09, 0.52, 0.2], [0.05, 0.26, 0.04], [0, 0, 0.5], '', 0], ['box', 0xffffff, [0.09, 0.52, 0.2], [0.05, 0.26, 0.04], [0, 0, -0.5], '', 0], ['sph', AC, [0, 0.5, 0.215], [0.11, 0.11, 0.05], 0, '', 0],
-    ...both((g, s) => [['sph', AC, [g * 0.36, 0.33, 0.05], [0.26, 0.24, 0.26], 0, 'arm' + s, 1]]));
-  if (O === 'vest') P.push(['cap', AC, [0, 0.47, 0], [0.56, 0.2, 0.455], 0, '', 0], ['box', 0xe2453a, [0, 0.55, 0.225], [0.07, 0.2, 0.03], 0, '', 0], ['cone', 0xe2453a, [0, 0.42, 0.225], [0.09, 0.09, 0.03], [PI, 0, 0], '', 0], ['cyl', 0xffffff, [0, 0.69, 0.01], [0.36, 0.07, 0.32], 0, '', 0]);
-  if (O === 'apron') P.push(['bowl', B, [0, 0.3, 0], [0.8, 0.46, 0.74], [PI, 0, 0], '', 1], ['box', AC, [0, 0.4, 0.215], [0.4, 0.42, 0.06], 0, '', 1], ['box', AC, [-0.15, 0.64, 0.14], [0.06, 0.16, 0.2], 0, '', 0], ['box', AC, [0.15, 0.64, 0.14], [0.06, 0.16, 0.2], 0, '', 0], ['box', tone(AC, -0.18), [0, 0.36, 0.25], [0.2, 0.12, 0.02], 0, '', 0]);
-  if (O === 'hoodie') P.push(['sph', T, [0, 0.72, -0.2], [0.66, 0.36, 0.42], 0, '', 1], ['box', tone(T, -0.16), [0, 0.4, 0.2], [0.32, 0.12, 0.04], 0, '', 0], ['box', AC, [-0.07, 0.58, 0.21], [0.025, 0.16, 0.03], 0, 'sway', 0], ['box', AC, [0.07, 0.58, 0.21], [0.025, 0.16, 0.03], 0, 'sway', 0]);
-  if (O === 'pajama') P.push(...[[-0.15, 0.54], [0.13, 0.44], [0.02, 0.6], [-0.05, 0.38], [0.18, 0.6]].map(([x, y]) => ['sph', AC, [x, y, 0.2], [0.07, 0.07, 0.04], 0, '', 0]), ['cyl', 0xffffff, [0, 0.69, 0.01], [0.38, 0.07, 0.34], 0, '', 0], ['sph', 0xffffff, [0, 0.07, 0.2], [0.12, 0.1, 0.1], 0, 'legL', 0]);
-  if (O === 'jersey') P.push(['box', 0xffffff, [0, 0.52, 0.2 * W], [0.22, 0.2, 0.04], 0, '', 0], ['box', T, [0, 0.52, 0.215 * W], [0.05, 0.14, 0.03], 0, '', 0], ['cyl', 0xffffff, [0, 0.68, 0.01], [0.4, 0.05, 0.36], 0, '', 0],
-    ...both((g) => [['box', T, [g * 0.27 * W, 0.3, 0], [0.03, 0.2, 0.4], 0, '', 0]]), ...both((g, s) => [['cyl', 0xffffff, [g * 0.33 * W, 0.4, 0.02], [0.17, 0.06, 0.17], 0, 'arm' + s, 0]]));
-  // 脸：大眼睛（眼白 → 瞳色 → 瞳孔 → 两颗高光），腮红，小嘴
-  const ew = G ? 0.25 : 0.22, eh = G ? 0.35 : 0.3, ey = 1.08, ex = 0.21;
-  P.push(...both((g) => [
-    ['sph', ink, [g * ex, ey, 0.47], [ew, eh, 0.1], 0, 'eye', 0],
-    ['sph', IR, [g * ex, ey - 0.025, 0.497], [ew * 0.8, eh * 0.82, 0.07], 0, 'eye', 0],
-    ['sph', ink, [g * ex, ey + 0.012, 0.515], [ew * 0.42, eh * 0.45, 0.05], 0, 'eye', 0],
-    ['sph', IRL, [g * ex, ey - 0.1, 0.522], [ew * 0.5, eh * 0.2, 0.04], 0, 'eye', 0],
-    ['sph', 0xffffff, [g * ex + 0.055, ey + 0.085, 0.535], [0.085, 0.095, 0.03], 0, 'eye glow', 0],
-    ['sph', 0xffffff, [g * ex - 0.06, ey - 0.07, 0.535], [0.04, 0.04, 0.025], 0, 'eye', 0],
-    ['sph', 0xff9aa8, [g * 0.39, 0.92, 0.4], [0.17, 0.085, 0.05], 0, '', 0],
-  ]));
-  if (look.tired) P.push(['box', 0x8a3a3a, [0, 0.93, 0.51], [0.12, 0.03, 0.03], 0, '', 0], ...both((g) => [['box', 0xb89a9a, [g * ex, 0.9, 0.5], [0.17, 0.03, 0.03], 0, '', 0]]));
-  else if (look.style === 'spiky' || look.style === 'buzz') P.push(['sph', 0x8a3a3a, [0, 0.93, 0.5], [0.17, 0.09, 0.05], 0, '', 0], ['box', 0xffffff, [0, 0.95, 0.515], [0.12, 0.03, 0.02], 0, '', 0]);
-  else P.push(['arc', G ? 0xd8506a : 0x8a3a3a, [0, 0.955, 0.505], [0.15, 0.13, 0.12], [0, 0, PI], '', 0]);
-  if (G) P.push(...both((g) => [['box', ink, [g * 0.35, ey + 0.15, 0.46], [0.13, 0.04, 0.03], [0, 0, g * 0.6], 'eye', 0], ['box', ink, [g * 0.37, ey + 0.06, 0.45], [0.1, 0.03, 0.03], [0, 0, g * 0.25], 'eye', 0], ['box', tone(H, -0.3), [g * 0.2, 1.33, 0.5], [0.15, 0.028, 0.03], [0, 0, g * -0.15], '', 0]]));
-  else P.push(...both((g) => [['box', ink, [g * 0.2, 1.31, 0.5], [0.19, 0.055, 0.04], [0, 0, g * (look.style === 'spiky' ? 0.3 : look.tired ? -0.18 : -0.08)], '', 0]]));
-  // 发型：后脑勺一整块 + 额前几缕刘海 + 一道高光
-  const cap = ['sph', H, [0, 1.36, -0.1], [1.26, 0.9, 1.14], 0, '', 1];
-  const shine = ['sph', HL, [-0.2, 1.73, 0.1], [0.44, 0.1, 0.2], [0.25, 0, 0.3], '', 0];
-  const bang = (x, y, z, sx, sy, rz, k = '') => ['sph', H, [x, y, z], [sx, sy, 0.2], [0.32, 0, rz], k, 0];
-  const fringe = [bang(-0.38, 1.44, 0.36, 0.34, 0.34, 0.5), bang(-0.14, 1.47, 0.44, 0.34, 0.3, 0.2), bang(0.12, 1.47, 0.44, 0.34, 0.32, -0.15), bang(0.37, 1.44, 0.37, 0.34, 0.36, -0.5)];
-  const side = (len = 0.42, w = 0.22, k = '') => both((g) => [['cap', H, [g * 0.56, 1.36 - len * 0.8, 0.14], [w, len, 0.2], 0, k, 1]]);
-  const S = look.style;
-  if (S === 'spiky') P.push(cap, shine, ...[[-0.34, 1.74, 0.05, 0.55], [0, 1.86, 0, 0], [0.34, 1.74, 0.05, -0.55], [-0.22, 1.7, -0.4, 0.4], [0.22, 1.7, -0.4, -0.4], [0, 1.6, -0.62, 0]].map(([x, y, z, r]) => ['cone', H, [x, y, z], [0.32, 0.46, 0.32], [z < -0.5 ? -1.0 : -0.25, 0, r], '', 1]),
-    ['cone', H, [-0.26, 1.5, 0.42], [0.26, 0.32, 0.2], [2.2, 0, 0.35], '', 0], ['cone', H, [0.02, 1.52, 0.46], [0.24, 0.3, 0.2], [2.2, 0, 0], '', 0], ['cone', H, [0.28, 1.5, 0.42], [0.26, 0.32, 0.2], [2.2, 0, -0.35], '', 0]);
-  if (S === 'long') P.push(cap, shine, ...fringe, ['cap', H, [0, 0.84, -0.3], [1.16, 0.64, 0.5], 0, 'sway', 1], ...side(0.54, 0.2), ...bow(0.44, 1.64, 0.1, AC, 0.75));
-  if (S === 'messy') P.push(cap, shine, ...[[-0.36, 1.56, 0.3], [0.1, 1.64, 0.38], [0.4, 1.52, 0.28], [-0.1, 1.76, 0.1], [0.3, 1.74, -0.2], [-0.42, 1.62, -0.3], [0.05, 1.7, -0.5]].map(([x, y, z], n) => ['sph', H, [x, y, z], [0.44, 0.32, 0.38], [n, n * 0.7, 0], '', 1]),
-    ['cone', H, [0.08, 1.98, 0], [0.12, 0.36, 0.12], [0, 0, -0.6], 'sway', 1], bang(-0.2, 1.42, 0.44, 0.3, 0.3, 0.3), bang(0.22, 1.43, 0.43, 0.3, 0.28, -0.3));
-  if (S === 'wavy') P.push(cap, shine, ...[[-0.4, 1.0, -0.28], [0.4, 1.0, -0.28], [-0.46, 0.66, -0.2], [0.46, 0.66, -0.2], [0, 0.8, -0.42], [-0.2, 0.55, -0.35], [0.2, 0.55, -0.35]].map(([x, y, z]) => ['sph', H, [x, y, z], [0.52, 0.5, 0.44], 0, 'sway', 1]),
-    ['sph', H, [-0.3, 1.5, 0.4], [0.58, 0.3, 0.26], [0, 0, 0.45], '', 0], ['sph', H, [0.32, 1.46, 0.38], [0.38, 0.26, 0.24], [0, 0, -0.3], '', 0], ...both((g) => [['sph', H, [g * 0.56, 1.0, 0.18], [0.24, 0.5, 0.24], 0, 'sway', 1]]));
-  if (S === 'bob') P.push(cap, shine, ...fringe, ...both((g) => [['cap', H, [g * 0.56, 1.02, 0.02], [0.27, 0.43, 0.48], 0, '', 1]]), ['cap', H, [0, 0.98, -0.4], [1.02, 0.4, 0.3], 0, '', 1]);
-  if (S === 'pony') P.push(cap, shine, ...fringe, ...side(0.36, 0.18), ['sph', H, [0, 1.62, -0.6], [0.36, 0.36, 0.36], 0, '', 1], ['cap', H, [0, 1.1, -0.84], [0.36, 0.68, 0.36], [0.35, 0, 0], 'sway', 1], ...bow(0, 1.66, -0.5, AC, 0.85));
-  if (S === 'bun') P.push(cap, shine, ...fringe, ['sph', H, [0, 1.94, -0.2], [0.52, 0.46, 0.52], 0, '', 1], ['sph', HL, [-0.1, 2.08, -0.1], [0.2, 0.08, 0.14], [0, 0, 0.3], '', 0], ...side(0.34, 0.18));
-  if (S === 'bun2') P.push(cap, shine, ...fringe, ...both((g) => [['sph', H, [g * 0.54, 1.84, -0.1], [0.46, 0.46, 0.46], 0, '', 1], ['sph', HL, [g * 0.5, 1.98, 0.0], [0.18, 0.07, 0.12], 0, '', 0]]), ...side(0.34, 0.18, 'sway'));
-  if (S === 'buzz') P.push(['sph', H, [0, 1.39, -0.08], [1.2, 0.82, 1.1], 0, '', 1], ['sph', HL, [-0.2, 1.74, 0.08], [0.4, 0.08, 0.2], [0.25, 0, 0.3], '', 0]);
-  if (S === 'twin') P.push(cap, shine, ...both((g) => [['cap', H, [g * 0.76, 0.98, -0.08], [0.38, 0.52, 0.38], [0, 0, g * 0.35], 'sway', 1]]),
-    ...bow(-0.6, 1.44, -0.02, AC, 1.1), ...bow(0.6, 1.44, -0.02, AC, 1.1),
-    ['sph', H, [-0.25, 1.52, 0.4], [0.46, 0.28, 0.26], [0, 0, 0.3], '', 0], ['sph', H, [0.25, 1.52, 0.4], [0.46, 0.28, 0.26], [0, 0, -0.3], '', 0], ['sph', H, [0, 1.58, 0.42], [0.36, 0.26, 0.24], 0, '', 0], ['cone', H, [0, 1.92, -0.05], [0.1, 0.3, 0.1], [0, 0, 0.5], 'sway', 0]);
-  // 头上的小东西：发带、帽子、泳镜、耳机……都做成贴着头的圆环，不再是一块板
-  const headRing = (c, y, thick = 1, k = '') => ['ring', c, [0, y, -0.03], [1.2, 1.12, 2.2 * thick], [HP_ - 0.1, 0, 0], k, 0];
-  if (look.flower) P.push(...[0, 1, 2, 3, 4].map((n) => ['sph', AC, [-0.46 + Math.cos(n * 1.257) * 0.1, 1.44 + Math.sin(n * 1.257) * 0.1, 0.36], [0.12, 0.12, 0.07], 0, '', 0]), ['sph', 0xfff1a8, [-0.46, 1.44, 0.4], [0.09, 0.09, 0.05], 0, '', 0]);
-  if (look.cap) P.push(['sph', look.cap, [0, 1.52, -0.05], [1.3, 0.7, 1.2], 0, '', 1], ['cyl', look.cap, [0, 1.47, 0.62], [0.86, 0.06, 0.6], [0.2, 0, 0], '', 1], ['sph', T, [0, 1.88, -0.05], [0.15, 0.1, 0.15], 0, '', 0], ['box', T, [0, 1.6, 0.52], [0.26, 0.16, 0.03], [-0.5, 0, 0], '', 0]);
-  if (look.swimcap) P.push(['sph', look.swimcap, [0, 1.38, -0.06], [1.3, 0.96, 1.18], 0, '', 1], headRing(T, 1.42, 0.5), bang(-0.2, 1.36, 0.47, 0.22, 0.2, 0.4), bang(0.2, 1.36, 0.47, 0.22, 0.2, -0.4));
-  if (look.goggles2) P.push(headRing(0x2a2f3a, 1.64, 0.5), ...both((g) => [['cyl', 0xff8fb8, [g * 0.21, 1.66, 0.5], [0.27, 0.1, 0.22], [HP_ - 0.25, 0, 0], '', 1], ['cyl', 0xd8f4ff, [g * 0.21, 1.675, 0.545], [0.19, 0.03, 0.15], [HP_ - 0.25, 0, 0], 'glow', 0]]));
-  if (look.scarf) P.push(['sph', look.scarf, [0, 1.6, -0.06], [1.3, 0.56, 1.2], [0.12, 0, 0], '', 1], ['cone', look.scarf, [0, 1.42, -0.62], [0.3, 0.36, 0.14], [PI - 0.5, 0, 0], 'sway', 0], ...[[-0.3, 1.72, 0.3], [0.2, 1.8, 0.1], [0.4, 1.66, -0.3]].map(([x, y, z]) => ['sph', 0xffffff, [x, y, z], [0.09, 0.05, 0.09], 0, '', 0]));
-  if (look.mask) P.push(['cap', look.mask, [0, 1.58, 0.42], [0.2, 0.44, 0.14], [0.3, 0, HP_], '', 1], ...both((g) => [['arc', 0xffffff, [g * 0.2, 1.6, 0.52], [0.16, 0.12, 0.1], [0.3, 0, PI], '', 0]]), headRing(look.mask, 1.56, 0.3));
-  if (look.phones) P.push(['arc', look.phones, [0, 1.2, -0.02], [1.34, 1.42, 1.6], 0, '', 1], ...both((g) => [['cyl', look.phones, [g * 0.64, 1.16, 0], [0.42, 0.18, 0.42], [0, 0, HP_], '', 1], ['cyl', T, [g * 0.74, 1.16, 0], [0.24, 0.04, 0.24], [0, 0, HP_], 'glow', 0]]));
-  if (look.band2) P.push(headRing(look.band2, 1.5, 1));
-  if (look.band) P.push(headRing(look.band, 1.5, 1), ['box', look.band, [0.14, 1.36, -0.72], [0.1, 0.34, 0.04], [0.4, 0, 0.3], 'sway', 0], ['box', look.band, [-0.1, 1.34, -0.72], [0.1, 0.3, 0.04], [0.5, 0, -0.25], 'sway', 0]);
-  if (look.armband) P.push(['cyl', look.armband, [-0.31 * W, 0.55, 0], [0.19, 0.1, 0.19], [0, 0, -0.22], 'armL', 0], ['box', 0xffe07a, [-0.33 * W, 0.55, 0.09], [0.08, 0.04, 0.02], 0, 'armL', 0]);
-  if (look.paint) P.push(['sph', 0xff6b6b, [0.37, 1.0, 0.47], [0.11, 0.08, 0.04], 0, '', 0], ['sph', 0x4aa8ff, [-0.12, 0.5, 0.25], [0.09, 0.09, 0.03], 0, '', 0], ['sph', 0xffd23f, [0.1, 0.36, 0.25], [0.08, 0.08, 0.03], 0, '', 0], ['sph', 0x5fd07a, [-0.3, 1.22, 0.42], [0.07, 0.05, 0.03], 0, '', 0]);
-  if (look.glasses) P.push(...both((g) => [['ring', 0x8a3a4a, [g * 0.21, ey, 0.55], [0.36, 0.4, 0.5], 0, '', 0]]), ['box', 0x8a3a4a, [0, ey + 0.04, 0.55], [0.1, 0.03, 0.03], 0, '', 0]);
-  if (look.goggles) P.push(headRing(0x2a2f3a, 1.5, 0.5), ...both((g) => [['cyl', 0x5a6170, [g * 0.21, 1.52, 0.5], [0.3, 0.12, 0.28], [HP_ - 0.2, 0, 0], '', 1], ['cyl', 0x9fe8ff, [g * 0.21, 1.535, 0.555], [0.21, 0.03, 0.2], [HP_ - 0.2, 0, 0], 'glow', 0]]));
-  if (look.beret) P.push(['sph', look.beret, [0.1, 1.8, -0.06], [1.06, 0.34, 1.0], [0, 0, -0.2], '', 1], ['cyl', look.beret, [0.2, 1.97, -0.06], [0.08, 0.14, 0.08], [0, 0, -0.2], '', 0]);
-  const hx = 0.36, hy = 0.42, hz = 0.16;
-  if (look.item === 'bat') P.push(['box', 0xffd84d, [hx, hy + 0.3, hz + 0.2], [0.09, 0.95, 0.2], [0.8, 0, 0], 'armR', 1], ['box', 0x3a2416, [hx + 0.05, hy + 0.3, hz + 0.24], [0.02, 0.6, 0.04], [0.8, 0, 0], 'armR', 0]);
-  if (look.item === 'pencil') P.push(['cyl', 0xffc83d, [hx, hy + 0.1, hz + 0.15], [0.08, 0.6, 0.08], [1.2, 0, 0], 'armR', 1], ['cone', 0xf5d7a1, [hx, hy + 0.2, hz + 0.45], [0.08, 0.14, 0.08], [1.2, 0, 0], 'armR', 0]);
-  if (look.item === 'gun') P.push(['box', 0x5a6170, [hx, hy, hz + 0.2], [0.15, 0.17, 0.46], 0, 'armR', 1], ['box', 0x3a3f4a, [hx, hy - 0.13, hz + 0.08], [0.1, 0.18, 0.1], 0, 'armR', 0], ['box', 0xe2453a, [hx, hy + 0.09, hz + 0.1], [0.12, 0.04, 0.22], 0, 'armR', 0]);
-  if (look.item === 'wand') P.push(['cyl', 0xffffff, [hx, hy + 0.15, hz + 0.15], [0.05, 0.6, 0.05], [0.9, 0, 0], 'armR', 0], ['tet', 0xffe14d, [hx, hy + 0.38, hz + 0.4], [0.32, 0.32, 0.32], [0.6, 0.4, 0.8], 'armR glow spin', 1], ['sph', 0xff8fb8, [hx, hy + 0.12, hz + 0.08], [0.1, 0.1, 0.1], 0, 'armR', 0]);
-  if (look.item === 'tri') P.push(['box', 0x7fd8c8, [hx, hy + 0.2, hz + 0.25], [0.05, 0.5, 0.08], [0.9, 0, 0], 'armR', 1], ['box', 0x7fd8c8, [hx, hy + 0.02, hz + 0.38], [0.05, 0.08, 0.46], [0.9, 0, 0], 'armR', 1], ['box', 0x7fd8c8, [hx, hy + 0.2, hz + 0.44], [0.05, 0.62, 0.07], [1.6, 0, 0], 'armR', 0]);
-  if (look.item === 'mop') P.push(['cyl', 0xc9a06a, [hx, hy + 0.4, hz + 0.05], [0.06, 1.5, 0.06], [0.25, 0, 0], 'armR', 1], ['box', 0x9fe0ff, [hx, hy - 0.32, hz - 0.14], [0.46, 0.14, 0.2], [0.25, 0, 0], 'armR', 1], ['box', 0xffffff, [hx, hy - 0.4, hz - 0.16], [0.5, 0.1, 0.24], [0.25, 0, 0], 'armR', 0]);
-  if (look.item === 'plane') P.push(['cone', 0xffffff, [hx, hy + 0.34, hz + 0.24], [0.36, 0.56, 0.06], [1.3, 0, 0], 'armR', 1], ['box', 0xd8e8f0, [hx, hy + 0.3, hz + 0.2], [0.04, 0.12, 0.5], [-0.27, 0, 0], 'armR', 0]);
-  if (look.item === 'slipper') P.push(['sph', 0xff7a5a, [hx, hy + 0.14, hz + 0.24], [0.26, 0.1, 0.5], [0.5, 0, 0], 'armR', 1], ['sph', 0xfff1a8, [hx, hy + 0.24, hz + 0.34], [0.28, 0.16, 0.28], [0.5, 0, 0], 'armR', 1]);
-  if (look.item === 'blaster') P.push(['box', 0xff8fb8, [hx, hy, hz + 0.24], [0.2, 0.2, 0.5], 0, 'armR', 1], ['box', 0x4aa8ff, [hx, hy, hz + 0.02], [0.21, 0.21, 0.14], 0, 'armR', 0], ['box', 0x3a3f4a, [hx, hy - 0.15, hz + 0.1], [0.1, 0.16, 0.1], 0, 'armR', 0], ['box', 0xffffff, [hx, hy, hz + 0.5], [0.16, 0.16, 0.04], 0, 'armR', 0]);
-  if (look.item === 'mug') P.push(['cyl', 0xffffff, [hx, hy + 0.1, hz + 0.2], [0.26, 0.28, 0.26], 0, 'armR', 1], ['cyl', 0x6a3f1e, [hx, hy + 0.25, hz + 0.2], [0.22, 0.02, 0.22], 0, 'armR', 0], ['tor', 0xffffff, [hx + 0.16, hy + 0.1, hz + 0.2], [0.14, 0.14, 0.2], 0, 'armR', 0], ['sph', 0xffffff, [hx, hy + 0.5, hz + 0.2], [0.1, 0.16, 0.1], 0, 'armR hover', 0]);
-  if (look.item === 'sock') P.push(['cap', 0xf2f2e6, [hx, hy + 0.22, hz + 0.18], [0.16, 0.34, 0.16], 0, 'armR', 1], ['sph', 0x9ac84a, [hx, hy + 0.02, hz + 0.3], [0.18, 0.15, 0.32], 0, 'armR', 1], ['box', 0xe2453a, [hx, hy + 0.36, hz + 0.18], [0.17, 0.05, 0.17], 0, 'armR', 0]);
-  if (look.item === 'book') P.push(['box', 0xc84a4a, [hx, hy + 0.1, hz + 0.2], [0.34, 0.44, 0.1], [0.3, 0.4, 0], 'armR', 1], ['box', 0xffffff, [hx + 0.02, hy + 0.1, hz + 0.2], [0.3, 0.4, 0.07], [0.3, 0.4, 0], 'armR', 0], ['box', 0xffc93c, [hx - 0.04, hy + 0.14, hz + 0.27], [0.18, 0.06, 0.02], [0.3, 0.4, 0], 'armR', 0]);
-  if (look.item === 'lamp') P.push(['cyl', 0x3a3f4a, [hx, hy - 0.04, hz + 0.2], [0.24, 0.06, 0.24], 0, 'armR', 1], ['cyl', 0x3a3f4a, [hx, hy + 0.16, hz + 0.2], [0.04, 0.4, 0.04], 0, 'armR', 0], ['cone', 0xffd84d, [hx, hy + 0.42, hz + 0.26], [0.34, 0.26, 0.34], [0.5, 0, 0], 'armR', 1], ['sph', 0xfff6c0, [hx, hy + 0.34, hz + 0.32], [0.14, 0.14, 0.14], 0, 'armR glow', 0]);
-  if (look.item === 'duck') P.push(['sph', 0xffd23f, [hx, hy + 0.06, hz + 0.2], [0.36, 0.28, 0.42], 0, 'armR', 1], ['sph', 0xffd23f, [hx, hy + 0.28, hz + 0.32], [0.24, 0.24, 0.24], 0, 'armR', 1], ['cone', 0xff8a2a, [hx, hy + 0.26, hz + 0.46], [0.1, 0.12, 0.08], [HP_, 0, 0], 'armR', 0], ['sph', 0x2a1a22, [hx + 0.07, hy + 0.32, hz + 0.41], [0.04, 0.04, 0.03], 0, 'armR', 0]);
-  if (look.item === 'flag') P.push(['cyl', 0x7a5a40, [hx, hy + 0.35, hz], [0.05, 1.2, 0.05], 0, 'armR', 0], ['box', 0xff7eb6, [hx, hy + 0.78, hz - 0.22], [0.03, 0.32, 0.42], 0, 'armR flagw', 1]);
-  return P;
+function heroParts(look) {
+  return [['studentCard', 0xffffff, [0, 0, 0], [1, 1, 1], 0, '', 0, studentTexture(look)]];
 }
 const RIGS_DEF = {
   sleepy: [['sph', 0xe8dcff, [0, 0.42, 0], [1, 0.85, 0.95], 0, '', 1], ['cone', 0x7c6cff, [0.1, 0.95, -0.05], [0.45, 0.55, 0.45], [0, 0, -0.45], '', 1], ['sph', 0xffffff, [0.33, 1.13, -0.05], [0.17, 0.17, 0.17], 0, '', 1],
@@ -711,7 +602,7 @@ RIGS_DEF.kraken = (() => {
   return o;
 })();
 RIGS_DEF.sockP = [['cap', 0xf2f2e6, [0, 0.16, 0], [0.2, 0.42, 0.2], 0, '', 1], ['sph', 0x9ac84a, [0, -0.08, 0.14], [0.22, 0.18, 0.4], 0, '', 1], ['box', 0xe2453a, [0, 0.32, 0], [0.21, 0.06, 0.21], 0, '', 0], ['sph', 0x9ac84a, [0, 0.7, 0], [0.1, 0.16, 0.1], 0, 'hover glow', 0]];
-for (const id in CLASSES) RIGS_DEF['hero_' + id] = heroParts(CLASSES[id].look, id);
+for (const id in CLASSES) RIGS_DEF['hero_' + id] = heroParts(CLASSES[id].look);
 const RIG_CAP = { sockP: 6, sleepy: 260, cross: 300, bat: 220, clock: 120, ink: 260, ghost: 100, phone: 90, snail: 60, hourglass: 6, boss: 1, bossMissile: 12, minion: 24, lamp: 6, pencilP: 400, planeP: 120, staple: 500, eraser: 260, ruler: 48, paper: 100, bomber: 160, slipperP: 40, duck: 12, bookP: 12, chalk: 90, chalkP: 80, mole: 60, mound: 60, };
 const tP = new THREE.Vector3(), tQ = new THREE.Quaternion(), tS = new THREE.Vector3(), tE = new THREE.Euler();
 const wP = new THREE.Vector3(), wQ = new THREE.Quaternion(), wS = new THREE.Vector3(), wE = new THREE.Euler(0, 0, 0, 'YXZ');
@@ -750,22 +641,42 @@ function partMatrix(pt, e) {
 class Rig {
   constructor(parts, cap, lean) {
     this.n = 0; this.cap = cap;
-    this.scholar = parts[0]?.[5]?.startsWith('scholar:') === true;
-    this.lean = !!lean && !this.scholar;
+    this.student = parts[0]?.[0] === 'studentCard';
+    this.lean = !!lean && !this.student;
     this.parts = parts.map((pt) => {
-      const m = new THREE.InstancedMesh(GEO[pt[0]], scholarSculpt.materials[pt[0]] ?? toonMat, cap); m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); m.frustumCulled = false; m.count = 0; m.setColorAt(0, WHITE); scene.add(m);
+      let geometry = GEO[pt[0]], material = toonMat, cells;
+      const map = pt[7];
+      if (map) {
+        geometry = geometry.clone();
+        cells = new THREE.InstancedBufferAttribute(new Float32Array(cap * 3), 3).setUsage(THREE.DynamicDrawUsage);
+        geometry.setAttribute('studentCell', cells);
+        material = new THREE.MeshBasicMaterial({ map, side: THREE.DoubleSide, alphaTest: 0.35 });
+        useStudentCells(material);
+      }
+      const m = new THREE.InstancedMesh(geometry, material, cap); m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); m.frustumCulled = false; m.count = 0; m.setColorAt(0, WHITE); scene.add(m);
       let ol = null; if (pt[6]) { ol = new THREE.InstancedMesh(OGEO[pt[0]], outlineRigMat, cap); ol.instanceMatrix.setUsage(THREE.DynamicDrawUsage); ol.frustumCulled = false; ol.count = 0; scene.add(ol); }
       const k = pt[5] || '';
-      if (this.scholar) { const map = scholarSculpt.materials[pt[0]]?.map; m.userData.shadow = new THREE.InstancedMesh(GEO[pt[0]], castShadowMat(map), cap); const sm = m.userData.shadow; sm.instanceMatrix.setUsage(THREE.DynamicDrawUsage); sm.frustumCulled = false; sm.count = 0; sm.renderOrder = -1; scene.add(sm); }
-      return { pt, m, ol, joint: k.startsWith('scholar:') ? k.slice(8) : null, color: new THREE.Color(pt[1]), glow: k.includes('glow'), tint: k.includes('tint') };
+      if (cells) {
+        const shadowMaterial = campus.castShadowMaterial(map);
+        useStudentCells(shadowMaterial);
+        const sm = new THREE.InstancedMesh(geometry, shadowMaterial, cap);
+        sm.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+        sm.frustumCulled = false;
+        sm.count = 0;
+        sm.renderOrder = -1;
+        scene.add(sm);
+        m.userData.shadow = sm;
+      }
+      return { pt, m, ol, cells, color: new THREE.Color(pt[1]), glow: k.includes('glow'), tint: k.includes('tint') };
     });
   }
   push(e, world) {
     if (this.n >= this.cap) return; const i = this.n++;
     if (this.lean && leanAngle) { const el = LW.copy(world).elements, x = el[12], y = el[13], z = el[14]; el[12] = el[13] = el[14] = 0; LW.premultiply(LEAN_ROT); el[12] = x; el[13] = y; el[14] = z; world = LW; }
-    const bones = this.scholar ? poseScholar(e, realTime) : null;
     for (const P of this.parts) {
-      CM.multiplyMatrices(world, P.joint ? bones[P.joint] : partMatrix(P.pt, e)); P.m.setMatrixAt(i, CM);
+      if (P.cells) poseChibi(CM, P.cells, i, world, camera, e, realTime);
+      else CM.multiplyMatrices(world, partMatrix(P.pt, e));
+      P.m.setMatrixAt(i, CM);
       tC.copy(P.tint && e.tint ? e.tint : P.color); if (e.etint) tC.lerp(e.etint, 0.72).multiplyScalar(1.3);
       if (P.glow) tC.multiplyScalar(Math.min(e.glowMul || 1.2, 1.2));
       if (burning(e)) tC.lerp(ORANGE, 0.6 + 0.25 * Math.sin(realTime * 20 + i));
@@ -779,18 +690,16 @@ class Rig {
     }
   }
   end() {
-    for (const P of this.parts) { P.m.count = this.n; P.m.instanceMatrix.needsUpdate = true; if (P.m.instanceColor) P.m.instanceColor.needsUpdate = true; if (P.ol) { P.ol.count = this.n; P.ol.instanceMatrix.needsUpdate = true; } const sm = P.m.userData.shadow; if (sm) { sm.count = this.n; sm.instanceMatrix.needsUpdate = true; } }
+    for (const P of this.parts) { P.m.count = this.n; P.m.instanceMatrix.needsUpdate = true; if (P.m.instanceColor) P.m.instanceColor.needsUpdate = true; if (P.ol) { P.ol.count = this.n; P.ol.instanceMatrix.needsUpdate = true; } const sm = P.m.userData.shadow; if (sm) { P.cells.needsUpdate = true; sm.count = this.n; sm.instanceMatrix.needsUpdate = true; } }
     this.n = 0;
   }
 }
 const GHOSTC = new THREE.Color(0xdcefff);
-const SHM = new THREE.Matrix4(), shadowMats = new Map();
-// Rigs are built before the campus; the floor shader is attached once the campus exists.
-function castShadowMat(map) { const key = map ?? 'solid'; if (!shadowMats.has(key)) shadowMats.set(key, { map, mat: new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }) }); return shadowMats.get(key).mat; }
+const SHM = new THREE.Matrix4();
 // 镜头是俯视的：角色整体往后仰一点，脸和身体才看得见，不会只看到头顶
 const LW = new THREE.Matrix4(), LEAN_ROT = new THREE.Matrix4(), LEAN_AX = new THREE.Vector3(); let leanAngle = 0;
 const LEAN_RIGS = new Set([...Object.keys(ET), 'dean', 'coach', 'kraken', 'minion']);
-const RIGS = {}; for (const id in RIGS_DEF) RIGS[id] = new Rig(RIGS_DEF[id], RIG_CAP[id] ?? (id.startsWith('hero_') ? 4 : 1), id.startsWith('hero_') || LEAN_RIGS.has(id));
+const RIGS = {};
 const RIG_OF = (type) => type === 'inkmini' ? 'ink' : type;
 function worldM(x, y, z, yaw, sx, sy = sx, sz = sx, pitch = 0, roll = 0) { wE.set(pitch, yaw, roll, 'YXZ'); wQ.setFromEuler(wE); return WM.compose(wP.set(x, y, z), wQ, wS.set(sx, sy, sz)); }
 
@@ -803,8 +712,8 @@ function blot(x, z, r, color, n = 1, spread = 0) { const [cx, cz] = mk(x, z); mc
 function ringMark(x, z, r, color, w = 4) { const [cx, cz] = mk(x, z); mctx.strokeStyle = color; mctx.lineWidth = w; mctx.beginPath(); mctx.arc(cx, cz, r * MS, 0, TAU); mctx.stroke(); marksDirty = true; }
 function footprint(x, z, yaw, side) { const ox = Math.cos(yaw) * 0.16 * campusStudentScale * side, oz = -Math.sin(yaw) * 0.16 * campusStudentScale * side; const [cx, cz] = mk(x + ox, z + oz); mctx.save(); mctx.translate(cx, cz); mctx.rotate(-yaw); mctx.fillStyle = 'rgba(70,44,24,.14)'; mctx.beginPath(); mctx.ellipse(0, 0, 2.6, 4.2, 0, 0, TAU); mctx.fill(); mctx.restore(); marksDirty = true; }
 const RIPS = Array.from({ length: 8 }, () => new THREE.Vector4(0, 0, -100, 0));
-const campus = createCampus(markTex, uTime, RIPS);
-for (const entry of shadowMats.values()) { const real = campus.castShadowMaterial(entry.map); Object.assign(entry.mat, { map: real.map, alphaTest: real.alphaTest }); entry.mat.onBeforeCompile = real.onBeforeCompile; entry.mat.needsUpdate = true; }
+const campus = createCampus(markTex, uTime, RIPS, renderer);
+for (const id in RIGS_DEF) RIGS[id] = new Rig(RIGS_DEF[id], RIG_CAP[id] ?? (id.startsWith('hero_') ? 4 : 1), id.startsWith('hero_') || LEAN_RIGS.has(id));
 scene.add(campus.group);
 const itemArt = createCampusItems(scene);
 const GEM_CELLS = [ITEM.green, ITEM.blue, ITEM.gold];
@@ -820,7 +729,11 @@ function solid(geo, color, pos, scale, rot = [0, 0, 0], outline = true) {
 // 寻路：按追击目标缓存距离图，隔墙时顺着格子走门
 const FW = 2 * HX, FH = 2 * HZ, fBlock = new Uint8Array(FW * FH), fQ = new Int32Array(FW * FH), FD = [0, 0];
 const flowFields = new WeakMap();
-for (let j = 0; j < FH; j++) for (let i = 0; i < FW; i++) if (inWall(i - HX + 0.5, j - HZ + 0.5, 0.4)) fBlock[j * FW + i] = 1;
+for (let j = 0; j < FH; j++) {
+  for (let i = 0; i < FW; i++) {
+    fBlock[j * FW + i] = Number(inWall(i - HX + 0.5, j - HZ + 0.5, 0.4));
+  }
+}
 function lineBlocked(x0, z0, x1, z1) {
   const steps = Math.ceil(Math.max(Math.abs(x1 - x0), Math.abs(z1 - z0)) * 2);
   for (let k = 1; k < steps; k++) {
@@ -836,7 +749,7 @@ function buildFlow(fDist, ci, cj) {
     if (i > 0 && fDist[c - 1] < 0 && !fBlock[c - 1]) { fDist[c - 1] = d; fQ[t++] = c - 1; } if (i < FW - 1 && fDist[c + 1] < 0 && !fBlock[c + 1]) { fDist[c + 1] = d; fQ[t++] = c + 1; }
     if (j > 0 && fDist[c - FW] < 0 && !fBlock[c - FW]) { fDist[c - FW] = d; fQ[t++] = c - FW; } if (j < FH - 1 && fDist[c + FW] < 0 && !fBlock[c + FW]) { fDist[c + FW] = d; fQ[t++] = c + FW; } }
 }
-const regionOf = (x, z) => (z > -5.2 && z < 5.6 ? 0 : (z < 0 ? 1 : 3) + (x < 0 ? 0 : 1));
+const regionOf = (x, z) => (z > hallNorth && z < hallSouth ? 0 : (z < 0 ? 1 : 3) + (x < 0 ? 0 : 1));
 function flowDir(e, target) {
   const ci = clamp(Math.floor(target.x + HX), 0, FW - 1), cj = clamp(Math.floor(target.z + HZ), 0, FH - 1);
   let field = flowFields.get(target);
@@ -1396,7 +1309,7 @@ for (const h in RARE_SK) SKINS[h + '_r'] = { h, n: RARE_SK[h][0], r: 1, over: RA
 for (const h in LEG_SK) SKINS[h + '_l'] = { h, n: LEG_SK[h][0], r: 2, over: LEG_SK[h][1], aura: LEG_SK[h][2] };
 const skinOf = (h) => { const k = meta.skinOn[h]; return k && SKINS[k] && meta.skins.includes(k) ? k : ''; };
 function heroSkinParts(hero, skin) {
-  const parts = heroParts({ ...CLASSES[hero].look, ...skin.over }, hero);
+  const parts = heroParts({ ...CLASSES[hero].look, ...skin.over });
   if (skin.aura) parts.push(
     ['tor', skin.aura, [0, 2.02, 0], [0.64, 0.64, 0.42], [HP_, 0, 0], 'glow hover', 0],
     ['tor', skin.aura, [0, 0.05, 0], [1.8, 1.8, 0.2], [HP_, 0, 0], 'glow pulse', 0],
@@ -1411,11 +1324,9 @@ function heroRig(h, sk = skinOf(h)) {
   return RIGS[key];
 }
 function drawCampusStudent(rig, pose, x, y, z, yaw) {
-  const bounce = rig.scholar ? 1 : 1 + Math.sin(pose.ph * 2) * 0.02 * pose.moving;
-  const s = campusStudentScale * (rig.scholar ? scholarSize : 1);
-  rig.push(pose, worldM(x, y, z, yaw, s, s * bounce, s));
-  // The scholar casts a projected shadow with the furniture; keep a faint contact blob.
-  shadow(x, z, (rig.scholar ? 0.3 : 0.55) * s);
+  const scale = campusStudentDrawScale(x, z);
+  rig.push(pose, worldM(x, y, z, yaw, scale));
+  shadow(x, z, 0.3 * scale);
 }
 /* ---------- 大鹅抽卡与碎片成长 ---------- */
 const GACHA = { one: 30, ten: 270, pity: 80, legendary: 0.05, rareSkin: 0.05, rareFragment: 0.30, duplicateBack: { 1: 10, 2: 25 } };
@@ -1956,9 +1867,10 @@ function spinPos(i, n, s, rr, evo) {
   return [player.x + Math.cos(a) * r, player.z + Math.sin(a) * r, a];
 }
 const hand = () => {
-  const offset = 0.35 * campusStudentScale;
+  const scale = campusStudentDrawScale(player.x, player.z);
+  const offset = 0.35 * scale;
   const sin = Math.sin(player.yaw), cos = Math.cos(player.yaw);
-  return { x: player.x + (sin + cos) * offset, y: 0.85 * campusStudentScale, z: player.z + (cos - sin) * offset };
+  return { x: player.x + (sin + cos) * offset, y: 0.85 * scale, z: player.z + (cos - sin) * offset };
 };
 function shoot(rig, x, y, z, yaw, sp, life, dmg, tag, o = {}) {
   const ec_ = ecRand(CW); if (ec_ != null) o = { el: ec_, tint: new THREE.Color(ec_), elc: ELT[ec_] || (ELT[ec_] = new THREE.Color(ec_)), ...o };
@@ -2050,7 +1962,6 @@ function fire(dt) {
       if (used.size && clsId === 'scholar') {
         const target = used.values().next().value;
         player.scholarShotAt = realTime;
-        player.scholarInterruptedIdle = player.scholarIdle;
         player.scholarIdle = 0;
         player.scholarAim = Math.atan2(target.x - player.x, target.z - player.z);
       }
@@ -2349,7 +2260,7 @@ function scatterPoints(n, gap = 5) {
 function startTask(force) {
   const types = Object.keys(TASKS), type = TASKS[force] ? force : types[(Math.random() * types.length) | 0];
 
-  const spots = taskSites, far = (q) => Math.hypot(q.x - player.x, q.z - player.z);
+  const spots = type === 'traps' || type === 'mop' ? taskSites : encounterSites, far = (q) => Math.hypot(q.x - player.x, q.z - player.z);
   let pool = spots.filter((q, i) => i !== lastSpot && far(q) > 7 && far(q) < 36); if (!pool.length) pool = spots.filter((q, i) => i !== lastSpot); if (!pool.length) pool = spots;
   const spot = pool[(Math.random() * pool.length) | 0]; lastSpot = spots.indexOf(spot);
   const x = spot.x, z = spot.z, crew = NET && NET.on ? NET.n : 1;
@@ -2432,20 +2343,25 @@ function drawTask(dt) {
 /* ================= 地图遗物 ================= */
 const rBeam = new THREE.Mesh(beam.geometry, new THREE.ShaderMaterial({ uniforms: { uColor: { value: new THREE.Color(0xffc93c) }, uTime }, transparent: true, depthWrite: false, toneMapped: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, vertexShader: beamMat.vertexShader, fragmentShader: beamMat.fragmentShader }));
 rBeam.visible = false; scene.add(rBeam);
-// 四个角落各有一个出怪口：每隔几秒轮流涌出一小队，朝玩家走过来
+// 所有传送门共用一个计时器，每波由一扇门放出一队。
 const PORTALS = portalSites.map(([x,z]) => ({x, z, flash: 0}));
 for (const portal of PORTALS) {
-  Object.assign(portal, buildInkPortal());
+  Object.assign(portal, buildInkPortal(true));
   portal.mesh.position.set(portal.x, 0, portal.z);
   portal.rim.position.copy(portal.mesh.position);
   scene.add(portal.mesh, portal.rim);
 }
 let portalAcc = 0, portalI = 0;
 function portalWave() {
-  const p = PORTALS[portalI++ % 4], pool = SPAWN_TABLE.filter((t) => T >= t[1] && !isProjectileEnemy(t[0]) && !['bomber', 'mole', 'snail'].includes(t[0])), n = Math.min(12, 4 + Math.floor(T / 50));
+  const p = PORTALS[portalI++ % PORTALS.length];
+  const pool = SPAWN_TABLE.filter((t) => T >= t[1] && !isProjectileEnemy(t[0]) && !['bomber', 'mole', 'snail'].includes(t[0])), n = Math.min(12, 4 + Math.floor(T / 50));
   for (let k = 0; k < n; k++) {
     const a = rnd(0, TAU), r = rnd(0.2, 1.9), type = pool[(Math.random() * pool.length) | 0][0];
-    queuedEnemySpawns.push(() => spawn(type, p.x + Math.cos(a) * r, p.z + Math.sin(a) * r));
+    queuedEnemySpawns.push(() => {
+      const enemy = spawn(type, p.x + Math.cos(a) * r, p.z + Math.sin(a) * r);
+      if (enemy) pushOutWalls(enemy, enemy.r);
+      return enemy;
+    });
   }
   p.flash = 1; ringFx(p.x, p.z, 3.4, 0xc89aff, 0.6); spark(p.x, 0.6, p.z, 0xc89aff, 30, 7, 0.4, 0.7); dust(p.x, p.z, 16, 5);
 }
@@ -2453,7 +2369,9 @@ function drawPortals(dt) {
   for (const p of PORTALS) {
     p.mesh.visible = p.rim.visible = state !== 'title';
     p.flash = Math.max(0, p.flash - dt * 1.2);
-    p.mesh.rotation.y += dt * (0.7 + p.flash * 5);
+    const spin = dt * (0.7 + p.flash * 5);
+    if (p.mesh.userData.inkPhase) p.mesh.userData.inkPhase.value += spin;
+    else p.mesh.rotation.y += spin;
     p.mesh.scale.setScalar(1 + Math.sin(realTime * 2.2 + p.x) * 0.035 + p.flash * 0.10);
     p.mesh.material.color.setScalar(1 + p.flash);
   }
@@ -2469,7 +2387,7 @@ function spawnAltar() {
     if (Math.hypot(x - player.x, z - player.z) > 11 && !inWall(x, z, 2.8)) break;
   }
   if (Math.hypot(x - player.x, z - player.z) <= 11 || inWall(x, z, 2.8)) {
-    const safe = taskSites.filter((p) => Math.hypot(p.x - player.x, p.z - player.z) > 11);
+    const safe = encounterSites.filter((p) => Math.hypot(p.x - player.x, p.z - player.z) > 11);
     ({ x, z } = safe[Math.floor(Math.random() * safe.length)]);
   }
   altars.push({ id: ++worldSeq, x, z, age: 0 });
@@ -2785,7 +2703,8 @@ const SKILL_FORM_ICONS = { base: 'skills', evo: 'ultimates', alt: 'alternateUlti
 function illustration(category, id) {
   const item = FRAGMENT_POOLS[category]?.[id];
   const directory = ICON_DIRECTORIES[item?.iconCategory ?? category];
-  return `<img class="item-illustration" src="./${directory}/${item?.icon ?? id}.webp" width="48" height="48" alt="">`;
+  const src = category === 'heroes' && CLASSES[id] ? studentIcon(CLASSES[id].look) : `./${directory}/${item?.icon ?? id}.webp`;
+  return `<img class="item-illustration" src="${src}" width="48" height="48" alt="">`;
 }
 const illustratedBadge = (category, id, color, size) =>
   `<span class="ico illustrated" style="--c:${color}${size ? `;--s:${size}px` : ''}">${illustration(category, id)}</span>`;
@@ -2810,21 +2729,19 @@ function skinPortrait(hero, skinId, rigId) {
   const portrait = new THREE.Scene();
   const model = new THREE.Group();
   const materials = new Map();
-  const bones = parts[0]?.[5]?.startsWith('scholar:') ? poseScholar({ scholarIdle: 0 }, 0) : null;
-  for (const [shape, color, position, scale, rotation, effect, outlined] of parts) {
+  for (const [shape, color, position, scale, rotation, effect, outlined, map] of parts) {
     const glow = effect.includes('glow');
-    const sculpted = shape.startsWith('scholar_');
-    const materialKey = sculpted ? shape + color : color + (glow ? 0x1000000 : 0);
-    if (!materials.has(materialKey)) materials.set(materialKey, glow ? new THREE.MeshBasicMaterial({ color }) : sculpted ? scholarSculpt.tintedMaterial(shape, color) : toonOf(color));
-    const part = new THREE.Mesh(GEO[shape], materials.get(materialKey));
-    if (effect.startsWith('scholar:')) {
-      part.matrix.copy(bones[effect.slice(8)]);
-      part.matrixAutoUpdate = false;
-    } else {
-      part.position.fromArray(position);
-      part.scale.fromArray(scale);
-      if (rotation) part.rotation.fromArray(rotation);
+    const materialKey = map ?? color + (glow ? 0x1000000 : 0);
+    if (!materials.has(materialKey)) {
+      const material = map ? new THREE.MeshBasicMaterial({ map, alphaTest: 0.35, side: THREE.DoubleSide })
+        : glow ? new THREE.MeshBasicMaterial({ color }) : toonOf(color);
+      materials.set(materialKey, material);
     }
+    const part = new THREE.Mesh(GEO[shape], materials.get(materialKey));
+    part.position.fromArray(position);
+    part.scale.fromArray(scale);
+    if (rotation) part.rotation.fromArray(rotation);
+    if (map) part.rotation.y = Math.atan2(1.6, 5);
     if (outlined) {
       const outline = new THREE.Mesh(part.geometry, outlineMat);
       outline.scale.setScalar(1.15);
@@ -3472,7 +3389,7 @@ function netTick(dt) {
     const distance = Math.hypot(dx, dz);
     if (distance > 8) { p.x = p.tx; p.z = p.tz; }
     else { p.x += dx * k; p.z += dz * k; }
-    if (p.h === 'scholar') advanceScholar(p.ps, distance > 8 ? 0 : k * distance, p.yaw || 0, dt, PLAYER_SPEED);
+    advanceScholar(p.ps, distance > 8 ? 0 : k * distance, p.yaw || 0, dt, PLAYER_SPEED, distance > 8 ? 0 : k * dx);
     p.ps.moving = p.mv || 0; p.ps.ph += (p.mv || 0) * dt * 14; p.ps.ghostly = p.dead;
   }
   player.ghostly = !!player.ghost;
@@ -3816,7 +3733,10 @@ function drawPeers(team) {
     const me = id === team.id;
     const p = me ? player : team.peers[id];
     ring.visible = !!p && !(me ? p.ghost : p.dead);
-    if (ring.visible) ring.position.set(p.x, 0.06, p.z);
+    if (ring.visible) {
+      ring.position.set(p.x, 0.06, p.z);
+      ring.scale.setScalar(campusStudentDrawScale(p.x, p.z) / campusStudentScale);
+    }
     if (!p || me || !CLASSES[p.h]) return;
     const lift = p.dead ? 0.35 + Math.sin(realTime * 3 + p.ps.seed * 9) * 0.12 : 0;
     drawCampusStudent(heroRig(p.h, SKINS[p.sk] ? p.sk : ''), p.ps, p.x, lift, p.z, p.yaw || 0);
@@ -3859,7 +3779,7 @@ function drawPeerMarkers(team) {
     marker.el.classList.toggle('grave', !!dead);
     const name = me ? '你的坟墓' : dead ? `${p.name}的坟墓` : p.name;
     if (marker.label.textContent !== name) marker.label.textContent = name;
-    v3.set(target.x, dead ? 1.15 : 2.65 * campusStudentScale, target.z).applyMatrix4(camera.matrixWorldInverse);
+    v3.set(target.x, dead ? 1.15 : 2.65 * campusStudentDrawScale(target.x, target.z), target.z).applyMatrix4(camera.matrixWorldInverse);
     const depth = camera.isOrthographicCamera ? 1 : Math.max(Math.abs(v3.z), 0.001);
     const dx = cx * axes[0] * v3.x / depth;
     const dy = -cy * axes[5] * v3.y / depth || (v3.z >= 0 && !dx ? 1 : 0);
@@ -3995,7 +3915,12 @@ function startRun() {
     if (id !== 'maxHp' && id !== 'points') st[id] += growthBonus(id);
   }
   Object.assign(player, { x: 0, z: 0, vx: 0, vz: 0, yaw: 0, hp: maxHp, maxHp, speed: PLAYER_SPEED, magnet: 2.4, lvl: 1, xp: 0, need: 5, kills: 0, weapons: { [cls.start]: 1 }, wup: {}, elem: {}, sp: {}, arts: {}, koi: 0, shield: false, st, relics: {}, evo: {}, alt: {}, duos: {}, spinT: 0, slowT: 0, healPending: 0, lastHeal: null, iframe: 0, ghost: 0, dark: false });
-  if (clsId === 'scholar') Object.assign(player, { scholarGait: 0, scholarPhase: 0, scholarTurn: 0, scholarYaw: 0, scholarIdle: 0, scholarShotAt: -99, scholarAim: 0 });
+  const previewRoom = saveParams.get('room');
+  if (localPreview && !NET?.on && Object.hasOwn(roomViews, previewRoom)) {
+    const feet = previewRoom === 'art' ? [411, 502] : roomViews[previewRoom].feet;
+    [player.x, player.z] = floorPoint(...feet);
+  }
+  Object.assign(player, { scholarFacingLeft: false, scholarGait: 0, scholarPhase: 0, scholarTurn: 0, scholarYaw: 0, scholarIdle: 0, scholarShotAt: -99, scholarAim: 0 });
   rerollCost = REROLL_BASE_COST; player.revives = DF().revive; watchT = 12; shieldT = 10; bellT = 30; warmT = 0; player.retakeUsed = false; player.errN = 0; player.lunchN = 0; player.puddleT = -9; $('rmark').hidden = true;
   mctx.clearRect(0, 0, 1024, 1024); marksDirty = true;
   endlessWaveStartedAt = waveSpawnBudget = null;
@@ -4811,7 +4736,7 @@ function updateMatch(dt) {
   pushOutProps(player, campusStudentRadius);
   const sp = Math.hypot(player.vx, player.vz); player.moving = clamp(sp / 3, 0, 1); player.ph += sp * dt * 2.6;
   if (sp > 0.5) { const ty = Math.atan2(player.vx, player.vz); let d = ty - player.yaw; d = Math.atan2(Math.sin(d), Math.cos(d)); player.yaw += d * Math.min(1, dt * 12); }
-  if (clsId === 'scholar') advanceScholar(player, Math.hypot(player.x - fromX, player.z - fromZ), player.yaw, dt, PLAYER_SPEED);
+  advanceScholar(player, Math.hypot(player.x - fromX, player.z - fromZ), player.yaw, dt, PLAYER_SPEED, wx * spd * dt);
   player.spinT = Math.max(0, player.spinT - dt * 5); player.hit = Math.max(0, player.hit - dt * 5);
   player.stepAcc += sp * dt; if (player.stepAcc > 0.5) { player.stepAcc = 0; player.stepSide *= -1; footprint(player.x, player.z, player.yaw, player.stepSide); }
   if (!player.ghost) restoreHealth(player, player.st.regen * dt);
@@ -4835,7 +4760,7 @@ function updateMatch(dt) {
       }
     }
   }
-  portalAcc += dt; if (portalAcc >= (T < 20 ? 20 : 7) && !boss) { portalAcc = 0; if (!ev.portal) { ev.portal = true; banner('角落的洞开了', '怪会从四个角落一队一队走出来'); } portalWave(); }
+  portalAcc += dt; if (portalAcc >= (T < 20 ? 20 : 7) && !boss) { portalAcc = 0; if (!ev.portal) { ev.portal = true; banner('传送门开启', '八个传送门轮流出怪，每波一队'); } portalWave(); }
   }
   const minute = Math.floor(T / EVT);
   if (minute > 0 && !ev['m' + minute] && !boss && T < nextBoss) { ev['m' + minute] = true; minuteEvent(minute); }
@@ -5333,7 +5258,7 @@ function draw(dt) {
     drawCampusStudent(heroRig(clsId), player, player.x, lift, player.z, yaw);
     if (sweepFx.t > 0) { sweepFx.t -= dt * 4.2; const p = 1 - sweepFx.t, arc = sweepFx.arc || TAU, a0 = HP_ - (sweepFx.yaw || 0) + arc / 2, r = sweepFx.r, sc = r / 1.6; STILL.etint = elT('sweep');
       // 尺子本体加几道残影，注入元素后本体和残影都变成元素的颜色
-      for (let g = 0; g < 4; g++) { const pp = p - g * 0.08; if (pp < 0) break; const a = a0 - pp * arc, k = 1 - g * 0.17; if (g) STILL.etint = elT('sweep', g) || STILL.etint; RIGS.ruler.push(STILL, worldM(player.x + Math.cos(a) * r * 0.52, 0.8 * campusStudentScale - g * 0.03, player.z + Math.sin(a) * r * 0.52, -a, sc * k, 1.6 * k, sc * 0.8 * k)); }
+      for (let g = 0; g < 4; g++) { const pp = p - g * 0.08; if (pp < 0) break; const a = a0 - pp * arc, k = 1 - g * 0.17; if (g) STILL.etint = elT('sweep', g) || STILL.etint; RIGS.ruler.push(STILL, worldM(player.x + Math.cos(a) * r * 0.52, 0.8 * campusStudentDrawScale(player.x, player.z) - g * 0.03, player.z + Math.sin(a) * r * 0.52, -a, sc * k, 1.6 * k, sc * 0.8 * k)); }
       STILL.etint = null; const a = a0 - p * arc;
       spark(player.x + Math.cos(a) * r * 0.98, 0.8, player.z + Math.sin(a) * r * 0.98, pc('sweep'), EC('sweep') != null ? 6 : 4, 2.5, 0.38, 0.35, EC('sweep') === ELC.fire ? -3 : 0); }
   } else {
@@ -5344,8 +5269,9 @@ function draw(dt) {
       if (!prep) { const col = Math.floor(i / 3), row = i % 3, sp = port ? 1.15 : 1.6; x = (col - 2 + (row === 1 ? 0.5 : 0)) * sp * (1 + row * 0.06); z = -0.2 - row * 1.5; base = row * 0.62; sc = port ? 0.95 : 1.0; yaw = Math.sin(realTime * 0.8 + i) * 0.25; y = Math.pow(Math.max(0, Math.sin(realTime * 2.4 - i * 0.8)), 10) * 0.6; }
       else if (Math.abs(i - selF) > 2.6) return;
       else { const a = (i - selF) * 0.6, f = Math.max(0, 1 - Math.abs(i - selF)); x = Math.sin(a) * 3.6; z = -1 - (1 - Math.cos(a)) * 5; sc = 0.9 + 0.6 * f; yaw = f > 0.5 ? Math.sin(realTime * 1.3) * 0.4 : -a * 0.5; y = f * 0.22 + (sel && !lk ? Math.abs(Math.sin(realTime * 4.5)) * 0.22 : 0); }
-      if (prep && sel && id === 'scholar') y = .22;
-      const pseudo = { ph: sel && !lk ? realTime * 8 : 0, hit: 0, seed: i * 0.13, moving: sel && !lk && id !== 'scholar' ? 0.6 : 0, glowMul: 2.4, dark: lk && prep };
+      if (sel) y = .22;
+      const pseudo = { ph: sel && !lk ? realTime * 8 : 0, hit: 0, seed: i * 0.13, moving: 0, glowMul: 2.4, dark: lk && prep };
+      if (sel && !lk && !REDUCED) pseudo.podiumIdle = true;
       heroRig(id).push(pseudo, worldM(x + TX, y + base, z + TZ, yaw, sc)); if (!base) shadow(x + TX, z + TZ, 0.55 * sc);
     });
   }
@@ -5521,7 +5447,7 @@ function draw(dt) {
     if (titleStep === 'gacha') torch.position.set(0.2, 4.6, GZ + 4); else torch.position.set(TX, 4.2, TZ + 4.5);
   } else {
     const aspect = innerWidth / innerHeight;
-    const halfHeight = skillDemoMode ? 4.2 * Math.max(1, 1.65/aspect) : 10.8 * camK;
+    const halfHeight = skillDemoMode ? 4.2 * Math.max(1, 1.65/aspect) : Math.min(10.8 * camK, HX / aspect);
     if (camera.top !== halfHeight || camera.right !== halfHeight * aspect) {
       camera.top = halfHeight; camera.bottom = -halfHeight;
       camera.right = halfHeight * aspect; camera.left = -camera.right;
@@ -5529,7 +5455,9 @@ function draw(dt) {
     }
     if (skillDemoMode) camLook.set(DEMO_X+2, 0.65, DEMO_Z);
     else camLook.lerp(v3.set(player.x, 0, player.z), Math.min(1, dt*6));
-    const x = camLook.x + rnd(-shk, shk), z = camLook.z + rnd(-shk, shk);
+    const x = THREE.MathUtils.clamp(camLook.x + rnd(-shk, shk), -HX + camera.right, HX - camera.right);
+    const depth = halfHeight / Math.sin(campusElevation);
+    const z = THREE.MathUtils.clamp(camLook.z + rnd(-shk, shk), -mapHalfDepth + depth, mapHalfDepth - depth);
     camera.position.set(x, camLook.y + 32*Math.sin(campusElevation), z + 32*Math.cos(campusElevation));
     camera.lookAt(x, camLook.y, z);
     torch.position.set(player.x, 3.2 * campusStudentScale, player.z);
