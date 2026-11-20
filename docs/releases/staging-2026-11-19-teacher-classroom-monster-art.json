@@ -1,0 +1,24 @@
+{
+  "status": "deployed",
+  "at": "2026-11-20T03:05:03Z",
+  "environment": "staging",
+  "revision": "632ea357c42cb55390c437dbd0ec2c69ae6ec6a2",
+  "deploymentId": "dc662e91-1c11-4fb2-a91c-1c29df90a30e",
+  "previousRevision": "2a8f947a57320785234259a37345b0b8e559b6f6",
+  "changes": {
+    "teacher": "Practice header classroom selector and add action for TEACHER accounts, ordered draft practice, and problem-bank cleanup.",
+    "game": "Sixteen reviewed monster designs in combat, the codex, and arrival notices, plus contact-pursuit stabilization. Revision 96f0cd8e from PR #81 supplies the integrated hit effects and animation."
+  },
+  "source": {
+    "teacher": "codex/teacher-classroom-local",
+    "monsterAtlas": "codex/brawl-pr81-preview worktree, roster-monsters.png",
+    "hitEffects": "https://github.com/bochendong/syntara_production/pull/81"
+  },
+  "verification": {
+    "staging": "Railway SUCCESS, matching public revision and healthy staging endpoint, teacher sign-in and native web entry return HTTP 200. The entry JavaScript and seven game assets match the local release build.",
+    "nativeWebBundleSha256": "16ffba3e58f41a8bf2d7229cf7886d880f58e7084a1a1791014031545fd64d19",
+    "teacher": "Local fixtures verified teacher-only access, session defaults, changing the selection, and adding the current question. No live classroom was written for verification.",
+    "game": "Seventeen game regressions passed. The atlas and instance tests covered sixteen kinds, fallback, hit flash, and frame reset. A local single-player round rendered the new models and hit flash without browser errors.",
+    "schema": "No Prisma schema or migration changes in the release."
+  }
+}
