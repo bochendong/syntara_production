@@ -4,6 +4,7 @@ import { scholarLook, studentCardGeometry, poseChibi, studentIcon, studentTextur
 import { buildInkPortal, buildPortraitRoom } from './campus-models.js?v=painted-court';
 import { castShadowMatrix } from './campus-mesh.js';
 import { createCampusItems, ITEM } from './campus-items.js';
+import { createMonsterArt, monsterIllustration } from './monster-art.js';
 import { createCampus, floorPoint, campusElevation, campusStudentDrawScale, campusStudentScale, campusStudentRadius, taskSites, encounterSites, portalSites, insideCampusObstacle, resolveCampusObstacles } from './campus.js?v=eight-portals';
 import { createGachaTheater, spinTurns, CAST_TIME, CONTACT_TIME, CARD_TIME } from './gacha-theater.js';
 import { createGameAudio } from './game-audio.js?v=hit-feel';
@@ -335,6 +336,7 @@ const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'hi
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 $('stage').appendChild(renderer.domElement);
 const scene = new THREE.Scene();
+const monsterArt = createMonsterArt(scene);
 scene.background = new THREE.Color(0xeadcc2);
 scene.fog = new THREE.Fog(0xeadcc2, 50, 110);
 const titleCamera = new THREE.PerspectiveCamera(32, 1, 0.1, 200);
@@ -2711,6 +2713,10 @@ const ICON_DIRECTORIES = {
 };
 const SKILL_FORM_ICONS = { base: 'skills', evo: 'ultimates', alt: 'alternateUltimates' };
 function illustration(category, id) {
+  if (category === 'mons') {
+    const art = monsterIllustration(id);
+    if (art) return art;
+  }
   const item = FRAGMENT_POOLS[category]?.[id];
   const directory = ICON_DIRECTORIES[item?.iconCategory ?? category];
   const src = category === 'heroes' && CLASSES[id] ? studentIcon(CLASSES[id].look) : `./${directory}/${item?.icon ?? id}.webp`;
@@ -5050,7 +5056,9 @@ function update(dt) {
     const dx = tx - e.x, dz = tz - e.z, d = Math.hypot(dx, dz) || 1;
     const sockSlowed = e.sockSlow > 0;
     let s = (e.demoSpeed ?? chaseSpeed) * (!sockSlowed && e.slow > 0 ? 0.45 : 1), ux = dx / d, uz = dz / d;
-    if (!e.fly && (regionOf(e.x, e.z) !== regionOf(tx, tz) || (d > 2.5 && lineBlocked(e.x, e.z, tx, tz))) && flowDir(e, pursuit)) { ux = FD[0]; uz = FD[1]; }
+    const followingPath = !e.fly && (regionOf(e.x, e.z) !== regionOf(tx, tz) || (d > 2.5 && lineBlocked(e.x, e.z, tx, tz))) && flowDir(e, pursuit);
+    if (followingPath) { ux = FD[0]; uz = FD[1]; }
+    const scriptedTravel = e.dash > 0 || e.rushT > 0 || e.leap || e.inv;
     e.cdA -= dt;
     switch (e.type) {
       case 'sleepy': if (e.sleep > 0) { e.sleep -= dt; s = 0; if (Math.random() < 0.02) burst(e.x, 1.2, e.z, 0x9a8cff, 1, 0.5, 0.25, 1.2, -1); } else if (e.cdA <= 0) { e.cdA = rnd(5, 9); e.sleep = 1.2; } break;
@@ -5148,6 +5156,11 @@ function update(dt) {
     }
     if (sockSlowed) s *= SOCK_ALT_SPEED;
     if (e.stun > 0) { e.stun -= dt; s = 0; }
+    // Brake ordinary pursuit just inside contact range. Charges, burrowing
+    // and knockback continue to use their own movement.
+    if (pursuit === tg && !followingPath && !scriptedTravel && dt > 0 && ux * dx + uz * dz > 0) {
+      s = Math.min(s, Math.max(0, d - (e.r + 0.36)) / dt);
+    }
     let ax = ux * s, az = uz * s;
     query(e.x, e.z, e.r * 0.9, (o, ox, oz) => { if (o === e || o.fly !== e.fly) return; const L2 = Math.hypot(ox, oz) || 0.01, push = (e.r + o.r - L2) * 2.4; if (push > 0) { ax -= ox / L2 * push; az -= oz / L2 * push; } });
     e.x += (ax + e.kx) * dt; e.z += (az + e.kz) * dt; e.kx *= Math.pow(0.02, dt); e.kz *= Math.pow(0.02, dt);
@@ -5329,6 +5342,19 @@ function titleActor(i, x, prep, sel, locked) {
   // 屏幕左边的同学看向右边，右边的看向左边，大家都朝中间
   return { act: realTime >= t.at ? t.act : null, at: t.at, left: prep ? false : x > 0.4 };
 }
+function drawMonsterArt(id, actor, x, y, z, yaw, sx, sy, pitch, roll = 0) {
+  const tint = tC2.copy(WHITE);
+  if (actor.hit) tint.lerp(HITC, Math.min(1, actor.hit * 1.2));
+  if (actor.warn) tint.lerp(REDC, actor.warn);
+  if (burning(actor)) tint.lerp(ORANGE, 0.6 + 0.25 * Math.sin(realTime * 20));
+  if (actor.frz > 0) tint.lerp(ICEC, 0.92);
+  else if (actor.chill > 0) tint.lerp(ICEC, 0.72);
+  if (actor.acid > 0) tint.lerp(ACIDC, 0.74 + 0.1 * Math.sin(realTime * 9));
+  if (actor.shock > 0 && Math.sin(realTime * 70) > 0) tint.lerp(SHOCKC, 0.8);
+  const baseSize = ET[actor.type === 'inkmini' ? 'ink' : actor.type].size;
+  return monsterArt.draw(id, camera, x, y, z, yaw, sx / baseSize, sy / baseSize, tint, pitch, roll, actor.hit > 0.7);
+}
+
 function draw(dt) {
   itemArt.begin();
   const title = state === 'title';
@@ -5336,6 +5362,7 @@ function draw(dt) {
   campus.group.visible = !title;
   titleRoom.visible = title && titleStep !== 'gacha';
   camera = scenePass.camera = title ? titleCamera : fieldCamera;
+  monsterArt.begin(camera);
   const team = state === 'title' ? null : NET?.on ? NET : previewTeam;
   leanAngle = state !== 'title' && !debugCam ? 0.34 : 0;
   if (leanAngle) LEAN_ROT.makeRotationAxis(LEAN_AX.setFromMatrixColumn(camera.matrixWorld, 0).setY(0).normalize(), -leanAngle);
@@ -5394,13 +5421,28 @@ function draw(dt) {
     if (e.fuse > 0 && fi < 4) { const a = fuseDiscs[fi * 2], b = fuseDiscs[fi * 2 + 1]; fi++; a.visible = b.visible = true; a.position.set(e.x, 0.07, e.z); b.position.set(e.x, 0.075, e.z); a.scale.setScalar(BLAST_R); b.scale.setScalar(Math.max(0.01, BLAST_R * fz)); }
     if (!(e.fuse > 0)) e.warn = 0;
     const facing = NET?.on ? netTarget(e) : player;
-    if (facing) e.yaw = Math.atan2(facing.x - e.x, facing.z - e.z);
+    const closeDistance = facing ? Math.hypot(facing.x - e.x, facing.z - e.z) : Infinity;
+    if (facing && (closeDistance > 0.25 || e.yaw == null)) e.yaw = Math.atan2(facing.x - e.x, facing.z - e.z);
     const rise = e.spawn > 0 ? e.spawn : 0, hopOk = !e.fly && rise <= 0 && e.type !== 'snail' && e.type !== 'boss', y = e.fly ? 0 : -rise * e.size * 1.3 + (hopOk ? Math.abs(Math.sin(e.ph)) * 0.13 * e.moving : 0), yaw = e.yaw ?? 0, sq = 1 + Math.sin(e.ph * 2) * 0.07 * e.moving;
     if (e.type === 'boss') e.ringing = bossRinging;
     // 受击：沿受击方向弹开再弹回，身体往后仰，刚挨打那几帧抖一下；扑咬玩家时往前一冲
-    e.rcl = (e.rcl || 0) * Math.exp(-dt * 16); const rc = e.rcl * 0.32 * Math.min(1, 1.6 / (e.r + 0.6)), jit = e.hit > 0.6 ? (Math.random() - 0.5) * 0.12 : 0;
-    let lx = 0, lz = 0, ls = 0; if (e.lunge > 0) { e.lunge = Math.max(0, e.lunge - dt * 4); ls = Math.sin(e.lunge * PI); lx = Math.sin(yaw) * ls * 0.55; lz = Math.cos(yaw) * ls * 0.55; }
-    RIGS[e.kind || RIG_OF(e.type)].push(e, worldM(e.x + (fz ? Math.sin(realTime * 60) * 0.06 * fz : 0) + (e.rdx || 0) * rc + jit + lx, y + popY + (e.type === 'boss' ? bossLeapY : 0), e.z + (e.rdz || 0) * rc + lz, yaw, sw * (1 + e.hit * 0.24 - ls * 0.08), sw * (sq - e.hit * 0.2 + ls * 0.12), sw * (1 + e.hit * 0.24 - ls * 0.08), -Math.min(0.5, e.rcl * 0.35) + ls * 0.25));
+    e.rcl = (e.rcl || 0) * Math.exp(-dt * 16); const rc = e.rcl * 0.32 * Math.min(1, 1.6 / (e.r + 0.6)), jit = e.hit > 0.6 && closeDistance > e.r + 0.6 ? (Math.random() - 0.5) * 0.12 : 0;
+    let lx = 0, lz = 0, ls = 0;
+    if (e.lunge > 0) {
+      e.lunge = Math.max(0, e.lunge - dt * 4);
+      ls = Math.sin(e.lunge * PI);
+      const reach = Math.min(0.55, closeDistance * 0.2);
+      lx = Math.sin(yaw) * ls * reach; lz = Math.cos(yaw) * ls * reach;
+    }
+    const id = e.kind || RIG_OF(e.type);
+    const drawX = e.x + (fz ? Math.sin(realTime * 60) * 0.06 * fz : 0) + (e.rdx || 0) * rc + jit + lx;
+    const drawY = y + popY + (e.type === 'boss' ? bossLeapY : 0);
+    const drawZ = e.z + (e.rdz || 0) * rc + lz;
+    const sx = sw * (1 + e.hit * 0.24 - ls * 0.08), sy = sw * (sq - e.hit * 0.2 + ls * 0.12);
+    const pitch = -Math.min(0.5, e.rcl * 0.35) + ls * 0.25;
+    if (!drawMonsterArt(id, e, drawX, drawY, drawZ, yaw, sx, sy, pitch)) {
+      RIGS[id].push(e, worldM(drawX, drawY, drawZ, yaw, sx, sy, sx, pitch));
+    }
     shadow(e.x, e.z, e.r * (e.fly ? 0.7 : 1) * (1 - rise * 0.7));
     if (burning(e) || e.frz > 0 || e.chill > 0 || e.acid > 0 || e.shock > 0 || e.fb > 0) statusFx(e, Math.max(0, y));
   }
@@ -5415,7 +5457,12 @@ function draw(dt) {
       c.vx *= Math.pow(0.2, dt); c.vz *= Math.pow(0.2, dt);
     }
     const end = Math.max(0, (c.t - 0.42) / 0.12), sq = c.y < 0.05 && c.land ? 1 + 0.25 * Math.exp(-(c.t - 0.3) * 20) : 1, k = c.size * Math.max(0.02, 1 - end);
-    RIGS[RIG_OF(c.type)].push({ ph: 0, hit: c.t < 0.09 ? 1 : 0.35, seed: c.seed, moving: 0, dark: false }, worldM(c.x, c.y, c.z, c.yaw, k * sq, k / sq, k * sq, -c.t * c.spin, c.roll * c.t));
+    const id = RIG_OF(c.type);
+    const actor = { type: c.type, ph: 0, hit: c.t < 0.09 ? 1 : 0.35, seed: c.seed, moving: 0, dark: false };
+    const sx = k * sq, sy = k / sq, pitch = -c.t * c.spin, roll = c.roll * c.t;
+    if (!drawMonsterArt(id, actor, c.x, c.y, c.z, c.yaw, sx, sy, pitch, roll)) {
+      RIGS[id].push(actor, worldM(c.x, c.y, c.z, c.yaw, sx, sy, sx, pitch, roll));
+    }
     if (was < 0.5 && c.t >= 0.5) { burst(c.x, 0.4 + c.y, c.z, 0xfff6e4, 7, 2.6, 0.5, 0.45, -1); burst(c.x, 0.4 + c.y, c.z, c.c, 5, 3, 0.32, 0.4, 2); }
   }
   corpses = corpses.filter((c) => c.t < 0.54);
@@ -5518,6 +5565,7 @@ function draw(dt) {
         );
     }
   itemArt.end();
+  monsterArt.end();
   // 火盆的火 + 漂浮的火星
   fireClock += dt;
   const airRoom = regionOf(camLook.x, camLook.z);
@@ -5853,6 +5901,7 @@ if (staticMatchPreview) {
     renderPreview();
     requestAnimationFrame(renderPreview);
   });
+  void monsterArt.ready.then(() => requestAnimationFrame(renderPreview));
   addEventListener('resize', () => requestAnimationFrame(renderPreview));
 } else if (gachaPreview) {
   showTitle('gacha');
