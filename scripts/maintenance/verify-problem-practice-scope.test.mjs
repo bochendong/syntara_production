@@ -6,9 +6,13 @@ const jiti = createJiti(import.meta.url);
 const { practiceLaunchForResults, adjacentPracticeProblem, recommendedPracticeIds } = jiti(
   '../../apps/native/src/data/problem-practice-scope.ts',
 );
-const { matchesProblemFilters, problemPaperSeries } = jiti(
-  '../../apps/native/src/data/problem-bank-filters.ts',
-);
+const {
+  matchesProblemFilters,
+  namedMidtermYear,
+  paperLabels,
+  problemPaperSeries,
+  usesCsc108PaperNames,
+} = jiti('../../apps/native/src/data/problem-bank-filters.ts');
 const rows = [
   {
     id: 'function-a1',
@@ -190,4 +194,34 @@ test('CSC108 review and renamed papers are independent series with no duplicate 
     seriesRows.filter((row) => matchesProblemFilters(row, { ...base, series: quiz })),
     [seriesRows[1]],
   );
+});
+
+test('CSC108 series use the same campus, year, exam and letter in both banks', () => {
+  const utm = usesCsc108PaperNames({ name: 'UTM-CSC108', courseCode: 'UTM-CSC108' });
+  const utsg = usesCsc108PaperNames({ name: 'UTSG-CSC108Y', courseCode: 'CSC108(4)' });
+  assert(utm && utsg);
+  assert(!usesCsc108PaperNames({ name: 'MAT102', courseCode: 'MAT102' }));
+
+  const mock = 'UTM-2026-Term Test 2 Mock-A';
+  const adapted = 'UTM-2024-Term Test 2 Adapted-A';
+  const review = 'UTM-2026-Term Test 2 Review-A';
+  const practice = 'UTSG-2026-Midterm Mock-H';
+  const midterm = 'UTSG-2026-Midterm-A';
+  const utmTags = ['TT2模拟A卷', 'TT2原版模拟A卷', 'UTM Term Test 2 Review A', 'midterm', 'set-08'];
+  const utsgTags = [
+    ...utmTags,
+    'UTM Term Test 2 Mock A',
+    'UTM Term Test 2 Original A',
+    'UTSG Midterm Mock 08',
+    mock,
+  ];
+  const expected = [mock, adapted, review, practice].sort();
+  assert.deepEqual(paperLabels(utmTags, utm).sort(), expected);
+  assert.deepEqual(paperLabels(utsgTags, utsg).sort(), expected);
+  assert.deepEqual(paperLabels([midterm, 'UTSG Fall 2026 Midterm', 'midterm', 'set-26'], utsg), [
+    midterm,
+  ]);
+  assert.equal(namedMidtermYear(midterm), '26');
+  assert.deepEqual(paperLabels(['midterm', 'set-08']), ['Midterm Set 08']);
+  assert(matchesProblemFilters({ ...rows[0], tags: utmTags }, { ...base, series: mock }, utm));
 });

@@ -16,6 +16,7 @@ import {
   matchesProblemFilters,
   namedMidtermYear,
   problemPaperSeries,
+  usesCsc108PaperNames,
 } from '../data/problem-bank-filters';
 import { practiceLaunchForResults } from '../data/problem-practice-scope';
 import { ProblemTitleText } from './problem-bank/problem-rich-text';
@@ -309,6 +310,7 @@ export function ProblemBankPage({
   onContentChanged,
 }: ProblemBankPageProps) {
   const courseId = workspace.course.id;
+  const useCsc108Names = usesCsc108PaperNames(workspace.course);
   const sourceProblems = useMemo(
     () => new Map(workspace.problems.map((problem) => [problem.id, problem])),
     [workspace.problems],
@@ -499,7 +501,10 @@ export function ProblemBankPage({
   const [openKey, setOpenKey] = useState<string | null>(() =>
     readCourseValue<string>('session', OPEN_CHAPTER_KEY, courseId),
   );
-  const seriesOptions = useMemo(() => problemPaperSeries(bankProblems), [bankProblems]);
+  const seriesOptions = useMemo(
+    () => problemPaperSeries(bankProblems, useCsc108Names),
+    [bankProblems, useCsc108Names],
+  );
   const [seriesSelection, setSeriesSelection] = useState({ courseId, tag: '' });
   const activeSeries =
     seriesSelection.courseId === courseId &&
@@ -604,13 +609,17 @@ export function ProblemBankPage({
     difficultyFilter === 'all' || difficultyCounts[difficultyFilter] > 0 ? difficultyFilter : 'all';
   const sheetProblems = useMemo(() => {
     const filtered = scopeProblems.filter((problem) =>
-      matchesProblemFilters(sourceProblems.get(problem.id) ?? problem, {
-        query,
-        type: activeTypeFilter,
-        difficulty: activeDifficultyFilter,
-        chapter: 'all',
-        series: activeSeries,
-      }),
+      matchesProblemFilters(
+        sourceProblems.get(problem.id) ?? problem,
+        {
+          query,
+          type: activeTypeFilter,
+          difficulty: activeDifficultyFilter,
+          chapter: 'all',
+          series: activeSeries,
+        },
+        useCsc108Names,
+      ),
     );
     // Imported named midterms use course order even when their questions span several topics.
     if (courseSeries.test(activeSeries)) {
@@ -632,6 +641,7 @@ export function ProblemBankPage({
     activeTypeFilter,
     sourceProblems,
     activeSeries,
+    useCsc108Names,
   ]);
 
   const hasFilters = Boolean(
@@ -640,7 +650,10 @@ export function ProblemBankPage({
   const [searchCount, setSearchCount] = useState(LIST_PAGE_SIZE);
   const searchResults = hasFilters ? sheetProblems : [];
 
-  const visibleSeriesOptions = problemPaperSeries(openChapter?.problems ?? bankProblems);
+  const visibleSeriesOptions = problemPaperSeries(
+    openChapter?.problems ?? bankProblems,
+    useCsc108Names,
+  );
   const filterValues: BankFilterValues = {
     series: activeSeries,
     difficulty: activeDifficultyFilter,

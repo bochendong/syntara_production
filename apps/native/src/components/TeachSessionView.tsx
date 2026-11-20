@@ -41,7 +41,11 @@ import {
   type TeachSessionItem,
   type TeachStudentAnswers,
 } from '../data/platform-api-client';
-import { paperLabels, problemPaperSeries } from '../data/problem-bank-filters';
+import {
+  paperLabels,
+  problemPaperSeries,
+  usesCsc108PaperNames,
+} from '../data/problem-bank-filters';
 import type { LocalProblem, LocalProblemAttempt, LocalProblemProgress } from '../domain/models';
 import { difficultyLabel, problemStem, problemTypeLabel } from '../data/local-problem-grading';
 import { classSessionLabel } from '../lib/class-session-label';
@@ -411,6 +415,7 @@ export function TeachSessionView({
       {picking && data && editable ? (
         <ProblemPicker
           sessionId={sessionId}
+          useCsc108Names={usesCsc108PaperNames(data.session.course)}
           existing={data.items.map((item) => item.problemId)}
           busy={busy === 'add'}
           submissionError={error}
@@ -1152,6 +1157,7 @@ function AnswerDialog({
 
 function ProblemPicker({
   sessionId,
+  useCsc108Names,
   existing,
   busy,
   submissionError,
@@ -1159,6 +1165,7 @@ function ProblemPicker({
   onAdd,
 }: {
   sessionId: string;
+  useCsc108Names: boolean;
   existing: string[];
   busy: boolean;
   submissionError: string;
@@ -1195,11 +1202,16 @@ function ProblemPicker({
       alive = false;
     };
   }, [sessionId]);
-  const seriesOptions = useMemo(() => problemPaperSeries(choices ?? []), [choices]);
+  const seriesOptions = useMemo(
+    () => problemPaperSeries(choices ?? [], useCsc108Names),
+    [choices, useCsc108Names],
+  );
   const seriesChoices = useMemo(
     () =>
-      (choices ?? []).filter((problem) => !series || paperLabels(problem.tags).includes(series)),
-    [choices, series],
+      (choices ?? []).filter(
+        (problem) => !series || paperLabels(problem.tags, useCsc108Names).includes(series),
+      ),
+    [choices, series, useCsc108Names],
   );
   const added = new Set(existing);
   const picked = new Set(selected.filter((id) => !added.has(id)));
@@ -1215,7 +1227,7 @@ function ProblemPicker({
       added: 0,
       selected: 0,
     };
-    if (!series || paperLabels(problem.tags).includes(series)) {
+    if (!series || paperLabels(problem.tags, useCsc108Names).includes(series)) {
       group.total += 1;
       if (added.has(problem.id)) group.added += 1;
       if (picked.has(problem.id)) group.selected += 1;
@@ -1230,7 +1242,7 @@ function ProblemPicker({
       problemName(problem),
       problem.chapter?.name,
       ...(problem.tags ?? []),
-      ...paperLabels(problem.tags),
+      ...paperLabels(problem.tags, useCsc108Names),
     ]
       .join(' ')
       .toLowerCase();
