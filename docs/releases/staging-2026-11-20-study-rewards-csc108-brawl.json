@@ -1,0 +1,27 @@
+{
+  "status": "deployed",
+  "at": "2026-11-20T08:17:28Z",
+  "environment": "staging",
+  "revision": "286506dcd63653bef26004158fd05c69a641b69e",
+  "deploymentId": "213a8951-1579-485a-8310-ac7c52bd2cc2",
+  "previousRevision": "632ea357c42cb55390c437dbd0ec2c69ae6ec6a2",
+  "changes": {
+    "studyRewards": "Student practice and active time reminders, 3/7/14-day streak unlocks, and one daily free draw in the skill-upgrade pool after a verified pass.",
+    "csc108": "Consistent campus, year, exam, and letter labels in the question bank and classroom question picker.",
+    "game": "Skill, character and skin draw pools, XP and item pickup visuals, and combat and action previews for 15 characters and 16 monsters."
+  },
+  "source": {
+    "studyRewards": "https://github.com/bochendong/syntara_production/pull/80",
+    "csc108": "Selected changes from codex/csc108-series-names, integrated at 14980b11.",
+    "game": "Selected changes from codex/brawl-pr81-preview, integrated at 20395fe4."
+  },
+  "verification": {
+    "staging": "Railway SUCCESS, matching public revision, healthy API, app bundle and teacher sign-in available. Checked 16 online game assets against the release source. Anonymous study requests return HTTP 401.",
+    "nativeWebBundleSha256": "084d59811d6359a6d7e679f1d659eff51ab2909264d1681fd614e0aba890a9a5",
+    "csc108": "Opened and selected normalized series in both views with read-only staging data in the local full app.",
+    "studyRewards": "Browser fixtures exercised reminders and streak unlocks, persisted the free draw, and checked the same-day reload. Isolated PostgreSQL checked timezone grouping and verified passes. Actual student account redemption is pending.",
+    "game": "Chrome exercised all three draw pools, the pickup fixture and the character and monster preview controls.",
+    "checks": "33 feature regressions, root TypeScript, scoped format and lint, and the staging build passed. A broad native SSE test had the same module-resolution failure on the previous baseline.",
+    "schema": "No Prisma schema or migration changes."
+  }
+}
