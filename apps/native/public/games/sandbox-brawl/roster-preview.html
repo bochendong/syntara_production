@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#f7f0e2" />
+    <title>角色调试台 · 期末在嘲讽</title>
+    <link rel="stylesheet" href="./roster-preview.css?v=workbench" />
+  </head>
+  <body>
+    <main>
+      <header class="page-header">
+        <p>期末在嘲讽 <span>·</span> 本地预览</p>
+        <h1>角色调试台</h1>
+      </header>
+      <div class="workbench">
+        <aside class="catalog" aria-label="角色目录">
+          <div class="catalog-search">
+            <label class="visually-hidden" for="search">搜索角色或技能</label>
+            <input id="search" type="search" placeholder="搜索角色或技能" autocomplete="off" disabled />
+          </div>
+          <div id="catalog-list" class="catalog-list">
+            <section id="hero-group" class="catalog-group" aria-labelledby="hero-heading">
+              <h2 id="hero-heading">人物 <span>15</span></h2>
+              <div id="hero-list"></div>
+            </section>
+            <section id="monster-group" class="catalog-group" aria-labelledby="monster-heading">
+              <h2 id="monster-heading">怪物 <span>16</span></h2>
+              <div id="monster-list"></div>
+            </section>
+            <p id="empty-search" class="empty-search" hidden>没有找到匹配的角色或技能。</p>
+          </div>
+        </aside>
+        <section class="workspace" aria-labelledby="selection-name">
+          <header class="selection-header">
+            <div>
+              <h2 id="selection-name">正在加载角色</h2>
+              <p id="selection-opponent"></p>
+            </div>
+            <div class="controls" aria-label="播放控制">
+              <select id="speed" aria-label="播放速度" disabled>
+                <option value="1">原速</option>
+                <option value="0.5">½ 速</option>
+                <option value="0.25">¼ 速</option>
+              </select>
+              <button id="sound" type="button" aria-pressed="false" disabled>开启音效</button>
+              <button id="pause" type="button" disabled>暂停</button>
+            </div>
+          </header>
+          <div class="workspace-panels" id="workspace-panels">
+            <section class="preview-pane" aria-labelledby="combat-heading">
+              <div class="pane-heading">
+                <h3 id="combat-heading">实战</h3>
+                <p id="active-skill"></p>
+              </div>
+              <div class="controls skill-controls">
+                <select id="form" aria-label="人物技能形态" disabled></select>
+                <select id="boss-move" aria-label="怪物技能" hidden></select>
+                <select id="camera" aria-label="实战镜头" disabled>
+                  <option value="match">对局比例</option>
+                  <option value="full">全范围</option>
+                  <option value="close">特写镜头</option>
+                </select>
+                <button id="replay" type="button" disabled>重播实战</button>
+              </div>
+              <div id="stage" class="stage" tabindex="0" aria-label="实战画面，可滚动">
+                <div id="arena" class="arena"></div>
+                <p id="status" role="status">正在加载角色…</p>
+                <button id="retry" class="retry" type="button" hidden>重新加载实战</button>
+              </div>
+            </section>
+            <section id="action-roster" class="preview-pane" aria-labelledby="action-heading" hidden>
+              <div class="pane-heading">
+                <h3 id="action-heading">动作与表情</h3>
+              </div>
+              <div class="controls action-controls">
+                <select id="action-clip" aria-label="演示动作"></select>
+                <button id="action-replay" type="button">播放动作</button>
+              </div>
+              <div class="action-stage">
+                <canvas id="action-canvas" width="620" height="550" aria-label="人物动作预览"></canvas>
+                <p id="action-caption"></p>
+              </div>
+              <details class="pose-library">
+                <summary>16 个关键姿势</summary>
+                <div id="pose-grid" class="pose-grid"></div>
+              </details>
+            </section>
+          </div>
+        </section>
+      </div>
+    </main>
+    <script type="module" src="./roster-preview.js?v=target-no-flash"></script>
+  </body>
+</html>

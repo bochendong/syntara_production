@@ -1,4 +1,5 @@
 import * as T from './vendor/three.module.js';
+import { campusElevation } from './campus-map-plan.js';
 import { InkMesh, forms as f } from './campus-mesh.js';
 
 export const ITEM = {
@@ -31,29 +32,49 @@ const star = new T.ExtrudeGeometry(starShape, {
   bevelSegments: 1,
 }).translate(0, 0, -0.06);
 
+function cutout(points) {
+  const face = new T.Shape();
+  points.forEach(([x, y], index) => index ? face.lineTo(x, y) : face.moveTo(x, y));
+  face.closePath();
+  return new T.ExtrudeGeometry(face, { depth: 0.14, bevelEnabled: false }).translate(0, 0, -0.07);
+}
+
+const ticket = cutout([
+  [-0.5, -0.22], [-0.39, -0.33], [0.32, -0.33], [0.5, -0.15],
+  [0.5, 0.22], [0.39, 0.33], [-0.39, 0.33], [-0.5, 0.22],
+]);
+const checkmark = cutout([
+  [-0.34, -0.03], [-0.21, 0.08], [-0.08, -0.04],
+  [0.23, 0.23], [0.35, 0.12], [-0.08, -0.24],
+]);
+const northPole = cutout([
+  [-0.13, -0.18], [-0.06, -0.18], [-0.06, 0.048], [0.064, -0.18],
+  [0.14, -0.18], [0.14, 0.18], [0.068, 0.18], [0.068, -0.045],
+  [-0.057, 0.18], [-0.13, 0.18],
+]);
+const southPole = cutout([
+  [-0.13, -0.11], [0.054, -0.11], [0.065, -0.094], [0.065, -0.045],
+  [-0.078, -0.027], [-0.134, 0.025], [-0.134, 0.126], [-0.078, 0.18],
+  [0.13, 0.18], [0.13, 0.11], [-0.047, 0.11], [-0.059, 0.095],
+  [-0.059, 0.044], [0.082, 0.026], [0.14, -0.025], [0.14, -0.126],
+  [0.084, -0.18], [-0.13, -0.18],
+]);
+
 function collectible(cell) {
   const b = new InkMesh();
   function part(form, color, x, y, z, w, h, d, rx = 0, ry = 0, rz = 0, stroke = 0.027) {
     b.part(form, color, x, y, z, w, h, d, rx, ry, rz, stroke);
   }
   if (cell === ITEM.green || cell === ITEM.blue) {
-    part(
-      f.jewel,
-      cell === ITEM.green ? 0x30c982 : 0x558eea,
-      0,
-      0.51,
-      0,
-      0.78,
-      1,
-      0.75,
-      0,
-      0.42,
-      -0.09,
-    );
-    part(f.jewel, cream, -0.13, 0.64, 0.24, 0.13, 0.26, 0.12, 0, 0, -0.18, 0.006);
+    const blue = cell === ITEM.blue;
+    if (blue) part(ticket, 0x274768, -0.11, 0.55, -0.09, 1.03, 1, 1, 0, 0, 0.24);
+    part(ticket, blue ? 0x233f76 : 0x204b4e, 0, 0.47, 0, 1, 1, 1);
+    part(ticket, blue ? 0x6cbcf8 : 0x81e1b2, 0, 0.48, 0.076, 0.87, 0.79, 0.24, 0, 0, 0, 0);
+    part(checkmark, 0xfff9df, -0.01, 0.48, 0.097, 0.68, 0.68, 0.21, 0, 0, 0, 0);
   } else if (cell === ITEM.gold) {
-    part(star, gold, 0, 0.53, 0, 0.95, 0.95, 1);
-    part(f.leaf, cream, -0.13, 0.6, 0.11, 0.2, 0.23, 0.05, 0, 0, -0.5, 0.006);
+    part(star, 0x643747, 0, 0.55, 0, 1.13, 1.13, 1.1);
+    part(star, 0xffca64, 0, 0.56, 0.09, 0.93, 0.93, 0.38);
+    part(star, 0xfff3bf, 0, 0.57, 0.126, 0.45, 0.45, 0.16, 0, 0, 0, 0);
   } else if (cell === ITEM.satchel) {
     b.box(wine, 0, 0.35, 0, 0.84, 0.66, 0.55);
     b.box(red, 0, 0.54, 0.09, 0.91, 0.37, 0.54, -0.035, 0.028);
@@ -64,12 +85,13 @@ function collectible(cell) {
     }
     b.box(cream, 0, 0.55, 0.371, 0.2, 0.11, 0.05, 0, 0.011);
   } else if (cell === ITEM.magnet) {
-    part(f.magnet, red, 0, 0.52, 0, 1, 1, 0.77, 0, 0.08, -0.2);
-    for (const s of [-1, 1]) {
-      const x = s * 0.345;
-      b.box(red, x, 0.39, 0, 0.25, 0.34, 0.23, 0, 0.018);
-      b.box(cream, x, 0.17, 0, 0.25, 0.16, 0.23, 0, 0.018);
-    }
+    b.box(0x402836, 0, 0.53, 0, 1.66, 0.66, 0.43, 0, 0.06);
+    b.box(0xf17161, -0.397, 0.55, 0.069, 0.766, 0.56, 0.36, 0, 0.018);
+    b.box(0x548fc9, 0.397, 0.55, 0.069, 0.766, 0.56, 0.36, 0, 0.018);
+    b.box(0xffa38b, -0.39, 0.753, 0.251, 0.49, 0.044, 0.026, 0, 0);
+    b.box(0xa0d6f4, 0.39, 0.753, 0.251, 0.49, 0.044, 0.026, 0, 0);
+    part(northPole, 0xfff4d8, -0.397, 0.55, 0.272, 1, 0.89, 0.16, 0, 0, 0, 0);
+    part(southPole, 0xfff4d8, 0.397, 0.55, 0.272, 1, 0.89, 0.16, 0, 0, 0, 0);
   } else if (cell === ITEM.altar) {
     b.box(wine, 0, 0.12, 0, 0.95, 0.22, 0.8);
     b.box(gold, 0, 0.25, 0, 0.81, 0.13, 0.69);
@@ -132,7 +154,8 @@ export function createCampusItems(scene) {
       }
       pose.position.set(x, y, z);
       pose.scale.setScalar(size);
-      pose.rotation.set(0, -0.26, roll, 'YXZ');
+      const facesCamera = cell <= ITEM.gold || cell === ITEM.magnet;
+      pose.rotation.set(facesCamera ? 0.13 - campusElevation : 0, facesCamera ? 0 : -0.26, roll, 'YXZ');
       pose.updateMatrix();
       mesh.setMatrixAt(mesh.count, pose.matrix);
       color.set(0xffffff);

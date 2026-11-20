@@ -3,6 +3,13 @@
 export const plateWidth = 1586;
 export const plateHeight = 992;
 export const campusElevation = Math.asin(13.4 / 18.25);
+export const campusMatchCameraDistance = 32;
+
+export function campusMatchHalfHeight(aspect) {
+  const zoom = aspect < 0.8 ? 1.55 : aspect < 1.2 ? 1.2 : 1;
+  return Math.min(10.8 * zoom, 40 / aspect);
+}
+
 export const pixelWidth = 80 / plateWidth;
 export const pixelDepth = pixelWidth / Math.sin(campusElevation);
 export const mapHalfDepth = (plateHeight * pixelDepth) / 2;

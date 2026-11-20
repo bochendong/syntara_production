@@ -1,13 +1,18 @@
-import { hallNorth, hallSouth, mapHalfDepth, roomViews } from './campus-map-plan.js?v=campus-doorways';
+import { makeCombatElementArt } from './combat-element-art.js';
+import { ALT, BOSSES, WEAPONS } from './combat-catalog.js';
+import { loadRosterMatchArt, makeRosterGround, ROSTER_MONSTERS } from './roster-match-art.js';
+import { rosterArenaSide, rosterBossSkillLabel, rosterEncounter, rosterSkillElements, rosterSkillForm, rosterStartGap } from './roster-match-config.js?v=workbench';
+import { campusMatchCameraDistance, campusMatchHalfHeight, hallNorth, hallSouth, mapHalfDepth, roomViews } from './campus-map-plan.js?v=match-camera';
 import { advanceScholar } from './scholar.js?v=front-mirror';
-import { scholarLook, studentCardGeometry, poseChibi, studentIcon, studentTexture, useStudentCells } from './student-chibi.js?v=hit-feel';
+import { CLASSES } from './classmates.js';
+import { studentCardGeometry, poseChibi, studentIcon, studentTexture, useStudentCells } from './student-chibi.js?v=hit-feel';
 import { buildInkPortal, buildPortraitRoom } from './campus-models.js?v=painted-court';
 import { castShadowMatrix } from './campus-mesh.js';
-import { createCampusItems, ITEM } from './campus-items.js';
+import { createCampusItems, ITEM } from './campus-items.js?v=bar-magnet';
 import { createMonsterArt, monsterIllustration } from './monster-art.js';
 import { createCampus, floorPoint, campusElevation, campusStudentDrawScale, campusStudentScale, campusStudentRadius, taskSites, encounterSites, portalSites, insideCampusObstacle, resolveCampusObstacles } from './campus.js?v=eight-portals';
 import { createGachaTheater, spinTurns, CAST_TIME, CONTACT_TIME, CARD_TIME } from './gacha-theater.js';
-import { createGameAudio } from './game-audio.js?v=hit-feel';
+import { createGameAudio } from './game-audio.js?v=pickup-audio';
 import { BrawlSaveConflict, createBrawlSaveQueue } from './brawl-cloud.js';
 import { DEATH_TAUNTS } from './death-taunts.js';
 import * as THREE from './vendor/three.module.js';
@@ -22,12 +27,28 @@ const rnd = (a, b) => a + Math.random() * (b - a);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const saveParams = new URLSearchParams(location.search);
-const skillDemoMode = window.parent !== window && saveParams.has('skill-demo');
 const localPreview = location.protocol === 'http:' && ['127.0.0.1', 'localhost', '[::1]'].includes(location.hostname);
-const gachaPreview = localPreview && !skillDemoMode && saveParams.has('gacha-preview');
-const staticMatchPreview = localPreview && !skillDemoMode && saveParams.has('static-match');
-const gameAudio = createGameAudio();
-if (!skillDemoMode && !staticMatchPreview) {
+const skillDemoMode = window.parent !== window && saveParams.has('skill-demo');
+const rosterHero = saveParams.get('hero');
+const rosterMonster = saveParams.get('monster');
+const rosterPreviewPage = new URL('./roster-preview.html', location.href);
+const rosterParent = document.referrer ? new URL(document.referrer) : null;
+const rosterSpec = rosterParent?.origin === location.origin && rosterParent.pathname === rosterPreviewPage.pathname && window.parent !== window && saveParams.has('roster-match')
+  ? Object.hasOwn(CLASSES, rosterHero) ? rosterEncounter(CLASSES[rosterHero])
+    : Object.hasOwn(ROSTER_MONSTERS, rosterMonster) ? rosterEncounter(null, rosterMonster) : null
+  : null;
+const rosterMatchMode = !!rosterSpec;
+const rosterTargetMode = rosterMatchMode && !rosterSpec.hero;
+const isolatedDemo = skillDemoMode || rosterMatchMode;
+if (rosterMatchMode) document.body.classList.add('roster-match');
+if (rosterTargetMode) $('hurtFx').hidden = true;
+const gachaPreview = localPreview && !isolatedDemo && saveParams.has('gacha-preview');
+const staticMatchPreview = localPreview && !isolatedDemo && saveParams.has('static-match');
+const pickupPreview = staticMatchPreview && saveParams.get('static-match') === 'pickups';
+const gameAudio = rosterMatchMode
+  ? { play(name) { if (rosterSession.audible) rosterNotify('sound', { name }); } }
+  : createGameAudio();
+if (!isolatedDemo && (!staticMatchPreview || pickupPreview)) {
   // 在点击的同步阶段解锁音频，包括会延迟开局的转场和联机大厅。
   document.addEventListener('click', (event) => {
     if (event.isTrusted) gameAudio.unlock();
@@ -54,41 +75,7 @@ const TAGS = {
   summon: { name: '召唤', c: '#f0a623' },
 };
 const PLAYER_SPEED = 5.7;
-const CLASSES = {
-  brawler:  { name: '体育委员', tag: 'melee',  hp: 150, start: 'sweep',   desc: '血厚，原地抡一圈大尺子，周围全砍', look: { style: 'spiky', outfit: 'track', skin: 0xf2c49a, hair: 0x2b1d18, top: 0xd8423a, pants: 0x2b3a5c, iris: 0x7a3a22, item: 'bat', band: 0xffffff, big: true } },
-  geo:      { name: '数学课代表', short: '课代表', tag: 'melee', hp: 120, start: 'spin', desc: '三角尺绕着自己转，站着不动也在算账', look: { style: 'bob', outfit: 'vest', hair: 0x3a2a20, top: 0xfaf8f2, pants: 0x4a5568, iris: 0x4a6a8a, accent: 0x3f7ad8, item: 'tri', glasses: true } },
-  duty:     { name: '值日生',   tag: 'melee',  hp: 130, start: 'mop',     desc: '拖把一拖一大片，地板湿了怪就打滑', look: { style: 'bun', outfit: 'apron', girl: true, hair: 0x6a4630, top: 0x7cc8e8, pants: 0x3a6a9a, iris: 0x3a8ab8, accent: 0xffffff, scarf: 0xff8fa8, item: 'mop' } },
-  scholar:  { name: '学霸',     tag: 'ranged', hp: 95,  start: 'pencil',  desc: '铅笔百发百中，开局暴击率 12%', baseCrit: 0.12, look: scholarLook },
-  paper:    { name: '后排同学', tag: 'ranged', hp: 100, start: 'plane',   desc: '上课折的纸飞机会自己追怪', look: { style: 'messy', outfit: 'hoodie', hair: 0x4a3426, top: 0x38b2c9, pants: 0x3a3f4a, iris: 0x2a8aa0, accent: 0xffffff, cap: 0xf2f2f2, item: 'plane' } },
-  dorm:     { name: '住校生',   tag: 'ranged', hp: 115, start: 'slipper', desc: '穿着睡衣就来了，拖鞋扔出去还会飞回来', look: { style: 'bun2', outfit: 'pajama', girl: true, hair: 0xe8a0b8, top: 0xffd9e4, pants: 0xffd9e4, iris: 0xd85a8a, accent: 0xff7a5a, mask: 0x8a7ad8, item: 'slipper' } },
-  engineer: { name: '理科生',   tag: 'gun',    hp: 110, start: 'stapler', desc: '订书机枪高速连发，越升级射得越快', look: { style: 'messy', outfit: 'labcoat', hair: 0x2e3a48, top: 0x3faa6a, pants: 0x34495e, iris: 0x2a8a6a, item: 'gun', goggles: true } },
-  artist:   { name: '美术生',   tag: 'gun',    hp: 100, start: 'shotgun', desc: '橡皮屑一喷一大片，贴脸最疼', look: { style: 'pony', outfit: 'apron', girl: true, hair: 0xd8503a, top: 0xfaf8f2, pants: 0x3a3a4a, iris: 0x2aa88a, accent: 0xffd23f, beret: 0x2a2a3a, paint: true, item: 'blaster' } },
-  poet:     { name: '文科生',   tag: 'magic',  hp: 90,  start: 'bolt',    desc: '荧光笔召来连锁闪电，打一大片', look: { style: 'wavy', outfit: 'cardigan', girl: true, hair: 0xc9a8f0, top: 0xb69cff, pants: 0x5a4a9a, iris: 0x9a5ae0, accent: 0xff8fb8, item: 'wand', beret: 0x6a3ad0, flower: true } },
-  owl:      { name: '夜猫子',   tag: 'magic',  hp: 100, start: 'coffee',  desc: '咖啡不离手，扔出去就是一个旋风，又伤又减速', look: { style: 'messy', outfit: 'hoodie', hair: 0x24202e, top: 0x6a4a3a, pants: 0x2e2a36, iris: 0xb8742a, accent: 0xf5e6c8, tired: true, item: 'mug' } },
-  jock:     { name: '体育生',   tag: 'magic',  hp: 140, start: 'sock',    desc: '训练完没换袜子，怪一靠近就被熏到', look: { style: 'buzz', outfit: 'jersey', skin: 0xe8b88a, hair: 0x2a2a2a, top: 0x5fb04f, pants: 0xffffff, iris: 0x3a5a2a, band2: 0xff5f5f, item: 'sock', big: true } },
-  monitor:  { name: '班长',     tag: 'magic',  hp: 105, start: 'rollcall', desc: '点到谁谁倒霉，专挑血最厚的砸', look: { style: 'pony', outfit: 'sailor', girl: true, hair: 0x3a2618, top: 0xfaf8f2, pants: 0x8a2a3a, iris: 0xb83a4a, accent: 0xffc93c, armband: 0xe2453a, item: 'book' } },
-  captain:  { name: '社团长',   tag: 'summon', hp: 105, start: 'minion',  desc: '招一群便利贴小人替你冲，开局暴击率 3%', baseCrit: 0.03, look: { style: 'twin', outfit: 'cheer', girl: true, hair: 0xf08a3a, top: 0xffb22a, pants: 0xffffff, iris: 0xe0602a, accent: 0xff5f9e, item: 'flag' } },
-  techie:   { name: '电教委员', tag: 'summon', hp: 100, start: 'lamp',    desc: '放下台灯就是炮台，开局暴击率 2%', baseCrit: 0.02, look: { style: 'bob', outfit: 'hoodie', hair: 0x5a6a7a, top: 0xffd84d, pants: 0x3a4658, iris: 0xc89a00, accent: 0x3a3f4a, phones: 0x3a3f4a, item: 'lamp' } },
-  swimmer:  { name: '游泳队员', tag: 'summon', hp: 115, start: 'duck',    desc: '带着橡皮鸭下水，怪全被鸭子引走', look: { style: 'pony', outfit: 'track', girl: true, hair: 0x2a4a6a, top: 0x4aa8ff, pants: 0x2a3a6a, iris: 0x2a8ad8, accent: 0xffd23f, swimcap: 0xffffff, goggles2: true, item: 'duck' } },
-};
 const isOpen = (id) => meta.heroes.includes(id);
-const WEAPONS = {
-  sweep:    { name: '尺子挥砍',   tag: 'melee',  c: '#e0473c', ch: '砍', ups: ['lv'],       desc: '朝最近的怪挥出一大片扇形', evo: { relic: 'dumbbell', name: '旋风斩', desc: '变成原地抡整圈，每 0.3 秒转一圈，范围 ×1.5，还会把怪往里吸' } },
-  spin:     { name: '尺子回旋',   tag: 'melee',  c: '#f08a24', ch: '旋', ups: ['lv'],          nText: '多一把尺子绕着转', desc: '几把尺子一直绕着你转，不用瞄准，贴身持续伤害', evo: { relic: 'wrist', name: '尺阵', desc: '尺子翻倍，转得更大更快' } },
-  mop:      { name: '拖把',       tag: 'melee',  c: '#4aa8c8', ch: '拖', ups: ['lv'],       funny: 1, desc: '朝前一拖一大片，地上留下水渍，踩进去的怪减速并持续掉血。擦地任务擦得飞快', evo: { relic: 'bucket', name: '洪水拖把', desc: '水渍变成大水洼，范围更大，伤害 2.5 倍' } },
-  pencil:   { name: '铅笔飞镖',   tag: 'ranged', c: '#3f97e8', ch: '铅', ups: ['lv'], nText: '每次多射一支', desc: '射出会穿透的铅笔，一条直线清一排', evo: { relic: 'scratch', name: '铅笔暴雨', desc: '每次出手额外向四周射出 10 支铅笔' } },
-  plane:    { name: '纸飞机',     tag: 'ranged', c: '#38b2c9', ch: '纸', ups: ['lv'],          nText: '每次多一架', desc: '会自己拐弯追怪，边跑边打最省心', evo: { relic: 'scope', name: '纸鹤群', desc: '数量 +3，命中不消失，能连穿 4 只' } },
-  slipper:  { name: '妈妈的拖鞋', tag: 'ranged', c: '#ff7a5a', ch: '鞋', ups: ['lv'],          nText: '每次多扔一只', funny: 1, desc: '扔出去还会飞回来，来回各打一次', evo: { relic: 'mom', name: '拖鞋连环', desc: '拖鞋飞到头时再分出两只' } },
-  stapler:  { name: '订书机枪',   tag: 'gun',    c: '#7a8394', ch: '钉', ups: ['lv'],          nText: '并排多射一发', desc: '高速连发，擅长持续单体输出', evo: { relic: 'dual', name: '钉枪风暴', desc: '再加四道旋转弹流，扫遍全场' } },
-  shotgun:  { name: '橡皮霰弹',   tag: 'gun',    c: '#e05a8a', ch: '霰', ups: ['lv'],          nText: '一次多喷两块', desc: '贴脸喷一扇橡皮块，近身爆发高', evo: { relic: 'reddot', name: '橡皮加农', desc: '每颗橡皮命中都会爆炸' } },
-  bolt:     { name: '荧光闪电',   tag: 'magic',  c: '#a46bff', ch: '电', ups: ['lv'],          nText: '多跳 2 次', desc: '闪电在怪之间来回跳，专打扎堆的', evo: { relic: 'ink', name: '荧光雷暴', desc: '跳 14 次，每一跳还会电到旁边的怪' } },
-  coffee:   { name: '咖啡旋风',   tag: 'magic',  c: '#8a5a2b', ch: '咖', ups: ['lv'],       desc: '自动朝最近的怪扔一杯咖啡，落地变成旋风，持续伤害并减速', evo: { relic: 'caffeine', name: '咖啡龙卷', desc: '冷却减半，旋风更大更久，还会把怪往中心吸' } },
-  sock:     { name: '臭袜子',     tag: 'magic',  c: '#8ab84a', ch: '袜', ups: ['lv'],       funny: 1, desc: '身边一直飘着一圈臭气，怪进来就掉血还变慢', evo: { relic: 'laundry', name: '生化危机', desc: '臭气范围 ×1.6，熏到的怪受到的所有伤害 +25%' } },
-  rollcall: { name: '点名册',     tag: 'magic',  c: '#c84a4a', ch: '点', ups: ['lv'],          nText: '每次多点一个', funny: 1, desc: '专挑血最厚的怪点名，一本书砸下去。打精英和大魔王伤害翻倍', evo: { relic: 'redpen', name: '全班点名', desc: '一次点 5 个，书落地还有冲击波' } },
-  minion:   { name: '便利贴小人', tag: 'summon', c: '#f0a623', ch: '贴', ups: ['lv'],     nText: '每次多召一个', desc: '召唤冲上去打架的小人，到时间就散掉', evo: { relic: 'poster', name: '便利贴军团', desc: '每次召唤数量翻倍，小人击杀时再分裂出一个' } },
-  lamp:     { name: '台灯炮台',   tag: 'summon', c: '#d4a000', ch: '灯', ups: ['lv'],     nText: '每次多放一盏', desc: '放下会自动射光束的台灯，原地守点', evo: { relic: 'banner', name: '探照灯', desc: '光束变成一整条，直线上的怪全中' } },
-  duck:     { name: '橡皮鸭',     tag: 'summon', c: '#ffd23f', ch: '鸭', ups: ['lv'],     nText: '每次多放一只', funny: 1, desc: '嘎嘎叫，把附近的怪全引过去，时间到了炸成彩带', evo: { relic: 'bath', name: '鸭鸭大军', desc: '每次放 3 倍数量，爆炸范围翻倍' } },
-};
 // 饰品：每件效果都很小，同一件可以一直叠。r = 稀有度（0 普通 / 1 稀有 / 2 传奇），curse = 有代价
 const RELICS = {
   wrist:    { name: '护腕',       tag: 'melee',  r: 0, desc: '近战伤害 +8%' },
@@ -333,7 +320,7 @@ const ET = {
 
 /* ================= 渲染器、灯光、后期 ================= */
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance', preserveDrawingBuffer: staticMatchPreview });
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setPixelRatio(rosterMatchMode ? 1 : Math.min(devicePixelRatio, 2));
 $('stage').appendChild(renderer.domElement);
 const scene = new THREE.Scene();
 const monsterArt = createMonsterArt(scene);
@@ -345,7 +332,7 @@ let camera = titleCamera;
 scene.add(new THREE.HemisphereLight(0xfff6ea, 0xcfc2ea, 1.4));
 const moon = new THREE.DirectionalLight(0xfff0d8, 1.7); moon.position.set(-12, 16, -4); scene.add(moon);
 const torch = new THREE.PointLight(0xffd8a0, 8, 10, 1.6); scene.add(torch);
-const composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, samples: 4 }));
+const composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, samples: rosterMatchMode ? 0 : 4 }));
 const scenePass = new RenderPass(scene, camera);
 composer.addPass(scenePass);
 const bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.3, 0.4, 0.95);
@@ -606,7 +593,7 @@ RIGS_DEF.kraken = (() => {
   return o;
 })();
 RIGS_DEF.sockP = [['cap', 0xf2f2e6, [0, 0.16, 0], [0.2, 0.42, 0.2], 0, '', 1], ['sph', 0x9ac84a, [0, -0.08, 0.14], [0.22, 0.18, 0.4], 0, '', 1], ['box', 0xe2453a, [0, 0.32, 0], [0.21, 0.06, 0.21], 0, '', 0], ['sph', 0x9ac84a, [0, 0.7, 0], [0.1, 0.16, 0.1], 0, 'hover glow', 0]];
-for (const id in CLASSES) RIGS_DEF['hero_' + id] = heroParts(CLASSES[id].look);
+if (!rosterMatchMode) for (const id in CLASSES) RIGS_DEF['hero_' + id] = heroParts(CLASSES[id].look);
 const RIG_CAP = { sockP: 6, sleepy: 260, cross: 300, bat: 220, clock: 120, ink: 260, ghost: 100, phone: 90, snail: 60, hourglass: 6, boss: 1, bossMissile: 12, minion: 24, lamp: 6, pencilP: 400, planeP: 120, staple: 500, eraser: 260, ruler: 48, paper: 100, bomber: 160, slipperP: 40, duck: 12, bookP: 12, chalk: 90, chalkP: 80, mole: 60, mound: 60, };
 const tP = new THREE.Vector3(), tQ = new THREE.Quaternion(), tS = new THREE.Vector3(), tE = new THREE.Euler();
 const wP = new THREE.Vector3(), wQ = new THREE.Quaternion(), wS = new THREE.Vector3(), wE = new THREE.Euler(0, 0, 0, 'YXZ');
@@ -716,7 +703,7 @@ function blot(x, z, r, color, n = 1, spread = 0) { const [cx, cz] = mk(x, z); mc
 function ringMark(x, z, r, color, w = 4) { const [cx, cz] = mk(x, z); mctx.strokeStyle = color; mctx.lineWidth = w; mctx.beginPath(); mctx.arc(cx, cz, r * MS, 0, TAU); mctx.stroke(); marksDirty = true; }
 function footprint(x, z, yaw, side) { const ox = Math.cos(yaw) * 0.16 * campusStudentScale * side, oz = -Math.sin(yaw) * 0.16 * campusStudentScale * side; const [cx, cz] = mk(x + ox, z + oz); mctx.save(); mctx.translate(cx, cz); mctx.rotate(-yaw); mctx.fillStyle = 'rgba(70,44,24,.14)'; mctx.beginPath(); mctx.ellipse(0, 0, 2.6, 4.2, 0, 0, TAU); mctx.fill(); mctx.restore(); marksDirty = true; }
 const RIPS = Array.from({ length: 8 }, () => new THREE.Vector4(0, 0, -100, 0));
-const campus = createCampus(markTex, uTime, RIPS, renderer);
+const campus = rosterMatchMode ? makeRosterGround(markTex) : createCampus(markTex, uTime, RIPS, renderer);
 for (const id in RIGS_DEF) RIGS[id] = new Rig(RIGS_DEF[id], RIG_CAP[id] ?? (id.startsWith('hero_') ? 4 : 1), id.startsWith('hero_') || LEAN_RIGS.has(id));
 scene.add(campus.group);
 const itemArt = createCampusItems(scene);
@@ -772,7 +759,7 @@ function flowDir(e, target) {
   if (!bi && !bj) return false;
   const dx = i + bi - HX + 0.5 - e.x, dz = j + bj - HZ + 0.5 - e.z, L = Math.hypot(dx, dz) || 1; FD[0] = dx / L; FD[1] = dz / L; return true;
 }
-const titleRoom = buildPortraitRoom();
+const titleRoom = rosterMatchMode ? new THREE.Group() : buildPortraitRoom();
 titleRoom.position.set(TX,0,TZ);
 scene.add(titleRoom);
 const shCanvas = document.createElement('canvas'); shCanvas.width = shCanvas.height = 64;
@@ -898,17 +885,7 @@ let beamN = 0;
 function boltSeg(x0, y0, z0, x1, y1, z1, width, color, k = 1) { if (beamN >= 1600) return; const dx = x1 - x0, dz = z1 - z0, L = Math.hypot(dx, dz); if (L < 0.01) return; beamMesh.setMatrixAt(beamN, worldM((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2, Math.atan2(dx, dz), width, 1, L * 1.08)); beamMesh.setColorAt(beamN++, fxC.copy(color).multiplyScalar(k)); }
 // 元素贴片：火苗 / 冰晶 / 酸泡 / 电弧，永远正对镜头；霜花贴在地上
 const elTex = (draw) => { const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d'); g.lineJoin = g.lineCap = 'round'; draw(g); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t; };
-const drop = (g, s, col) => { g.fillStyle = col; g.beginPath(); g.moveTo(64, 64 - 58 * s + (1 - s) * 30); g.bezierCurveTo(64 + 16 * s, 64 - 20 * s + (1 - s) * 30, 64 + 46 * s, 64 + 6 * s + (1 - s) * 30, 64 + 40 * s, 86 + (1 - s) * 16); g.bezierCurveTo(64 + 34 * s, 122, 64 - 34 * s, 122, 64 - 40 * s, 86 + (1 - s) * 16); g.bezierCurveTo(64 - 46 * s, 64 + 6 * s + (1 - s) * 30, 64 - 22 * s, 64 - 14 * s + (1 - s) * 30, 64, 64 - 58 * s + (1 - s) * 30); g.fill(); };
-const EL_SPR = {
-  fire: elTex((g) => { drop(g, 1, '#ff4a1c'); drop(g, 0.74, '#ff9a2a'); drop(g, 0.46, '#ffe36a'); drop(g, 0.22, '#fffbe0'); }),
-  ice: elTex((g) => { const P = [[64, 4], [92, 46], [80, 122], [48, 122], [36, 46]]; g.beginPath(); P.forEach((p, i) => g[i ? 'lineTo' : 'moveTo'](p[0], p[1])); g.closePath(); g.fillStyle = '#9fdcff'; g.fill(); g.lineWidth = 7; g.strokeStyle = '#3f8fe0'; g.stroke();
-    g.beginPath(); g.moveTo(64, 4); g.lineTo(64, 122); g.lineTo(36, 46); g.closePath(); g.fillStyle = '#e8f8ff'; g.fill(); g.beginPath(); g.moveTo(64, 4); g.lineTo(64, 122); g.moveTo(36, 46); g.lineTo(64, 60); g.lineTo(92, 46); g.lineWidth = 3; g.strokeStyle = '#6fb8f0'; g.stroke(); }),
-  acid: elTex((g) => { g.beginPath(); g.arc(64, 64, 50, 0, 7); g.fillStyle = 'rgba(150,230,60,.6)'; g.fill(); g.lineWidth = 10; g.strokeStyle = '#5fae1e'; g.stroke(); g.fillStyle = '#f4ffd0'; g.beginPath(); g.ellipse(46, 44, 14, 8, -0.7, 0, 7); g.fill(); g.beginPath(); g.arc(80, 82, 5, 0, 7); g.fill(); }),
-  elec: elTex((g) => { const P = [[20, 14], [58, 46], [40, 58], [86, 80], [70, 92], [110, 116]]; for (const [w, c] of [[22, '#1f6fe8'], [13, '#4aa8ff'], [5, '#ffffff']]) { g.beginPath(); P.forEach((p, i) => g[i ? 'lineTo' : 'moveTo'](p[0], p[1])); g.lineWidth = w; g.strokeStyle = c; g.stroke(); } }),
-  ooze: elTex((g) => { g.beginPath(); for (let k = 0; k <= 48; k++) { const a = k / 48 * Math.PI * 2, r = 46 + 9 * Math.sin(a * 4 + 1) + 5 * Math.sin(a * 7); g[k ? 'lineTo' : 'moveTo'](64 + Math.cos(a) * r, 64 + Math.sin(a) * r); } g.closePath(); g.fillStyle = 'rgba(130,215,45,.72)'; g.fill(); g.lineWidth = 6; g.strokeStyle = 'rgba(80,160,25,.85)'; g.stroke(); g.fillStyle = 'rgba(235,255,170,.85)'; g.beginPath(); g.ellipse(48, 46, 12, 6, -0.6, 0, 7); g.fill(); g.beginPath(); g.arc(84, 78, 6, 0, 7); g.fill(); }),
-  frost: elTex((g) => { const gr = g.createRadialGradient(64, 64, 6, 64, 64, 62); gr.addColorStop(0, 'rgba(200,236,255,.5)'); gr.addColorStop(0.8, 'rgba(170,222,255,.38)'); gr.addColorStop(1, 'rgba(170,222,255,0)'); g.fillStyle = gr; g.fillRect(0, 0, 128, 128);
-    g.strokeStyle = '#ffffff'; g.lineWidth = 5; for (let k = 0; k < 6; k++) { const a = k * Math.PI / 3, c = Math.cos(a), s2 = Math.sin(a); g.beginPath(); g.moveTo(64, 64); g.lineTo(64 + c * 52, 64 + s2 * 52); for (const d of [26, 40]) for (const sd of [-1, 1]) { const b = a + sd * 0.8; g.moveTo(64 + c * d, 64 + s2 * d); g.lineTo(64 + c * d + Math.cos(b) * 12, 64 + s2 * d + Math.sin(b) * 12); } g.stroke(); } }),
-};
+const EL_SPR = makeCombatElementArt(elTex);
 const SPR = {}; for (const k in EL_SPR) { const flat = k === 'frost' || k === 'ooze', m = new THREE.InstancedMesh(flat ? new THREE.PlaneGeometry(1, 1).rotateX(-HP_) : new THREE.PlaneGeometry(1, 1), fxMat(EL_SPR[k], 1), k === 'fire' ? 260 : 140); m.frustumCulled = false; m.count = 0; m.renderOrder = flat ? 2 : 7; scene.add(m); SPR[k] = { m, n: 0, cap: k === 'fire' ? 260 : 140 }; }
 const sprQ = new THREE.Quaternion(), sprQ2 = new THREE.Quaternion(), sprE = new THREE.Euler(), sprC = new THREE.Color();
 function spr(kind, x, y, z, sx, sy = sx, roll = 0, k = 1) { const S = SPR[kind]; if (S.n >= S.cap) return;
@@ -1039,7 +1016,14 @@ function query(x, z, R, cb) {
   for (let cx = c0; cx <= c1; cx++) for (let cz = r0; cz <= r1; cz++) { const a = grid.get(key(cx, cz)); if (!a) continue; for (const e of a) { if (e.dead || e.inv || e.spawn > 0.3) continue; const dx = e.x - x, dz = e.z - z, rr = R + e.r; if (dx * dx + dz * dz < rr * rr) cb(e, dx, dz); } }
 }
 function nearest(x, z, maxD = 14, skip) { let best = null, bd = maxD * maxD; for (const e of enemies) { if (e.dead || e.inv || e.spawn > 0.3 || (skip && skip.has(e))) continue; const dx = e.x - x, dz = e.z - z, d = dx * dx + dz * dz; if (d < bd) { bd = d; best = e; } } return best; }
-function pushOutProps(o, r) { pushOutWalls(o, r); o.x = clamp(o.x, -HX, HX); o.z = clamp(o.z, -HZ, HZ); }
+function clampFieldPosition(o, margin = 0) {
+  const halfSide = rosterMatchMode ? rosterArenaSide(rosterSpec, rosterSession.form) / 2 : 0;
+  const x = rosterMatchMode ? halfSide - margin - 0.45 : HX;
+  const z = rosterMatchMode ? halfSide / Math.sin(campusElevation) - margin - 0.55 : HZ;
+  o.x = clamp(o.x, -x, x);
+  o.z = clamp(o.z, -z, z);
+}
+function pushOutProps(o, r) { pushOutWalls(o, r); clampFieldPosition(o, r); }
 
 /* ================= 游戏状态 ================= */
 const DIFFS = {
@@ -1059,7 +1043,7 @@ let diffId = 'easy', modeId = 'std'; const DF = () => DIFFS[diffId];
 const SAVE_PREFIX = localPreview ? 'syntara.brawl.preview' : 'syntara.brawl';
 let META_KEY = `${SAVE_PREFIX}.meta`;
 let BEST_KEY = `${SAVE_PREFIX}.best`;
-const expectedGameAccount = !gachaPreview && !skillDemoMode && !staticMatchPreview && location.pathname.startsWith('/native-web/games/sandbox-brawl/')
+const expectedGameAccount = !gachaPreview && !isolatedDemo && !staticMatchPreview && location.pathname.startsWith('/native-web/games/sandbox-brawl/')
   ? saveParams.get('account') : null;
 const cloudGame = !!expectedGameAccount;
 let cloudSave = null;
@@ -1069,7 +1053,7 @@ const meta = { pts: 0, heroes: [...DEF0.heroes], arts: [...DEF0.arts], relics: [
 let legacyPreviewUnlocks = false;
 function loadMeta() {
   try {
-  const saved = skillDemoMode ? null : JSON.parse(localStorage.getItem(META_KEY) || 'null');
+  const saved = isolatedDemo ? null : JSON.parse(localStorage.getItem(META_KEY) || 'null');
   if (saved) {
     legacyPreviewUnlocks = localPreview && !saved.fragments
       && Object.keys(ARTS).filter((id) => !ARTS[id].icon).every((id) => saved.arts?.includes(id))
@@ -1098,7 +1082,7 @@ function cloudSnapshot() {
   return structuredClone({ ...data, best: Math.floor(bestEndless) });
 }
 function saveMeta() {
-  if (skillDemoMode || staticMatchPreview || gachaPreview) return;
+  if (isolatedDemo || staticMatchPreview || gachaPreview) return;
   if (cloudSave) {
     try { cloudSave.enqueue(cloudSnapshot()); }
     catch (error) { showSaveError(error); }
@@ -1107,7 +1091,10 @@ function saveMeta() {
 }
 const isUnread = (key) => meta.unread.includes(key);
 const hasUnread = (kind) => meta.unread.some((key) => key.startsWith(`${kind}:`));
-const hasUnreadDraw = () => ['skins', 'ults', 'skills', 'arts', 'relics'].some(hasUnread);
+const hasUnreadDraw = (pool) => pool === 'heroes' ? drawableHeroes.some((id) => isUnread(`heroes:${id}`))
+  : pool === 'skins' ? hasUnread('skins')
+  : pool === 'skills' ? ['ults', 'skills', 'arts', 'relics'].some(hasUnread)
+  : Object.keys(GACHA_POOLS).some(hasUnreadDraw);
 const unreadDot = (unread) => unread ? ' data-unread aria-description="有新内容"' : '';
 function updateUnreadDot(element, unread) {
   element.toggleAttribute('data-unread', unread);
@@ -1277,15 +1264,6 @@ function achToast(a) { achQ.push(a); if (!achBusy) nextToast(); }
 function nextToast() { const a = achQ.shift(); if (!a) { achBusy = false; return; } achBusy = true; achEl.innerHTML = `${illustration('ach', a.id)}<div><b>成就达成：${a.n}</b><small>获得${achReward(a)}${a.note ? '，' + a.note : ''}</small></div>`; achEl.classList.add('on'); setTimeout(() => { achEl.classList.remove('on'); setTimeout(nextToast, 450); }, 2800); }
 /* ---------- 皮肤 + 抽卡才有的终极形态 ---------- */
 // 第二种终极形态：只能抽卡拿到。抽到后技能升到 Lv 10 时，原来的终极形态和它二选一
-const ALT = {
-  sweep:   { name: '地裂斩',     desc: '每次挥砍顺着方向劈出一道地裂，前方 9 米直线上的怪都挨一下' },
-  pencil:  { name: '自动铅笔',   desc: '出手快一倍，每支铅笔多穿透 3 只' },
-  stapler: { name: '订书钉狙击', desc: '改成一次射一枚巨型钉，伤害很高，一路穿到底' },
-  shotgun: { name: '橡皮花洒',   desc: '改成朝四面八方喷一整圈橡皮' },
-  bolt:    { name: '雷劈',       desc: '改成从天上劈下 6 道雷，每道落地炸开一小圈' },
-  coffee:  { name: '三杯连饮',   desc: '一次扔 3 杯，分给 3 个不同的怪' },
-  sock:    { name: '臭气加倍',   desc: '身边多出一层臭气圈。圈内怪物减速 75%，离开后仍减速 1 秒。圈内其他队友每秒回复 4 点生命' },
-};
 const GACHA_ULT = Object.keys(ALT);
 const altOwned = (w) => !!ALT[w] && meta.ults.includes(w);
 const RC = ['#b9a898', '#4aa8ff', '#ffaa1e'], RN = ['普通', '稀有', '传说'];
@@ -1314,7 +1292,8 @@ function heroSkinParts(hero, skin) {
   return parts;
 }
 function heroRig(h, sk = skinOf(h)) {
-  const S = sk && SKINS[sk]; if (!S) return RIGS['hero_' + h];
+  const S = sk && SKINS[sk];
+  if (!S) return RIGS['hero_' + h] ??= new Rig(heroParts(CLASSES[h].look), 4, true);
   const key = 'hero_' + h + '_' + sk;
   if (!RIGS[key]) RIGS[key] = new Rig(heroSkinParts(h, S), 4, true);
   return RIGS[key];
@@ -1325,8 +1304,12 @@ function drawCampusStudent(rig, pose, x, y, z, yaw) {
   shadow(x, z, 0.3 * scale);
 }
 /* ---------- 大鹅抽卡与碎片成长 ---------- */
-const GACHA = { one: 30, ten: 270, pity: 80, legendary: 0.05, rareSkin: 0.05, rareFragment: 0.30, duplicateBack: { 1: 10, 2: 25 } };
-const G_LEG = [...Object.keys(SKINS).filter((k) => SKINS[k].r === 2), ...GACHA_ULT.map((w) => 'ult_' + w)], G_RARE = Object.keys(SKINS).filter((k) => SKINS[k].r === 1);
+const GACHA = { one: 30, ten: 270, pity: 80, legendary: 0.05, rareFragment: 0.30, duplicateBack: { 1: 10, 2: 25 } };
+const GACHA_POOLS = { skills: '技能升级', heroes: '人物', skins: '皮肤' };
+const G_ULT = GACHA_ULT.map((id) => `ult_${id}`);
+const G_SKINS = Object.keys(SKINS);
+const drawableHeroes = Object.keys(CLASSES).filter((id) => !DEF0.heroes.includes(id) && !achFor('heroes', id));
+let gachaPool = 'skills';
 const FRAGMENT_POOLS = { skills: WEAPONS, relics: RELICS, arts: ARTS };
 const FRAGMENT_LABEL = { skills: '武器', relics: '饰品', arts: '遗物' };
 const FRAGMENT_UNLOCK = 10, ITEM_MAX_LEVEL = 20, FRAGMENT_REFUND = 2;
@@ -1366,34 +1349,53 @@ function grantFragments(kind, id, amount) {
   return { kind, id, amount, from, level, remaining: meta.fragments[key], back, newItem: from === 0 && (count === 0 || level > 0) };
 }
 
-function gachaRoll(atLeastRare) {
+const remainingGachaHeroes = () => drawableHeroes.filter((id) => !isOpen(id));
+const randomGachaItem = (items) => items[Math.floor(Math.random() * items.length)];
+
+function gachaRoll(pool, atLeastRare) {
+  if (pool === 'heroes') {
+    const id = randomGachaItem(remainingGachaHeroes());
+    meta.heroes.push(id);
+    return { tier: 1, id: `hero_${id}`, dup: false, back: 0 };
+  }
   const st = meta.stat;
   st.pity = clamp(Math.floor(Number(st.pity)) || 0, 0, GACHA.pity - 1) + 1;
   const roll = Math.random();
   const legendary = st.pity === GACHA.pity || roll < GACHA.legendary;
-  const rareSkin = roll < GACHA.legendary + GACHA.rareSkin;
-  if (!legendary && !rareSkin) {
-    const rare = atLeastRare || roll < GACHA.legendary + GACHA.rareSkin + GACHA.rareFragment;
-    const categories = Object.keys(FRAGMENT_POOLS);
-    const kind = categories[Math.floor(Math.random() * categories.length)];
-    const ids = Object.keys(FRAGMENT_POOLS[kind]);
-    const id = ids[Math.floor(Math.random() * ids.length)];
+  if (pool === 'skills' && !legendary) {
+    const rare = atLeastRare || roll < GACHA.legendary + GACHA.rareFragment;
+    const kind = randomGachaItem(Object.keys(FRAGMENT_POOLS));
+    const id = randomGachaItem(Object.keys(FRAGMENT_POOLS[kind]));
     return { tier: rare ? 1 : 0, ...grantFragments(kind, id, rare ? 8 : 4) };
   }
   if (legendary) st.pity = 0;
   const tier = legendary ? 2 : 1;
-  const pool = tier === 2 ? G_LEG : G_RARE, id = pool[Math.floor(Math.random() * pool.length)], ult = id.startsWith('ult_');
-  const own = ult ? meta.ults.includes(id.slice(4)) : meta.skins.includes(id);
-  if (!own) (ult ? meta.ults : meta.skins).push(ult ? id.slice(4) : id);
+  const ult = pool === 'skills';
+  const id = randomGachaItem(ult ? G_ULT : G_SKINS.filter((skin) => SKINS[skin].r === tier));
+  const collection = ult ? meta.ults : meta.skins;
+  const rewardId = ult ? id.slice(4) : id;
+  const own = collection.includes(rewardId);
+  if (!own) collection.push(rewardId);
   return { tier, id, dup: own, back: own ? GACHA.duplicateBack[tier] : 0 };
 }
+const gachaHero = (reward) => !reward.kind && reward.id.startsWith('hero_') ? reward.id.slice(5) : null;
 const gachaNoticeKey = (id, kind) => kind ? fragmentKey(kind, id)
+  : id.startsWith('hero_') ? `heroes:${id.slice(5)}`
   : id.startsWith('ult_') ? `ults:${id.slice(4)}` : `skins:${id}`;
 const newDrawItem = (reward) => reward.kind ? reward.newItem : !reward.dup;
-function gachaPull(n) {
-  if (n !== 1 && n !== 10) return null;
-  const cost = n === 10 ? GACHA.ten : GACHA.one; if (meta.pts < cost) return null; meta.pts -= cost;
-  const res = []; for (let i = 0; i < n; i++) res.push(gachaRoll(n === 10 && i === n - 1 && !res.some((q) => q.tier >= 1)));
+const gachaCost = (pool, n) => pool === 'heroes' ? PRICE.heroes : n === 10 ? GACHA.ten : GACHA.one;
+function canGachaDraw(pool, n) {
+  if (!Object.hasOwn(GACHA_POOLS, pool) || (n !== 1 && n !== 10)) return false;
+  if (pool === 'heroes' && (n !== 1 || remainingGachaHeroes().length === 0)) return false;
+  return meta.pts >= gachaCost(pool, n);
+}
+function gachaPull(n, pool = gachaPool) {
+  if (!canGachaDraw(pool, n)) return null;
+  meta.pts -= gachaCost(pool, n);
+  const res = [];
+  for (let i = 0; i < n; i++) {
+    res.push(gachaRoll(pool, n === 10 && i === n - 1 && !res.some((q) => q.tier >= 1)));
+  }
   for (const q of res) {
     meta.pts += q.back;
     if (newDrawItem(q)) markUnread(gachaNoticeKey(q.id, q.kind));
@@ -1402,6 +1404,8 @@ function gachaPull(n) {
 }
 function gItem(q) {
   if (q.kind) return { name: `${fragmentName(q.kind, q.id)}碎片 ×${q.amount}`, sub: FRAGMENT_LABEL[q.kind], ic: q.id };
+  const hero = gachaHero(q);
+  if (hero) return { name: CLASSES[hero].name, sub: '新同学', ic: hero };
   if (q.id.startsWith('ult_')) { const w = WEAPONS[q.id.slice(4)]; return { name: ALT[q.id.slice(4)].name, sub: `${w.name}的第二种终极形态`, ic: q.id.slice(4) }; }
   const S = SKINS[q.id]; return { name: S.n, sub: `${CLASSES[S.h].name}的皮肤`, ic: CLASSES[S.h].start };
 }
@@ -1414,7 +1418,7 @@ function buy(kind, id) {
 }
 let bestEndless = 0;
 function loadBestEndless() {
-  try { if (!skillDemoMode) bestEndless = +localStorage.getItem(BEST_KEY) || 0; } catch (e) {}
+  try { if (!isolatedDemo) bestEndless = +localStorage.getItem(BEST_KEY) || 0; } catch (e) {}
 }
 if (!cloudGame) loadBestEndless();
 let state = 'title', T = 0, timeScale = 1, nextElite = 75, nextBats = 25, nextBomb = 90, nextBoss = BOSS_T, bossCount = 0, boss = null, ev = {};
@@ -1427,12 +1431,6 @@ const BOSS_MISSILE_BLAST = { radius: 1.7, warning: 0.22, damage: 36, color: 0xff
 const BOSS_PULL_RADIUS = 11, BOSS_PULL_WARNING = 0.55, BOSS_PULL_DURATION = 2.35;
 const bossHazards = new Map();
 const BOSS_KINDS = ['boss', 'dean', 'coach', 'kraken'];
-const BOSSES = {
-  boss:   { name: '期末大魔王', atk: ['stamp', 'rush', 'slash', 'slam', 'missiles', 'summon'], wide: 'papers', minions: ['cross', 'phone'] },
-  dean:   { name: '教导主任',   atk: ['shout', 'pull', 'lane', 'missiles', 'slam', 'summon'], wide: 'shout3', minions: ['chalk', 'cross'] },
-  coach:  { name: '体育老师',   atk: ['throw', 'whistle', 'rush', 'ticks', 'summon', 'slam'], wide: 'ballrain', minions: ['clock', 'bat'] },
-  kraken: { name: '墨水巨怪',   atk: ['inkrain', 'tent', 'leap', 'spiral', 'summon', 'slam'], wide: 'flood', minions: ['ink', 'ink'] },
-};
 let bossOrder = ['boss'], forceBoss = null;
 const nextBossKind = () => forceBoss || bossOrder[bossCount % bossOrder.length] || 'boss';
 let cls = CLASSES.brawler, clsId = 'brawler', selIdx = 0;
@@ -1809,6 +1807,7 @@ function killEnemy(e, tag) {
     queuedEnemySpawns.length = 0;
     if (!netGuest()) for (const missile of enemies) if (missile.type === 'bossMissile') missile.dead = true;
     $('bossBar').hidden = true; $('hud').classList.remove('boss'); ripple(e.x, e.z, 1.6); shake = 0.8; chroma = 1; bossCount++;
+    if (rosterMatchMode) return;
     if (modeId === 'std') { timeScale = 0.25; setTimeout(() => { timeScale = 1; showWin(); }, 1400); }
     else {
       banner(`${BOSSES[e.kind || 'boss'].name}倒下了`, '下一个 Boss 会更强');
@@ -2034,7 +2033,15 @@ function fire(dt) {
 function quake(yaw, dmg) {
   const hit = new Set(), sx = Math.sin(yaw), sz = Math.cos(yaw), c = pc('sweep');
   const demoRound = skillDemoRound;
-  for (let k = 1; k <= 5; k++) { const x = player.x + sx * k * 1.8, z = player.z + sz * k * 1.8; if (inWall(x, z)) break; setTimeout(() => { if (skillDemoMode && demoRound !== skillDemoRound) return; ringFx(x, z, 1.7, 0xd89a4a, 0.3); spark(x, 0.3, z, c, 8, 3, 0.35, 0.4, 2); dust(x, z, 4); }, k * 40);
+  for (let k = 1; k <= 5; k++) { const x = player.x + sx * k * 1.8, z = player.z + sz * k * 1.8; if (inWall(x, z)) break;
+    const drawFx = () => {
+      if (isolatedDemo && demoRound !== skillDemoRound) return;
+      ringFx(x, z, 1.7, 0xd89a4a, 0.3);
+      spark(x, 0.3, z, c, 8, 3, 0.35, 0.4, 2);
+      dust(x, z, 4);
+    };
+    if (rosterMatchMode) rosterSession.delayedFx.push({ at: realTime + k * 0.04, draw: drawFx });
+    else setTimeout(drawFx, k * 40);
     query(x, z, 1.6, (o) => { if (hit.has(o)) return; hit.add(o); hitEnemy(o, dmg * 0.8, sx * 4, sz * 4, 'melee', { noChain: true }); }); }
 }
 function thunder(s) {
@@ -2356,7 +2363,7 @@ function drawTask(dt) {
 const rBeam = new THREE.Mesh(beam.geometry, new THREE.ShaderMaterial({ uniforms: { uColor: { value: new THREE.Color(0xffc93c) }, uTime }, transparent: true, depthWrite: false, toneMapped: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, vertexShader: beamMat.vertexShader, fragmentShader: beamMat.fragmentShader }));
 rBeam.visible = false; scene.add(rBeam);
 // 所有传送门共用一个计时器，每波由一扇门放出一队。
-const PORTALS = portalSites.map(([x,z]) => ({x, z, flash: 0}));
+const PORTALS = rosterMatchMode || pickupPreview ? [] : portalSites.map(([x,z]) => ({x, z, flash: 0}));
 for (const portal of PORTALS) {
   Object.assign(portal, buildInkPortal(true));
   portal.mesh.position.set(portal.x, 0, portal.z);
@@ -2853,18 +2860,23 @@ function fragmentProgress(kind, id) {
     ${complete ? `<span>${kind === 'skills' ? '已解锁' : '已满级'} · 再抽到返 ${FRAGMENT_REFUND} 积分 / 碎片</span>` : `<span>${next} · ${count} / ${fragmentCost(level)} 碎片</span><progress aria-label="${next}所需碎片" value="${count}" max="${fragmentCost(level)}"></progress>`}
     ${bonus ? `<small>局内${bonus}</small>` : ''}</div>`;
 }
-function codexItems(tab) {
+function codexItems(tab, drawPool) {
   if (tab === 'gacha') {
-    const prizes = [...G_LEG, ...G_RARE].map((id) => { const ult = id.startsWith('ult_'), q = gItem({ id }), r = ult ? 2 : SKINS[id].r, w = ult && WEAPONS[id.slice(4)];
+    const prizeIds = [...(!drawPool || drawPool === 'skills' ? G_ULT : []), ...(!drawPool || drawPool === 'skins' ? G_SKINS : [])];
+    const prizes = prizeIds.map((id) => { const ult = id.startsWith('ult_'), q = gItem({ id }), r = ult ? 2 : SKINS[id].r, w = ult && WEAPONS[id.slice(4)];
     return { id, name: q.name, c: RC[r], ic: ult ? q.ic : SKINS[id].h, iconCategory: ult ? 'alternateUltimates' : 'heroes', open: ult ? meta.ults.includes(id.slice(4)) : meta.skins.includes(id), tag: RN[r], desc: ult
       ? `传说 · ${w.name}的第二种终极形态：${ALT[id.slice(4)].desc}。<b>怎么获得：</b>只能在大鹅抽卡里抽到。抽到以后，这个技能升到 Lv 10 时可以在原来的「${w.evo.name}」和它之间二选一。`
       : `${RN[r]}皮肤 · ${CLASSES[SKINS[id].h].name}。${SKINS[id].aura ? '换一套配色，头顶光环，脚下一圈光。' : '换一套配色。'}<b>怎么获得：</b>只能在大鹅抽卡里抽到。抽到后在准备页选这位同学时换上。` }; });
-    const fragments = Object.entries(FRAGMENT_POOLS).flatMap(([kind, pool]) => Object.keys(pool).map((id) => ({
+    const heroes = !drawPool || drawPool === 'heroes' ? drawableHeroes.map((id) => ({
+      id: `hero_${id}`, name: CLASSES[id].name, c: RC[1], ic: id, iconCategory: 'heroes',
+      open: isOpen(id), tag: RN[1], desc: `${CLASSES[id].desc}。抽到后直接解锁，在准备页可以选这位同学。`,
+    })) : [];
+    const fragments = !drawPool || drawPool === 'skills' ? Object.entries(FRAGMENT_POOLS).flatMap(([kind, pool]) => Object.keys(pool).map((id) => ({
       id: fragmentKey(kind, id), name: `${fragmentName(kind, id)}碎片`, c: pool[id].c ?? RC[1], ic: id,
       iconCategory: kind, open: fragmentOwned(kind, id), progress: fragmentProgress(kind, id),
       desc: `${FRAGMENT_LABEL[kind]}碎片。普通掉落 4 枚，稀有掉落 8 枚。`,
-    })));
-    return [...prizes, ...fragments];
+    }))) : [];
+    return [...prizes, ...heroes, ...fragments];
   }
   if (tab === 'ach') return ACH.map((a) => ({ id: a.id, name: a.n, c: '#ffaa1e', ic: a.ic, open: meta.ach.includes(a.id), mon: true, desc: `${a.d}${a.note ? '，' + a.note : ''}。奖励：${achReward(a)}。${meta.ach.includes(a.id) ? '已达成。' : ''}` }));
   if (tab === 'heroes') return CLS_IDS.map((id) => { const c = CLASSES[id]; const sk = Object.keys(SKINS).filter((k) => SKINS[k].h === id).map((k) => `${SKINS[k].n}（${RN[SKINS[k].r]}）`).join('、'); return { id, name: c.name, short: c.short, c: TAGS[c.tag].c, ic: c.start, open: isOpen(id), kind: achFor('heroes', id) ? null : 'heroes', tag: tagOf('heroes', id), hint: howGet('heroes', id), desc: `${TAGS[c.tag].name} · ${c.desc}。加入后这个技能也会进入技能池。<b>怎么获得：</b>${howGet('heroes', id)}。皮肤（抽卡）：${sk}。` }; });
@@ -2911,9 +2923,9 @@ function codexTabUnread(category) {
   return hasUnread(category) || (category === 'heroes' && hasUnread('skins'));
 }
 
-function showCodex(tab = cdxTab, sel) {
+function showCodex(tab = cdxTab, sel, drawPool) {
   if (state === 'title') titleEl.hidden = true;
-  const tabs = { heroes: '同学', skills: '技能', arts: '遗物', relics: '饰品', gacha: '抽卡奖池', ach: '成就', mons: '怪物' };
+  const tabs = { heroes: '同学', skills: '技能', arts: '遗物', relics: '饰品', gacha: drawPool ? `${GACHA_POOLS[drawPool]}奖池` : '抽卡奖池', ach: '成就', mons: '怪物' };
   show(`<div class="chead"><h2>图鉴</h2><span class="pts">积分 <b>${meta.pts}</b></span></div>
     <div class="codex-columns">
       <section class="codex-selection" aria-label="图鉴选择">
@@ -3066,7 +3078,7 @@ function showCodex(tab = cdxTab, sel) {
 
   function renderCategory(category, selectedId) {
     cdxTab = category;
-    const items = codexItems(category);
+    const items = codexItems(category, drawPool);
     tabButtons.forEach((button) => {
       const active = button.dataset.t === category;
       button.classList.toggle('on', active);
@@ -3101,7 +3113,7 @@ function showHow() {
     ${row('#3fc98a', 'flag', '每 30 秒一个新事件', '新怪物、小任务、地图遗物轮着来，10:00 大魔王出场')}
     ${row('#a98bff', 'move', '四个教室一条走廊', '从走廊的门进出教室，怪也得走门。四个教室最外面的角落会一直出怪')}
     ${row('#ffab2e', 'charm', '去找遗物', '金色光柱下面有遗物，三选一，效果很强')}
-    ${row('#ffaa1e', 'crown', '成就和抽卡', '大鹅抽卡可获得皮肤、第二种终极形态和碎片。集齐碎片会自动解锁武器、饰品或遗物，饰品和遗物还能继续升级。')}
+    ${row('#ffaa1e', 'crown', '成就和抽卡', '大鹅抽卡有技能升级、人物和皮肤三个奖池。集齐碎片会自动解锁武器、饰品或遗物，饰品和遗物还能继续升级。')}
     ${row('#ffab2e', 'flag', '解锁难度和模式', '标准模式通关简单后开放中等，通关中等后开放困难，通关困难后开放无尽模式。')}
   </div><div class="actions"><button class="primary" id="ok">知道了</button></div>`);
   $('ok').onclick = hide; $('ok').focus();
@@ -3152,28 +3164,44 @@ function renderPrep(fresh) {
 let theater;
 const gch = { on: false, res: [], t: 0, struck: false, revealed: false, feature: null, n: 1 };
 function openGacha(n) { wipe(() => { titleStep = 'gacha'; renderGacha(); if (n) gachaStart(n); }); }
+function gachaPoolDetails() {
+  if (gachaPool === 'heroes') {
+    const remaining = remainingGachaHeroes().length;
+    return remaining ? `抽到直接解锁 · 不重复 · 还剩 ${remaining} 位同学` : '人物池里的同学已全部解锁';
+  }
+  const attempts = GACHA.pity - (meta.stat.pity || 0);
+  const pity = `${GACHA.pity} 抽传说保底 · 技能升级与皮肤共用进度 · 最多再抽 ${attempts} 次`;
+  if (gachaPool === 'skins') return `稀有皮肤 95% · 传说皮肤 5%<br>${pity}`;
+  return `武器、饰品、遗物碎片 · 第二终极形态 5%<br>稀有碎片 30% · 十连至少一张稀有或以上<br>${pity}`;
+}
 function renderGacha() {
-  titleEl.className = 'gacha'; titleEl.hidden = false; const p = GACHA.pity - (meta.stat.pity || 0);
-  titleEl.innerHTML = `<div class="gTop"><button id="gBack" ${gch.on ? 'hidden' : ''}>返回</button><span class="pill">积分 ${meta.pts}</span></div>
+  titleEl.className = 'gacha'; titleEl.hidden = false;
+  titleEl.innerHTML = `<div class="gTop"><button id="gBack" ${gch.on ? 'hidden' : ''}>返回</button><span class="pill">${gachaPreview ? '试抽积分' : '积分'} ${meta.pts}</span></div>
     <div class="gTitle">大鹅抽卡</div>
     ${gch.on ? '<div id="gReveal" class="gReveal" aria-live="polite"></div>' : ''}
-    <div class="gBot">${gch.on ? '<button id="gSkip">跳过动画</button>' : gachaPreview ? `<div class="row gExamples">
-      <button data-sample="fragment">碎片单抽</button><button data-sample="skin">皮肤单抽</button>
-      <button data-sample="ultimate">终极形态</button><button class="primary" data-sample="ten">十连预览</button></div>` : `<div class="row"><button class="big" id="g1" ${meta.pts < GACHA.one ? 'disabled' : ''}>单抽 · ${GACHA.one}</button><button class="primary big" id="g10" ${meta.pts < GACHA.ten ? 'disabled' : ''}>十连 · ${GACHA.ten}</button></div>
-      <div class="row"><small>传说皮肤或终极形态 ${GACHA.legendary * 100}% · 80 抽保底 · 最多再抽 ${p} 次<br>稀有皮肤 ${GACHA.rareSkin * 100}% · 稀有碎片 ${GACHA.rareFragment * 100}% · 十连至少一张稀有或以上</small><button id="gPool"${unreadDot(hasUnreadDraw())}>看奖池</button></div>`}</div>`;
+    <div class="gBot">${gch.on ? '<button id="gSkip">跳过动画</button>' : `
+      <div class="gPools" role="group" aria-label="抽卡奖池">${Object.entries(GACHA_POOLS).map(([id, name]) =>
+        `<button type="button" data-pool="${id}" aria-pressed="${id === gachaPool}"${unreadDot(hasUnreadDraw(id))}>${name}</button>`).join('')}</div>
+      <div class="row">
+        <button class="${gachaPool === 'heroes' ? 'primary ' : ''}big" id="g1" ${canGachaDraw(gachaPool, 1) ? '' : 'disabled'}>单抽 · ${gachaCost(gachaPool, 1)}</button>
+        ${gachaPool === 'heroes' ? '' : `<button class="primary big" id="g10" ${canGachaDraw(gachaPool, 10) ? '' : 'disabled'}>十连 · ${gachaCost(gachaPool, 10)}</button>`}
+        <button id="gPool"${unreadDot(hasUnreadDraw(gachaPool))}>看奖池</button>
+      </div><small class="gPoolDetails">${gachaPoolDetails()}</small>`}</div>`;
   theater ??= createGachaTheater();
   titleEl.prepend(theater.canvas);
   if (!gch.on) { gch.t = 0; gch.revealed = false; }
   theater.draw(gch.t, realTime, REDUCED, false, RC[0]);
-  if (gachaPreview) {
-    titleEl.querySelector('.gTop').hidden = true;
-    titleEl.querySelectorAll('[data-sample]').forEach((button) => {
-      button.onclick = () => previewGachaDraw(button.dataset.sample);
-    });
-  }
-  if (gch.on) $('gSkip').onclick = finishGacha;
-  else if (gachaPreview) return;
-  else { $('gBack').onclick = () => wipe(() => { titleStep = 'home'; renderHome(); }); $('g1').onclick = () => gachaStart(1); $('g10').onclick = () => gachaStart(10); $('gPool').onclick = () => showCodex('gacha'); }
+  if (gch.on) { $('gSkip').onclick = finishGacha; return; }
+  for (const button of titleEl.querySelectorAll('[data-pool]')) button.onclick = () => {
+    if (button.dataset.pool === gachaPool) return;
+    gachaPool = button.dataset.pool;
+    renderGacha();
+    titleEl.querySelector('[data-pool][aria-pressed="true"]').focus({ preventScroll: true });
+  };
+  $('gBack').onclick = () => wipe(() => { titleStep = 'home'; renderHome(); });
+  $('g1').onclick = () => gachaStart(1);
+  if ($('g10')) $('g10').onclick = () => gachaStart(10);
+  $('gPool').onclick = () => showCodex('gacha', undefined, gachaPool);
 }
 function gachaStart(n) {
   if (gch.on) return;
@@ -3190,19 +3218,9 @@ function animateGacha(rewards) {
   renderGacha();
   $('gSkip').focus({ preventScroll: true });
 }
-function previewGachaDraw(sample) {
-  const fragment = { kind: 'skills', id: 'pencil', tier: 0, amount: 4, from: 0, level: 0, remaining: 4, back: 0, newItem: true };
-  const skin = { tier: 1, id: 'brawler_r', dup: false, back: 0 };
-  const ultimate = { tier: 2, id: 'ult_pencil', dup: false, back: 0 };
-  const examples = { fragment, skin, ultimate };
-  gch.sample = sample;
-  if (sample !== 'ten') return animateGacha([examples[sample]]);
-  const fragments = ['mop', 'plane', 'coffee', 'slipper', 'bolt', 'spin', 'lamp', 'pencil']
-    .map((id) => ({ ...fragment, id }));
-  animateGacha([...fragments, skin, ultimate]);
-}
 function gachaIcon(reward, item, color) {
   if (reward.kind) return illustratedBadge(reward.kind, reward.id, color);
+  if (gachaHero(reward)) return illustratedBadge('heroes', item.ic, color);
   if (reward.id.startsWith('ult_')) return illustratedBadge('alternateUltimates', item.ic, color);
   return illustratedBadge('heroes', SKINS[reward.id].h, color);
 }
@@ -3212,6 +3230,8 @@ function gachaArtwork(q) {
     return `<div class="grPieces">${['nw', 'ne', 'sw', 'se'].map((corner) =>
       `<i class="grPiece ${corner}">${art}</i>`).join('')}</div>`;
   }
+  const hero = gachaHero(q);
+  if (hero) return `<img class="grHero" src="${skinPortrait(hero, '')}" alt="">`;
   if (SKINS[q.id]) {
     const src = q.id === 'brawler_r' ? './gacha-art/winter-uniform.webp' : skinPortrait(SKINS[q.id].h, q.id);
     return `<img class="grPrint" src="${src}" alt=""><img class="grModel" src="${src}" alt="">`;
@@ -3223,10 +3243,12 @@ function gachaArtwork(q) {
 }
 function revealGachaCard() {
   const q = gch.feature, item = gItem(q);
-  const family = q.kind ? 'fragment' : SKINS[q.id] ? 'skin' : 'ultimate';
+  const family = q.kind ? 'fragment' : gachaHero(q) ? 'classmate' : SKINS[q.id] ? 'skin' : 'ultimate';
   const name = q.kind ? fragmentName(q.kind, q.id) + '碎片' : item.name;
   const tier = ['common', 'rare', 'legendary'][q.tier];
-  const detail = q.kind ? gachaResultStatus(q) : (q.dup ? `重复 · 返 ${q.back} 积分` : `新 · ${item.sub}`);
+  const detail = q.kind ? gachaResultStatus(q)
+    : q.dup ? `重复 · 返 ${q.back} 积分`
+    : family === 'classmate' ? '新同学' : `新 · ${item.sub}`;
   let progress = '';
   if (q.kind) {
     const ratio = fragmentComplete(q.kind, q.level) ? 1 : q.remaining / fragmentCost(q.level);
@@ -3267,7 +3289,8 @@ function finishGacha() {
     if (!gch.revealed) revealGachaCard();
     $('gReveal').classList.add('grSettled');
     const q = gch.feature;
-    const hint = q.kind || q.dup ? '' : SKINS[q.id] ? '在准备页可换上这套皮肤' : '对局中技能达到 Lv 10 时可选择';
+    const hint = q.kind || q.dup ? '' : gachaHero(q) ? '已解锁，可在准备页选择这位同学'
+      : SKINS[q.id] ? '在准备页可换上这套皮肤' : '对局中技能达到 Lv 10 时可选择';
     titleEl.querySelector('.gBot').innerHTML = `${hint ? `<small>${hint}</small>` : ''}${gachaActions()}`;
     bindGachaActions();
   } else {
@@ -3298,15 +3321,14 @@ function showGachaResults() {
   bindGachaActions();
 }
 function gachaActions() {
-  const canRepeat = gachaPreview || meta.pts >= (gch.n === 10 ? GACHA.ten : GACHA.one);
+  const canRepeat = canGachaDraw(gachaPool, gch.n);
   return `<div class="actions"><button class="primary" id="gOk">收下</button><button id="gAgain" ${canRepeat ? '' : 'disabled'}>再来${gch.n === 10 ? '十连' : '一次'}</button></div>`;
 }
 function bindGachaActions() {
   $('gOk').onclick = () => { hide(); renderGacha(); };
   $('gAgain').onclick = () => {
     hide();
-    if (gachaPreview) previewGachaDraw(gch.sample);
-    else gachaStart(gch.n);
+    gachaStart(gch.n);
   };
   $('gOk').focus({ preventScroll: true });
 }
@@ -4447,11 +4469,11 @@ function showWin() {
 }
 
 /* ================= 主循环 ================= */
-const camLook = new THREE.Vector3(), camPos = new THREE.Vector3(TX, 9, TZ + 26), camTgt = new THREE.Vector3(TX, 1, TZ - 1), tV = new THREE.Vector3(), tL = new THREE.Vector3(); let camK = 1;
+const camLook = new THREE.Vector3(), camPos = new THREE.Vector3(TX, 9, TZ + 26), camTgt = new THREE.Vector3(TX, 1, TZ - 1), tV = new THREE.Vector3(), tL = new THREE.Vector3();
 function resize() {
   const w = innerWidth, h = innerHeight;
   renderer.setSize(w, h, false); composer.setSize(w, h); titleCamera.aspect = w / h; titleCamera.updateProjectionMatrix();
-  camK = w / h < 0.8 ? 1.55 : w / h < 1.2 ? 1.2 : 1; finalPass.uniforms.uRes.value.set(w, h);
+  finalPass.uniforms.uRes.value.set(w, h);
   PART.mat.uniforms.uScale.value = GLOW.mat.uniforms.uScale.value = h * 0.9;
 }
 addEventListener('resize', resize); resize();
@@ -4488,7 +4510,7 @@ const DEMO_ALT_TARGETS = {
   sock: [[2.9, -.6], [4.7, 1], [-4.6, -.8], [.1, -4.5]],
 };
 
-function resetSkillDemo() {
+function resetDemoField() {
   skillDemoRound++;
   clearField();
   for (const id of Object.keys(cds)) delete cds[id];
@@ -4496,12 +4518,17 @@ function resetSkillDemo() {
   for (const effect of rings) effect.t = 1;
   for (const particles of [PART, GLOW]) particles.life.fill(0);
   for (const number of NUMS) { number.life = 0; number.el.style.opacity = 0; }
+  hitFx.length = 0;
   sripStart.fill(-99);
   for (const rip of RIPS) rip.z = -100;
   mctx.clearRect(0, 0, 1024, 1024);
   marksDirty = true;
   shake = chroma = hurt = sweepFx.t = 0;
   T = 0;
+}
+
+function resetSkillDemo() {
+  resetDemoField();
   state = 'demo';
   const level = demoForm === 'base' ? 1 : MAXLV;
   demoSockAlly = demoSkill === 'sock' && demoForm === 'alt'
@@ -4545,6 +4572,135 @@ if (skillDemoMode) {
     resetSkillDemo();
   });
 }
+
+const rosterSession = rosterMatchMode ? {
+  art: null, audible: false, playing: saveParams.get('paused') !== '1',
+  redraw: false, rate: 1, closeUp: false, delayedFx: [],
+  form: rosterSkillForm(rosterSpec.skill, saveParams.get('form')),
+  opponent: null, restartAt: Infinity, nextAttack: 0, lastAttack: null, attack: null,
+} : null;
+
+function rosterNotify(event, detail = {}) {
+  window.parent.postMessage({ type: 'sandbox-brawl:roster-event', event, ...detail }, location.origin);
+}
+
+function resetRosterMatch() {
+  resetDemoField();
+  rosterSession.delayedFx.length = impacts.length = 0;
+  rosterSession.restartAt = Infinity;
+  rosterSession.lastAttack = null;
+  defeatSource = null;
+  hitStopT = camPunch = camKick.x = camKick.z = 0;
+  hitStopAt = -Infinity;
+  $('hurtFx').classList.remove('hit', 'low');
+  run = { tasks: 0, hg: 0, hit: -1, dmg: 0, taken: 0, downs: 0, rev: 0, top: 0 };
+  bossCount = 0;
+  waveSpawnBudget = null;
+  forceBoss = rosterSpec.boss ? rosterSpec.monster : null;
+  diffId = rosterSpec.boss ? 'hard' : 'normal';
+  clsId = rosterSpec.hero ? rosterHero : 'brawler';
+  cls = CLASSES[clsId];
+  const { skill, monster } = rosterSpec;
+  const form = rosterSession.form;
+  const elements = rosterSkillElements(form);
+  const level = form === 'evo' || form === 'alt' ? MAXLV : INF_LV[elements.length - 1] ?? 1;
+  const stats = classBaseStats(cls);
+  if (form === 'guard') stats.dodge = STATS.dodge.max;
+  const maxHp = rosterSpec.hero ? cls.hp : rosterSpec.boss ? 1500 : 180;
+  const gap = rosterStartGap(rosterSpec);
+  const playerX = rosterSpec.hero ? -gap / 2 : gap / 2;
+  Object.assign(player, {
+    x: playerX, z: 0.65, vx: 0, vz: 0, yaw: rosterSpec.hero ? HP_ : -HP_,
+    hp: maxHp, maxHp, speed: PLAYER_SPEED, xp: 0, need: 6, lvl: level,
+    weapons: skill ? { [skill]: level } : {}, wup: skill ? { [skill]: { lv: level - 1 } } : {},
+    evo: form === 'evo' && skill ? { [skill]: 1 } : {},
+    alt: form === 'alt' && skill ? { [skill]: 1 } : {},
+    elem: elements.length && skill ? { [skill]: elements } : {},
+    st: stats, relics: {}, arts: {}, sp: {}, duos: {},
+    ghost: false, shield: form === 'guard', hit: 0, warn: 0, iframe: 0, slowT: 0,
+    moving: 0, ph: 0, stepAcc: 0, stepSide: 1, spinT: 0, kills: 0,
+    scholarFacingLeft: !rosterSpec.hero, scholarGait: 0, scholarPhase: 0, scholarIdle: 0,
+    scholarShotAt: -99, healPending: 0, revives: rosterSpec.hero ? DF().revive : 0,
+    atkAt: null, atkFaceLeft: null, hurtAt: null, downAt: null, riseAt: null,
+  });
+  state = 'play';
+  const enemy = spawn(rosterSpec.boss ? 'boss' : monster, -playerX, 0.65);
+  rosterSession.opponent = enemy;
+  if (rosterSpec.hero) {
+    // Make the sparring partner survive opening attacks so both sides can hit.
+    enemy.hp = enemy.maxHp = Math.max(enemy.maxHp, level === MAXLV ? 820 : 440);
+  }
+  if (rosterSpec.boss) enemy.atk = rosterSession.attack ?? rosterSession.nextAttack;
+  $('title').hidden = $('hud').hidden = $('banner').hidden = true;
+}
+
+function rosterInput() {
+  if (!rosterSpec.hero) return [0, 0];
+  const enemy = rosterSession.opponent;
+  const hold = enemy && !enemy.dead && Math.hypot(enemy.x - player.x, enemy.z - player.z) < 1.2;
+  const targetX = -1.2 + 0.42 * Math.sin(T * 0.9);
+  const targetZ = 0.65 + 0.54 * Math.sin(T * 1.13);
+  return hold && T < 1 ? [0, 0] : [
+    clamp((targetX - player.x) * 0.8, -1, 1),
+    clamp((targetZ - player.z) * 0.8, -1, 1),
+  ];
+}
+
+async function openRosterMatch() {
+  document.body.classList.toggle('roster-paused', !rosterSession.playing);
+  addEventListener('resize', () => { rosterSession.redraw = true; });
+  addEventListener('message', ({ source, origin, data }) => {
+    if (source !== window.parent || origin !== location.origin || data?.type !== 'sandbox-brawl:roster-control') return;
+    if (typeof data.playing === 'boolean') {
+      rosterSession.playing = data.playing;
+      document.body.classList.toggle('roster-paused', !data.playing);
+    }
+    if (typeof data.audible === 'boolean') rosterSession.audible = data.audible;
+    if ([1, 0.5, 0.25].includes(data.rate)) {
+      rosterSession.rate = data.rate;
+      document.body.style.setProperty('--roster-time-multiplier', 1 / data.rate);
+    }
+    if (typeof data.detail === 'boolean') document.body.classList.toggle('roster-detail', data.detail);
+    if (typeof data.closeUp === 'boolean' && rosterSession.closeUp !== data.closeUp) {
+      rosterSession.closeUp = data.closeUp;
+      rosterSession.redraw = true;
+    }
+    let change = false;
+    if (typeof data.form === 'string') {
+      const form = rosterSkillForm(rosterSpec.skill, data.form);
+      if (form !== rosterSession.form) {
+        rosterSession.form = form;
+        change = !!rosterSpec.hero;
+      }
+    }
+    if (rosterSpec.boss && Object.hasOwn(data, 'attack')) {
+      const attack = data.attack;
+      const valid = attack === null || (Number.isInteger(attack) && attack >= 0 && attack <= BOSSES[rosterSpec.monster].atk.length);
+      if (valid && attack !== rosterSession.attack) {
+        rosterSession.attack = attack;
+        change = true;
+      }
+    }
+    if (rosterSession.art && (change || data.replay)) {
+      if (data.replay && rosterSpec.boss) {
+        rosterSession.nextAttack = rosterSession.lastAttack ?? rosterSession.nextAttack;
+      }
+      resetRosterMatch();
+      rosterSession.redraw = true;
+    }
+  });
+  try {
+    rosterSession.art = await loadRosterMatchArt(scene);
+    resetRosterMatch();
+    if (typeof rosterSpec.skill === 'undefined') rosterNotify('ready');
+    else rosterNotify('ready', { skill: rosterSpec.skill });
+    draw(0);
+    composer.render();
+  } catch (error) {
+    console.error(error);
+    rosterNotify('error');
+  }
+}
 const SPAWN_TABLE = [['sleepy', 0, 5], ['bomber', 30, 0.3], ['chalk', 60, 0.7], ['cross', 120, 4], ['mole', 180, 0.25], ['clock', 240, 2], ['ink', 330, 2], ['ghost', 390, 0.75], ['phone', 450, 1.1], ['snail', 510, 0.9]];
 const LIVE_TYPE_LIMITS = { bomber: 3 };
 function fillEnemyBudget(dt) {
@@ -4576,7 +4732,7 @@ function spawnScheduledEnemy(dt) {
     const spawnQueued = queuedEnemySpawns.shift();
     nextBatchSpawnAt = T + BATCH_SPAWN_INTERVAL;
     enemy = spawnQueued();
-  } else if (enemies.length < 460) {
+  } else if (!rosterMatchMode && enemies.length < 460) {
     enemy = fillEnemyBudget(dt);
   }
   if (enemy) {
@@ -4701,7 +4857,13 @@ function bossRush(e, dx, dz, windup = 0.85) { e.rushW = windup; e.ax = dx; e.az 
 function castBossAttack(e, dx, dz) {
   const K = BOSSES[e.kind] || BOSSES.boss, wide = DF().storm || e.enraged;
   const attack = K.atk[e.atk] || K.wide;
+  if (rosterMatchMode) rosterSession.lastAttack = e.atk;
   e.atk = (e.atk + 1) % (K.atk.length + Number(wide));
+  if (rosterMatchMode) {
+    rosterSession.nextAttack = e.atk;
+    if (rosterSession.attack !== null) e.atk = rosterSession.attack;
+    rosterNotify('attack', { label: rosterBossSkillLabel(e.kind, attack) });
+  }
   e.atkN = (e.atkN || 0) + 1;
   e.cdA = DF().cd * (e.enraged ? 0.7 : 1);
   const targets = bossTargets(), yawTo = (t) => Math.atan2(t.x - e.x, t.z - e.z), say = (text) => dmgNum(e.x, e.z, text, 'tag', 5);
@@ -4819,11 +4981,14 @@ function bossPullPhase() {
 }
 
 function updateMatch(dt) {
-  achClock += dt; if (achClock > 0.5) { achClock = 0; checkAch(true); }
+  if (!rosterMatchMode && !pickupPreview) {
+    achClock += dt; if (achClock > 0.5) { achClock = 0; checkAch(true); }
+  }
   T += dt;
   let mx = (keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0);
   let mz = (keys.KeyS || keys.ArrowDown ? 1 : 0) - (keys.KeyW || keys.ArrowUp ? 1 : 0);
   if (joy) { mx = joy.dx; mz = joy.dy; }
+  if (rosterMatchMode) [mx, mz] = rosterInput();
   if (state !== 'play') mx = mz = 0;
   if (player.ghost && NET && NET.on) netGhostStep(dt);
   const L = Math.hypot(mx, mz); if (L > 1) { mx /= L; mz /= L; }
@@ -4850,6 +5015,11 @@ function updateMatch(dt) {
   if (NET?.on && !player.ghost) sockSupport(player, remoteSockAuras(), dt);
   if (!player.ghost) flushHealFeedback(player);
 
+  if (rosterMatchMode) {
+    if (queuedEnemySpawns.length) spawnScheduledEnemy(dt);
+    return;
+  }
+  if (pickupPreview) return;
   if (!NET || !NET.on || NET.host) {
   if (T >= nextBats && !boss) {
     const origin = netTarget();
@@ -5056,7 +5226,7 @@ function update(dt) {
     const dx = tx - e.x, dz = tz - e.z, d = Math.hypot(dx, dz) || 1;
     const sockSlowed = e.sockSlow > 0;
     let s = (e.demoSpeed ?? chaseSpeed) * (!sockSlowed && e.slow > 0 ? 0.45 : 1), ux = dx / d, uz = dz / d;
-    const followingPath = !e.fly && (regionOf(e.x, e.z) !== regionOf(tx, tz) || (d > 2.5 && lineBlocked(e.x, e.z, tx, tz))) && flowDir(e, pursuit);
+    const followingPath = !rosterMatchMode && !e.fly && (regionOf(e.x, e.z) !== regionOf(tx, tz) || (d > 2.5 && lineBlocked(e.x, e.z, tx, tz))) && flowDir(e, pursuit);
     if (followingPath) { ux = FD[0]; uz = FD[1]; }
     const scriptedTravel = e.dash > 0 || e.rushT > 0 || e.leap || e.inv;
     e.cdA -= dt;
@@ -5164,8 +5334,8 @@ function update(dt) {
     let ax = ux * s, az = uz * s;
     query(e.x, e.z, e.r * 0.9, (o, ox, oz) => { if (o === e || o.fly !== e.fly) return; const L2 = Math.hypot(ox, oz) || 0.01, push = (e.r + o.r - L2) * 2.4; if (push > 0) { ax -= ox / L2 * push; az -= oz / L2 * push; } });
     e.x += (ax + e.kx) * dt; e.z += (az + e.kz) * dt; e.kx *= Math.pow(0.02, dt); e.kz *= Math.pow(0.02, dt);
-    if (!e.fly) pushOutProps(e, e.type === 'boss' ? 1.75 : e.r); else { e.x = clamp(e.x, -HX, HX); e.z = clamp(e.z, -HZ, HZ); }
-    e.moving = s > 0 ? 1 : 0; e.ph += s * dt * 3.2;
+    if (!e.fly) pushOutProps(e, e.type === 'boss' ? 1.75 : e.r); else clampFieldPosition(e, e.r);
+    e.moving = rosterMatchMode ? clamp(s / chaseSpeed, 0, 1) : Number(s > 0); e.ph += s * dt * 3.2;
     if (localDistance < e.r + 0.45 && !e.inv) addContact(e);
   }
   updateBossHazards();
@@ -5203,7 +5373,7 @@ function update(dt) {
       if (--p.pierce < 0) p.life = 0; else p.target = null; });
   }
   planes = planes.filter((p) => p.life > 0).concat(bornP); CW = null;
-  if (skillDemoMode) {
+  if (isolatedDemo) {
     enemies = enemies.filter((e) => !e.dead);
     return;
   }
@@ -5355,8 +5525,30 @@ function drawMonsterArt(id, actor, x, y, z, yaw, sx, sy, pitch, roll = 0) {
   return monsterArt.draw(id, camera, x, y, z, yaw, sx / baseSize, sy / baseSize, tint, pitch, roll, actor.hit > 0.7);
 }
 
+function drawRosterCard(id, actor, x, y, z, yaw, sx = 1, sy = sx, pitch = 0, roll = 0) {
+  if (!rosterSession?.art) return false;
+  const color = tC2.copy(WHITE);
+  if (actor.hit) color.lerp(HITC, actor.hit > 0.7 ? 1 : actor.hit * 1.2);
+  if (actor.warn) color.lerp(REDC, actor.warn);
+  if (burning(actor)) color.lerp(ORANGE, 0.6 + 0.25 * Math.sin(realTime * 20));
+  if (actor.frz > 0) color.lerp(ICEC, 0.92);
+  else if (actor.chill > 0) color.lerp(ICEC, 0.72);
+  if (actor.acid > 0) color.lerp(ACIDC, 0.74 + 0.1 * Math.sin(realTime * 9));
+  if (actor.shock > 0 && Math.sin(realTime * 70) > 0) color.lerp(SHOCKC, 0.8);
+  return rosterSession.art.draw(id, camera, x, y, z, yaw, sx, sy, color, pitch, roll, actor.hit > 0.7);
+}
+
+function drawCurrentMonster(id, actor, x, y, z, yaw, sx, sy, pitch, roll = 0) {
+  if (rosterMatchMode) {
+    const baseSize = ET[actor.type === 'inkmini' ? 'ink' : actor.type].size;
+    return drawRosterCard(id, actor, x, y, z, yaw, sx / baseSize, sy / baseSize, pitch, roll);
+  }
+  return drawMonsterArt(id, actor, x, y, z, yaw, sx, sy, pitch, roll);
+}
+
 function draw(dt) {
   itemArt.begin();
+  rosterSession?.art?.begin();
   const title = state === 'title';
   scene.background.setHex(title ? 0xeadcc2 : 0x321c31);
   campus.group.visible = !title;
@@ -5373,7 +5565,10 @@ function draw(dt) {
     // 联机倒下：先播完倒地，再变成飘着的灵魂
     if (player.ghost && player.downAt != null && realTime - player.downAt > 1.2) player.downAt = null;
     const lift = player.ghost && player.downAt == null ? 0.35 + Math.sin(realTime * 3) * 0.12 : 0;
-    drawCampusStudent(heroRig(clsId), player, player.x, lift, player.z, yaw);
+    if (rosterTargetMode) {
+      drawRosterCard('target', player, player.x, lift, player.z, 0);
+      shadow(player.x, player.z, campusStudentRadius);
+    } else drawCampusStudent(heroRig(clsId), player, player.x, lift, player.z, yaw);
     if (sweepFx.t > 0) { sweepFx.t -= dt * 4.2; const p = 1 - sweepFx.t, arc = sweepFx.arc || TAU, a0 = HP_ - (sweepFx.yaw || 0) + arc / 2, r = sweepFx.r, sc = r / 1.6; STILL.etint = elT('sweep');
       // 尺子本体加几道残影，注入元素后本体和残影都变成元素的颜色
       for (let g = 0; g < 4; g++) { const pp = p - g * 0.08; if (pp < 0) break; const a = a0 - pp * arc, k = 1 - g * 0.17; if (g) STILL.etint = elT('sweep', g) || STILL.etint; RIGS.ruler.push(STILL, worldM(player.x + Math.cos(a) * r * 0.52, 0.8 * campusStudentDrawScale(player.x, player.z) - g * 0.03, player.z + Math.sin(a) * r * 0.52, -a, sc * k, 1.6 * k, sc * 0.8 * k)); }
@@ -5440,7 +5635,7 @@ function draw(dt) {
     const drawZ = e.z + (e.rdz || 0) * rc + lz;
     const sx = sw * (1 + e.hit * 0.24 - ls * 0.08), sy = sw * (sq - e.hit * 0.2 + ls * 0.12);
     const pitch = -Math.min(0.5, e.rcl * 0.35) + ls * 0.25;
-    if (!drawMonsterArt(id, e, drawX, drawY, drawZ, yaw, sx, sy, pitch)) {
+    if (!drawCurrentMonster(id, e, drawX, drawY, drawZ, yaw, sx, sy, pitch)) {
       RIGS[id].push(e, worldM(drawX, drawY, drawZ, yaw, sx, sy, sx, pitch));
     }
     shadow(e.x, e.z, e.r * (e.fly ? 0.7 : 1) * (1 - rise * 0.7));
@@ -5460,7 +5655,7 @@ function draw(dt) {
     const id = RIG_OF(c.type);
     const actor = { type: c.type, ph: 0, hit: c.t < 0.09 ? 1 : 0.35, seed: c.seed, moving: 0, dark: false };
     const sx = k * sq, sy = k / sq, pitch = -c.t * c.spin, roll = c.roll * c.t;
-    if (!drawMonsterArt(id, actor, c.x, c.y, c.z, c.yaw, sx, sy, pitch, roll)) {
+    if (!drawCurrentMonster(id, actor, c.x, c.y, c.z, c.yaw, sx, sy, pitch, roll)) {
       RIGS[id].push(actor, worldM(c.x, c.y, c.z, c.yaw, sx, sy, sx, pitch, roll));
     }
     if (was < 0.5 && c.t >= 0.5) { burst(c.x, 0.4 + c.y, c.z, 0xfff6e4, 7, 2.6, 0.5, 0.45, -1); burst(c.x, 0.4 + c.y, c.z, c.c, 5, 3, 0.32, 0.4, 2); }
@@ -5519,20 +5714,23 @@ function draw(dt) {
       spark(g.x + rnd(-0.2, 0.2), 0.7, g.z + rnd(-0.2, 0.2), col, 1, 1, 0.4, 0.8, -3);
   }
   for (const d of drops) {
-    itemArt.draw(ITEM.magnet, d.x, 0.2 + Math.sin(realTime * 3) * 0.12, d.z, 1.16);
-    shadow(d.x, d.z, 0.5);
+    const sway = Math.sin(realTime * 3 + d.x * 0.7);
+    itemArt.draw(ITEM.magnet, d.x, 0.24 + sway * 0.09, d.z, 1.26, 0.34 + sway * 0.055);
+    shadow(d.x, d.z, 0.52);
   }
   for (const a of altars) {
     itemArt.draw(ITEM.altar, a.x, 0, a.z, 2.15 * Math.min(1, a.age * 2));
     shadow(a.x, a.z, 0.9);
     if (Math.random() < 0.3) spark(a.x, 1.6, a.z, 0xffd23f, 1, 1.2, 0.3, 0.9, -2);
   }
-  drawAltarMark(); drawPortals(dt);
+  if (!rosterMatchMode) { drawAltarMark(); drawPortals(dt); }
 
   for (const g of gems) {
-    const z = g.sz || 0;
-    itemArt.draw(GEM_CELLS[z], g.x, 0.12 + Math.sin(realTime * 4 + g.ph) * 0.1, g.z, 0.44 + z * 0.19);
-    if (z === 2 && Math.random() < dt * 3) spark(g.x, 0.9, g.z, 0xffe07a, 1, 1, 0.3, 0.5, -1);
+    const tier = g.sz || 0;
+    const sway = Math.sin(realTime * 3.6 + g.ph);
+    itemArt.draw(GEM_CELLS[tier], g.x, 0.09 + sway * 0.055 + (g.pull ? 0.17 : 0), g.z,
+      0.63 + tier * 0.18, g.pull ? clamp((player.x - g.x) * -0.13, -0.4, 0.4) : sway * 0.11);
+    if (tier === 2 && Math.random() < dt * 3) spark(g.x, 0.9, g.z, 0xffe07a, 1, 1, 0.3, 0.5, -1);
   }
   for (const id in RIGS) RIGS[id].end();
   drawImpacts(dt);
@@ -5605,21 +5803,28 @@ function draw(dt) {
   } else {
     const aspect = innerWidth / innerHeight;
     camPunch = Math.max(0, camPunch - dt * 6); const dyingZoom = state === 'dying' || state === 'dead' ? 0.82 + 0.18 * Math.exp(-(realTime - dyingAt) * 3) : 1;
-    const halfHeight = (skillDemoMode ? 4.2 * Math.max(1, 1.65/aspect) : Math.min(10.8 * camK, HX / aspect)) * (1 - (REDUCED ? 0 : camPunch * 0.025)) * dyingZoom;
+    const matchHalfHeight = rosterMatchMode ? rosterArenaSide(rosterSpec, rosterSession.form) / 2
+      : skillDemoMode ? 4.2 * Math.max(1, 1.65 / aspect) : campusMatchHalfHeight(aspect);
+    const closeUp = rosterSession?.closeUp ? 1.65 : 1;
+    const halfHeight = matchHalfHeight * (1 - (REDUCED ? 0 : camPunch * 0.025)) * dyingZoom / closeUp;
+    if (rosterMatchMode) PART.mat.uniforms.uScale.value = GLOW.mat.uniforms.uScale.value = Hd * 0.9 * closeUp;
     if (camera.top !== halfHeight || camera.right !== halfHeight * aspect) {
       camera.top = halfHeight; camera.bottom = -halfHeight;
       camera.right = halfHeight * aspect; camera.left = -camera.right;
       camera.updateProjectionMatrix();
     }
-    if (skillDemoMode) camLook.set(DEMO_X+2, 0.65, DEMO_Z);
+    if (rosterMatchMode) camLook.set(0, 0, 0);
+    else if (skillDemoMode) camLook.set(DEMO_X+2, 0.65, DEMO_Z);
     else camLook.lerp(v3.set(player.x, 0, player.z), Math.min(1, dt*6));
     // 震屏用平滑的抖动（不是每帧乱跳），再叠一个朝受击方向的“踢”，弹簧回位
     const kd = Math.exp(-dt * 14); camKick.x *= kd; camKick.z *= kd;
     const nx = Math.sin(realTime * 47.3) * 0.6 + Math.sin(realTime * 89.1 + 1.7) * 0.4, nz = Math.sin(realTime * 53.9 + 2.1) * 0.6 + Math.sin(realTime * 77.7 + 0.4) * 0.4;
-    const x = THREE.MathUtils.clamp(camLook.x + nx * shk * 1.2 + camKick.x, -HX + camera.right, HX - camera.right);
+    const kickX = camLook.x + nx * shk * 1.2 + camKick.x;
+    const kickZ = camLook.z + nz * shk * 1.2 + camKick.z;
     const depth = halfHeight / Math.sin(campusElevation);
-    const z = THREE.MathUtils.clamp(camLook.z + nz * shk * 1.2 + camKick.z, -mapHalfDepth + depth, mapHalfDepth - depth);
-    camera.position.set(x, camLook.y + 32*Math.sin(campusElevation), z + 32*Math.cos(campusElevation));
+    const x = rosterMatchMode ? kickX : clamp(kickX, -HX + camera.right, HX - camera.right);
+    const z = rosterMatchMode ? kickZ : clamp(kickZ, -mapHalfDepth + depth, mapHalfDepth - depth);
+    camera.position.set(x, camLook.y + campusMatchCameraDistance * Math.sin(campusElevation), z + campusMatchCameraDistance * Math.cos(campusElevation));
     camera.lookAt(x, camLook.y, z);
     torch.position.set(player.x, 3.2 * campusStudentScale, player.z);
   }
@@ -5627,12 +5832,13 @@ function draw(dt) {
   if (team) drawPeerMarkers(team);
   torch.intensity = 8 * (0.92 + 0.08 * Math.sin(realTime * 11) * Math.sin(realTime * 7.3));
   shake = Math.max(0, shake - dt * 1.8); chroma = Math.max(0, chroma - dt * 2.2); hurt = Math.max(0, hurt - dt * 1.4); player.warn = Math.max(0, (player.warn || 0) - dt * 4.5); $('hurtFx').classList.toggle('low', state === 'play' && player.hp < player.maxHp * 0.3);
-  finalPass.uniforms.uChroma.value = REDUCED ? chroma * 0.3 : chroma; finalPass.uniforms.uHurt.value = hurt;
+  finalPass.uniforms.uChroma.value = REDUCED ? chroma * 0.3 : chroma;
+  finalPass.uniforms.uHurt.value = rosterTargetMode ? 0 : hurt;
   for (let i = 0; i < 6; i++) SCREEN_RIPS[i].z = sripStart[i] < 0 ? -1 : realTime - sripStart[i];
-  if (state !== 'title' && !skillDemoMode) {
+  if (state !== 'title' && !isolatedDemo) {
     renderCombatStats();
     $('hpFill').style.width = (player.hp / player.maxHp * 100) + '%'; $('hpText').textContent = Math.ceil(player.hp);
-    $('xpFill').style.width = (player.xp / player.need * 100) + '%'; $('clock').textContent = fmt(T); $('wave').textContent = boss ? (boss.enraged ? '大魔王发怒' : '首领战') : nextEventText();
+    $('xpFill').style.width = (player.xp / player.need * 100) + '%'; $('clock').textContent = fmt(T); $('wave').textContent = pickupPreview ? '拾取预览' : boss ? (boss.enraged ? '大魔王发怒' : '首领战') : nextEventText();
     if (hud.points !== meta.pts) { hud.points = meta.pts; $('score').textContent = meta.pts; bump($('scPill'), 'pop'); }
     if (hud.lv !== player.lvl) { hud.lv = player.lvl; $('lv').textContent = player.lvl; bump($('lvb'), 'pop'); }
     $('kills').textContent = player.kills; $('hpGhost').style.width = (player.hp / player.maxHp * 100) + '%'; $('pcard').classList.toggle('low', player.hp < player.maxHp * 0.3);
@@ -5652,11 +5858,37 @@ function titleAmbience(dt) {
 }
 let last = performance.now();
 function frame(now) {
-  const raw = Math.min(0.05, (now - last) / 1000); last = now;
+  const raw = Math.min(0.05, (now - last) / 1000) * (rosterSession?.rate ?? 1); last = now;
+  if (rosterMatchMode && (!rosterSession.playing || !rosterSession.art)) {
+    if (rosterSession.art && rosterSession.redraw) {
+      draw(0);
+      composer.render();
+      rosterSession.redraw = false;
+    }
+    requestAnimationFrame(frame);
+    return;
+  }
   realTime += raw; uTime.value = realTime;
   let dt = raw * timeScale;
   if (hitStopT > 0) { hitStopT -= raw; dt *= 0.03; }
-  if (state === 'dying' && realTime - dyingAt > 1.25) showDeath();
+  if (rosterMatchMode) {
+    if (realTime >= rosterSession.restartAt) {
+      resetRosterMatch();
+      rosterNotify('round');
+    }
+    if (state === 'dying' && realTime - dyingAt > 1.25) {
+      if (player.revives > 0 && !rosterSession.opponent.dead) revive();
+      else if (!Number.isFinite(rosterSession.restartAt)) rosterSession.restartAt = realTime + 0.75;
+    }
+    if (rosterSession.delayedFx.length) {
+      rosterSession.delayedFx = rosterSession.delayedFx.filter((fx) => {
+        if (fx.at > realTime) return true;
+        fx.draw();
+        return false;
+      });
+    }
+    rosterSession.redraw = false;
+  } else if (state === 'dying' && realTime - dyingAt > 1.25) showDeath();
   if (state === 'title' && titleStep === 'gacha' && !skillDemoMode) {
     updateGacha(raw);
     gameAudio.update('title', false, 1);
@@ -5671,7 +5903,11 @@ function frame(now) {
     if (NET?.on && state !== 'title') netTick(raw);
     if ((state === 'play' && !NET?.phase) || (NET?.on && !NET.phase && state === 'paused')) update(dt); else if (state === 'title') titleAmbience(raw);
   }
-  if (!skillDemoMode) gameAudio.update(state, !!boss && !boss.dead, player.hp / player.maxHp);
+  if (rosterMatchMode) {
+    if (state === 'play' && rosterSession.opponent.dead && !Number.isFinite(rosterSession.restartAt)) {
+      rosterSession.restartAt = realTime + (rosterSpec.monster === 'ink' ? 2.1 : 1.25);
+    }
+  } else if (!skillDemoMode) gameAudio.update(state, !!boss && !boss.dead, player.hp / player.maxHp);
   draw(skillDemoMode || state === 'play' || state === 'title' ? dt : state === 'dying' ? raw * 0.45 : raw * 0.12);
   composer.render(); requestAnimationFrame(frame);
 }
@@ -5865,7 +6101,28 @@ function setupStaticMatchHud(showTeam, showEvent) {
   state = 'preview';
 }
 
-if (staticMatchPreview) {
+function resetPickupPreview() {
+  resetDemoField();
+  Object.assign(player, { x: 16.55, z: 22.9, vx: 0, vz: 0, lvl: 1, xp: 0, need: 32, weapons: {}, wup: {} });
+  gems = [
+    [19.3, 21.52, 1], [20.1, 23.62, 3], [22.9, 23.65, 12],
+    [20.4, 17.18, 1], [22.58, 17.16, 3],
+  ].map(([x, z, v], i) => ({ x, z, v, sz: gemSize(v), pull: false, s: 0, ph: i * 1.2 }));
+  drops = [{ x: 21.57, z: 22.58 }];
+  camLook.set(player.x, 0, player.z);
+  $('banner').classList.remove('on');
+  $('banner').replaceChildren();
+  hide();
+  renderSlots();
+  state = 'play';
+}
+
+if (pickupPreview) {
+  startRun();
+  resetPickupPreview();
+  $('pickupPreview').hidden = false;
+  $('pickupReset').onclick = resetPickupPreview;
+} else if (staticMatchPreview) {
   const previewMode = saveParams.get('static-match');
   startRun();
   const step = 1 / 30;
@@ -5903,7 +6160,11 @@ if (staticMatchPreview) {
   });
   void monsterArt.ready.then(() => requestAnimationFrame(renderPreview));
   addEventListener('resize', () => requestAnimationFrame(renderPreview));
+} else if (rosterMatchMode) {
+  addEventListener('pagehide', () => renderer.forceContextLoss(), { once: true });
+  void openRosterMatch();
 } else if (gachaPreview) {
+  meta.pts = 2400;
   showTitle('gacha');
 } else if (cloudGame) {
   titleEl.hidden = true;
@@ -5920,4 +6181,4 @@ if (staticMatchPreview) {
     showTitle('prep');
   } else showTitle();
 }
-if (!staticMatchPreview) requestAnimationFrame(frame);
+if (!staticMatchPreview || pickupPreview) requestAnimationFrame(frame);

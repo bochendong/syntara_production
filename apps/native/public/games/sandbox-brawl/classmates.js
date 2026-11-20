@@ -1,0 +1,19 @@
+import { scholarLook } from './student-chibi.js?v=hit-feel';
+
+export const CLASSES = {
+  brawler:  { name: '体育委员', tag: 'melee',  hp: 150, start: 'sweep',   desc: '血厚，原地抡一圈大尺子，周围全砍', look: { style: 'spiky', outfit: 'track', skin: 0xf2c49a, hair: 0x2b1d18, top: 0xd8423a, pants: 0x2b3a5c, iris: 0x7a3a22, item: 'bat', band: 0xffffff, big: true } },
+  geo:      { name: '数学课代表', short: '课代表', tag: 'melee', hp: 120, start: 'spin', desc: '三角尺绕着自己转，站着不动也在算账', look: { style: 'bob', outfit: 'vest', hair: 0x3a2a20, top: 0xfaf8f2, pants: 0x4a5568, iris: 0x4a6a8a, accent: 0x3f7ad8, item: 'tri', glasses: true } },
+  duty:     { name: '值日生',   tag: 'melee',  hp: 130, start: 'mop',     desc: '拖把一拖一大片，地板湿了怪就打滑', look: { style: 'bun', outfit: 'apron', girl: true, hair: 0x6a4630, top: 0x7cc8e8, pants: 0x3a6a9a, iris: 0x3a8ab8, accent: 0xffffff, scarf: 0xff8fa8, item: 'mop' } },
+  scholar:  { name: '学霸',     tag: 'ranged', hp: 95,  start: 'pencil',  desc: '铅笔百发百中，开局暴击率 12%', baseCrit: 0.12, look: scholarLook },
+  paper:    { name: '后排同学', tag: 'ranged', hp: 100, start: 'plane',   desc: '上课折的纸飞机会自己追怪', look: { style: 'messy', outfit: 'hoodie', hair: 0x4a3426, top: 0x38b2c9, pants: 0x3a3f4a, iris: 0x2a8aa0, accent: 0xffffff, cap: 0xf2f2f2, item: 'plane' } },
+  dorm:     { name: '住校生',   tag: 'ranged', hp: 115, start: 'slipper', desc: '穿着睡衣就来了，拖鞋扔出去还会飞回来', look: { style: 'bun2', outfit: 'pajama', girl: true, hair: 0xe8a0b8, top: 0xffd9e4, pants: 0xffd9e4, iris: 0xd85a8a, accent: 0xff7a5a, mask: 0x8a7ad8, item: 'slipper' } },
+  engineer: { name: '理科生',   tag: 'gun',    hp: 110, start: 'stapler', desc: '订书机枪高速连发，越升级射得越快', look: { style: 'messy', outfit: 'labcoat', hair: 0x2e3a48, top: 0x3faa6a, pants: 0x34495e, iris: 0x2a8a6a, item: 'gun', goggles: true } },
+  artist:   { name: '美术生',   tag: 'gun',    hp: 100, start: 'shotgun', desc: '橡皮屑一喷一大片，贴脸最疼', look: { style: 'pony', outfit: 'apron', girl: true, hair: 0xd8503a, top: 0xfaf8f2, pants: 0x3a3a4a, iris: 0x2aa88a, accent: 0xffd23f, beret: 0x2a2a3a, paint: true, item: 'blaster' } },
+  poet:     { name: '文科生',   tag: 'magic',  hp: 90,  start: 'bolt',    desc: '荧光笔召来连锁闪电，打一大片', look: { style: 'wavy', outfit: 'cardigan', girl: true, hair: 0xc9a8f0, top: 0xb69cff, pants: 0x5a4a9a, iris: 0x9a5ae0, accent: 0xff8fb8, item: 'wand', beret: 0x6a3ad0, flower: true } },
+  owl:      { name: '夜猫子',   tag: 'magic',  hp: 100, start: 'coffee',  desc: '咖啡不离手，扔出去就是一个旋风，又伤又减速', look: { style: 'messy', outfit: 'hoodie', hair: 0x24202e, top: 0x6a4a3a, pants: 0x2e2a36, iris: 0xb8742a, accent: 0xf5e6c8, tired: true, item: 'mug' } },
+  jock:     { name: '体育生',   tag: 'magic',  hp: 140, start: 'sock',    desc: '训练完没换袜子，怪一靠近就被熏到', look: { style: 'buzz', outfit: 'jersey', skin: 0xe8b88a, hair: 0x2a2a2a, top: 0x5fb04f, pants: 0xffffff, iris: 0x3a5a2a, band2: 0xff5f5f, item: 'sock', big: true } },
+  monitor:  { name: '班长',     tag: 'magic',  hp: 105, start: 'rollcall', desc: '点到谁谁倒霉，专挑血最厚的砸', look: { style: 'pony', outfit: 'sailor', girl: true, hair: 0x3a2618, top: 0xfaf8f2, pants: 0x8a2a3a, iris: 0xb83a4a, accent: 0xffc93c, armband: 0xe2453a, item: 'book' } },
+  captain:  { name: '社团长',   tag: 'summon', hp: 105, start: 'minion',  desc: '招一群便利贴小人替你冲，开局暴击率 3%', baseCrit: 0.03, look: { style: 'twin', outfit: 'cheer', girl: true, hair: 0xf08a3a, top: 0xffb22a, pants: 0xffffff, iris: 0xe0602a, accent: 0xff5f9e, item: 'flag' } },
+  techie:   { name: '电教委员', tag: 'summon', hp: 100, start: 'lamp',    desc: '放下台灯就是炮台，开局暴击率 2%', baseCrit: 0.02, look: { style: 'bob', outfit: 'hoodie', hair: 0x5a6a7a, top: 0xffd84d, pants: 0x3a4658, iris: 0xc89a00, accent: 0x3a3f4a, phones: 0x3a3f4a, item: 'lamp' } },
+  swimmer:  { name: '游泳队员', tag: 'summon', hp: 115, start: 'duck',    desc: '带着橡皮鸭下水，怪全被鸭子引走', look: { style: 'pony', outfit: 'track', girl: true, hair: 0x2a4a6a, top: 0x4aa8ff, pants: 0x2a3a6a, iris: 0x2a8ad8, accent: 0xffd23f, swimcap: 0xffffff, goggles2: true, item: 'duck' } },
+};

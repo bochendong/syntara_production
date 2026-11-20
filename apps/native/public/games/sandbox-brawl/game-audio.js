@@ -13,7 +13,7 @@ const SYNTH = {
   down: { interval: 1, tone: [420, 90, 0.6, 0.2, 'triangle'], noise: [0.3, 0.12, 500] },
 };
 
-export function createGameAudio() {
+export function createGameAudio({ effectsOnly = false } = {}) {
   let context, output, musicGain, tensionGain;
   let music, phase = 'title', muted = false, hidden = document.hidden;
   const buffers = {};
@@ -45,11 +45,13 @@ export function createGameAudio() {
       tensionGain = context.createGain();
       tensionGain.gain.value = 0;
       tensionGain.connect(musicGain);
-      Promise.all([load('music.flac'), load('tension.flac')]).then(([base, tension]) => {
-        buffers.music = base;
-        buffers.tension = tension;
-        if (phase === 'play' || phase === 'levelup') startMusic();
-      });
+      if (!effectsOnly) {
+        Promise.all([load('music.flac'), load('tension.flac')]).then(([base, tension]) => {
+          buffers.music = base;
+          buffers.tension = tension;
+          if (phase === 'play' || phase === 'levelup') startMusic();
+        });
+      }
       for (const key of Object.keys(EFFECTS)) {
         load(key + '.wav').then((buffer) => { buffers[key] = buffer; });
       }

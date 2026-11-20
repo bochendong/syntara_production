@@ -45,6 +45,8 @@ body { background: #eadcc2; color: var(--ink); font-family: var(--body); overflo
 
 /* ---------- 局内 HUD ---------- */
 #hud { position: fixed; inset: 0; pointer-events: none; font-variant-numeric: tabular-nums; }
+#pickupPreview:not([hidden]) { position: fixed; z-index: 3; left: 50%; bottom: calc(env(safe-area-inset-bottom, 0px) + 100px); transform: translateX(-50%); display: flex; align-items: center; gap: 8px; padding: 6px 8px 6px 12px; border-radius: 12px; background: var(--paper); font-size: 12px; white-space: nowrap; }
+#pickupPreview button { padding: 4px 9px; font-size: 12px; }
 .top { position: absolute; top: calc(env(safe-area-inset-top, 0px) + 12px); left: max(12px, env(safe-area-inset-left, 0px)); right: max(12px, env(safe-area-inset-right, 0px)); display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: start; }
 .player-status { min-width: 0; width: min(250px, 100%); display: grid; gap: 10px; }
 .player-status .frame, .combat-stats {
@@ -474,6 +476,12 @@ button.prep-launch { min-width: 180px; min-height: 72px; padding-inline: 24px; }
 .codex-art:has(> .codex-skill-preview) { overflow: hidden; grid-template: minmax(0, 1fr) / minmax(0, 1fr); }
 .codex-skill-preview { display: block; width: 100%; height: 100%; border: 0; pointer-events: none; }
 body.skill-demo #nums span { font-size: 12px; -webkit-text-stroke-width: 2.5px; }
+body.roster-match :is(#banner, #title, #hud, #ov, #wipe, #joy) { display: none !important; }
+body.roster-detail #hurtFx { background: radial-gradient(ellipse at center, transparent 68%, rgba(255,40,55,.32) 100%); box-shadow: inset 0 0 0 3px rgba(255,70,80,.55); }
+body.roster-match #hurtFx.hit { animation-duration: calc(.5s * var(--roster-time-multiplier, 1)); }
+body.roster-match #hurtFx.low { animation-duration: calc(.9s * var(--roster-time-multiplier, 1)); }
+body.roster-match #hurtFx.low.hit { animation-duration: calc(.5s * var(--roster-time-multiplier, 1)), calc(.9s * var(--roster-time-multiplier, 1)); animation-delay: 0s, calc(.5s * var(--roster-time-multiplier, 1)); }
+body.roster-paused #hurtFx { animation-play-state: paused; }
 .codex-skin-model { display: block; width: min(100%, 160px); height: 100%; min-height: 0; object-fit: contain; }
 .cdetail:has(> .codex-skins) { display: flex; flex-direction: column; align-items: flex-start; }
 .cdetail:has(> .codex-skins) > * { flex-shrink: 0; }
@@ -704,7 +712,7 @@ body.skill-demo #nums span { font-size: 12px; -webkit-text-stroke-width: 2.5px; 
 @keyframes fall { to { transform: translateY(110vh) rotate(720deg); } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01s !important; animation-iteration-count: 1 !important; transition-duration: .01s !important; } }
 </style>
-<link rel="stylesheet" href="./gacha-reveal.css">
+<link rel="stylesheet" href="./gacha-reveal.css?v=gacha-pools">
 
 <div id="stage"></div>
 <div id="hurtFx"></div>
@@ -712,6 +720,9 @@ body.skill-demo #nums span { font-size: 12px; -webkit-text-stroke-width: 2.5px; 
 <div id="joy" hidden><i></i></div>
 <div id="banner"></div>
 <div id="title"></div>
+<div id="pickupPreview" class="frame" hidden>
+  <span>拾取预览 · WASD／方向键或拖动</span><button id="pickupReset" type="button">重摆掉落</button>
+</div>
 
 <div id="hud" hidden>
   <div class="top">
@@ -764,4 +775,4 @@ body.skill-demo #nums span { font-size: 12px; -webkit-text-stroke-width: 2.5px; 
 <div class="ov" id="ov" hidden><div class="panel frame" id="panel"></div></div>
 <div id="wipe"></div>
 
-<script type="module" src="./game.js?v=monster-art"></script>
+<script type="module" src="./game.js?v=bar-magnet"></script>
