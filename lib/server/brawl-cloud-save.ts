@@ -134,7 +134,7 @@ export async function openBrawlSave(db: PrismaClient, userId: string, input: Ope
     const current = await tx.brawlCloudSave.findUnique({ where: { userId } });
     const account = await tx.user.findUniqueOrThrow({
       where: { id: userId },
-      select: { brawlPracticePoints: true },
+      select: { brawlPracticePoints: true, role: true },
     });
     let data = saveSchema.parse(current?.data ?? {});
     const previousPoints = data.pts;
@@ -164,7 +164,10 @@ export async function openBrawlSave(db: PrismaClient, userId: string, input: Ope
         where: { id: userId },
         data: { brawlPracticePoints: { decrement: account.brawlPracticePoints } },
       });
-    const study = await readBrawlStudy(tx, userId, input.timeZone);
+    const study =
+      account.role === 'TEACHER' || account.role === 'ADMIN'
+        ? null
+        : await readBrawlStudy(tx, userId, input.timeZone);
     if (current && !practicePoints && !importedLegacy)
       return { revision: current.revision, data, practicePoints, study };
     data.pts = Math.min(MAX_POINTS, data.pts + practicePoints);
@@ -193,9 +196,10 @@ export async function writeBrawlSave(db: PrismaClient, userId: string, input: Wr
     const priorData = saveSchema.parse(current.data);
     const priorGrowth = priorData.growth;
     // Older game clients omit study state when writing their save.
-    const data = input.data.study.freeDay < priorData.study.freeDay
-      ? { ...input.data, study: priorData.study }
-      : input.data;
+    const data =
+      input.data.study.freeDay < priorData.study.freeDay
+        ? { ...input.data, study: priorData.study }
+        : input.data;
     const changedGrowth = [
       ...new Set([...Object.keys(priorGrowth), ...Object.keys(input.data.growth)]),
     ].some((id) => (priorGrowth[id] ?? 0) !== (input.data.growth[id] ?? 0));

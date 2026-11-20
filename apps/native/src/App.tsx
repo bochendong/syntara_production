@@ -5,6 +5,11 @@ import { syncCourseCalendar } from './data/calendar-sync';
 import { AppNavigationRail } from './components/AppNavigationRail';
 import { AppNavigationContext, type AppNavigation } from './components/app-navigation-context';
 import { browserApp, platformAvailable } from './data/browser-runtime';
+import {
+  loadNativeAuthSession,
+  subscribeNativeAuth,
+  type NativeAuthSession,
+} from './data/native-auth';
 import { CreateCourseDialog } from './components/CreateCourseDialog';
 import { CoursePublishDialog } from './components/CoursePublishDialog';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
@@ -127,6 +132,21 @@ function AuthenticatedApp() {
   // 「教学」入口只给能开班的账号（认领了课的老师、课程所属机构的成员等），手机上没有。
   // 从「老师登录」进来的账号即使还没认领课也有入口，好去认领。
   const teacherLogin = readLoginIntent() === 'teacher';
+  const [accountRole, setAccountRole] = useState<NativeAuthSession['user']['role'] | null>(null);
+  useEffect(() => {
+    let active = true;
+    const updateRole = (session: NativeAuthSession | null) => {
+      if (active) setAccountRole(session?.user.role ?? null);
+    };
+    const unsubscribe = subscribeNativeAuth(updateRole);
+    void loadNativeAuthSession()
+      .then(updateRole)
+      .catch(() => undefined);
+    return () => {
+      active = false;
+      unsubscribe();
+    };
+  }, []);
   const [canTeach, setCanTeach] = useState(false);
   useEffect(() => {
     if (!classroomEnabled) return;
@@ -539,7 +559,12 @@ function AuthenticatedApp() {
   const practiceExpanded = practiceSession !== null && !practiceMinimized;
 
   // 「去玩一把」：手机没有游戏，老师不提示；做题、上课和别的整页功能打开时先不打扰。
-  const gameAvailable = !phoneLayout && !teacherLogin;
+  const gameAvailable =
+    !phoneLayout &&
+    !teacherLogin &&
+    accountRole !== 'TEACHER' &&
+    accountRole !== 'ADMIN' &&
+    (!browserApp || accountRole !== null);
   const gameNudgeBlocked =
     loading || practiceExpanded || globalPage !== null || classroom.state.sessions.length > 0;
   const gameNudge = useGameNudge({

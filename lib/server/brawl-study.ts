@@ -81,7 +81,7 @@ export async function readBrawlStudy(
   const since = new Date(now.getTime() - HISTORY_DAYS * 86_400_000);
   const rows = await db.$queryRaw<Array<{ day: string; passed: boolean }>>`
     SELECT to_char("createdAt" AT TIME ZONE 'UTC' AT TIME ZONE ${timeZone}, 'YYYY-MM-DD') AS "day",
-           bool_or("status" = 'passed') AS "passed"
+           bool_or("status" = 'passed' AND "brawlVerified" IS DISTINCT FROM false) AS "passed"
     FROM "NotebookProblemAttempt"
     WHERE "userId" = ${userId} AND "kind" IN ('submit', 'answer') AND "createdAt" >= ${since}
     GROUP BY 1`;
@@ -111,7 +111,9 @@ export function brawlStudyPrompts(
     claimable: brawlStreakRewardsFor(study.best)
       .filter((reward) => !owned(reward.kind).includes(reward.id))
       .map(({ id, days, name, label }) => ({ id, days, name, label })),
-    freeDraw: study.passedToday && (typeof save?.study?.freeDay !== 'string' || save.study.freeDay < study.day),
+    freeDraw:
+      study.passedToday &&
+      (typeof save?.study?.freeDay !== 'string' || save.study.freeDay < study.day),
     next: nextBrawlStreakReward(study.best),
   };
 }
