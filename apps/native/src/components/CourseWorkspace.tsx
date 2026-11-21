@@ -2744,6 +2744,13 @@ export function CourseWorkspace({
   const [draft, setDraft] = useState(initialDraft);
   const [pendingImages, setPendingImages] = useState<PendingChatImage[]>([]);
   const [pendingFiles, setPendingFiles] = useState<PendingChatFile[]>([]);
+  /**
+   * 每段对话最近一次发过的图片和文件（只在内存里，不落盘）。服务端每轮只看得到这一轮的附件，
+   * 学生接着问“第 5 题呢”时 PDF 已经不在了；这里在之后几轮自动再带上。
+   */
+  const recentAttachmentsRef = useRef(
+    new Map<string, { images: PendingChatImage[]; files: PendingChatFile[]; sentAt: number }>(),
+  );
   // 手机端做题困难：聊天里不出现练习和复习题单；课堂讲解可以用。
   const phoneLayout = usePhoneLayout();
   const compactLayout = useCompactLayout();
@@ -4911,6 +4918,25 @@ export function CourseWorkspace({
           updatedAt: userMessage.createdAt,
         }).catch((cause) => console.warn('[chat-sync] user message queued', cause));
         const history = [...messages, userMessage].slice(-12);
+        // 这一轮没附东西时，沿用这段对话最近 6 条消息内发过的附件；这一轮有附件就换成新的。
+        const recentAttachments = recentAttachmentsRef.current;
+        if (images.length || attachedFiles.length) {
+          recentAttachments.set(conversationId, {
+            images,
+            files: attachedFiles,
+            sentAt: userMessage.createdAt,
+          });
+        }
+        const carried = recentAttachments.get(conversationId);
+        const carryOver =
+          !images.length &&
+          !attachedFiles.length &&
+          carried &&
+          history.slice(-6).some((message) => message.createdAt <= carried.sentAt)
+            ? carried
+            : null;
+        const requestImages = carryOver ? carryOver.images : images;
+        const requestFiles = carryOver ? carryOver.files : attachedFiles;
         optimisticAssistantId = `stream-${crypto.randomUUID()}`;
         const optimisticAssistant: LocalMessage = {
           id: optimisticAssistantId,
@@ -4955,12 +4981,12 @@ export function CourseWorkspace({
             messages: history.flatMap(({ role, text }) =>
               role === 'user' || role === 'assistant' ? [{ role, text: text.slice(0, 6000) }] : [],
             ),
-            images: images.map(({ name, mimeType, dataBase64 }) => ({
+            images: requestImages.map(({ name, mimeType, dataBase64 }) => ({
               name,
               mimeType,
               dataBase64,
             })),
-            files: attachedFiles.map(({ name, mimeType, dataBase64 }) => ({
+            files: requestFiles.map(({ name, mimeType, dataBase64 }) => ({
               name,
               mimeType,
               dataBase64,
