@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react';
 import { MessageCircle } from 'lucide-react';
 
 import {
-  problemOptions,
   problemPublicContent,
   problemStem,
   problemTypeLabel,
@@ -42,8 +41,9 @@ function formatAnswer(answer: LocalProblemAnswer | null): string {
         .filter(Boolean)
         .join('\n');
     case 'code':
+      // 只去掉末尾空白：去掉开头的空行或缩进会让行号和学生编辑器里的对不上。
       return answer.code.trim()
-        ? `代码（行首是行号）：\n${numberCodeLines(clip(answer.code.trim(), 3000))}`
+        ? `代码（行首是行号，和学生编辑器里的行号一致）：\n${numberCodeLines(clip(answer.code.trimEnd(), 3000))}`
         : '';
     case 'table':
       return Object.entries(answer.cells)
@@ -68,7 +68,13 @@ function formatAnswer(answer: LocalProblemAnswer | null): string {
                   .join('；')
               : '',
             'code' in part && typeof part.code === 'string' && part.code.trim()
-              ? `代码：\n${clip(part.code.trim(), 1500)}`
+              ? `代码（行首是行号）：\n${numberCodeLines(clip(part.code.trimEnd(), 1500))}`
+              : '',
+            part.cells
+              ? Object.entries(part.cells)
+                  .filter(([, value]) => value.trim())
+                  .map(([cell, value]) => `${cell}: ${value}`)
+                  .join('；')
               : '',
           ].filter(Boolean);
           return bits.length ? `(${label}) ${bits.join('\n')}` : '';
@@ -95,7 +101,67 @@ function formatAttempt(attempt: LocalProblemAttempt | undefined): string {
   return lines.join('\n');
 }
 
-/** 拼出给助教看的这道题：题面、学生作答、测试结果。参考答案由服务端按题目 id 自己读。 */
+type ContentRecord = Record<string, unknown>;
+const records = (value: unknown): ContentRecord[] =>
+  Array.isArray(value)
+    ? value.filter((item): item is ContentRecord => Boolean(item) && typeof item === 'object')
+    : [];
+
+/**
+ * 一份题面里除了题干之外学生看得到的东西：选项、填空、表格每行给的代码、起始代码。
+ * 以前只发题干，助教看不到表格题每一行的代码、小问的选项，只能请学生再贴一遍。
+ */
+export function problemContentDetails(content: ContentRecord, budget = 3000): string {
+  const lines: string[] = [];
+  const options = records(content.options)
+    .map((option) => {
+      const id = str(option.id);
+      const label = str(option.label) || str(option.text);
+      return id && label ? `${id}. ${clip(label, 400)}` : '';
+    })
+    .filter(Boolean);
+  if (options.length) {
+    lines.push(
+      `选项${content.selectionMode === 'multiple' ? '（多选）' : ''}：\n${options.join('\n')}`,
+    );
+  }
+  const blanks = records(content.blanks)
+    .map((blank) => str(blank.id))
+    .filter(Boolean);
+  if (blanks.length) lines.push(`要填的空：${blanks.join('、')}`);
+  if (str(content.setupCode))
+    lines.push(`表格上方给的代码：\n${clip(str(content.setupCode), 1500)}`);
+  const columns = records(content.columns);
+  const rows = records(content.rows);
+  if (columns.length && rows.length) {
+    const header = columns
+      .map(
+        (column) =>
+          `${str(column.id)}${str(column.header) ? `「${str(column.header)}」` : ''}${column.role === 'answer' ? '（学生填）' : ''}`,
+      )
+      .join(' | ');
+    const given = columns.filter((column) => column.role !== 'answer');
+    const body = rows.map((row) => {
+      const cells = (row.cells && typeof row.cells === 'object' ? row.cells : {}) as Record<
+        string,
+        unknown
+      >;
+      const shown = given
+        .map((column) => {
+          const value = str(cells[str(column.id)]);
+          return value ? `${str(column.id)}: ${clip(value, 600)}` : '';
+        })
+        .filter(Boolean)
+        .join('；');
+      return `- 行 ${str(row.id)}：${shown || '（无给定内容）'}`;
+    });
+    lines.push(`表格列：${header}\n表格各行：\n${body.join('\n')}`);
+  }
+  if (str(content.functionSignature)) lines.push(`函数签名：${str(content.functionSignature)}`);
+  if (str(content.starterCode)) lines.push(`起始代码：\n${clip(str(content.starterCode), 2000)}`);
+  return clip(lines.join('\n'), budget);
+}
+
 /** 用来比较两次提问之间改动的作答原文（代码不带行号）。 */
 export function rawAnswerText(answer: LocalProblemAnswer | null): string {
   if (answer?.kind === 'code') return answer.code;
@@ -123,28 +189,33 @@ export function problemCoachText(input: {
 }): string {
   const { problem } = input;
   const content = problemPublicContent(problem);
-  const options = problemOptions(problem);
-  const parts = Array.isArray(content.parts)
-    ? (content.parts as Array<{ label: string; content: Record<string, unknown> }>)
-        .map(
-          (part) =>
-            `(${part.label}) ${clip(str(part.content.stem) || str(part.content.prompt), 1200)}`,
-        )
-        .join('\n')
-    : '';
+  const parts = records(content.parts)
+    .map((part) => {
+      const partContent = (
+        part.content && typeof part.content === 'object' ? part.content : {}
+      ) as ContentRecord;
+      const stem =
+        str(partContent.stem) || str(partContent.stemTemplate) || str(partContent.prompt);
+      const details = problemContentDetails(partContent, 1500);
+      return [`(${str(part.label)}) ${clip(stem, 1200)}`, details].filter(Boolean).join('\n');
+    })
+    .join('\n\n');
   const answer = formatAnswer(input.answer);
+  const currentRaw = rawAnswerText(input.answer);
+  const changeNote =
+    input.previousAnswer === undefined
+      ? ''
+      : input.previousAnswer === currentRaw
+        ? '【自上次问 AI 后的改动】作答没有改动。'
+        : draftChangeNote(input.previousAnswer, currentRaw);
   const sections = [
     `标题：${problem.title}`,
     `题型：${problemTypeLabel(problem.type)}`,
     `题面：${clip(problemStem(problem), 4000)}`,
+    problemContentDetails(content),
     parts ? `小问：\n${parts}` : '',
-    options.length ? `选项：\n${options.map((o) => `${o.id}. ${o.label}`).join('\n')}` : '',
-    str(content.functionSignature) ? `函数签名：${str(content.functionSignature)}` : '',
-    str(content.starterCode) ? `起始代码：\n${clip(str(content.starterCode), 2000)}` : '',
     answer ? `【学生当前作答】\n${answer}` : '学生还没有作答。',
-    input.previousAnswer !== undefined
-      ? draftChangeNote(input.previousAnswer, rawAnswerText(input.answer))
-      : '',
+    changeNote,
     formatAttempt(input.latestAttempt),
     input.runOutput?.trim() ? `【最近一次运行输出】\n${clip(input.runOutput.trim(), 1200)}` : '',
   ];

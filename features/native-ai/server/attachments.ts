@@ -16,7 +16,14 @@ const MAX_TOTAL_CHARS = 90_000;
 const SCANNED_PDF_CHARS = 40;
 
 export type NativeChatFilePart =
-  | { kind: 'text'; name: string; text: string; truncated: boolean }
+  | {
+      kind: 'text';
+      name: string;
+      text: string;
+      truncated: boolean;
+      /** PDF 截断时：发过去的最后一页和总页数，好让模型说清读到了哪里。 */
+      pages?: { shown: number; total: number };
+    }
   | { kind: 'pdf'; name: string; dataBase64: string }
   | { kind: 'unreadable'; name: string; reason: string };
 
@@ -71,11 +78,25 @@ export async function readNativeChatFiles(files: ChatFile[]): Promise<NativeChat
       }
       const limit = Math.max(0, Math.min(MAX_FILE_CHARS, budget));
       budget -= Math.min(clean.length, limit);
+      const shownText = clean.slice(0, limit);
+      const truncated = clean.length > limit;
+      const pageNumbers = (text: string) =>
+        [...text.matchAll(/--- 第 (\d+) 页 ---/g)].map((match) => Number(match[1]));
+      const allPages = truncated ? pageNumbers(clean) : [];
+      const shownPages = truncated ? pageNumbers(shownText) : [];
       parts.push({
         kind: 'text',
         name: file.name,
-        text: clean.slice(0, limit),
-        truncated: clean.length > limit,
+        text: shownText,
+        truncated,
+        ...(allPages.length
+          ? {
+              pages: {
+                shown: shownPages.length ? shownPages[shownPages.length - 1] : 0,
+                total: allPages[allPages.length - 1],
+              },
+            }
+          : {}),
       });
     } catch {
       parts.push({ kind: 'unreadable', name: file.name, reason: '文件无法解析' });
@@ -92,7 +113,11 @@ export function fileTextBlock(part: Exclude<NativeChatFilePart, { kind: 'pdf' }>
   return [
     `<attached_file name="${name}">`,
     part.text,
-    part.truncated ? '…（文件太长，后面的内容没有发过来）' : '',
+    part.truncated
+      ? part.pages
+        ? `…（文件太长：共 ${part.pages.total} 页，只发过来到第 ${part.pages.shown} 页左右，后面的内容没有发过来。回答时告诉学生读到了哪一页，需要后面的内容请他截图或拆开发。）`
+        : '…（文件太长，后面的内容没有发过来；回答时告诉学生这一点。）'
+      : '',
     '</attached_file>',
   ]
     .filter(Boolean)
