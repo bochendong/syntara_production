@@ -156,6 +156,13 @@ function score(chunk: NoteChunk, primary: string[], secondary: string[]): number
 
 const MAX_MEMORIES = 30;
 const MAX_LINKED_MEMORIES = 20;
+/**
+ * 「看过参考答案 / 隐藏测试」的求助记录每点一次就多一条，以前能占满记忆名额，
+ * 每条回答都挂着一串求助珠子。相关的优先，加上“最近”补进来的，总共最多几条。
+ */
+const MAX_HELP_MEMORIES = 3;
+const HELP_MEMORY_KINDS = new Set(['solution_help', 'hidden_tests_help']);
+const isHelpMemory = (memory: LocalStudyMemory) => HELP_MEMORY_KINDS.has(memory.kind);
 
 function memoryRefs(memory: LocalStudyMemory): string[] {
   return memory.sourceReferences.filter((item): item is string => typeof item === 'string');
@@ -183,17 +190,21 @@ export function recallMemories(
     value += Math.min(6, terms.filter((term) => haystack.includes(term)).length * 2);
     return { memory, value };
   });
+  let helpCount = 0;
   const linked = scored
     .filter(({ value }) => value > 0)
     .sort(
       (left, right) => right.value - left.value || right.memory.updatedAt - left.memory.updatedAt,
     )
+    .filter(({ memory }) => !isHelpMemory(memory) || ++helpCount <= MAX_HELP_MEMORIES)
     .slice(0, MAX_LINKED_MEMORIES)
     .map(({ memory }) => memory);
   const linkedIds = new Set(linked.map((memory) => memory.id));
   const recent = candidates
     .filter((memory) => !linkedIds.has(memory.id))
     .sort((left, right) => right.updatedAt - left.updatedAt)
+    // 刚看过答案的那条仍要让下一轮看到，但求助记录总共最多 MAX_HELP_MEMORIES 条。
+    .filter((memory) => !isHelpMemory(memory) || ++helpCount <= MAX_HELP_MEMORIES)
     .slice(0, MAX_MEMORIES - linked.length);
   return [...linked, ...recent].map((memory) => ({
     id: memory.id,

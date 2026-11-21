@@ -111,6 +111,9 @@ export function coachMethodSection(subject: ExplainSubject): string {
     '- 学生有作答时，按这个顺序：先用一两句话客观复述“你的代码/做法现在会做什么”（最好拿一个具体输入走一遍），再指出它和题目要求差在哪，最后问一个具体、能回答的问题，让学生自己想到下一步（不要问“你觉得呢”这种空问题）。',
     '- 指出代码位置时用行号（作答里每行前面的数字），例如“第 5 行”。',
     '- 有【自上次问 AI 后的改动】时，先回应这次改动：改对了就直接说改对了什么，还有问题就说还差什么；不要把上一轮的话再说一遍。',
+    '- 上一轮你指出的问题，在【学生当前作答】里已经没有了：那是学生改好了，说“这处你改对了”，不要说“抱歉，我上次看错了”。只有作答没有改动、而你上一轮的判断确实错了时，才简短更正一次。',
+    '- 写着“作答没有改动”时，不要假装看到了新版本；直接接着上一轮往下走一小步，或请学生先改再点。',
+    '- 判断缩进前先数行首空格（作答里“行号 | ”后面的空格就是代码的缩进），数清楚了再说哪一行缩进有问题；有【最近一次运行输出】或测试错误时以它为准，不要凭感觉说“会报缩进错误”。',
     subjectLine[subject],
   ].join('\n');
 }
@@ -146,7 +149,10 @@ export function draftChangeNote(previous: string, next: string): string {
           : Math.max(table[i + 1][j], table[i][j + 1]);
     }
   }
-  const changes: string[] = [];
+  // 先收集增删，再把“同一行只是缩进变了”配成一条，否则模型只看到两行一模一样的文字，
+  // 分不清学生改了缩进，就会以为自己上一轮看错了。
+  const added: Array<{ line: number; text: string }> = [];
+  const removed: string[] = [];
   let i = 0;
   let j = 0;
   while (i < before.length || j < after.length) {
@@ -154,13 +160,27 @@ export function draftChangeNote(previous: string, next: string): string {
       i += 1;
       j += 1;
     } else if (j < after.length && (i >= before.length || table[i][j + 1] >= table[i + 1][j])) {
-      if (after[j].trim()) changes.push(`+ 第 ${j + 1} 行：${after[j].trim()}`);
+      if (after[j].trim()) added.push({ line: j + 1, text: after[j] });
       j += 1;
     } else {
-      if (before[i].trim()) changes.push(`- 删去：${before[i].trim()}`);
+      if (before[i].trim()) removed.push(before[i]);
       i += 1;
     }
   }
+  const indentOf = (line: string) => line.length - line.trimStart().length;
+  const changes: string[] = [];
+  for (const add of added) {
+    const match = removed.findIndex((line) => line.trim() === add.text.trim());
+    if (match >= 0) {
+      const [old] = removed.splice(match, 1);
+      changes.push(
+        `~ 第 ${add.line} 行只改了缩进（行首空格 ${indentOf(old)} → ${indentOf(add.text)}）：${add.text.trim()}`,
+      );
+    } else {
+      changes.push(`+ 第 ${add.line} 行（行首空格 ${indentOf(add.text)}）：${add.text.trim()}`);
+    }
+  }
+  for (const line of removed) changes.push(`- 删去：${line.trim()}`);
   if (!changes.length) return '';
   const shown = changes.slice(0, 12).map((line) => line.slice(0, 200));
   if (changes.length > shown.length) shown.push(`……还有 ${changes.length - shown.length} 处改动`);
