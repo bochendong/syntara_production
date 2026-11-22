@@ -1,0 +1,47 @@
+{
+  "status": "deployed",
+  "at": "2026-11-22T13:19:09.453Z",
+  "environment": "staging",
+  "revision": "eed60bc375df03b4342ec834fef98785ee1ee663",
+  "deploymentId": "d7e0807e-82b5-41f0-936c-10c4eaeef9b8",
+  "previousRevision": "6647417e6ce8c528b4e671c0dd7990ad971c921e",
+  "courseContent": {
+    "UTSG": {
+      "updatedQuestions": 17,
+      "publishedQuestions": 531,
+      "editableDiagrams": 14,
+      "referenceDiagrams": 8
+    },
+    "UTM": {
+      "updatedQuestions": 15,
+      "publishedQuestions": 521,
+      "editableDiagrams": 13,
+      "referenceDiagrams": 7
+    }
+  },
+  "preservation": "In-place, revision-checked publication. Both banks retained question IDs, grading, chapter placement, and original bilingual prompts and figures as the fallback for older clients.",
+  "verification": {
+    "live": {
+      "revision": "eed60bc375df03b4342ec834fef98785ee1ee663",
+      "version": 200,
+      "health": 200,
+      "testLogin": 200,
+      "webApp": 200,
+      "anonymousRevisionWrite": 401,
+      "assets": [
+        {
+          "path": "/native-web/assets/index-Rtv6C0-g.js",
+          "sha256": "4f008dbfc5f7666378e96b9933e121743b7b9ee6e5ae941d1ae71a0315d12b60"
+        },
+        {
+          "path": "/native-web/assets/index-BCgXvNcz.css",
+          "sha256": "4f9c8859e9782ddefad0e7d71d438e42f74ced128a6360213185c3a15a8f9b33"
+        }
+      ]
+    },
+    "questions": "Previewed before apply. Full staging readback matched all 32 planned presentations in both languages and all unrelated public-bank records.",
+    "application": "26 targeted regressions, format/lint, root and native TypeScript, and local and Railway staging web builds passed.",
+    "browser": "Local fixture exercised all 32 questions, 27 editable diagrams and 15 reference diagrams. Full App read-only staging preview verified one real multipart problem from each campus, including bilingual controls, hover colors and the 20 px gap under code.",
+    "schema": "No pending database migrations."
+  }
+}
