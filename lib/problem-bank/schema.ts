@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { QuizQuestion, Scene } from '@/lib/types/stage';
+import { problemMemoryDiagramSchema, problemMemoryDiagramViewSchema } from './memory-diagram';
 
 export const notebookProblemTypeSchema = z.enum([
   'short_answer',
@@ -173,6 +174,8 @@ const notebookProblemPublicBaseSchema = z.object({
   statementFormat: notebookProblemStatementFormatSchema.optional(),
   explanation: z.string().trim().min(1).max(8000).optional(),
   assets: notebookProblemAssetsSchema.optional(),
+  memoryDiagram: problemMemoryDiagramSchema.optional(),
+  memoryDiagramView: problemMemoryDiagramViewSchema.optional(),
   translations: notebookProblemTranslationsSchema,
   /// Code answer presentation with the original per-item grading contract retained.
   racketAnswer: z

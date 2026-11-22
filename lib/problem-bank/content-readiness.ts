@@ -1,4 +1,5 @@
 import { formatPartLabel } from './multipart';
+import { memoryDiagramBlankIds } from './memory-diagram';
 import type { NotebookProblemImportDraft } from './schema';
 
 /** 大题：共享题干和每一问分别按普通题检查，再查小问之间的对应关系。 */
@@ -43,6 +44,10 @@ export function problemContentReadinessErrors(draft: NotebookProblemImportDraft)
   if (content.type === 'multipart') return multipartReadinessErrors(draft);
   const text = content.type === 'fill_blank' ? content.stemTemplate : content.stem;
   const errors: string[] = [];
+  const diagramBlanks = content.memoryDiagram ? memoryDiagramBlankIds(content.memoryDiagram) : [];
+  if (diagramBlanks.length && content.type !== 'fill_blank') {
+    errors.push('题面结构：内存图里的可作答空格需要使用填空题');
+  }
   let fence = '';
   let tableColumns = 0;
   let previousRow = 0;
@@ -114,7 +119,15 @@ export function problemContentReadinessErrors(draft: NotebookProblemImportDraft)
     if (
       new Set(ids).size !== ids.length ||
       new Set(gradingIds).size !== gradingIds.length ||
-      ids.some((id) => (!figureBlanks && !markers.includes(id)) || !gradingIds.includes(id)) ||
+      (diagramBlanks.length > 0 &&
+        (diagramBlanks.length !== ids.length ||
+          new Set(diagramBlanks).size !== diagramBlanks.length ||
+          diagramBlanks.some((id) => !ids.includes(id)))) ||
+      ids.some(
+        (id) =>
+          (!figureBlanks && !markers.includes(id) && !diagramBlanks.includes(id)) ||
+          !gradingIds.includes(id),
+      ) ||
       markers.some((id) => !ids.includes(id)) ||
       gradingIds.some((id) => !ids.includes(id))
     ) {

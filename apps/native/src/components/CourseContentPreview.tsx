@@ -149,7 +149,7 @@ function ManagedProblemStatement({ problem }: { problem: LocalProblem }) {
   const columns = records(content.columns);
   return (
     <div className="ccm-problem-statement">
-      <ProblemStatement content={{ ...content, type: problem.type }} />
+      <ProblemStatement content={{ ...content, type: problem.type }} showEditableDiagram />
       {problem.type === 'choice' ? <ProblemChoices problem={problem} /> : null}
       {parts.map((part) => (
         <section key={String(part.label)} className="ccm-problem-part">

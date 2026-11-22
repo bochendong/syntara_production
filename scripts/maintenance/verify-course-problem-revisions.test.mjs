@@ -10,6 +10,7 @@ const { reviseCourseProblems, CourseProblemRevisionConflict } = await jiti.impor
   '../../lib/server/course-problem-revisions.ts',
 );
 
+const { memoryDiagramQuestionView } = await jiti.import('../../lib/problem-bank/memory-diagram.ts');
 const row = (id, type = 'short_answer') => ({
   id,
   courseId: 'course',
@@ -140,4 +141,97 @@ test('rejects stale, foreign and private questions as well as invalid option IDs
     );
   }
   assert.equal(version(), 1);
+});
+
+test('memory diagrams revise localized multipart presentation without touching grading', async () => {
+  const question = row('memory', 'multipart');
+  const stemTemplate = 'Fill the numbered image.';
+  const translations = { 'en-US': { stemTemplate }, 'zh-CN': { stemTemplate: '按编号填图。' } };
+  question.publicContentJson = {
+    type: 'multipart',
+    stem: 'Trace the code.',
+    parts: [
+      {
+        label: 'a',
+        points: 2,
+        content: {
+          type: 'fill_blank',
+          stemTemplate,
+          translations,
+          blankLayout: 'figure',
+          blanks: [{ id: 'variable', answerKind: 'text' }],
+          assets: {
+            images: [
+              { id: 'figure', src: '/figure.png' },
+              { id: 'other', src: '/other.png' },
+            ],
+          },
+        },
+      },
+      { label: 'b', points: 3, content: { type: 'short_answer', stem: 'Explain.' } },
+    ],
+  };
+  question.gradingJson = {
+    type: 'multipart',
+    parts: [
+      {
+        label: 'a',
+        grading: { type: 'fill_blank', blanks: [{ id: 'variable', acceptedAnswers: ['id1'] }] },
+      },
+      { label: 'b', grading: { type: 'short_answer', referenceAnswer: 'Alias.' } },
+    ],
+  };
+  const change = {
+    ...target(question),
+    action: 'memory-diagram',
+    parts: [
+      {
+        label: 'a',
+        content: {
+          memoryDiagram: {
+            variables: [{ name: 'a', reference: { blankId: 'variable' } }],
+            objects: [{ id: 'id1', pythonType: 'list', value: [] }],
+          },
+          stemTemplate: 'Fill the diagram.',
+          translations: {
+            'en-US': { stemTemplate: 'Fill the diagram.' },
+            'zh-CN': { stemTemplate: '补全内存图。' },
+          },
+          removeImages: ['figure'],
+        },
+      },
+    ],
+  };
+  const { state, db, version } = fixture(question);
+  const invalid = structuredClone(change);
+  invalid.parts[0].content.memoryDiagram.variables[0].reference.blankId = 'unknown';
+  await assert.rejects(
+    reviseCourseProblems(db, 'course', { changes: [invalid], apply: true }),
+    CourseProblemRevisionConflict,
+  );
+  assert.equal((await reviseCourseProblems(db, 'course', { changes: [change] })).updated, 0);
+  assert.deepEqual(state.get(question.id), question);
+  assert.equal(
+    (await reviseCourseProblems(db, 'course', { changes: [change], apply: true })).updated,
+    1,
+  );
+  const saved = state.get(question.id);
+  assert.deepEqual(saved.gradingJson, question.gradingJson);
+  assert.deepEqual(saved.publicContentJson.parts[1], question.publicContentJson.parts[1]);
+  const updatedPart = saved.publicContentJson.parts[0];
+  assert.equal(updatedPart.points, 2);
+  assert.equal(updatedPart.content.blankLayout, 'figure');
+  assert.deepEqual(updatedPart.content.assets, question.publicContentJson.parts[0].content.assets);
+  assert.deepEqual(updatedPart.content.translations, translations);
+  const shown = memoryDiagramQuestionView(updatedPart.content, 'zh-CN');
+  assert.deepEqual(
+    shown.content.assets.images.map((image) => image.id),
+    ['other'],
+  );
+  assert.equal(shown.prompt, '补全内存图。');
+  assert.equal(
+    (await reviseCourseProblems(db, 'course', { changes: [change], apply: true })).unchanged,
+    1,
+  );
+  assert.equal(version(), 2);
 });

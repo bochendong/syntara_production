@@ -3,7 +3,14 @@ import { courseProblemDedupeKey } from '../../features/problems/domain/problem-d
 import {
   notebookProblemGradingChoiceSchema,
   notebookProblemPublicChoiceSchema,
+  notebookProblemPublicContentSchema,
 } from '../problem-bank/schema';
+import {
+  memoryDiagramBlankIds,
+  problemMemoryDiagramSchema,
+  problemMemoryDiagramViewSchema,
+  readProblemMemoryDiagram,
+} from '../problem-bank/memory-diagram';
 import type { Prisma, PrismaClient } from './generated-prisma';
 import { courseProblemRevision } from './admin-course-problem-upload';
 
@@ -39,11 +46,26 @@ const choice = z
   })
   .strict();
 const archive = z.object({ ...identity, action: z.literal('archive') }).strict();
+const diagramPresentation = problemMemoryDiagramViewSchema.extend({
+  memoryDiagram: problemMemoryDiagramSchema,
+});
+const memoryDiagram = z
+  .object({
+    ...identity,
+    action: z.literal('memory-diagram'),
+    content: diagramPresentation.optional(),
+    parts: z
+      .array(z.object({ label: id, content: diagramPresentation }).strict())
+      .min(1)
+      .max(12)
+      .optional(),
+  })
+  .strict();
 const schema = z
   .object({
     apply: z.boolean().default(false),
     changes: z
-      .array(z.discriminatedUnion('action', [display, choice, archive]))
+      .array(z.discriminatedUnion('action', [display, choice, archive, memoryDiagram]))
       .min(1)
       .max(100),
   })
@@ -99,6 +121,87 @@ function updateDisplay(content: Record<string, unknown>, change: z.infer<typeof 
     requireMatch(updates.size === 0, 'A statement section was not found.');
     next = { ...next, statementSections: sections };
   }
+  return next;
+}
+
+function addDiagram(
+  content: Record<string, unknown>,
+  grading: Record<string, unknown>,
+  change: z.infer<typeof diagramPresentation>,
+) {
+  const { memoryDiagram, ...view } = change;
+  requireMatch(
+    (view.stemTemplate === undefined || content.type === 'fill_blank') &&
+      (view.stem === undefined || typeof content.stem === 'string'),
+    'The replacement prompt does not match the question type.',
+  );
+  const sections = Array.isArray(content.statementSections)
+    ? content.statementSections.map(record)
+    : [];
+  requireMatch(
+    sections
+      .filter(({ id }) => view.removeSections?.includes(String(id)))
+      .every(
+        (section) => !section.code && (!Array.isArray(section.items) || section.items.length === 0),
+      ),
+    'Code or required statement items cannot be hidden.',
+  );
+  const next = { ...content, memoryDiagram, memoryDiagramView: view };
+  const model = readProblemMemoryDiagram(next);
+  requireMatch(model, 'The memory diagram must match the existing answer fields.');
+  if (model.editable) {
+    const ids = memoryDiagramBlankIds(model.diagram).sort();
+    const graded = Array.isArray(grading.blanks)
+      ? grading.blanks.map((blank) => record(blank).id).sort()
+      : [];
+    requireMatch(
+      grading.type === 'fill_blank' && stable(ids) === stable(graded),
+      'The memory diagram must retain all graded fields.',
+    );
+  }
+  return next;
+}
+
+function updateMemoryDiagram(
+  content: Record<string, unknown>,
+  grading: Record<string, unknown>,
+  change: z.infer<typeof memoryDiagram>,
+) {
+  let next;
+  if (content.type === 'multipart') {
+    requireMatch(
+      !change.content && change.parts && Array.isArray(content.parts),
+      'Supply existing multipart labels.',
+    );
+    const parts = new Map(change.parts.map((part) => [part.label, part.content]));
+    requireMatch(parts.size === change.parts.length, 'Multipart labels must be unique.');
+    const grades = Array.isArray(grading.parts) ? grading.parts.map(record) : [];
+    next = {
+      ...content,
+      parts: content.parts.map(record).map((part) => {
+        const label = String(part.label);
+        const fields = parts.get(label);
+        if (!fields) return part;
+        parts.delete(label);
+        return {
+          ...part,
+          content: addDiagram(
+            record(part.content),
+            record(grades.find((entry) => entry.label === label)?.grading),
+            fields,
+          ),
+        };
+      }),
+    };
+    requireMatch(parts.size === 0, 'A multipart label was not found.');
+  } else {
+    requireMatch(change.content && !change.parts, 'Supply a memory diagram for the question.');
+    next = addDiagram(content, grading, change.content);
+  }
+  requireMatch(
+    notebookProblemPublicContentSchema.safeParse(next).success,
+    'Invalid memory diagram presentation.',
+  );
   return next;
 }
 
@@ -173,7 +276,10 @@ export async function reviseCourseProblems(db: PrismaClient, courseId: string, i
             }),
           };
         } else {
-          const content = updateDisplay(record(row.publicContentJson), change);
+          const content =
+            change.action === 'memory-diagram'
+              ? updateMemoryDiagram(record(row.publicContentJson), record(row.gradingJson), change)
+              : updateDisplay(record(row.publicContentJson), change);
           unchanged = stable(content) === stable(row.publicContentJson);
           patch = { publicContentJson: content as Prisma.InputJsonValue };
         }

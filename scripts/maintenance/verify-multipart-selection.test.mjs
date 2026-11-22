@@ -14,11 +14,22 @@ let formulaPart;
 const stub = () => null;
 const visibleTests = await jiti.import('../../lib/problem-bank/visible-code-tests.ts');
 const mocks = {
+  '../../../../../lib/problem-bank/racket-editor': {
+    isRacketLanguage: (language) => language === 'racket',
+  },
+  '../../../../../lib/problem-bank/memory-diagram': await jiti.import(
+    '../../lib/problem-bank/memory-diagram.ts',
+  ),
   '../../../../../lib/problem-bank/visible-code-tests': visibleTests,
   '../../data/multipart-problem': data,
   '../../lib/learning-action-marbles': { marbleImages: {} },
   '../GlassLoadMore': { GlassSpinner: stub },
+  './handwriting-answer-input': { HandwritingAnswerInput: ({ children }) => children },
   './answer-sheet': { STATUS_MARBLES: {} },
+  './problem-memory-diagram': { ProblemMemoryModel: stub },
+  './problem-presentation': {
+    ProblemStatement: ({ stem }) => React.createElement('p', null, stem),
+  },
   './problem-rich-text': {
     ProblemRichText: ({ content }) => React.createElement('p', null, content),
   },

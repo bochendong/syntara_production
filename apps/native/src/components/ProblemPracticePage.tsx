@@ -136,7 +136,8 @@ import {
 import type { NotebookCodeSlot, NotebookCodeFile } from '../../../../lib/problem-bank/schema';
 import { FormulaReferencePanel } from './problem-bank/formula-reference-panel';
 import { PythonRunOutput, type PythonDebugResult } from './problem-bank/PythonRunOutput';
-import { CodeProblemStatement } from './problem-bank/code-problem-statement';
+import { readProblemMemoryDiagram } from '../../../../lib/problem-bank/memory-diagram';
+import { ProblemMemoryModel } from './problem-bank/problem-memory-diagram';
 import {
   asCodeContent,
   ProblemStatement,
@@ -606,6 +607,7 @@ export function ProblemPracticePage({
       })
     : null;
   const rawStem = displayedProblem ? problemStem(displayedProblem) : '';
+  const memoryModel = useMemo(() => readProblemMemoryDiagram(publicContent), [publicContent]);
   const stem =
     displayedProblem?.type === 'fill_blank'
       ? fillBlankPrompt(
@@ -646,6 +648,10 @@ export function ProblemPracticePage({
     Boolean(handwritingModes[handwritingModeKey]);
   const visibleLeftTab = handwritingMode ? 'description' : leftTab;
   const activePartCode = activePart?.type === 'code' ? asCodeContent(activePart.content) : null;
+  const activePartMemoryModel = useMemo(
+    () => (activePart ? readProblemMemoryDiagram(activePart.content) : null),
+    [activePart],
+  );
   const activePartPrompt =
     activePart?.type === 'fill_blank'
       ? fillBlankPrompt(activePart.prompt, partBlankIds(activePart))
@@ -653,10 +659,11 @@ export function ProblemPracticePage({
   const supportsFormulaReference =
     !structuredRacket &&
     (answer?.kind === 'text' ||
-      answer?.kind === 'blanks' ||
+      (answer?.kind === 'blanks' && !memoryModel?.editable) ||
       (isMultipart &&
         Boolean(
           activePart &&
+          !activePartMemoryModel?.editable &&
           ['short_answer', 'calculation', 'proof', 'fill_blank'].includes(activePart.type),
         )));
   const blankFormulaEditor = usePartFormulaEditor({
@@ -2354,16 +2361,10 @@ export function ProblemPracticePage({
                         aria-label={`当前小问 ${activePart.label}`}
                       >
                         <h3>小问 ({activePart.label})</h3>
-                        {activePartCode ? (
-                          <CodeProblemStatement content={activePartCode} locale={language} />
-                        ) : (
-                          <ProblemRichText
-                            content={activePartPrompt ?? ''}
-                            className="text-[15px] leading-7 text-slate-800"
-                          />
-                        )}
-                        <ProblemImageAssets
-                          content={activePart.content as NotebookProblemPublicContent}
+                        <ProblemStatement
+                          content={activePart.content}
+                          stem={activePartPrompt}
+                          locale={language}
                         />
                       </section>
                     ) : null}
@@ -2598,7 +2599,11 @@ export function ProblemPracticePage({
             >
               {rightTab === 'stats' ? renderClassroomStats?.(currentProblem.id) : null}
               {rightTab === 'solution' && solutionSeen && solution ? (
-                <ProblemReferenceAnswer problem={displayedProblem!} notice={solutionNotice} />
+                <ProblemReferenceAnswer
+                  problem={displayedProblem!}
+                  notice={solutionNotice}
+                  locale={language}
+                />
               ) : null}
               {(rightTab === 'code' || rightTab === 'tests') &&
               isCode &&
@@ -2831,7 +2836,24 @@ export function ProblemPracticePage({
                     />
                   ) : null}
 
-                  {currentProblem.type === 'fill_blank' && answer?.kind === 'blanks' ? (
+                  {memoryModel?.editable && answer?.kind === 'blanks' ? (
+                    <ProblemMemoryModel
+                      diagram={memoryModel.diagram}
+                      locale={language}
+                      answer={{
+                        values: answer.blanks,
+                        disabled: loading || submitting || snapshotBusy,
+                        onChange: (id, value) => {
+                          setFeedback(null);
+                          setAnswer((current) =>
+                            current?.kind === 'blanks'
+                              ? { ...current, blanks: { ...current.blanks, [id]: value } }
+                              : current,
+                          );
+                        },
+                      }}
+                    />
+                  ) : currentProblem.type === 'fill_blank' && answer?.kind === 'blanks' ? (
                     <div className="native-blank-answer-list">
                       {(Array.isArray(publicContent.blanks) ? publicContent.blanks : []).map(
                         (item, index) => {

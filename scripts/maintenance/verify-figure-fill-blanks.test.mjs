@@ -15,6 +15,7 @@ const { problemContentReadinessErrors } = await jiti.import(
 const { notebookProblemPublicContentSchema, notebookProblemGradingSchema } = await jiti.import(
   '../../lib/problem-bank/schema.ts',
 );
+const { readProblemMemoryDiagram } = await jiti.import('../../lib/problem-bank/memory-diagram.ts');
 const variants = [
   { variable: 'id20', first: 'id1', second: 'id2' },
   { variable: 'id21', first: 'id2', second: 'id1' },
@@ -111,4 +112,47 @@ test('larger memory diagrams retain all 18 answer boxes in one question', () => 
     }).success,
     true,
   );
+});
+
+test('editable diagram cells use the same answer IDs as the existing grader', () => {
+  const content = {
+    ...publicContent,
+    blankLayout: undefined,
+    assets: undefined,
+    memoryDiagram: {
+      variables: [{ name: 'items', reference: { blankId: 'variable' } }],
+      objects: [
+        { id: 'id20', pythonType: 'list', value: [{ blankId: 'first' }, { blankId: 'second' }] },
+        { id: 'id1', pythonType: 'int', value: '7' },
+      ],
+    },
+  };
+  const parsed = notebookProblemPublicContentSchema.parse(content);
+  assert.deepEqual(readProblemMemoryDiagram(parsed), {
+    diagram: content.memoryDiagram,
+    editable: true,
+  });
+  const draft = { ...problem, publicContent: parsed, points: 100 };
+  assert.deepEqual(problemContentReadinessErrors(draft), []);
+  for (const blanks of variants)
+    assert.equal(gradeLocalProblem(draft, { kind: 'blanks', blanks }).status, 'passed');
+
+  const duplicate = structuredClone(content);
+  duplicate.memoryDiagram.objects[0].value[1].blankId = 'first';
+  assert.equal(readProblemMemoryDiagram(duplicate), null);
+  assert.notEqual(problemContentReadinessErrors({ ...draft, publicContent: duplicate }).length, 0);
+});
+
+test('given diagrams do not replace the existing answer interaction', () => {
+  const content = {
+    ...publicContent,
+    memoryDiagram: {
+      variables: [{ name: 'items', reference: 'id20' }],
+      objects: [{ id: 'id20', pythonType: 'list', value: ['id1'] }],
+    },
+  };
+  assert.deepEqual(readProblemMemoryDiagram(content), {
+    diagram: content.memoryDiagram,
+    editable: false,
+  });
 });

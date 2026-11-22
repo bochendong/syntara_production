@@ -1,6 +1,7 @@
 import { isRacketLanguage } from '../../../../../lib/problem-bank/racket-editor';
 import { HandwritingAnswerInput } from './handwriting-answer-input';
 import { visibleCodeTests } from '../../../../../lib/problem-bank/visible-code-tests';
+import { readProblemMemoryDiagram } from '../../../../../lib/problem-bank/memory-diagram';
 import { useImperativeHandle, useMemo, useRef, useState, type Ref } from 'react';
 import { createPortal } from 'react-dom';
 import { ChevronLeft, ChevronRight, FlaskConical, Loader2, SendHorizontal } from 'lucide-react';
@@ -18,6 +19,8 @@ import { marbleImages } from '../../lib/learning-action-marbles';
 import { GlassSpinner } from '../GlassLoadMore';
 import { STATUS_MARBLES } from './answer-sheet';
 import { ProblemRichText } from './problem-rich-text';
+import { ProblemMemoryModel } from './problem-memory-diagram';
+import { ProblemStatement } from './problem-presentation';
 import { NativeTableAnswer } from './native-table-answer';
 import { NativeCodeSlots } from './native-code-slots';
 import { NativeCodePlayground } from './native-code-playground';
@@ -307,6 +310,24 @@ function PartPrompt({
       />
     );
   if (part.type === 'fill_blank') {
+    const memoryModel = readProblemMemoryDiagram(part.content);
+    if (memoryModel?.editable) {
+      return (
+        <div className="mp-fill">
+          {showPrompt ? <ProblemStatement content={part.content} locale={locale} /> : null}
+          <ProblemMemoryModel
+            diagram={memoryModel.diagram}
+            locale={locale}
+            answer={{
+              values: answer.blanks ?? {},
+              disabled,
+              onChange: (id, value) =>
+                onChange({ ...answer, blanks: { ...answer.blanks, [id]: value } }),
+            }}
+          />
+        </div>
+      );
+    }
     const ids = partBlankIds(part);
     const numbered = part.prompt.replace(/\{\{\s*([^{}]+?)\s*\}\}/g, (_match, raw: string) => {
       const index = ids.indexOf(raw.trim());
@@ -315,7 +336,7 @@ function PartPrompt({
     return (
       <div className="mp-fill">
         {showPrompt ? (
-          <ProblemRichText content={numbered} className="text-[15px] leading-7 text-slate-800" />
+          <ProblemStatement content={part.content} stem={numbered} locale={locale} />
         ) : null}
         {ids.map((id, index) => (
           <label key={id} className="mp-blank">
@@ -659,7 +680,9 @@ export function MultipartPractice({
       <div
         className="mp-pager"
         onTouchStart={(event) => {
-          touchX.current = (event.target as HTMLElement).closest('textarea,input,button,dialog')
+          touchX.current = (event.target as HTMLElement).closest(
+            'textarea,input,select,button,dialog',
+          )
             ? null
             : (event.touches[0]?.clientX ?? null);
         }}

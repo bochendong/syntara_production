@@ -1,12 +1,22 @@
 import type { LocalProblem } from '../../domain/models';
-import type { NotebookCodeFile } from '../../../../../lib/problem-bank/schema';
+import type {
+  NotebookCodeFile,
+  NotebookProblemGradingFillBlank,
+} from '../../../../../lib/problem-bank/schema';
 import type { NotebookProblemPublicContent } from './types';
 import { problemOptions } from '../../data/local-problem-grading';
 import { problemSolution } from '../../lib/problem-solution';
 import { marbleImages } from '../../lib/learning-action-marbles';
 import { fillBlankPrompt } from '../../../../../lib/problem-bank/fill-blank-presentation';
+import {
+  memoryDiagramBlankIds,
+  memoryDiagramQuestionView,
+  readProblemMemoryDiagram,
+} from '../../../../../lib/problem-bank/memory-diagram';
 import { CodeProblemStatement } from './code-problem-statement';
 import { ProblemImageAssets, ProblemRichText } from './problem-rich-text';
+import { ProblemMemoryIllustration, ProblemMemoryModel } from './problem-memory-diagram';
+import type { ProblemContentLanguage } from '../../lib/problem-language';
 
 export function asCodeContent(
   content: Record<string, unknown>,
@@ -52,22 +62,26 @@ export function asCodeContent(
 
 /** Shared question presentation; no grading, progress, repository or network side effects. */
 export function ProblemStatement({
-  content,
+  content: storedContent,
   stem,
   locale = 'zh-CN',
+  showEditableDiagram = false,
 }: {
   content: Record<string, unknown>;
   stem?: string;
   locale?: 'zh-CN' | 'en-US';
+  showEditableDiagram?: boolean;
 }) {
+  const { content, prompt: diagramPrompt } = memoryDiagramQuestionView(storedContent, locale);
   const raw =
-    typeof content.stem === 'string' && content.stem.trim()
+    diagramPrompt ??
+    (typeof content.stem === 'string' && content.stem.trim()
       ? content.stem
       : typeof content.stemTemplate === 'string'
         ? content.stemTemplate
-        : '';
+        : '');
   const prompt =
-    stem ??
+    (diagramPrompt === undefined ? stem : undefined) ??
     (content.type === 'fill_blank'
       ? fillBlankPrompt(
           raw,
@@ -84,6 +98,11 @@ export function ProblemStatement({
         <ProblemRichText content={prompt} className="text-[15px] leading-7 text-slate-800" />
       )}
       <ProblemImageAssets content={content as NotebookProblemPublicContent} />
+      <ProblemMemoryIllustration
+        content={content}
+        locale={locale}
+        showEditable={showEditableDiagram}
+      />
     </>
   );
 }
@@ -131,15 +150,36 @@ export function ProblemChoices({
   );
 }
 
+function memoryModelReference(problem: LocalProblem) {
+  const model = readProblemMemoryDiagram(problem.publicContent);
+  if (!model?.editable) return null;
+  const grading = problem.grading as Partial<NotebookProblemGradingFillBlank>;
+  const blanks = Array.isArray(grading.blanks) ? grading.blanks : [];
+  const values =
+    grading.answerVariants?.[0] ??
+    Object.fromEntries(blanks.map(({ id, acceptedAnswers }) => [id, acceptedAnswers?.[0]]));
+  if (
+    !memoryDiagramBlankIds(model.diagram).every(
+      (id) => typeof values[id] === 'string' && values[id].trim(),
+    )
+  ) {
+    return null;
+  }
+  return { diagram: model.diagram, values };
+}
+
 /** Reference content is rendered separately from option labels, so fenced code stays valid. */
 export function ProblemReferenceAnswer({
   problem,
   notice,
+  locale = 'zh-CN',
 }: {
   problem: LocalProblem;
   notice?: string | null;
+  locale?: ProblemContentLanguage;
 }) {
   const solution = problemSolution(problem);
+  const memoryReference = memoryModelReference(problem);
   const parts =
     problem.type === 'multipart' && Array.isArray(problem.publicContent.parts)
       ? (problem.publicContent.parts as Array<{ label: string; content: Record<string, unknown> }>)
@@ -165,6 +205,7 @@ export function ProblemReferenceAnswer({
           <section key={part.label} className="problem-reference-part">
             <h4>小问 ({part.label})</h4>
             <ProblemReferenceAnswer
+              locale={locale}
               problem={{
                 ...problem,
                 type: String(part.content.type),
@@ -187,6 +228,12 @@ export function ProblemReferenceAnswer({
                 </div>
               ))}
             </div>
+          ) : memoryReference ? (
+            <ProblemMemoryModel
+              diagram={memoryReference.diagram}
+              locale={locale}
+              referenceValues={memoryReference.values}
+            />
           ) : solution.answer ? (
             <ProblemRichText content={solution.answer} />
           ) : null}
