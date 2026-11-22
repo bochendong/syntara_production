@@ -1,0 +1,59 @@
+{
+  "status": "deployed",
+  "at": "2026-11-22T11:41:24.898Z",
+  "environment": "staging",
+  "revision": "6647417e6ce8c528b4e671c0dd7990ad971c921e",
+  "deploymentId": "1ef3de33-2103-489b-9097-b19c093f5ef2",
+  "previousRevision": "286506dcd63653bef26004158fd05c69a641b69e",
+  "source": {
+    "courseChat": "https://github.com/bochendong/syntara_production/pull/82",
+    "classroom": "https://github.com/bochendong/syntara_production/pull/29",
+    "courseContent": "Reviewed local CSC108 practice snapshot, merged by question ID and field against live data."
+  },
+  "courseContent": {
+    "UTSG": {
+      "published": 531,
+      "translatedQuestions": 193,
+      "displayUpdates": 28,
+      "convertedToChoice": 7,
+      "archived": 4
+    },
+    "UTM": {
+      "published": 521,
+      "translatedQuestions": 175,
+      "displayUpdates": 28,
+      "convertedToChoice": 7,
+      "archived": 4,
+      "independentNewQuestionsVerified": 8
+    },
+    "eachCampus": {
+      "searchAndSorting": 32,
+      "runningTimeSingleOrMultipleChoice": 27
+    },
+    "archived": "Three opening complexity proofs and UTSG 2019 Final Q10(16) in each bank."
+  },
+  "verification": {
+    "live": {
+      "revision": "6647417e6ce8c528b4e671c0dd7990ad971c921e",
+      "version": 200,
+      "health": 200,
+      "testLogin": 200,
+      "anonymousRevisionWrite": 401,
+      "assets": [
+        {
+          "path": "/native-web/assets/index-Bw-AumPO.js",
+          "sha256": "e8bcf823a608b315237a102ad84eb369a72385238b5380435591b69ef6a2864a"
+        },
+        {
+          "path": "/native-web/assets/index-sdr8XGSe.css",
+          "sha256": "cc860f80a57cc3bf96ca9989c5512a250be500b93b69da895e02454937c45710"
+        }
+      ]
+    },
+    "classroom": "Verified with the full local App and read-only staging data. Tablet fixture checked import and lesson deletion confirmation.",
+    "questions": "Previewed and applied version-checked changes. Full staging readback matched the intended edits. All 14 converted questions passed option-by-option isolated grading checks.",
+    "application": "24 targeted regressions, offline classroom checks, scoped format and lint, root and native TypeScript, and staging web builds passed.",
+    "pending": "The course chat prompt was not exercised with a real model after deployment.",
+    "schema": "No database migrations were pending."
+  }
+}
