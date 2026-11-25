@@ -64,6 +64,15 @@ import {
 import { TeachLiveBanner, TeachSessionToggle, useTeachLiveCourse } from './TeachLiveBar';
 import './course-pages.css';
 import { BankAnalytics } from './problem-bank/BankAnalytics';
+import { MistakeBookView, MistakeRedoResult } from './problem-bank/MistakeBook';
+import { useBankAttemptHistory } from './problem-bank/bank-first-attempts';
+import {
+  MISTAKE_BOOK_EVENT,
+  readRemovedMistakes,
+  removeMistakes,
+  sortMistakes,
+} from '../data/mistake-book';
+import type { BankComparison } from '../../../../lib/problem-bank/bank-comparison';
 import { localizeProblem, type ProblemContentLanguage } from '../lib/problem-language';
 
 export type ProblemBankLaunch = {
@@ -78,6 +87,8 @@ export type ProblemBankLaunch = {
   classSessionId?: string;
   /** 老师试做：作答只留在本次窗口，不计入学生记录。 */
   teacherPreview?: boolean;
+  /** 错题重做：这一轮每题都重新交过才算刷完（之前做错的不算）。 */
+  freshRound?: boolean;
 };
 
 type ProblemBankPageProps = {
@@ -92,6 +103,8 @@ type ProblemBankPageProps = {
   layered?: boolean;
   /** 删除、恢复、复制之后重新同步这门课。 */
   onContentChanged?: () => Promise<void> | void;
+  /** 本机预览：同班对比用的样例数据。 */
+  previewComparison?: BankComparison;
 };
 
 type TypeFilter = 'all' | string;
@@ -121,6 +134,9 @@ const OPEN_CHAPTER_KEY = 'syntara.problem-bank-open-chapter';
 // 章节墙 / 套题墙，按课程记着。
 const BANK_MODE_KEY = 'syntara.problem-bank-mode.v1';
 const PAPER_SET_PREFIX = 'paper-set:';
+// 错题本开着没有、这一轮重做的是哪些题（只在这次打开 App 期间记着）。
+const MISTAKE_MODE_KEY = 'syntara.problem-bank-mistake-mode.v1';
+const MISTAKE_REDO_KEY = 'syntara.problem-bank-mistake-redo.v1';
 const PAPER_SET_COLORS: Record<PaperSetKind, MarbleColor> = {
   tt1: 'green',
   tt2: 'amber',
@@ -356,6 +372,7 @@ export function ProblemBankPage({
   onUploadFiles,
   layered = false,
   onContentChanged,
+  previewComparison,
 }: ProblemBankPageProps) {
   const courseId = workspace.course.id;
   const useCsc108Names = usesCsc108PaperNames(workspace.course);
@@ -653,11 +670,16 @@ export function ProblemBankPage({
   };
 
   const startPractice = useCallback(
-    (problems: LocalProblem[], initial: LocalProblem | undefined, title: string) => {
+    (
+      problems: LocalProblem[],
+      initial: LocalProblem | undefined,
+      title: string,
+      freshRound = false,
+    ) => {
       if (!problems.length) return;
       const start = initial ?? problems[0];
       const launch = practiceLaunchForResults(problems, start.id, title);
-      if (launch) onPractice(launch);
+      if (launch) onPractice(freshRound ? { ...launch, freshRound } : launch);
     },
     [onPractice],
   );
@@ -666,17 +688,102 @@ export function ProblemBankPage({
   const firstUnpassed = (problems: LocalProblem[]) =>
     problems.find((problem) => statuses.get(problem.id) !== 'passed');
 
-  // 错题重练：做错和只做对一部分的题，按章节和题号排。
-  const mistakes = useMemo(
-    () =>
-      chapters.flatMap((chapter) =>
-        chapter.problems.filter((problem) => {
-          const status = statuses.get(problem.id);
-          return status === 'failed' || status === 'partial';
-        }),
-      ),
-    [chapters, statuses],
+  // ---------- 错题本 ----------
+  // 做错过的题都收在错题本里；改对了也留着，学生自己点「移出」。
+  const attemptHistory = useBankAttemptHistory(courseId, bankProblems, progressById);
+  const [removedMistakes, setRemovedMistakes] = useState(() => readRemovedMistakes(courseId));
+  useEffect(() => {
+    const refresh = () => setRemovedMistakes(readRemovedMistakes(courseId));
+    refresh();
+    window.addEventListener(MISTAKE_BOOK_EVENT, refresh);
+    return () => window.removeEventListener(MISTAKE_BOOK_EVENT, refresh);
+  }, [courseId]);
+  const mistakeEntries = useMemo(
+    () => sortMistakes(progress.problems, attemptHistory.mistakes, progressById, removedMistakes),
+    [progress.problems, attemptHistory.mistakes, progressById, removedMistakes],
   );
+  const mistakeCounts = useMemo(() => {
+    const todo = new Set<string>();
+    let fixed = 0;
+    let removed = 0;
+    for (const entry of mistakeEntries) {
+      if (entry.tab === 'todo') todo.add(entry.problem.id);
+      else if (entry.tab === 'fixed') fixed += 1;
+      else removed += 1;
+    }
+    return { todo, fixed, removed };
+  }, [mistakeEntries]);
+  const mistakes = useMemo(
+    () => mistakeEntries.filter((entry) => entry.tab === 'todo').map((entry) => entry.problem),
+    [mistakeEntries],
+  );
+  const [mistakeMode, setMistakeModeState] = useState(
+    () => readCourseValue<boolean>('session', MISTAKE_MODE_KEY, courseId) === true,
+  );
+  const [mistakeFocus, setMistakeFocus] = useState<string | null>(null);
+  const setMistakeMode = (next: boolean) => {
+    setMistakeModeState(next);
+    setMistakeFocus(null);
+    writeCourseValue('session', MISTAKE_MODE_KEY, courseId, next);
+  };
+  const activeMistakeFocus = progressGroups.some((group) => group.key === mistakeFocus)
+    ? mistakeFocus
+    : null;
+  // 从错题本去重做：记下这一轮的题，回来时看哪些改对了。
+  const [redoResult, setRedoResult] = useState<{
+    title: string;
+    fixed: LocalProblem[];
+    still: LocalProblem[];
+  } | null>(null);
+  const startMistakePractice = (problems: LocalProblem[], initial: LocalProblem, title: string) => {
+    writeCourseValue('session', MISTAKE_REDO_KEY, courseId, {
+      ids: problems.map((problem) => problem.id),
+      at: Date.now(),
+      title,
+    });
+    startPractice(problems, initial, title, true);
+  };
+  useEffect(() => {
+    if (!progressById) return;
+    const round = readCourseValue<{ ids: string[]; at: number; title: string }>(
+      'session',
+      MISTAKE_REDO_KEY,
+      courseId,
+    );
+    if (!round) return;
+    const done = round.ids.flatMap((id) => {
+      const row = progressById.get(id);
+      const problem = sourceProblems.get(id);
+      return problem && row && (row.lastAttemptAt ?? 0) > round.at ? [{ problem, row }] : [];
+    });
+    if (!done.length) return;
+    writeCourseValue('session', MISTAKE_REDO_KEY, courseId, null);
+    setRedoResult({
+      title: round.title,
+      fixed: done.filter(({ row }) => row.status === 'passed').map(({ problem }) => problem),
+      still: done.filter(({ row }) => row.status !== 'passed').map(({ problem }) => problem),
+    });
+  }, [courseId, progressById, sourceProblems]);
+  const redoCard = redoResult ? (
+    <MistakeRedoResult
+      title={redoResult.title}
+      fixed={redoResult.fixed}
+      still={redoResult.still}
+      onRemoveFixed={() => {
+        removeMistakes(
+          courseId,
+          redoResult.fixed.map((problem) => problem.id),
+        );
+        setRedoResult(null);
+      }}
+      onKeep={() => setRedoResult(null)}
+      onRetry={() => {
+        const still = redoResult.still;
+        setRedoResult(null);
+        startMistakePractice(still, still[0], redoResult.title);
+      }}
+    />
+  ) : null;
   // ---------- 章节里：答题卡 ----------
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
   const [difficultyFilter, setDifficultyFilter] = useState<DifficultyFilter>('all');
@@ -1196,13 +1303,16 @@ export function ProblemBankPage({
 
   // ---------- 章节墙 ----------
   return (
-    <section className="pb-page pb-redesigned" aria-label="课程题库">
+    <section
+      className={`pb-page pb-redesigned${mistakeMode ? ' is-mistake-mode' : ''}`}
+      aria-label={mistakeMode ? '错题本' : '课程题库'}
+    >
       <BankHeader title="题库" subtitle={courseLabel} onBack={onBack} />
       <div className="pb-scroll">
         <div className="pb-column">
           {liveBanner}
-          {filterBar}
-          {hasFilters ? (
+          {mistakeMode ? null : filterBar}
+          {hasFilters && !mistakeMode ? (
             <div className="pb-filter-result" role="status">
               <button type="button" onClick={clearFilters}>
                 清除筛选
@@ -1213,7 +1323,47 @@ export function ProblemBankPage({
 
           <div className="pb-chapter-body pb-bank-body">
             <div className="pb-chapter-main">
-              {hasFilters ? (
+              {mistakeMode ? (
+                <>
+                  {bankTabs.length > 1 ? (
+                    <div className="pb-bank-toolbar">
+                      <div className="pb-mode-switch" role="tablist" aria-label="错题分组">
+                        {bankTabs.map(({ mode, label }) => (
+                          <button
+                            key={mode}
+                            type="button"
+                            role="tab"
+                            aria-selected={bankMode === mode}
+                            className={bankMode === mode ? 'is-active' : ''}
+                            onClick={() => {
+                              setBankMode(mode);
+                              setMistakeFocus(null);
+                            }}
+                          >
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+                  <MistakeBookView
+                    courseId={courseId}
+                    entries={mistakeEntries}
+                    groups={progressGroups}
+                    groupLabel={bankMode === 'chapters' ? '章' : '套'}
+                    focusKey={activeMistakeFocus}
+                    onClearFocus={() => setMistakeFocus(null)}
+                    numberOf={(problem, group) =>
+                      isPaperSetKey(group.key)
+                        ? group.problems.indexOf(problem) + 1
+                        : numberById.get(problem.id)
+                    }
+                    loading={attemptHistory.loading}
+                    onBack={() => setMistakeMode(false)}
+                    onPractice={startMistakePractice}
+                  />
+                </>
+              ) : hasFilters ? (
                 searchResults.length ? (
                   <>
                     {hasFilters ? (
@@ -1282,7 +1432,7 @@ export function ProblemBankPage({
                         type="button"
                         className="pb-hero-card is-mistakes"
                         style={accentVars('pink')}
-                        onClick={() => startPractice(mistakes, mistakes[0], '错题重练')}
+                        onClick={() => setMistakeMode(true)}
                       >
                         <span className="pb-hero-stack" aria-hidden>
                           {mistakes.slice(0, 3).map((problem) => (
@@ -1296,8 +1446,8 @@ export function ProblemBankPage({
                           ))}
                         </span>
                         <span className="pb-hero-copy">
-                          <small>错题重练</small>
-                          <strong>{mistakes.length} 道</strong>
+                          <small>错题本</small>
+                          <strong>{mistakes.length} 道待订正</strong>
                         </span>
                         <span className="pb-hero-go" aria-hidden>
                           <Play size={16} fill="currentColor" />
@@ -1467,12 +1617,19 @@ export function ProblemBankPage({
               problems={progress.problems}
               records={progressById}
               groups={progressGroups}
-              onPractice={(items, title) => startPractice(items, items[0], title)}
+              mistakes={mistakeCounts}
+              mistakeMode={mistakeMode}
+              onToggleMistakes={() => setMistakeMode(!mistakeMode)}
+              onOpenGroup={openChapterKey}
+              focusKey={activeMistakeFocus}
+              onFocusGroup={setMistakeFocus}
+              previewComparison={previewComparison}
             />
           </div>
         </div>
       </div>
       {layerOverlays}
+      {redoCard}
     </section>
   );
 }

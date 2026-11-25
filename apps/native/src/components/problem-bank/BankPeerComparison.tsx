@@ -7,178 +7,87 @@ import type {
 import { getNativeBankComparison } from '../../data/platform-api-client';
 import { platformAvailable } from '../../data/browser-runtime';
 import type { NativeClassStanding } from '../../data/platform-api-contracts';
+import { marbleImages, type MarbleColor } from '../../lib/learning-action-marbles';
 
 const percent = (n: number | null) => (n === null ? '—' : Math.round(n * 100) + '%');
-type Axis = { name: string; mine: number | null; peers: number | null };
+const clamp = (n: number) => Math.min(100, Math.max(0, n * 100));
 
-function CompareBar({
+/** 一根玻璃管：蓝弹珠是我，绿线是中位数，浅绿是中间一半同学。 */
+function CompareTube({
   name,
-  mine,
-  peers,
-  reference,
-  range,
+  metric,
+  compact = false,
 }: {
   name: string;
-  mine: number | null;
-  peers: number | null;
-  reference: string;
-  range?: ComparisonMetric;
+  metric: ComparisonMetric;
+  compact?: boolean;
 }) {
   return (
-    <div className="ba-compare-bar">
-      <strong>{name}</strong>
-      <div className="ba-scale" aria-hidden>
-        {range?.lower != null && range.upper != null && (
+    <div className={`ba-compare${compact ? ' is-compact' : ''}`}>
+      <div className="ba-compare-head">
+        <strong>{name}</strong>
+        <span>
+          我 {percent(metric.me)} · 中位 {percent(metric.median)}
+        </span>
+      </div>
+      <div className="ba-compare-tube" aria-hidden>
+        {metric.lower != null && metric.upper != null && (
           <i
-            className="ba-range"
-            style={{ left: percent(range.lower), width: percent(range.upper - range.lower) }}
+            className="ba-band"
+            style={{
+              left: `${clamp(metric.lower)}%`,
+              width: `${clamp(metric.upper - metric.lower)}%`,
+            }}
           />
         )}
-        {peers !== null && <i className="ba-peer-mark" style={{ left: percent(peers) }} />}
-        {mine !== null && <i className="ba-my-mark" style={{ left: percent(mine) }} />}
-      </div>
-      <div className="ba-values">
-        <span>我 {percent(mine)}</span>
-        <span>
-          {reference} {percent(peers)}
-        </span>
+        {metric.median !== null && (
+          <i className="ba-median" style={{ left: `${clamp(metric.median)}%` }} />
+        )}
+        {metric.me !== null && (
+          <img
+            className="ba-me"
+            src={marbleImages.blue}
+            alt=""
+            style={{ left: `${clamp(metric.me)}%` }}
+          />
+        )}
       </div>
     </div>
   );
 }
 
-function Radar({
-  axes,
-  reference,
-  title,
-  description,
-}: {
-  axes: Axis[];
-  reference: string;
-  title: string;
-  description: string;
-}) {
-  const point = (i: number, rate: number) => {
-    const angle = (i * Math.PI * 2) / axes.length - Math.PI / 2;
-    return [150 + Math.cos(angle) * 88 * rate, 117 + Math.sin(angle) * 88 * rate];
-  };
-  const polygon = (r: number) => axes.map((_, i) => point(i, r).join(',')).join(' ');
-  return (
-    <figure className="ba-radar">
-      <figcaption>
-        <strong>{title}</strong>
-        <span className="ba-radar-key">
-          <i />我 <i />
-          {reference}
-        </span>
-      </figcaption>
-      <svg viewBox="0 0 300 234" role="img" aria-label={title + '，详细数值见下表'}>
-        {[0.25, 0.5, 0.75, 1].map((r) => (
-          <polygon key={r} points={polygon(r)} fill="none" stroke="#dbe3f1" />
-        ))}
-        {axes.map((a, i) => {
-          const [x, y] = point(i, 1);
-          const [tx, ty] = point(i, 1.16);
-          return (
-            <g key={a.name}>
-              <line x1="150" y1="117" x2={x} y2={y} stroke="#dbe3f1" />
-              <text
-                x={tx}
-                y={ty}
-                textAnchor="middle"
-                dominantBaseline="central"
-                fill="#475569"
-                fontSize="13"
-              >
-                {a.name.length <= 6 ? a.name : i + 1}
-              </text>
-            </g>
-          );
-        })}
-        {(['peers', 'mine'] as const).map((key) => {
-          const color = key === 'mine' ? '#2563eb' : '#0f937d';
-          return (
-            <g key={key}>
-              {axes.every((a) => a[key] !== null) && (
-                <polygon
-                  points={axes.map((a, i) => point(i, a[key]!).join(',')).join(' ')}
-                  fill={color}
-                  fillOpacity=".09"
-                  stroke={color}
-                  strokeWidth="2"
-                />
-              )}
-              {axes.some((a) => a[key] === null) &&
-                axes.map((a, i) => {
-                  const next = (i + 1) % axes.length;
-                  const from = a[key],
-                    to = axes[next][key];
-                  if (from === null || to === null) return null;
-                  const [x1, y1] = point(i, from),
-                    [x2, y2] = point(next, to);
-                  return (
-                    <line
-                      key={a.name}
-                      x1={x1}
-                      y1={y1}
-                      x2={x2}
-                      y2={y2}
-                      stroke={color}
-                      strokeWidth="2"
-                    />
-                  );
-                })}
-              {axes.map((a, i) => {
-                if (a[key] === null) return null;
-                const [cx, cy] = point(i, a[key]);
-                return (
-                  <circle key={a.name} cx={cx} cy={cy} r={key === 'mine' ? 3 : 4} fill={color} />
-                );
-              })}
-            </g>
-          );
-        })}
-      </svg>
-      <table>
-        <thead>
-          <tr>
-            <th>维度</th>
-            <th>我</th>
-            <th>{reference}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {axes.map((a, i) => (
-            <tr key={a.name}>
-              <th>
-                {i + 1}. {a.name}
-              </th>
-              <td>{percent(a.mine)}</td>
-              <td>{percent(a.peers)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      <p className="ba-note">
-        {description}
-        {axes.some((a) => a.mine === null || a.peers === null) ? ' — 表示数据不足。' : ''}
-      </p>
-    </figure>
-  );
+/** 一句话结论：刷题量和第一次就做对跟中位数比。 */
+function verdict(data: BankComparison) {
+  const { coverage, firstTry } = data;
+  const ahead = (m: ComparisonMetric) =>
+    m.me === null || m.median === null ? null : m.me - m.median;
+  const more = ahead(coverage);
+  const accurate = ahead(firstTry);
+  if (more === null) return { text: '先做几道题，再来比比看', mood: 'blue' as MarbleColor };
+  if (more > 0.05 && (accurate ?? 0) >= -0.05)
+    return { text: '比一半同学刷得多', mood: 'green' as MarbleColor };
+  if (more > 0.05) return { text: '刷得多，第一次做对还能再稳一点', mood: 'amber' as MarbleColor };
+  if (more < -0.05) return { text: '比中位数少刷了一些，追一追', mood: 'pink' as MarbleColor };
+  return { text: '和大部分同学差不多', mood: 'blue' as MarbleColor };
 }
 
 export function BankPeerComparison({
   courseId,
   group,
+  groups = [],
+  preview,
 }: {
   courseId: string;
   group: BankComparisonGroup;
+  /** 题库的章 / 套，用来给知识点配上同色弹珠。 */
+  groups?: { title: string; color: MarbleColor | null }[];
+  preview?: BankComparison;
 }) {
-  const [data, setData] = useState<BankComparison | NativeClassStanding | null>(null);
+  const [data, setData] = useState<BankComparison | NativeClassStanding | null>(preview ?? null);
   const [failed, setFailed] = useState(false);
   const [attempt, retry] = useState(0);
   useEffect(() => {
-    if (!platformAvailable()) return;
+    if (preview || !platformAvailable()) return;
     let active = true;
     void getNativeBankComparison(courseId, group)
       .then((result) => {
@@ -190,8 +99,9 @@ export function BankPeerComparison({
     return () => {
       active = false;
     };
-  }, [courseId, group, attempt]);
-  if (!platformAvailable()) return <p>这门本地课程暂无商城加课统计。</p>;
+  }, [courseId, group, attempt, preview]);
+  if (!preview && !platformAvailable())
+    return <p className="ba-note">这门本地课程暂无同学统计。</p>;
   if (failed)
     return (
       <div className="ba-detail">
@@ -209,8 +119,7 @@ export function BankPeerComparison({
     );
   if (!data) return <p role="status">正在读取同学统计…</p>;
   if (data.scope !== 'store-term') return <p role="status">当前服务暂未提供本学期商城加课统计。</p>;
-  const reference = '同学中位数';
-  const cohortLabel = `${data.termLabel} · 从商城加入本课 ${data.enrollmentCount} 人`;
+  const cohortLabel = `${data.termLabel} · ${data.enrollmentCount} 位同学 · 匿名`;
   if (!data.peerCount)
     return (
       <>
@@ -218,29 +127,67 @@ export function BankPeerComparison({
         <p>本学期暂无其他商城学员可供对比。</p>
       </>
     );
+  const summary = verdict(data);
+  const colorOf = (name: string) => groups.find((item) => item.title === name)?.color ?? 'blue';
   return (
     <>
-      <p className="ba-note">{cohortLabel}</p>
-      <CompareBar
-        name="刷题覆盖率"
-        mine={data.coverage.me}
-        peers={data.coverage.median}
-        range={data.coverage}
-        reference={reference}
-      />
-      <p className="ba-note">蓝点代表我，绿线标出中位数，浅绿区间涵盖中间 50% 的同学。</p>
-      {data.topics.length >= 3 && (
-        <Radar
-          title="知识点雷达图"
-          description="各轴表示对应章节的首次正确率。"
-          axes={data.topics.map((t) => ({
-            name: t.name,
-            mine: t.firstTry.me,
-            peers: t.firstTry.median,
-          }))}
-          reference={reference}
-        />
-      )}
+      <div className={`ba-verdict is-${summary.mood}`}>
+        <img src={marbleImages[summary.mood]} alt="" />
+        <span>
+          <strong>{summary.text}</strong>
+          <small>{cohortLabel}</small>
+        </span>
+      </div>
+      <CompareTube name="刷题覆盖率" metric={data.coverage} />
+      <CompareTube name="第一次就做对" metric={data.firstTry} />
+      <p className="ba-key">
+        <span>
+          <img src={marbleImages.blue} alt="" />我
+        </span>
+        <span>
+          <i className="is-median" />
+          中位数
+        </span>
+        <span>
+          <i className="is-band" />
+          中间一半同学
+        </span>
+      </p>
+      {data.topics.length ? (
+        <>
+          <h3>
+            <span>各{group === 'chapters' ? '章' : '套'}第一次就做对</span>
+            <small>我 / 中位</small>
+          </h3>
+          <ul className="ba-topics">
+            {data.topics.map((topic) => (
+              <li key={topic.name}>
+                <img src={marbleImages[colorOf(topic.name)]} alt="" />
+                <span className="ba-topic-copy">
+                  <span>{topic.name}</span>
+                  <span className="ba-mini-tube is-compare" aria-hidden>
+                    <i className="is-blue" style={{ width: `${clamp(topic.firstTry.me ?? 0)}%` }} />
+                    {topic.firstTry.median !== null && (
+                      <b style={{ left: `${clamp(topic.firstTry.median)}%` }} />
+                    )}
+                  </span>
+                </span>
+                <small
+                  className={
+                    topic.firstTry.me !== null &&
+                    topic.firstTry.median !== null &&
+                    topic.firstTry.me < topic.firstTry.median
+                      ? 'is-behind'
+                      : ''
+                  }
+                >
+                  {percent(topic.firstTry.me)} / {percent(topic.firstTry.median)}
+                </small>
+              </li>
+            ))}
+          </ul>
+        </>
+      ) : null}
     </>
   );
 }
