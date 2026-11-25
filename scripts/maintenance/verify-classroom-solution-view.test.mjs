@@ -320,6 +320,7 @@ test('offline answer-view uploads retain the lesson when retried from saved meta
   const sync = load('apps/native/src/data/problem-sync.ts', {
     '../../../../lib/problem-bank/photo-answer': {},
     './browser-runtime': { accountStorageKey: (key) => key },
+    './problem-bank-round': { bankResetTimes: () => ({}) },
     './archive': {},
     './chat-sync': { isPlatformCourse: async () => true },
     './platform-api-client': {

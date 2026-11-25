@@ -73,7 +73,7 @@ function round(value: number, digits = 1) {
   return Math.round(value * scale) / scale;
 }
 
-async function readCohort(prisma: PrismaClient, userId: string, courseId: string) {
+export async function readCohort(prisma: PrismaClient, userId: string, courseId: string) {
   const course = await prisma.course.findUnique({
     where: { id: courseId },
     select: { ownerId: true },

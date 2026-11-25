@@ -1108,6 +1108,7 @@ model NotebookProblemProgress {
   attemptedCount  Int                          @default(0)
   passedCount     Int                          @default(0)
   lastAttemptAt   DateTime?
+  resetAt         DateTime?
 
   problem       NotebookProblem         @relation(fields: [problemId], references: [id], onDelete: Cascade)
   user          User                    @relation(fields: [userId], references: [id], onDelete: Cascade)

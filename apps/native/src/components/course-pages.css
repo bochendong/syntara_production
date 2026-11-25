@@ -723,7 +723,7 @@ span.pb-row-marble img {
   font-variant-numeric: tabular-nums;
 }
 
-/* 章节墙最上面：接着上次 + 错题重练。 */
+/* 章节墙上的错题重练入口。 */
 .pb-hero {
   display: grid;
   gap: 10px;
@@ -757,33 +757,6 @@ span.pb-row-marble img {
 
 .pb-hero-card:active {
   transform: scale(0.985);
-}
-
-.pb-hero-orb {
-  position: relative;
-  display: grid;
-  width: 56px;
-  height: 56px;
-  place-items: center;
-}
-
-.pb-hero-orb img {
-  width: 54px;
-  height: 54px;
-  filter: drop-shadow(0 8px 10px rgb(var(--accent-rgb) / 40%));
-  animation: nb-float 4.2s ease-in-out infinite;
-}
-
-.pb-hero-orb b {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  color: #fff;
-  font-size: 17px;
-  font-weight: 800;
-  font-variant-numeric: tabular-nums;
-  text-shadow: 0 1px 3px rgb(15 23 42 / 50%);
 }
 
 .pb-hero-stack {
@@ -873,12 +846,26 @@ span.pb-row-marble img {
   margin-top: 18px;
 }
 
+.pb-bank-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin: 18px 0 10px;
+}
+
+.pb-bank-toolbar .pb-bank-summary {
+  display: flex;
+  gap: 12px;
+  margin: 0 0 0 auto;
+  padding: 0;
+  font-variant-numeric: tabular-nums;
+}
+
 /* 章节墙 / 套题墙切换：一条玻璃药丸。 */
 .pb-mode-switch {
   display: inline-flex;
-  align-self: flex-start;
   gap: 2px;
-  margin-top: 18px;
   padding: 3px;
   border: 1px solid rgb(255 255 255 / 90%);
   border-radius: 999px;
@@ -5347,4 +5334,70 @@ span.pb-row-marble img {
   color: #0f172a;
   font-family: monospace;
   font-size: 14px;
+}
+
+.pb-progress-sidebar {
+  display: none;
+}
+
+@container pb-page (min-width: 1000px) {
+  .pb-scroll:has(.pb-bank-body) {
+    padding-bottom: 20px;
+  }
+
+  .pb-column:has(> .pb-bank-body) {
+    display: flex;
+    height: 100%;
+    flex-direction: column;
+  }
+
+  .pb-column:has(> .pb-bank-body) > :not(.pb-bank-body) {
+    flex-shrink: 0;
+  }
+
+  .pb-redesigned .pb-chapter-body.pb-bank-body {
+    display: grid;
+    flex: 1;
+    min-height: 0;
+    grid-template-columns: minmax(0, 1fr) clamp(240px, 21%, 300px);
+    grid-template-rows: minmax(0, 1fr);
+    align-items: stretch;
+    gap: 20px;
+  }
+
+  .pb-bank-body > .pb-chapter-main {
+    overflow-y: auto;
+    scrollbar-width: thin;
+  }
+
+  .pb-bank-toolbar:first-child {
+    margin-top: 0;
+  }
+
+  .pb-bank-body .pb-wall-open strong {
+    font-size: 14px;
+    line-height: 1.45;
+    text-wrap: balance;
+  }
+
+  .pb-bank-body .pb-wall-title,
+  .pb-bank-body .pb-bank-summary,
+  .pb-bank-body .pb-tube-meter small,
+  .pb-bank-body .pb-wall-go {
+    font-size: 12px;
+    line-height: 16px;
+  }
+
+  .pb-progress-sidebar {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: 12px;
+    box-sizing: border-box;
+    overflow: hidden;
+    padding: 18px;
+    border: 1px solid rgb(15 23 42 / 6%);
+    border-radius: var(--radius-lg);
+    background: #fff;
+    box-shadow: 0 6px 24px rgb(15 23 42 / 5%);
+  }
 }

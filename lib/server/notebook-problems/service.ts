@@ -3598,10 +3598,11 @@ export async function createNotebookProblemAttempt(args: {
   // persistence so a response failure cannot leave a saved, counted submission.
   problemAttemptWriteSchema.parse(args);
   const created = (await prismaDb.$transaction(async (tx: Prisma.TransactionClient) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${args.userId}, 37501))`;
     const attempt = await tx.notebookProblemAttempt.create({
       data: {
         ...(args.id ? { id: args.id } : {}),
-        ...(args.createdAt ? { createdAt: args.createdAt } : {}),
+        createdAt: args.createdAt ?? new Date(),
         userId: args.userId,
         problemId: args.problemId,
         kind: args.kind,
@@ -3616,7 +3617,13 @@ export async function createNotebookProblemAttempt(args: {
       },
     });
 
-    if (!args.preserveProgress) {
+    const priorRound =
+      args.createdAt &&
+      (await tx.notebookProblemProgress.findFirst({
+        where: { userId: args.userId, problemId: args.problemId, resetAt: { gte: args.createdAt } },
+        select: { id: true },
+      }));
+    if (!args.preserveProgress && !priorRound) {
       await tx.notebookProblemProgress.upsert({
         where: {
           problemId_userId: {

@@ -35,6 +35,7 @@ import {
   type CourseOpenTarget,
 } from './lib/native-launch';
 import { readPhoneLastChat } from './lib/phone-last-chat';
+import { CourseProblemBanksPage } from './components/CourseProblemBanksPage';
 import { GlobalCalendarApp } from './components/GlobalCalendarApp';
 import { PhoneConfirm, PhoneProfilePage } from './components/PhonePages';
 import { StorePage } from './components/StorePage';
@@ -174,6 +175,7 @@ function AuthenticatedApp() {
   }, []);
   const compactLayout = useCompactLayout();
   const [globalPage, setGlobalPage] = useState<
+    | 'problem-banks'
     | 'calendar'
     | 'profile'
     | 'store'
@@ -195,6 +197,8 @@ function AuthenticatedApp() {
   const [calendarRevision, setCalendarRevision] = useState(0);
   const [launchRevision, setLaunchRevision] = useState(0);
   const navigationRequest = useRef(0);
+  const chatHomeRef = useRef<(() => void) | null>(null);
+  const [workspaceBankVisible, setWorkspaceBankVisible] = useState(false);
   const cancelPendingNavigation = useCallback(() => {
     navigationRequest.current += 1;
   }, []);
@@ -723,7 +727,7 @@ function AuthenticatedApp() {
     );
   } else if (surface === 'problem-bank') {
     content = (
-      <div className="native-course-subview">
+      <div className="native-course-subview is-bank-active">
         <ProblemBankPage
           workspace={workspace}
           onBack={backFromProblemBank}
@@ -742,6 +746,8 @@ function AuthenticatedApp() {
   } else {
     content = (
       <CourseWorkspace
+        chatHomeRef={chatHomeRef}
+        onProblemBankVisibilityChange={setWorkspaceBankVisible}
         homeHref={appHomeHref}
         onOpenRecentChat={openRecentChat}
         key={`${workspace.course.id}:${launchRevision}`}
@@ -775,23 +781,18 @@ function AuthenticatedApp() {
     );
   }
 
+  const showingBank = surface === 'problem-bank' || (surface === 'course' && workspaceBankVisible);
   const navigation: AppNavigation = {
     active:
-      globalPage === 'calendar'
-        ? 'calendar'
-        : globalPage === 'profile'
-          ? 'settings'
-          : globalPage === 'store'
-            ? 'store'
-            : globalPage === 'teach'
-              ? 'teach'
-              : globalPage === 'classroom' || globalPage === 'student-classroom'
-                ? 'classroom'
-                : globalPage === 'admin'
-                  ? 'admin'
-                  : globalPage === 'game'
-                    ? 'game'
-                    : 'chat',
+      globalPage === 'profile'
+        ? 'settings'
+        : globalPage === 'student-classroom'
+          ? 'classroom'
+          : (globalPage ?? (showingBank ? 'problem-banks' : 'chat')),
+    onOpenProblemBanks: () => {
+      cancelPendingNavigation();
+      setGlobalPage('problem-banks');
+    },
     avatarUrl: avatarTheme.avatarUrl,
     onOpenCalendar: () => setGlobalPage('calendar'),
     onOpenStore: () => setGlobalPage('store'),
@@ -852,6 +853,10 @@ function AuthenticatedApp() {
           <AppNavigationRail
             {...navigation}
             onOpenChat={() => {
+              cancelPendingNavigation();
+              if (practiceExpanded) minimizePractice();
+              setInitialPage(undefined);
+              chatHomeRef.current?.();
               if (surface === 'general' || surface === 'launch') setGlobalPage(null);
               else openChat();
             }}
@@ -964,7 +969,13 @@ function AuthenticatedApp() {
 
         {globalPage ? (
           <div className="native-global-page" inert={practiceExpanded}>
-            {globalPage === 'calendar' ? (
+            {globalPage === 'problem-banks' ? (
+              <CourseProblemBanksPage
+                courses={launchCourses}
+                onBack={() => setGlobalPage(null)}
+                onOpenCourse={(id) => openCourse(id, undefined, { page: 'problems' })}
+              />
+            ) : globalPage === 'calendar' ? (
               <>
                 <GlobalCalendarApp
                   courses={launchCourses}

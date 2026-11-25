@@ -2,12 +2,16 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type CSSProperties,
   type ReactNode,
 } from 'react';
 import { ArrowLeft, Check, ChevronLeft, LayoutGrid, List, Play } from 'lucide-react';
 
+import { resetBankProblems } from '../data/problem-sync';
+import { getLocalRepository } from '../data/repository';
+import { useBackDismiss } from '../lib/use-back-dismiss';
 import { difficultyLabel, problemTypeLabel } from '../data/local-problem-grading';
 import {
   courseSeries,
@@ -20,6 +24,7 @@ import {
   problemPaperSeries,
   problemPaperSets,
   usesCsc108PaperNames,
+  visibleBankProblems,
   type PaperSetKind,
   type PaperSourceTag,
 } from '../data/problem-bank-filters';
@@ -27,6 +32,7 @@ import { practiceLaunchForResults } from '../data/problem-practice-scope';
 import { ProblemTitleText } from './problem-bank/problem-rich-text';
 import {
   SheetCell,
+  notifyProblemProgress,
   STATUS_LABELS,
   STATUS_MARBLES,
   useProblemStatuses,
@@ -47,7 +53,6 @@ import {
   LayerItem,
   type LayerMenuTarget,
 } from './CourseLayerControls';
-import { getLocalRepository } from '../data/repository';
 import {
   isPrivateProblem,
   isProblemContentUpdated,
@@ -58,6 +63,7 @@ import {
 } from '../lib/course-layers';
 import { TeachLiveBanner, TeachSessionToggle, useTeachLiveCourse } from './TeachLiveBar';
 import './course-pages.css';
+import { BankAnalytics } from './problem-bank/BankAnalytics';
 import { localizeProblem, type ProblemContentLanguage } from '../lib/problem-language';
 
 export type ProblemBankLaunch = {
@@ -91,7 +97,7 @@ type ProblemBankPageProps = {
 type TypeFilter = 'all' | string;
 type DifficultyFilter = 'all' | LocalProblem['difficulty'];
 type SheetView = 'grid' | 'list';
-type BankMode = 'chapters' | 'sets';
+type BankMode = 'chapters' | 'sets' | PaperSourceTag;
 
 type Chapter = {
   sourceTag?: PaperSourceTag;
@@ -106,12 +112,9 @@ type Chapter = {
   partial: number;
 };
 
-type LastSession = { chapterKey: string; problemId: string; at: number };
-
 const UNSORTED_CHAPTER = '__unsorted__';
 const ALL_CHAPTERS = '__all_chapters__';
 const COURSE_CHAPTER_PREFIX = 'course-chapter:';
-const LAST_STORAGE_KEY = 'syntara.problem-bank-last.v1';
 const VIEW_STORAGE_KEY = 'syntara.problem-bank-view.v1';
 // 从做题页回来时回到刚才那一章（只在这次打开 App 期间记着）。
 const OPEN_CHAPTER_KEY = 'syntara.problem-bank-open-chapter';
@@ -225,8 +228,22 @@ function ChapterMarble({ chapter }: { chapter: Chapter }) {
   );
 }
 
+type GroupProgress = Pick<Chapter, 'problems' | 'passed' | 'partial' | 'failed'>;
+
+function groupProgress(
+  problems: LocalProblem[],
+  statuses: ReadonlyMap<string, ProblemStatus>,
+): GroupProgress {
+  const progress = { problems, passed: 0, partial: 0, failed: 0 };
+  for (const problem of problems) {
+    const status = statuses.get(problem.id);
+    if (status && status !== 'pending') progress[status] += 1;
+  }
+  return progress;
+}
+
 /** 一根玻璃管：通过、部分对、错了按比例排开，后面是「通过 / 总数」。 */
-function ChapterTube({ chapter }: { chapter: Chapter }) {
+function ChapterTube({ chapter }: { chapter: GroupProgress }) {
   const total = chapter.problems.length || 1;
   return (
     <span
@@ -346,10 +363,12 @@ export function ProblemBankPage({
     () => new Map(workspace.problems.map((problem) => [problem.id, problem])),
     [workspace.problems],
   );
-  const [statuses, , historicalMistakes] = useProblemStatuses(courseId, workspace.problems);
+  const [statuses, , historicalMistakes, progressById] = useProblemStatuses(
+    courseId,
+    workspace.problems,
+  );
   const layers = useCourseLayers(courseId);
   const [menuTarget, setMenuTarget] = useState<LayerMenuTarget | null>(null);
-  const lastAttemptAt = useLastAttemptTimes(courseId, workspace.problems);
   const teachLive = useTeachLiveCourse(courseId);
   /** 上课时每道已发布的公有题多一个「加入这节课」。 */
   const sessionToggleFor = (problem: LocalProblem) =>
@@ -368,7 +387,11 @@ export function ProblemBankPage({
     layered ? (
       <LayerBadges
         fresh={showFresh && isProblemNew(layers, problem.id)}
-        updated={isProblemContentUpdated(layers, problem.id, lastAttemptAt.get(problem.id))}
+        updated={isProblemContentUpdated(
+          layers,
+          problem.id,
+          progressById?.get(problem.id)?.lastAttemptAt ?? undefined,
+        )}
         mine={isPrivateProblem(layers, problem.id)}
       />
     ) : null;
@@ -402,14 +425,10 @@ export function ProblemBankPage({
   // 学生只看已发布的题；课程里还没有发布的题时（本机自建课程）就全部显示。
   // 加入的课里自己上传的题（私有层）还是草稿也照样显示。
   const bankProblems = useMemo(() => {
-    const published = workspace.problems.filter(
-      (problem) =>
-        problem.status === 'published' ||
-        (layered && problem.status === 'draft' && isPrivateProblem(layers, problem.id)),
+    const visible = visibleBankProblems(
+      workspace.problems,
+      (p) => layered && isPrivateProblem(layers, p.id),
     );
-    const visible = published.length
-      ? published
-      : workspace.problems.filter((problem) => problem.status !== 'archived');
     return visible.map((problem) => localizeProblem(problem, 'zh-CN'));
   }, [layered, layers, workspace.problems]);
 
@@ -539,30 +558,51 @@ export function ProblemBankPage({
           color: PAPER_SET_COLORS[set.kind],
           sourceTag: useCsc108Names ? csc108PaperSourceTag(set.name) : undefined,
           order: index,
-          problems: set.problems,
-          passed: 0,
-          failed: 0,
-          partial: 0,
+          ...groupProgress(set.problems, statuses),
         };
-        for (const problem of set.problems) {
-          const status = statuses.get(problem.id);
-          if (status === 'passed') chapter.passed += 1;
-          else if (status === 'failed') chapter.failed += 1;
-          else if (status === 'partial') chapter.partial += 1;
-        }
         return { ...chapter, kind: set.kind };
       }),
     [bankProblems, useCsc108Names, sourceProblems, statuses],
   );
-  const [paperSource, setPaperSource] = useState<PaperSourceTag | '全部'>('全部');
-  const visiblePaperSets =
-    useCsc108Names && paperSource !== '全部'
-      ? paperSetChapters.filter((set) => set.sourceTag === paperSource)
-      : paperSetChapters;
-  const [bankModeState, setBankModeState] = useState<BankMode>(() =>
-    readCourseValue<BankMode>('session', BANK_MODE_KEY, courseId) === 'sets' ? 'sets' : 'chapters',
+  const bankTabs: { mode: BankMode; label: string; count: number }[] = [
+    { mode: 'chapters', label: '按章节', count: chapters.length },
+  ];
+  if (useCsc108Names) {
+    for (const source of ['考试原题', '模拟题'] as const) {
+      bankTabs.push({
+        mode: source,
+        label: source,
+        count: paperSetChapters.filter((set) => set.sourceTag === source).length,
+      });
+    }
+  } else if (paperSetChapters.length) {
+    bankTabs.push({ mode: 'sets', label: '按套题', count: paperSetChapters.length });
+  }
+  const [bankModeState, setBankModeState] = useState<BankMode>(() => {
+    const saved = readCourseValue<BankMode>('session', BANK_MODE_KEY, courseId);
+    return useCsc108Names && saved === 'sets' ? '考试原题' : (saved ?? 'chapters');
+  });
+  const bankMode = bankTabs.find((tab) => tab.mode === bankModeState)?.mode ?? 'chapters';
+  const visiblePaperSets = useMemo(
+    () =>
+      bankMode === 'sets'
+        ? paperSetChapters
+        : paperSetChapters.filter((set) => set.sourceTag === bankMode),
+    [bankMode, paperSetChapters],
   );
-  const bankMode: BankMode = paperSetChapters.length ? bankModeState : 'chapters';
+  const progressGroups = bankMode === 'chapters' ? chapters : visiblePaperSets;
+  const progress = useMemo(() => {
+    if (bankMode === 'chapters') return allChapter;
+    // A problem shared by several papers contributes once to this tab's overall progress.
+    const ids = new Set(
+      visiblePaperSets.flatMap((set) => set.problems.map((problem) => problem.id)),
+    );
+    return groupProgress(
+      bankProblems.filter((problem) => ids.has(problem.id)),
+      statuses,
+    );
+  }, [allChapter, bankMode, bankProblems, statuses, visiblePaperSets]);
+  const progressTotal = progress.problems.length;
   const setBankMode = (next: BankMode) => {
     setBankModeState(next);
     writeCourseValue('session', BANK_MODE_KEY, courseId, next);
@@ -599,7 +639,7 @@ export function ProblemBankPage({
   const openChapter =
     openKey === ALL_CHAPTERS
       ? allChapter
-      : chapters.length === 1 && bankMode === 'chapters' && !isPaperSetKey(openKey)
+      : chapters.length === 1 && bankTabs.length === 1 && !isPaperSetKey(openKey)
         ? chapters[0]
         : openKey
           ? (chapterByKey.get(openKey) ?? null)
@@ -612,28 +652,14 @@ export function ProblemBankPage({
     writeCourseValue('session', OPEN_CHAPTER_KEY, courseId, key);
   };
 
-  const [lastSession, setLastSession] = useState<LastSession | null>(() =>
-    readCourseValue<LastSession>('local', LAST_STORAGE_KEY, courseId),
-  );
-
   const startPractice = useCallback(
-    (
-      problems: LocalProblem[],
-      initial: LocalProblem | undefined,
-      title: string,
-      chapterKey: string | null,
-    ) => {
+    (problems: LocalProblem[], initial: LocalProblem | undefined, title: string) => {
       if (!problems.length) return;
       const start = initial ?? problems[0];
-      if (chapterKey) {
-        const next: LastSession = { chapterKey, problemId: start.id, at: Date.now() };
-        writeCourseValue('local', LAST_STORAGE_KEY, courseId, next);
-        setLastSession(next);
-      }
       const launch = practiceLaunchForResults(problems, start.id, title);
       if (launch) onPractice(launch);
     },
-    [courseId, onPractice],
+    [onPractice],
   );
 
   /** 「继续刷」：这一组里第一道还没通过的题。 */
@@ -651,11 +677,6 @@ export function ProblemBankPage({
       ),
     [chapters, statuses],
   );
-  const passedTotal = useMemo(
-    () => chapters.reduce((sum, chapter) => sum + chapter.passed, 0),
-    [chapters],
-  );
-
   // ---------- 章节里：答题卡 ----------
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
   const [difficultyFilter, setDifficultyFilter] = useState<DifficultyFilter>('all');
@@ -670,8 +691,8 @@ export function ProblemBankPage({
   const [query, setQuery] = useState('');
 
   const scopeProblems = useMemo(
-    () => openChapter?.problems ?? allChapter.problems,
-    [openChapter, allChapter],
+    () => openChapter?.problems ?? progress.problems,
+    [openChapter, progress],
   );
   const typeOptions = useMemo(() => {
     const counts = new Map<string, number>();
@@ -734,10 +755,7 @@ export function ProblemBankPage({
   const [searchCount, setSearchCount] = useState(LIST_PAGE_SIZE);
   const searchResults = hasFilters ? sheetProblems : [];
 
-  const visibleSeriesOptions = problemPaperSeries(
-    openChapter?.problems ?? bankProblems,
-    useCsc108Names,
-  );
+  const visibleSeriesOptions = problemPaperSeries(scopeProblems, useCsc108Names);
   const filterValues: BankFilterValues = {
     series: activeSeries,
     difficulty: activeDifficultyFilter,
@@ -791,31 +809,6 @@ export function ProblemBankPage({
     setSearchCount(LIST_PAGE_SIZE);
     setListCount(LIST_PAGE_SIZE);
   };
-  const filterBar = (
-    <ProblemBankFilters
-      key={courseId}
-      groups={filterGroups}
-      values={filterValues}
-      query={query}
-      onQueryChange={(next) => {
-        setQuery(next);
-        setSearchCount(LIST_PAGE_SIZE);
-        setListCount(LIST_PAGE_SIZE);
-      }}
-      onChange={applyFilters}
-      resultCount={(values) =>
-        scopeProblems.filter((problem) =>
-          matchesProblemFilters(sourceProblems.get(problem.id) ?? problem, {
-            query,
-            ...values,
-            chapter: 'all',
-          }),
-        ).length
-      }
-      onUploadFiles={onUploadFiles}
-      onUpload={onUpload}
-    />
-  );
   const clearFilters = () => {
     applyFilters({ series: '', difficulty: 'all', type: 'all' });
     setQuery('');
@@ -829,6 +822,138 @@ export function ProblemBankPage({
     .filter(Boolean)
     .join(' · ');
 
+  const [resetTarget, setResetTarget] = useState<{
+    courseId: string;
+    label: string;
+    ids: string[];
+    through: number;
+  } | null>(null);
+  const [resetBusy, setResetBusy] = useState(false);
+  const [resetError, setResetError] = useState('');
+  const resetInFlight = useRef(false);
+  const [roundRevision, setRoundRevision] = useState(0);
+  const resetDialog = useRef<HTMLDialogElement>(null);
+  const cancelReset = () => {
+    if (!resetInFlight.current) setResetTarget(null);
+  };
+  useBackDismiss(resetTarget?.courseId === courseId, cancelReset, 40);
+  useEffect(() => {
+    if (resetTarget?.courseId !== courseId) return;
+    const dialog = resetDialog.current;
+    dialog?.showModal();
+    return () => dialog?.close();
+  }, [courseId, resetTarget]);
+  const confirmReset = async () => {
+    if (!resetTarget || resetTarget.courseId !== courseId || resetInFlight.current) return;
+    resetInFlight.current = true;
+    setResetBusy(true);
+    setResetError('');
+    try {
+      await resetBankProblems(
+        await getLocalRepository(),
+        courseId,
+        resetTarget.ids,
+        resetTarget.through,
+      );
+      notifyProblemProgress();
+      setRoundRevision((r) => r + 1);
+      setResetTarget(null);
+    } catch (error) {
+      setResetError(error instanceof Error ? error.message : '重置失败，请重试。');
+    } finally {
+      resetInFlight.current = false;
+      setResetBusy(false);
+    }
+  };
+  const filterBar = (
+    <>
+      <ProblemBankFilters
+        key={courseId}
+        groups={filterGroups}
+        values={filterValues}
+        query={query}
+        onQueryChange={(next) => {
+          setQuery(next);
+          setSearchCount(LIST_PAGE_SIZE);
+          setListCount(LIST_PAGE_SIZE);
+        }}
+        onChange={applyFilters}
+        canReset={sheetProblems.length > 0}
+        onReset={() => {
+          const label = [
+            workspace.course.name,
+            openChapter?.title ?? bankTabs.find((t) => t.mode === bankMode)?.label,
+            filterTitle,
+          ]
+            .filter(Boolean)
+            .join(' · ');
+          setResetError('');
+          setResetTarget({
+            courseId,
+            label,
+            ids: [...new Set(sheetProblems.map((p) => p.id))],
+            through: Date.now(),
+          });
+        }}
+        resultCount={(values) =>
+          scopeProblems.filter((problem) =>
+            matchesProblemFilters(
+              sourceProblems.get(problem.id) ?? problem,
+              {
+                query,
+                ...values,
+                chapter: 'all',
+              },
+              useCsc108Names,
+            ),
+          ).length
+        }
+        onUploadFiles={onUploadFiles}
+        onUpload={onUpload}
+      />
+      {resetTarget?.courseId === courseId && (
+        <dialog
+          ref={resetDialog}
+          className="phone-confirm pb-reset-confirm"
+          role="alertdialog"
+          aria-label="重置当前范围的做题进度？"
+          onCancel={(event) => {
+            event.preventDefault();
+            cancelReset();
+          }}
+        >
+          <strong className="phone-confirm-title">重置当前范围的做题进度？</strong>
+          <p className="phone-confirm-message">
+            「{resetTarget.label}」共 {resetTarget.ids.length}{' '}
+            道题。确认后，这些题会恢复为未作答。已提交的课堂记录会保留。
+          </p>
+          {resetError && (
+            <p role="alert" className="phone-confirm-message">
+              {resetError}
+            </p>
+          )}
+          <div className="phone-confirm-actions">
+            <button
+              type="button"
+              className="phone-confirm-button"
+              disabled={resetBusy}
+              onClick={cancelReset}
+            >
+              取消
+            </button>
+            <button
+              type="button"
+              className="phone-confirm-button is-primary is-destructive"
+              disabled={resetBusy}
+              onClick={() => void confirmReset()}
+            >
+              {resetBusy ? '正在重置…' : '确认重置'}
+            </button>
+          </div>
+        </dialog>
+      )}
+    </>
+  );
   const courseLabel = workspace.course.courseCode || workspace.course.name;
   if (!bankProblems.length) {
     return (
@@ -882,7 +1007,6 @@ export function ProblemBankPage({
         sheetProblems,
         problem,
         filterTitle ? `${openChapter.title} · ${filterTitle}` : openChapter.title,
-        openChapter.key,
       );
     return (
       <section className="pb-page pb-redesigned" aria-label={`${openChapter.title} 题目`}>
@@ -891,7 +1015,8 @@ export function ProblemBankPage({
           <div className="pb-column">
             {liveBanner}
             <div className="pb-chapter-head" style={accentVars(openChapter.color)}>
-              {chapters.length > 1 ||
+              {bankTabs.length > 1 ||
+              chapters.length > 1 ||
               openChapter.key === ALL_CHAPTERS ||
               isPaperSetKey(openChapter.key) ? (
                 <button
@@ -1070,21 +1195,6 @@ export function ProblemBankPage({
   }
 
   // ---------- 章节墙 ----------
-  const lastChapter = lastSession ? chapterByKey.get(lastSession.chapterKey) : undefined;
-  const lastIndex = lastChapter
-    ? Math.max(
-        0,
-        lastChapter.problems.findIndex((problem) => problem.id === lastSession?.problemId),
-      )
-    : 0;
-  // 接着上次：从上次那题往后第一道没通过的；后面都过了就回到上次那题。
-  const resumeTarget = lastChapter
-    ? (lastChapter.problems
-        .slice(lastIndex)
-        .find((problem) => statuses.get(problem.id) !== 'passed') ??
-      lastChapter.problems[lastIndex])
-    : undefined;
-
   return (
     <section className="pb-page pb-redesigned" aria-label="课程题库">
       <BankHeader title="题库" subtitle={courseLabel} onBack={onBack} />
@@ -1121,7 +1231,6 @@ export function ProblemBankPage({
                                 ? searchResults[0]
                                 : firstUnpassed(searchResults),
                               filterTitle,
-                              null,
                             )
                           }
                         >
@@ -1144,7 +1253,7 @@ export function ProblemBankPage({
                               status={statuses.get(problem.id)}
                               badges={badgesFor(problem)}
                               onClick={() => {
-                                startPractice(searchResults, problem, filterTitle, null);
+                                startPractice(searchResults, problem, filterTitle);
                               }}
                             />
                           </LayerItem>
@@ -1167,109 +1276,68 @@ export function ProblemBankPage({
                 )
               ) : (
                 <>
-                  {(lastChapter && resumeTarget) || mistakes.length ? (
+                  {mistakes.length ? (
                     <div className="pb-hero">
-                      {lastChapter && resumeTarget ? (
-                        <button
-                          type="button"
-                          className="pb-hero-card is-resume"
-                          style={accentVars(lastChapter.color)}
-                          onClick={() =>
-                            startPractice(
-                              lastChapter.problems,
-                              resumeTarget,
-                              lastChapter.title,
-                              lastChapter.key,
-                            )
-                          }
-                        >
-                          <span className="pb-hero-orb">
-                            {lastChapter.color ? (
-                              <img src={marbleImages[lastChapter.color]} alt="" />
-                            ) : null}
-                            <b>{numberIn(lastChapter, resumeTarget)}</b>
-                          </span>
-                          <span className="pb-hero-copy">
-                            <small>接着上次</small>
-                            <strong>{lastChapter.title}</strong>
-                            <ChapterTube chapter={lastChapter} />
-                          </span>
-                          <span className="pb-hero-go" aria-hidden>
-                            <Play size={16} fill="currentColor" />
-                          </span>
-                        </button>
-                      ) : null}
-                      {mistakes.length ? (
-                        <button
-                          type="button"
-                          className="pb-hero-card is-mistakes"
-                          style={accentVars('pink')}
-                          onClick={() => startPractice(mistakes, mistakes[0], '错题重练', null)}
-                        >
-                          <span className="pb-hero-stack" aria-hidden>
-                            {mistakes.slice(0, 3).map((problem) => (
-                              <img
-                                key={problem.id}
-                                src={
-                                  marbleImages[STATUS_MARBLES[statuses.get(problem.id) ?? 'failed']]
-                                }
-                                alt=""
-                              />
-                            ))}
-                          </span>
-                          <span className="pb-hero-copy">
-                            <small>错题重练</small>
-                            <strong>{mistakes.length} 道</strong>
-                          </span>
-                          <span className="pb-hero-go" aria-hidden>
-                            <Play size={16} fill="currentColor" />
-                          </span>
-                        </button>
-                      ) : null}
+                      <button
+                        type="button"
+                        className="pb-hero-card is-mistakes"
+                        style={accentVars('pink')}
+                        onClick={() => startPractice(mistakes, mistakes[0], '错题重练')}
+                      >
+                        <span className="pb-hero-stack" aria-hidden>
+                          {mistakes.slice(0, 3).map((problem) => (
+                            <img
+                              key={problem.id}
+                              src={
+                                marbleImages[STATUS_MARBLES[statuses.get(problem.id) ?? 'failed']]
+                              }
+                              alt=""
+                            />
+                          ))}
+                        </span>
+                        <span className="pb-hero-copy">
+                          <small>错题重练</small>
+                          <strong>{mistakes.length} 道</strong>
+                        </span>
+                        <span className="pb-hero-go" aria-hidden>
+                          <Play size={16} fill="currentColor" />
+                        </span>
+                      </button>
                     </div>
                   ) : null}
 
-                  {paperSetChapters.length ? (
-                    <div className="pb-mode-switch" role="tablist" aria-label="题库分组">
-                      {(
-                        [
-                          ['chapters', '按章节', chapters.length],
-                          ['sets', '按套题', paperSetChapters.length],
-                        ] as const
-                      ).map(([mode, label, count]) => (
-                        <button
-                          key={mode}
-                          type="button"
-                          role="tab"
-                          aria-selected={bankMode === mode}
-                          className={bankMode === mode ? 'is-active' : ''}
-                          onClick={() => setBankMode(mode)}
-                        >
-                          {label}
-                          <small>{count}</small>
-                        </button>
-                      ))}
-                    </div>
+                  <div className="pb-bank-toolbar">
+                    {bankTabs.length > 1 ? (
+                      <div className="pb-mode-switch" role="tablist" aria-label="题库分组">
+                        {bankTabs.map(({ mode, label, count }) => (
+                          <button
+                            key={mode}
+                            type="button"
+                            role="tab"
+                            aria-selected={bankMode === mode}
+                            className={bankMode === mode ? 'is-active' : ''}
+                            onClick={() => setBankMode(mode)}
+                          >
+                            {label}
+                            <small>{count}</small>
+                          </button>
+                        ))}
+                      </div>
+                    ) : null}
+                    <p className="phone-group-title pb-bank-summary">
+                      <span>
+                        {progressGroups.length} {bankMode === 'chapters' ? '章' : '套'} · 共{' '}
+                        {progressTotal} 道题
+                      </span>
+                      <span>
+                        {progress.passed}/{progressTotal} 通过
+                      </span>
+                    </p>
+                  </div>
+                  {bankMode !== 'chapters' && !visiblePaperSets.length ? (
+                    <p role="status">暂无{bankMode}套题</p>
                   ) : null}
-                  {bankMode === 'sets' && useCsc108Names ? (
-                    <div className="pb-mode-switch" role="group" aria-label="试卷来源">
-                      {(['全部', '考试原题', '模拟题'] as const).map((source) => (
-                        <button
-                          key={source}
-                          type="button"
-                          aria-pressed={paperSource === source}
-                          className={paperSource === source ? 'is-active' : ''}
-                          onClick={() => setPaperSource(source)}
-                        >
-                          {source}
-                        </button>
-                      ))}
-                    </div>
-                  ) : null}
-                  {bankMode === 'sets' && !visiblePaperSets.length ? (
-                    <p role="status">暂无{paperSource}套题</p>
-                  ) : null}
-                  {bankMode === 'sets' ? (
+                  {bankMode !== 'chapters' ? (
                     [...new Set(visiblePaperSets.map((set) => set.kind))].map((kind) => {
                       const sets = visiblePaperSets.filter((set) => set.kind === kind);
                       const total = sets.reduce((sum, set) => sum + set.problems.length, 0);
@@ -1318,7 +1386,7 @@ export function ProblemBankPage({
                                       type="button"
                                       className="pb-wall-go"
                                       onClick={() =>
-                                        startPractice(set.problems, nextInSet, set.title, set.key)
+                                        startPractice(set.problems, nextInSet, set.title)
                                       }
                                     >
                                       <Play size={12} fill="currentColor" />
@@ -1338,14 +1406,6 @@ export function ProblemBankPage({
                     })
                   ) : (
                     <>
-                      <p className="phone-group-title pb-wall-title">
-                        <span>
-                          {chapters.length} 章 · 共 {bankProblems.length} 道题
-                        </span>
-                        <span>
-                          {passedTotal}/{bankProblems.length} 通过
-                        </span>
-                      </p>
                       <div className="pb-wall">
                         {chapters.map((chapter, index) => {
                           const nextInChapter = firstUnpassed(chapter.problems);
@@ -1384,12 +1444,7 @@ export function ProblemBankPage({
                                   type="button"
                                   className="pb-wall-go"
                                   onClick={() =>
-                                    startPractice(
-                                      chapter.problems,
-                                      nextInChapter,
-                                      chapter.title,
-                                      chapter.key,
-                                    )
+                                    startPractice(chapter.problems, nextInChapter, chapter.title)
                                   }
                                 >
                                   <Play size={12} fill="currentColor" />
@@ -1405,35 +1460,19 @@ export function ProblemBankPage({
                 </>
               )}
             </div>
+            <BankAnalytics
+              key={roundRevision}
+              courseId={courseId}
+              mode={bankMode}
+              problems={progress.problems}
+              records={progressById}
+              groups={progressGroups}
+              onPractice={(items, title) => startPractice(items, items[0], title)}
+            />
           </div>
         </div>
       </div>
       {layerOverlays}
     </section>
   );
-}
-
-/** 每道题本机最后一次作答的时间，判断「做过之后题目又改过」。 */
-function useLastAttemptTimes(courseId: string, revision: unknown): Map<string, number> {
-  const [times, setTimes] = useState<Map<string, number>>(() => new Map());
-  useEffect(() => {
-    let alive = true;
-    void getLocalRepository()
-      .then((repository) => repository.listProblemProgress(courseId))
-      .then((progress) => {
-        if (!alive) return;
-        setTimes(
-          new Map(
-            progress.flatMap((item) =>
-              item.lastAttemptAt ? [[item.problemId, item.lastAttemptAt] as const] : [],
-            ),
-          ),
-        );
-      })
-      .catch(() => undefined);
-    return () => {
-      alive = false;
-    };
-  }, [courseId, revision]);
-  return times;
 }

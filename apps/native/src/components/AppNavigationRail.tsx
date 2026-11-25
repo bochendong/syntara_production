@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import {
   CalendarDays,
+  FileQuestion,
   Gamepad2,
   GraduationCap,
   Home,
@@ -18,6 +19,7 @@ export function AppNavigationRail({
   active,
   avatarUrl,
   onOpenChat,
+  onOpenProblemBanks,
   onOpenCalendar,
   onOpenStore,
   onOpenGame,
@@ -51,6 +53,16 @@ export function AppNavigationRail({
       >
         <Store size={22} strokeWidth={1.7} aria-hidden />
         <span className="app-navigation-label">商城</span>
+      </button>
+      <button
+        type="button"
+        aria-label="题库"
+        title="题库"
+        aria-current={active === 'problem-banks' ? 'page' : undefined}
+        onClick={onOpenProblemBanks}
+      >
+        <FileQuestion size={22} strokeWidth={1.7} aria-hidden />
+        <span className="app-navigation-label">题库</span>
       </button>
       <button
         type="button"

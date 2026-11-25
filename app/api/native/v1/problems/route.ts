@@ -5,8 +5,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import {
   nativeProblemAttemptUploadSchema,
   readNativeProblems,
+  readNativeBankOverview,
   saveNativeProblemAttempts,
 } from '@/lib/server/native-problem-sync';
+import { bankResetSchema, resetBankPractice } from '@/lib/server/native-bank-reset';
+import { readBankComparison } from '@/lib/server/native-bank-comparison';
 import { readClassStanding } from '@/lib/server/native-class-standing';
 import { getOptionalPrisma } from '@/lib/server/prisma-safe';
 import {
@@ -37,7 +40,22 @@ async function getContent(request: NextRequest, requestId: string) {
   if (!courseId || courseId.length > 200) {
     return publicApiError(requestId, 400, 'invalid_request', 'courseId is required.');
   }
+  if (request.nextUrl.searchParams.get('overview') === '1') {
+    const data = await readNativeBankOverview(prisma, principal.userId, courseId);
+    return data
+      ? publicApiSuccess(requestId, data, NO_STORE)
+      : publicApiError(requestId, 404, 'not_found', 'Course not found.');
+  }
   if (request.nextUrl.searchParams.get('standing') === '1') {
+    const group = request.nextUrl.searchParams.get('bankGroup');
+    if (group !== null) {
+      if (group !== 'chapters' && group !== 'sets' && group !== 'exam' && group !== 'mock')
+        return publicApiError(requestId, 400, 'invalid_request', 'Invalid bank group.');
+      const data = await readBankComparison(prisma, principal.userId, courseId, group);
+      return data
+        ? publicApiSuccess(requestId, data, NO_STORE)
+        : publicApiError(requestId, 404, 'not_found', 'Course not found.');
+    }
     const period = request.nextUrl.searchParams.get('period') === 'all' ? 'all' : 'week';
     const offset = Number(request.nextUrl.searchParams.get('tz'));
     const tz = Number.isFinite(offset) && Math.abs(offset) <= 840 ? Math.round(offset) : 0;
@@ -90,7 +108,17 @@ export async function POST(request: NextRequest) {
   if (!prisma) {
     return publicApiError(requestId, 503, 'auth_not_configured', 'Problem storage is unavailable.');
   }
-  const parsed = nativeProblemAttemptUploadSchema.safeParse(await request.json().catch(() => null));
+  const body = await request.json().catch(() => null);
+  if (body?.action === 'resetPractice') {
+    const input = bankResetSchema.safeParse(body);
+    if (!input.success) return publicApiError(requestId, 400, 'invalid_request', '重置范围无效。');
+    const result = await resetBankPractice(prisma, principal.userId, input.data);
+    if (!result) return publicApiError(requestId, 404, 'not_found', '题目范围已变化，请重新选择。');
+    if ('conflict' in result)
+      return publicApiError(requestId, 409, 'invalid_request', '有新的做题记录，请重新确认范围。');
+    return publicApiSuccess(requestId, result, NO_STORE);
+  }
+  const parsed = nativeProblemAttemptUploadSchema.safeParse(body);
   if (!parsed.success) {
     return publicApiError(
       requestId,

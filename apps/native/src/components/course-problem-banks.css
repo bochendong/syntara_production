@@ -1,0 +1,60 @@
+.bank-course-card {
+  position: relative;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.bank-course-card:hover {
+  outline: 2px solid var(--tp-blue);
+  outline-offset: 2px;
+}
+
+.bank-course-card strong {
+  font-size: 17px;
+  overflow-wrap: anywhere;
+}
+
+.bank-course-footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: auto;
+}
+
+.bank-course-open {
+  margin-inline-start: auto;
+}
+
+/* Extend the button target over the card while keeping one keyboard stop. */
+.bank-course-open::after {
+  position: absolute;
+  inset: 0;
+  border-radius: 20px;
+  content: '';
+}
+
+.bank-course-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 12px;
+  align-items: baseline;
+  color: var(--tp-muted);
+  font-size: 13px;
+}
+
+.bank-course-counts > span {
+  white-space: nowrap;
+}
+
+.bank-course-counts b {
+  color: var(--tp-ink);
+  font-size: 20px;
+  font-variant-numeric: tabular-nums;
+}
+
+.bank-course-summary {
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+}

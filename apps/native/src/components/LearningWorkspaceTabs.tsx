@@ -19,7 +19,7 @@ const tools = {
   classroom: { label: '课堂', tone: 'pink' },
   materials: { label: '上传', tone: 'blue' },
 };
-const tabbedPages: CourseLearningPage[] = ['problems', 'notes', 'progress', 'memory'];
+const tabbedPages: CourseLearningPage[] = ['notes', 'progress', 'memory'];
 
 /**
  * 聊天是第一个标签，学习页是它后面的标签；同一时间只看一个，
@@ -153,7 +153,7 @@ export function LearningWorkspaceTabs({
       aria-label="学习工作区"
     >
       {showPageHeader ? (
-        activePage ? (
+        activePage && (compact || activePage !== 'problems') ? (
           <div className="learning-workspace-bar is-compact">
             <button
               type="button"

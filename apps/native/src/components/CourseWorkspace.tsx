@@ -8,6 +8,7 @@ import {
 import {
   useCallback,
   useEffect,
+  useImperativeHandle,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -16,6 +17,7 @@ import {
   type CSSProperties,
   type FormEvent,
   type PointerEvent as ReactPointerEvent,
+  type Ref,
   type TouchEvent as ReactTouchEvent,
 } from 'react';
 import {
@@ -790,6 +792,8 @@ function errorMessage(cause: unknown): string {
 }
 
 type CourseWorkspaceProps = {
+  chatHomeRef?: Ref<() => void>;
+  onProblemBankVisibilityChange?: (visible: boolean) => void;
   initialDraft?: string;
   onChangeChatScope?: (courseId: string | null, draft: string) => void;
   homeHref?: string;
@@ -1519,6 +1523,14 @@ export function PhoneChatDrawer<
             >
               <Store size={20} strokeWidth={1.8} aria-hidden />
               <span>商城</span>
+            </button>
+            <button
+              type="button"
+              className="phone-drawer-tool"
+              onClick={navigation.onOpenProblemBanks}
+            >
+              <FileQuestion size={20} strokeWidth={1.8} aria-hidden />
+              <span>题库</span>
             </button>
             <button type="button" className="phone-drawer-tool" onClick={navigation.onOpenCalendar}>
               <CalendarDays size={20} strokeWidth={1.8} aria-hidden />
@@ -2705,6 +2717,8 @@ function CourseToolsPanel({
 }
 
 export function CourseWorkspace({
+  chatHomeRef,
+  onProblemBankVisibilityChange,
   initialDraft = '',
   onChangeChatScope,
   homeHref,
@@ -2868,6 +2882,11 @@ export function CourseWorkspace({
     | 'problems'
     | null
   >(() => initialPage ?? readOpenPhonePage());
+  const problemBankVisible = phonePage === 'problems';
+  useLayoutEffect(() => {
+    onProblemBankVisibilityChange?.(problemBankVisible);
+    return () => onProblemBankVisibilityChange?.(false);
+  }, [problemBankVisible, onProblemBankVisibilityChange]);
   const [learningPages, setLearningPages] = useState<CourseLearningPage[]>(() => {
     const page = initialPage ?? readOpenPhonePage();
     return page && page !== 'calendar' ? [page] : [];
@@ -4090,7 +4109,7 @@ export function CourseWorkspace({
     [openNotebook, workspace.notebooks],
   );
 
-  // iPad 和桌面上题库也占满右侧聊天区，侧边栏保留；做题时才进入全屏。
+  // iPad 和桌面使用学习标签展示题库；手机使用独立题库页面。
   const openProblemBank = useCallback(() => {
     if (phoneLayout) onOpenProblemBank();
     else setPhonePage('problems');
@@ -5287,6 +5306,16 @@ export function CourseWorkspace({
     phonePageFromDrawerRef.current = false;
     closePhonePage();
   };
+  useImperativeHandle(
+    chatHomeRef,
+    () => () => {
+      phonePageFromDrawerRef.current = false;
+      setMobilePanel(null);
+      setHeaderMenuAnchor(null);
+      setPhonePage(null);
+    },
+    [setPhonePage],
+  );
 
   const hasMessages = messages.length > 0;
   const emptyChat = scopeReady && !busy && !hasMessages;
@@ -5657,7 +5686,7 @@ export function CourseWorkspace({
       ref={workspaceRef}
       onTouchStart={phoneLayout ? handleWorkspaceTouchStart : undefined}
       onTouchEnd={phoneLayout ? handleWorkspaceTouchEnd : undefined}
-      className={`course-workspace${compactLayout ? ' is-compact' : ''}${chatShell ? ' has-persistent-sidebar' : ''}${!compactLayout || learningPages.length ? ' has-learning-tabs' : ''}${!phoneLayout && hasMessages ? ' has-learning-rail' : ''}${phonePage && phonePage !== 'profile' && phonePage !== 'calendar' ? ' is-learning-active' : ''}${leftRailCollapsed ? ' workspace-left-collapsed' : ''}${
+      className={`course-workspace${phonePage === 'problems' ? ' is-bank-active' : ''}${compactLayout ? ' is-compact' : ''}${chatShell ? ' has-persistent-sidebar' : ''}${!compactLayout || learningPages.length ? ' has-learning-tabs' : ''}${!phoneLayout && hasMessages ? ' has-learning-rail' : ''}${phonePage && phonePage !== 'profile' && phonePage !== 'calendar' ? ' is-learning-active' : ''}${leftRailCollapsed ? ' workspace-left-collapsed' : ''}${
         rightRailCollapsed ? ' workspace-right-collapsed' : ''
       }${phoneLayout && mobilePanel === 'sessions' ? ' phone-drawer-open' : ''}${
         phoneLayout ? '' : ' is-split'
@@ -5716,7 +5745,7 @@ export function CourseWorkspace({
               >
                 <Menu size={20} strokeWidth={1.8} />
               </button>
-            ) : (
+            ) : phonePage !== 'problems' ? (
               <button
                 type="button"
                 className="phone-glass-button"
@@ -5730,7 +5759,7 @@ export function CourseWorkspace({
               >
                 <PanelLeft size={20} strokeWidth={1.8} />
               </button>
-            )}
+            ) : null}
           </div>
           <div className="phone-chat-title">
             {compactLayout ? (

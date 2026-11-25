@@ -3,6 +3,7 @@ import type { LocalCourseSummary } from '../domain/models';
 
 export type AppNavigationPage =
   | 'chat'
+  | 'problem-banks'
   | 'calendar'
   | 'store'
   | 'teach'
@@ -15,6 +16,7 @@ export type AppNavigationPage =
 export type AppNavigation = {
   active: AppNavigationPage;
   avatarUrl?: string;
+  onOpenProblemBanks: () => void;
   onOpenCalendar: () => void;
   onOpenStore: () => void;
   /** 「游戏」页：沙盒期末战。手机上没有（undefined），iPad、电脑和网页版有。 */
