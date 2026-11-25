@@ -17,9 +17,8 @@ export type AnalyticsGroup = {
   passed: number;
 };
 export type MistakeCounts = {
-  /** 待订正的题 id（只算当前范围）。 */
-  todo: ReadonlySet<string>;
-  fixed: number;
+  /** 错题本里的题 id（做错过、没被移出；只算当前范围）。 */
+  book: ReadonlySet<string>;
   removed: number;
 };
 type Props = {
@@ -94,7 +93,12 @@ function Workload({
     if (row?.attemptedCount) practiced += 1;
     if (row?.attemptedCount && row.status === 'passed') passed += 1;
   }
-  const todo = problems.filter((problem) => mistakes.todo.has(problem.id)).length;
+  const inBook = problems.filter((problem) => mistakes.book.has(problem.id)).length;
+  // 管子里粉色是现在还没做对的题（错了 / 对一部分），和错题本数量分开看。
+  const wrongNow = problems.filter((problem) => {
+    const status = records.get(problem.id)?.status;
+    return status === 'failed' || status === 'partial';
+  }).length;
   const total = problems.length || 1;
   const thisWeek = week.reduce((sum, day) => sum + day.count, 0);
   const peak = Math.max(1, ...week.map((day) => day.count));
@@ -105,9 +109,9 @@ function Workload({
         <small>/ {problems.length} 道刷过</small>
         {thisWeek ? <span className="ba-week-badge">7 天 +{thisWeek}</span> : null}
       </div>
-      <div className="ba-tube" aria-label={`做对 ${passed}，待订正 ${todo}`}>
+      <div className="ba-tube" aria-label={`做对 ${passed}，还没做对 ${wrongNow}`}>
         <i className="is-green" style={{ width: `${(passed / total) * 100}%` }} />
-        <i className="is-pink" style={{ width: `${(todo / total) * 100}%` }} />
+        <i className="is-pink" style={{ width: `${(wrongNow / total) * 100}%` }} />
       </div>
       <div className="ba-stats">
         <span>
@@ -117,8 +121,8 @@ function Workload({
         </span>
         <span>
           <img src={marbleImages.pink} alt="" />
-          <b>{todo}</b>
-          <small>待订正</small>
+          <b>{inBook}</b>
+          <small>错题本</small>
         </span>
         <span className="is-todo">
           <img src={marbleImages.blue} alt="" />
@@ -145,7 +149,7 @@ function Workload({
       <ul className="ba-groups">
         {groups.map((group) => {
           const size = group.problems.length || 1;
-          const wrong = group.problems.filter((p) => mistakes.todo.has(p.id)).length;
+          const wrong = group.problems.filter((p) => mistakes.book.has(p.id)).length;
           return (
             <li key={group.key}>
               <button type="button" onClick={() => onOpenGroup(group.key)}>
@@ -159,7 +163,7 @@ function Workload({
                 </span>
                 <span className="ba-group-count">
                   {group.passed}/{group.problems.length}
-                  {wrong ? <b>{wrong} 道待订正</b> : null}
+                  {wrong ? <b>{wrong} 道错题</b> : null}
                 </span>
               </button>
             </li>
@@ -177,28 +181,22 @@ function MistakeSide({
   focusKey,
   onFocusGroup,
 }: Pick<Props, 'groups' | 'mode' | 'mistakes' | 'focusKey' | 'onFocusGroup'>) {
-  const todo = mistakes.todo.size;
-  const all = todo + mistakes.fixed || 1;
+  const inBook = mistakes.book.size;
   const counted = groups
     .map((group) => ({
       group,
-      count: group.problems.filter((p) => mistakes.todo.has(p.id)).length,
+      count: group.problems.filter((p) => mistakes.book.has(p.id)).length,
     }))
     .sort((a, b) => (b.count ? 1 : 0) - (a.count ? 1 : 0));
   return (
     <>
       <div className="ba-hero is-pink">
-        <strong>{todo}</strong>
-        <small>道待订正</small>
-      </div>
-      <div className="ba-tube">
-        <i className="is-pink" style={{ width: `${(todo / all) * 100}%` }} />
-        <i className="is-green" style={{ width: `${(mistakes.fixed / all) * 100}%` }} />
+        <strong>{inBook}</strong>
+        <small>道错题</small>
       </div>
       <p className="ba-legend">
-        <span className="is-pink">待订正 {todo}</span>
-        <span className="is-green">已订正 {mistakes.fixed}</span>
-        <span>已移出 {mistakes.removed}</span>
+        <span className="is-pink">做错过的题都在这</span>
+        {mistakes.removed ? <span>已移出 {mistakes.removed}</span> : null}
       </p>
       <h3>
         <span>按{mode === 'chapters' ? '章节' : '套题'}</span>
@@ -212,7 +210,7 @@ function MistakeSide({
               <span>全部{mode === 'chapters' ? '章节' : '套题'}</span>
             </span>
             <span className="ba-group-count">
-              <b>{todo}</b>
+              <b>{inBook}</b>
             </span>
           </button>
         </li>
@@ -267,14 +265,14 @@ export function BankAnalytics(props: Props) {
               <i
                 className="is-pink"
                 style={{
-                  width: `${(props.problems.filter((p) => mistakes.todo.has(p.id)).length / total) * 100}%`,
+                  width: `${(props.problems.filter((p) => ['failed', 'partial'].includes(props.records?.get(p.id)?.status ?? '')).length / total) * 100}%`,
                 }}
               />
             </span>
           </span>
         ) : (
           <span className="ba-peek is-pink" aria-hidden>
-            <b>{mistakes.todo.size}</b>道待订正
+            <b>{mistakes.book.size}</b>道错题
           </span>
         )}
         <button
@@ -301,7 +299,7 @@ export function BankAnalytics(props: Props) {
             <>
               <img src={marbleImages.pink} alt="" />
               错题本
-              {mistakes.todo.size ? <i>{mistakes.todo.size}</i> : null}
+              {mistakes.book.size ? <i>{mistakes.book.size}</i> : null}
             </>
           )}
         </button>
