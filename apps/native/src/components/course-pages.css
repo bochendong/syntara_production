@@ -873,6 +873,80 @@ span.pb-row-marble img {
   margin-top: 18px;
 }
 
+/* 章节墙 / 套题墙切换：一条玻璃药丸。 */
+.pb-mode-switch {
+  display: inline-flex;
+  align-self: flex-start;
+  gap: 2px;
+  margin-top: 18px;
+  padding: 3px;
+  border: 1px solid rgb(255 255 255 / 90%);
+  border-radius: 999px;
+  background: rgb(255 255 255 / 62%);
+  box-shadow: 0 1px 2px rgb(15 23 42 / 4%);
+  backdrop-filter: blur(18px) saturate(1.4);
+}
+
+.pb-mode-switch button {
+  display: inline-flex;
+  height: 32px;
+  align-items: center;
+  gap: 6px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #64748b;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background 180ms ease,
+    color 180ms ease;
+}
+
+.pb-mode-switch button small {
+  color: #94a3b8;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+}
+
+.pb-mode-switch button.is-active {
+  background: #fff;
+  box-shadow: 0 1px 4px rgb(15 23 42 / 10%);
+  color: #0f172a;
+}
+
+.pb-mode-switch button:focus-visible {
+  outline: 2px solid rgb(var(--marble-blue-rgb) / 60%);
+  outline-offset: 1px;
+}
+
+/* 套题卡：卷名两行以内，下面一行写题数。 */
+.pb-set-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+  padding-top: 3px;
+}
+
+.pb-set-card .pb-set-copy strong {
+  min-height: 0;
+  padding-top: 0;
+}
+
+.pb-set-copy small {
+  color: #64748b;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.pb-set-group + .pb-set-group .pb-wall-title {
+  margin-top: 22px;
+}
+
 /* 每章一张卡：弹珠 + 章节名，下面是进度管和「继续刷」。 */
 .pb-wall {
   display: grid;

@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict';
 import {
   matchesProblemFilters,
+  paperSetKind,
+  paperSetPositionTag,
+  paperSetPositions,
   problemPaperSeries,
+  problemPaperSets,
 } from '../../apps/native/src/data/problem-bank-filters';
 import { problemAiGradeRequest } from '../../apps/native/src/data/problem-ai-grading';
 import type { LocalProblem } from '../../apps/native/src/domain/models';
@@ -166,4 +170,37 @@ const legacy = problemAiGradeRequest(
 assert.equal(legacy.proof, 'Old proof');
 assert.equal(legacy.points, 10);
 assert.equal(legacy.commentPrompt, undefined);
-console.log('Native problem filters and reference-proof/rubric requests passed.');
+// 套题只引用题目：同一道 Final 题也在 TT2 模考里，两套各有自己的题号。
+const finalQ2 = { ...problem, id: 'final-q2', tags: ['CSC108', 'UTM 2023 Final · Q2'] };
+const sharedQ5 = {
+  ...problem,
+  id: 'shared',
+  tags: ['UTM 2023 Final · Q5', 'TT2 模考 A · Q1', 'UTM 2023 Final · Q9'],
+};
+const finalQ3b = { ...problem, id: 'final-q3b', tags: ['UTM 2023 Final · Q3b'] };
+const finalQ3a = { ...problem, id: 'final-q3a', tags: ['UTM 2023 Final · Q3a'] };
+const mockQ2 = { ...problem, id: 'mock-q2', tags: ['TT2 模考 A · Q2', '2026 UTM TT1 · Crowdmark'] };
+assert.deepEqual(paperSetPositions(sharedQ5.tags), [
+  { set: 'UTM 2023 Final', number: 5, part: '', label: 'Q5' },
+  { set: 'TT2 模考 A', number: 1, part: '', label: 'Q1' },
+]);
+assert.deepEqual(paperSetPositions(['2026 UTM TT1 · Crowdmark', 'Q3', ' · Q3']), []);
+assert.equal(paperSetPositionTag('UTSG 2020W Midterm A', '12'), 'UTSG 2020W Midterm A · Q12');
+assert.throws(() => paperSetPositionTag('A paper name that is far too long', '1'));
+const sets = problemPaperSets([mockQ2, finalQ3b, sharedQ5, finalQ2, finalQ3a]);
+assert.deepEqual(
+  sets.map((set) => [set.name, set.kind, set.problems.map((p) => p.id)]),
+  [
+    ['UTM 2023 Final', 'final', ['final-q2', 'final-q3a', 'final-q3b', 'shared']],
+    ['TT2 模考 A', 'test', ['shared', 'mock-q2']],
+  ],
+);
+assert.deepEqual(
+  [sharedQ5, finalQ2, mockQ2]
+    .filter((p) => matchesProblemFilters(p, { ...base, series: 'TT2 模考 A' }))
+    .map((p) => p.id),
+  ['shared', 'mock-q2'],
+);
+assert.equal(paperSetKind('UTSG 2024F TT1 V2'), 'test');
+assert.equal(paperSetKind('Worksheet 16'), 'practice');
+console.log('Native problem filters, paper sets and reference-proof/rubric requests passed.');

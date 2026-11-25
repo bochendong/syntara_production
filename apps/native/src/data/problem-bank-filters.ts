@@ -47,9 +47,50 @@ function csc108PaperName(label: string): string {
   return name;
 }
 
+/**
+ * 套题题号标签：「UTM 2023 Final · Q12」「UTSG 2024F TT2 V1 · Q3b」。
+ * 套题只引用题目：同一道 Final 题可以再带一个「TT2 模考 A · Q4」，两套里各有自己的题号，
+ * 题目本身只存一份。带这种标签就算属于这套题，不需要另存卷名标签。
+ */
+const PAPER_SET_POSITION = /^(\S.{1,23}\S) · Q(\d{1,2})([a-z]?)$/;
+export const PAPER_SET_TAG_MAX = 30;
+
+export type PaperSetPosition = { set: string; number: number; part: string; label: string };
+
+export function paperSetPositionTag(set: string, label: string): string {
+  const tag = `${set.trim()} · Q${label}`;
+  if (!PAPER_SET_POSITION.test(tag) || tag.length > PAPER_SET_TAG_MAX) {
+    throw new Error(`Invalid paper set position tag: ${tag}`);
+  }
+  return tag;
+}
+
+export function paperSetPositions(tags: readonly string[] = []): PaperSetPosition[] {
+  const positions: PaperSetPosition[] = [];
+  for (const tag of tags) {
+    const match = PAPER_SET_POSITION.exec(tag);
+    if (match && !positions.some((position) => position.set === match[1])) {
+      positions.push({
+        set: match[1],
+        number: Number(match[2]),
+        part: match[3],
+        label: `Q${match[2]}${match[3]}`,
+      });
+    }
+  }
+  return positions;
+}
+
+export function paperSetPosition(
+  tags: readonly string[] = [],
+  set: string,
+): PaperSetPosition | undefined {
+  return paperSetPositions(tags).find((position) => position.set === set);
+}
+
 /** Only explicit paper tags (including the legacy midterm + set-NN pair) are series. */
 export function paperLabels(tags: readonly string[] = [], useCsc108Names = false): string[] {
-  const labels = new Set<string>();
+  const labels = new Set<string>(paperSetPositions(tags).map((position) => position.set));
   const midterm = tags.includes('midterm');
   const namedYears = new Set<string>();
   for (const tag of tags) {
@@ -89,6 +130,64 @@ export function problemPaperSeries(
     }
   }
   return [...counts].sort(([a], [b]) => a.localeCompare(b, 'zh-CN', { numeric: true }));
+}
+
+export type PaperSetKind = 'final' | 'test' | 'practice';
+
+/** 套题墙分三组：期末、期中与小测、练习卷。 */
+export function paperSetKind(name: string): PaperSetKind {
+  if (/\bFinal\b|期末/i.test(name)) return 'final';
+  if (/Midterm|\bTT\d|Term Test|Quiz|Timed|Examlet|期中|测验|模考|模拟/i.test(name)) return 'test';
+  return 'practice';
+}
+
+function paperSetYear(name: string): number {
+  const match = /20(\d{2})|(\d{2})[FWS]\b/.exec(name);
+  return match ? Number(match[1] ?? match[2]) : 0;
+}
+
+export type PaperSet<P> = { name: string; kind: PaperSetKind; problems: P[] };
+
+/**
+ * 把题目按套题分好。一道题可以出现在好几套里；每套内部先按「· Q」题号，
+ * 没有题号的旧系列按原来的课程题号，最后按 fallback（章节顺序）。
+ */
+export function problemPaperSets<P extends { id: string; tags?: readonly string[] }>(
+  problems: readonly P[],
+  useCsc108Names = false,
+  fallback: (a: P, b: P) => number = () => 0,
+): PaperSet<P>[] {
+  const bySet = new Map<string, P[]>();
+  for (const problem of problems) {
+    for (const label of paperLabels(problem.tags, useCsc108Names)) {
+      const list = bySet.get(label);
+      if (list) list.push(problem);
+      else bySet.set(label, [problem]);
+    }
+  }
+  const kindOrder: Record<PaperSetKind, number> = { final: 0, test: 1, practice: 2 };
+  return [...bySet]
+    .map(([name, members]) => ({
+      name,
+      kind: paperSetKind(name),
+      problems: [...members].sort((a, b) => {
+        const pa = paperSetPosition(a.tags, name);
+        const pb = paperSetPosition(b.tags, name);
+        if (pa && pb) return pa.number - pb.number || pa.part.localeCompare(pb.part);
+        if (pa || pb) return pa ? -1 : 1;
+        return (
+          courseQuestionNumber(a.tags).localeCompare(courseQuestionNumber(b.tags), 'en', {
+            numeric: true,
+          }) || fallback(a, b)
+        );
+      }),
+    }))
+    .sort(
+      (a, b) =>
+        kindOrder[a.kind] - kindOrder[b.kind] ||
+        paperSetYear(b.name) - paperSetYear(a.name) ||
+        a.name.localeCompare(b.name, 'zh-CN', { numeric: true }),
+    );
 }
 
 export function matchesProblemFilters(
