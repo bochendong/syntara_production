@@ -483,6 +483,8 @@ export function ProblemPracticePage({
   const milestones = useRef(createPracticeMilestones());
   const [celebration, setCelebration] = useState<PracticeCelebrationSnapshot | null>(null);
   const [finish, setFinish] = useState<'hidden' | 'shown' | 'dismissed'>('hidden');
+  /** 这次打开后交过的题；错题重做时只有这一轮每题都交过才算刷完。 */
+  const roundAnswered = useRef(new Set<string>());
   const [sheetOpen, setSheetOpen] = useState(false);
   const sheetId = useId();
   const sheetRef = useRef<HTMLDivElement>(null);
@@ -1291,8 +1293,14 @@ export function ProblemPracticePage({
         if (!previewStore) notifyProblemProgress();
         setJustGraded(status);
         celebrateSubmission(currentProblem.id, status, nextStatuses);
+        roundAnswered.current.add(currentProblem.id);
         // 这一组每题都做过了：弹珠落进罐子。
-        if (finish === 'hidden' && orderedIds.every((id) => nextStatuses.has(id))) {
+        if (
+          finish === 'hidden' &&
+          orderedIds.every((id) =>
+            launch.freshRound ? roundAnswered.current.has(id) : nextStatuses.has(id),
+          )
+        ) {
           setFinish('shown');
         }
       } catch (cause) {
@@ -1305,6 +1313,7 @@ export function ProblemPracticePage({
       }
     },
     [
+      launch.freshRound,
       answer,
       currentProblem,
       finish,
@@ -1585,14 +1594,16 @@ export function ProblemPracticePage({
         if (!previewStore) notifyProblemProgress();
         setJustGraded(status);
         celebrateSubmission(currentProblem.id, status, nextStatuses);
+        roundAnswered.current.add(currentProblem.id);
         if (
           finish === 'hidden' &&
           results.every((part) => Boolean(part.gradedAt)) &&
           orderedIds.every(
             (id) =>
               id === currentProblem.id ||
-              nextStatuses.get(id) === 'passed' ||
-              nextStatuses.get(id) === 'failed',
+              (launch.freshRound
+                ? roundAnswered.current.has(id)
+                : nextStatuses.get(id) === 'passed' || nextStatuses.get(id) === 'failed'),
           )
         ) {
           setFinish('shown');
@@ -1607,6 +1618,7 @@ export function ProblemPracticePage({
       }
     },
     [
+      launch.freshRound,
       currentProblem,
       displayedProblem,
       language,
