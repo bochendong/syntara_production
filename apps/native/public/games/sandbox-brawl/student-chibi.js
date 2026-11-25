@@ -249,11 +249,18 @@ export function useStudentCells(material) {
   const baseKey = material.customProgramCacheKey();
   material.onBeforeCompile = function (shader, renderer) {
     original.call(this, shader, renderer);
-    shader.vertexShader = 'attribute vec3 studentCell;\n' + shader.vertexShader.replace(
-      '#include <uv_vertex>', '#include <uv_vertex>\nif (studentCell.z > 0.5) vMapUv.x = mapTransform[0][0] - vMapUv.x;\nvMapUv += studentCell.xy;',
+    // studentCell.z: bit 0 = mirror, bit 1 = ghost (联机倒下后的灵魂画成灰色).
+    shader.vertexShader = 'attribute vec3 studentCell;\nvarying float vStudentGhost;\n' + shader.vertexShader.replace(
+      '#include <uv_vertex>', '#include <uv_vertex>\nvStudentGhost = step(1.5, studentCell.z);\nif (mod(studentCell.z, 2.0) > 0.5) vMapUv.x = mapTransform[0][0] - vMapUv.x;\nvMapUv += studentCell.xy;',
     );
+    if (shader.fragmentShader.includes('#include <color_fragment>')) {
+      shader.fragmentShader = 'varying float vStudentGhost;\n' + shader.fragmentShader.replace(
+        '#include <color_fragment>',
+        '#include <color_fragment>\nif (vStudentGhost > 0.5) { float g = dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114)); diffuseColor.rgb = vec3(0.18 + g * 0.62); }',
+      );
+    }
   };
-  material.customProgramCacheKey = () => baseKey + '-student-mirror-cells';
+  material.customProgramCacheKey = () => baseKey + '-student-mirror-ghost-cells';
 }
 
 const position = new THREE.Vector3(), scale = new THREE.Vector3();
@@ -381,7 +388,7 @@ export function poseChibi(matrix, cells, index, world, camera, actor, now) {
   scale.x *= act.sx;
   scale.y *= act.sy;
   position.y += act.lift * scale.y;
-  cells.setXYZ(index, frame / columns, -row / rows, faceLeft ? 1 : 0);
+  cells.setXYZ(index, frame / columns, -row / rows, (faceLeft ? 1 : 0) + (actor.ghostly ? 2 : 0));
   if (act.roll) {
     spin.setFromAxisAngle(viewAxis, act.roll);
     matrix.compose(position, turn.copy(camera.quaternion).multiply(spin), scale);
