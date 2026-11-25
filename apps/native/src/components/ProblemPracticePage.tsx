@@ -9,6 +9,7 @@ import {
 import { prepareHandwritingAnswers, prepareProblemHandwriting } from '../data/handwriting-answer';
 import { problemAttemptHasMistake } from '../data/problem-attempt-history';
 import { HandwritingAnswerInput } from './problem-bank/handwriting-answer-input';
+import { bankResetTimes } from '../data/problem-bank-round';
 import { clearHandwritingDrafts, handwritingDraftKey } from '../data/handwriting-draft';
 import { visibleCodeTests } from '../../../../lib/problem-bank/visible-code-tests';
 import { fillBlankPrompt } from '../../../../lib/problem-bank/fill-blank-presentation';
@@ -385,7 +386,6 @@ export function ProblemPracticePage({
     [launch.teacherPreview, problems, teacherPracticeStore],
   );
   const [previewDraftScope] = useState(() => `teacher-preview:${crypto.randomUUID()}`);
-  const draftScope = launch.teacherPreview ? previewDraftScope : launch.classSessionId;
   const [language, setLanguage] = useState<ProblemContentLanguage>(launch.language ?? 'zh-CN');
   const problemMap = useMemo(
     () => new Map(problems.map((problem) => [problem.id, problem])),
@@ -524,6 +524,10 @@ export function ProblemPracticePage({
 
   const currentIndex = Math.max(0, orderedIds.indexOf(currentId));
   const currentProblem = problemMap.get(currentId) || null;
+  const resetAt = currentProblem && bankResetTimes(currentProblem.courseId)[currentProblem.id];
+  const draftScope = launch.teacherPreview
+    ? previewDraftScope
+    : (launch.classSessionId ?? (resetAt ? `bank-round-${resetAt}` : undefined));
   const [practiceAccount, setPracticeAccount] = useState<NativeDeviceUser | null>(null);
   useEffect(() => {
     let useInitialSession = true;

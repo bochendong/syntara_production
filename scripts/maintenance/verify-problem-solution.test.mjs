@@ -347,6 +347,7 @@ function database() {
   };
   const db = {
     $transaction: async (fn) => fn(db),
+    $executeRaw: async () => 1,
     notebookProblemAttempt: {
       create: async ({ data }) => {
         const row = {

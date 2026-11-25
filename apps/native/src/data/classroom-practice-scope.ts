@@ -1,3 +1,4 @@
+import { currentBankDocument } from './problem-bank-round';
 import type { LocalProblemDocument } from '../domain/models';
 import { problemAttemptHasMistake } from './problem-attempt-history';
 
@@ -11,7 +12,8 @@ export function classroomProblemDocument(
   document: LocalProblemDocument | null,
   classSessionId?: string,
 ): LocalProblemDocument | null {
-  if (!document || !classSessionId) return document;
+  if (!document) return null;
+  if (!classSessionId) return currentBankDocument(document);
   const attempts = document.attempts.filter(
     (attempt) => attempt.result?.classSessionId === classSessionId,
   );

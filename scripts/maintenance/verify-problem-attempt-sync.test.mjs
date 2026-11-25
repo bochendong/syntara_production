@@ -16,6 +16,10 @@ function loadSync(api) {
   const mod = { exports: {} };
   const mocks = {
     './platform-api-client': api,
+    './problem-bank-round': {
+      bankResetTimes: (id) => JSON.parse(window.localStorage.getItem(id) ?? '{}'),
+      bankRoundStorageKey: (id) => id,
+    },
     './browser-runtime': { accountStorageKey: (key) => key },
     './chat-sync': { isPlatformCourse: async () => true },
     './archive': { SYNTARA_ARCHIVE_FORMAT: 'syntara-native-archive', SYNTARA_ARCHIVE_VERSION: 1 },
@@ -311,3 +315,52 @@ test(
     }
   },
 );
+
+test('confirmed reset updates just the selected local progress after server acknowledgement', async (t) => {
+  const storage = new Map();
+  const before = Object.getOwnPropertyDescriptor(globalThis, 'window');
+  Object.defineProperty(globalThis, 'window', {
+    configurable: true,
+    value: {
+      localStorage: {
+        getItem: (key) => storage.get(key) ?? null,
+        setItem: (key, value) => storage.set(key, value),
+      },
+    },
+  });
+  t.after(() => {
+    if (before) Object.defineProperty(globalThis, 'window', before);
+    else delete globalThis.window;
+  });
+  const rows = new Map(
+    ['selected', 'outside'].map((problemId) => [
+      problemId,
+      { problemId, attemptedCount: 2, passedCount: 1, lastAttemptAt: 50, status: 'passed' },
+    ]),
+  );
+  const repo = {
+    listProblemProgress: async () => [...rows.values()],
+    importArchive: async (archive) => {
+      for (const row of archive.problemProgress) rows.set(row.problemId, row);
+    },
+  };
+  const unavailable = loadSync({
+    resetNativeBankPractice: async () => {
+      throw Error('read only');
+    },
+  });
+  await assert.rejects(unavailable.resetBankProblems(repo, 'c', ['selected'], 100), /read only/);
+  assert.equal(rows.get('selected').attemptedCount, 2);
+  assert.equal(storage.size, 0);
+  const sync = loadSync({
+    resetNativeBankPractice: async (courseId, ids, through) => {
+      assert.equal(courseId, 'c');
+      assert.deepEqual(ids, ['selected']);
+      return { resetAt: through };
+    },
+  });
+  await sync.resetBankProblems(repo, 'c', ['selected', 'selected'], 100);
+  assert.equal(rows.get('selected').attemptedCount, 0);
+  assert.equal(rows.get('outside').attemptedCount, 2);
+  assert.deepEqual(JSON.parse(storage.get('c')), { selected: 100 });
+});

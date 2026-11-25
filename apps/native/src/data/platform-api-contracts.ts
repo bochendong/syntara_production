@@ -564,7 +564,7 @@ export interface NativeProblemSnapshot {
   /** 题目的 releaseAddedIn 比它大就标「新」；自己建的课为 null。 */
   newSinceVersion?: number | null;
   problems: Array<LocalProblem & NativeProblemLayerFields>;
-  progress: Array<Omit<LocalProblemProgress, 'id'>>;
+  progress: Array<Omit<LocalProblemProgress, 'id'> & { resetAt?: number | null }>;
 }
 
 export interface NativeProblemAttemptPage {

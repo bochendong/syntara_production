@@ -32,7 +32,7 @@ export async function readNativeProblemAttempts(
   if (!visible) return null;
   const problem = await prisma.notebookProblem.findFirst({
     where: { ...visible, id: problemId },
-    select: { id: true, points: true },
+    select: { id: true, points: true, progress: { where: { userId }, select: { resetAt: true } } },
   });
   if (!problem) return null;
   const rows = await prisma.notebookProblemAttempt.findMany({
@@ -40,7 +40,11 @@ export async function readNativeProblemAttempts(
       userId,
       problemId,
       kind: { in: ['answer', 'submit'] },
-      ...(classSessionId ? { classSessionId } : {}),
+      ...(classSessionId
+        ? { classSessionId }
+        : problem.progress?.[0]?.resetAt
+          ? { createdAt: { gt: problem.progress[0].resetAt } }
+          : {}),
       ...(before
         ? {
             OR: [

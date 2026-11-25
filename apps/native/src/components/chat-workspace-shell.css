@@ -32,3 +32,20 @@
     display: none;
   }
 }
+
+/* Keep the saved chat layout while the active bank occupies its sidebar column. */
+.course-workspace.is-split.is-split:not(.has-persistent-sidebar):is(
+    .is-bank-active,
+    :has(> .persistent-chat-content > .is-bank-active)
+  ) {
+  --phone-drawer-width: 0px;
+  grid-template-columns: 0 minmax(0, 1fr);
+
+  > .workspace-sidebar-left {
+    visibility: hidden;
+  }
+}
+
+.course-workspace.is-bank-active > .conversation-workspace > .phone-chat-header {
+  display: none;
+}

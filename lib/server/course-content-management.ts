@@ -1,3 +1,4 @@
+import { STORE_SOURCES, storeEnrollmentTerm } from './store-enrollment-term';
 import { contentDrafts, summarizeContentDrafts } from './course-content-drafts';
 import { randomUUID } from 'node:crypto';
 import type { DbClient } from '@/lib/server/repositories/types';
@@ -341,20 +342,6 @@ export async function listManagedProblemGroups(db: DbClient, userId: string, cou
   };
 }
 
-const TERM_LABELS = { winter: '冬季', summer: '夏季', fall: '秋季' } as const;
-const TERM_ORDER = { winter: 0, summer: 1, fall: 2 } as const;
-const termOf = (date: Date) => {
-  const month = date.getMonth() + 1;
-  const term: keyof typeof TERM_LABELS = month <= 4 ? 'winter' : month <= 8 ? 'summer' : 'fall';
-  return {
-    key: `${date.getFullYear()}-${term}`,
-    label: `${date.getFullYear()} ${TERM_LABELS[term]}`,
-    sort: date.getFullYear() * 10 + TERM_ORDER[term],
-  };
-};
-/** 学生都从商城加入：直接加入（store）或老师批准（approval）。 */
-const STORE_SOURCES = ['store', 'approval'];
-
 async function requireStudentManagement(db: DbClient, userId: string, courseId: string) {
   const course = await requireCourseManagement(db, userId, courseId);
   if (course.ownerId !== userId) {
@@ -424,7 +411,7 @@ export async function listManagedCourseStudents(db: DbClient, userId: string, co
     }
   >();
   for (const enrollment of enrollments) {
-    const term = termOf(enrollment.joinedAt);
+    const term = storeEnrollmentTerm(enrollment.joinedAt);
     const group = groups.get(term.key) ?? { ...term, students: [] };
     group.students.push({
       userId: enrollment.user.id,

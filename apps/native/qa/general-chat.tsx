@@ -174,6 +174,7 @@ function Preview() {
         avatarUrl={avatarUrl}
         active={globalPage ?? 'chat'}
         onOpenChat={() => setGlobalPage(null)}
+        onOpenProblemBanks={() => setNotice('请在完整 App 预览中打开题库。')}
         onOpenCalendar={() => setGlobalPage('calendar')}
         onOpenStore={() => setNotice('请在完整 App 预览中打开商城。')}
         onOpenSettings={() => setGlobalPage('settings')}

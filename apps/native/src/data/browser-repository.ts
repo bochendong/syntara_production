@@ -1,3 +1,4 @@
+import { bankResetTimes } from './problem-bank-round';
 import { browserApp, browserAccountId } from './browser-runtime';
 import { problemAttemptHasMistake } from './problem-attempt-history';
 import { nativeChannel } from '../channel';
@@ -625,6 +626,7 @@ export class BrowserLocalRepository implements LocalRepository {
   }
 
   async listProblemProgress(courseId: string): Promise<LocalProblemProgress[]> {
+    const resetTimes = bankResetTimes(courseId);
     const problems = await this.database.problems.where('courseId').equals(courseId).toArray();
     if (!problems.length) return [];
     const progress = await this.database.problemProgress
@@ -636,7 +638,11 @@ export class BrowserLocalRepository implements LocalRepository {
       .where('problemId')
       .anyOf(progress.map((item) => item.problemId))
       .each((attempt) => {
-        if (problemAttemptHasMistake(attempt)) mistakes.add(attempt.problemId);
+        if (
+          attempt.createdAt > (resetTimes[attempt.problemId] ?? 0) &&
+          problemAttemptHasMistake(attempt)
+        )
+          mistakes.add(attempt.problemId);
       });
     return progress
       .map((item) => ({ ...item, hasIncorrectAttempt: mistakes.has(item.problemId) }))

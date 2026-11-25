@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
-import { Check, ChevronDown, Search, SlidersHorizontal, Upload, X } from 'lucide-react';
+import { Check, ChevronDown, RotateCcw, Search, SlidersHorizontal, Upload, X } from 'lucide-react';
 import { GlassMenu } from './CourseToolsMenu';
 import { MaterialUploadButton } from './MaterialUploadButton';
 import { useBackDismiss } from '../lib/use-back-dismiss';
@@ -214,6 +214,8 @@ export function ProblemBankFilters({
   query,
   onQueryChange,
   onChange,
+  onReset,
+  canReset,
   resultCount,
   onUploadFiles,
   onUpload,
@@ -223,6 +225,8 @@ export function ProblemBankFilters({
   query: string;
   onQueryChange: (query: string) => void;
   onChange: (values: BankFilterValues) => void;
+  onReset: () => void;
+  canReset: boolean;
   resultCount: (values: BankFilterValues) => number;
   onUploadFiles?: (files: File[]) => void;
   onUpload?: () => void;
@@ -287,6 +291,17 @@ export function ProblemBankFilters({
           <span>上传</span>
         </button>
       ) : null}
+      <button
+        type="button"
+        className="pb-toolbar-reset"
+        aria-label="重置当前范围的做题进度"
+        title="重置当前范围的做题进度"
+        onClick={onReset}
+        disabled={!canReset}
+      >
+        <RotateCcw size={16} aria-hidden />
+        <span>重置</span>
+      </button>
       {sheetOpen ? (
         <FilterSheet
           groups={groups}

@@ -1,5 +1,17 @@
 import type { LocalProblem } from '../domain/models';
 
+/** The bank shows published problems and enrolled learners' private drafts.
+ * A course containing only drafts still exposes its local practice bank. */
+export function visibleBankProblems<P extends Pick<LocalProblem, 'id' | 'status'>>(
+  problems: readonly P[],
+  isPrivateDraft: (problem: P) => boolean,
+): P[] {
+  const visible = problems.filter(
+    (p) => p.status === 'published' || (p.status === 'draft' && isPrivateDraft(p)),
+  );
+  return visible.length ? visible : problems.filter((p) => p.status !== 'archived');
+}
+
 export function namedMidtermYear(label: string): string | undefined {
   return (
     /^UT(?:SG|M|SC) [A-Z]{3} \d{3} (\d{2})[FWS] Midterm$/.exec(label)?.[1] ??

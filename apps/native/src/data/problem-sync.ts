@@ -1,5 +1,6 @@
 import { isValidPhotoAnswerUpload } from '../../../../lib/problem-bank/photo-answer';
 import type { PhotoAnswerImage } from './local-problem-grading';
+import { bankResetTimes, bankRoundStorageKey } from './problem-bank-round';
 import { accountStorageKey } from './browser-runtime';
 import type { LocalProblem, LocalProblemAttempt, LocalProblemProgress } from '../domain/models';
 import { SYNTARA_ARCHIVE_FORMAT, SYNTARA_ARCHIVE_VERSION, type SyntaraArchiveV1 } from './archive';
@@ -9,6 +10,7 @@ import {
   getNativeProblems,
   getNativeProblemAttempts,
   uploadNativeProblemAttempts,
+  resetNativeBankPractice,
 } from './platform-api-client';
 import { saveProblemLayers } from '../lib/course-layers';
 import type { LocalRepository } from './repository';
@@ -89,6 +91,82 @@ function archiveOf(parts: Partial<SyntaraArchiveV1>): SyntaraArchiveV1 {
     missingAssetPaths: [],
     ...parts,
   };
+}
+
+// A second tab may be importing a progress snapshot fetched before the reset.
+async function withBankProgressLock<T>(courseId: string, work: () => Promise<T>): Promise<T> {
+  const locks = typeof navigator !== 'undefined' && navigator.locks;
+  return locks
+    ? await locks.request(accountStorageKey('syntara.bank-progress-lock:' + courseId), work)
+    : work();
+}
+
+async function applyBankResets(
+  repository: LocalRepository,
+  courseId: string,
+  resets: { problemId: string; resetAt: number }[],
+) {
+  const previous = bankResetTimes(courseId);
+  const changed = resets.filter((r) => r.resetAt > (previous[r.problemId] ?? 0));
+  if (!changed.length) return false;
+  const progress = new Map(
+    (await repository.listProblemProgress(courseId)).map((p) => [p.problemId, p]),
+  );
+  const updates: LocalProblemProgress[] = [];
+  for (const { problemId, resetAt } of changed) {
+    const row = progress.get(problemId);
+    if (!row) continue;
+    // A newer local submission may have arrived while the reset was being synchronized.
+    const attempts =
+      (row.lastAttemptAt ?? 0) > resetAt
+        ? ((await repository.loadProblemDocument(problemId))?.attempts ?? []).filter(
+            (a) =>
+              a.createdAt > resetAt &&
+              (a.kind === 'submit' || a.kind === 'answer') &&
+              !a.result?.event,
+          )
+        : [];
+    const latest = attempts[0];
+    updates.push({
+      ...row,
+      attemptedCount: attempts.length,
+      passedCount: attempts.filter((a) => a.status === 'passed').length,
+      status: latest?.status ?? 'pending',
+      score: latest?.score ?? null,
+      latestAttemptId: latest?.id ?? null,
+      lastAttemptAt: latest?.createdAt ?? null,
+      updatedAt: latest?.updatedAt ?? resetAt,
+    });
+  }
+  if (updates.length) await repository.importArchive(archiveOf({ problemProgress: updates }));
+  const next = bankResetTimes(courseId);
+  for (const { problemId, resetAt } of changed)
+    next[problemId] = Math.max(next[problemId] ?? 0, resetAt);
+  window.localStorage.setItem(bankRoundStorageKey(courseId), JSON.stringify(next));
+  return true;
+}
+
+export async function resetBankProblems(
+  repository: LocalRepository,
+  courseId: string,
+  ids: string[],
+  through: number,
+) {
+  const problemIds = [...new Set(ids)];
+  if (!problemIds.length) return;
+  await withBankProgressLock(courseId, async () => {
+    let resetAt = through;
+    if (await isPlatformCourse(repository, courseId)) {
+      const result = await resetNativeBankPractice(courseId, problemIds, through);
+      if (!Number.isFinite(result.resetAt)) throw new Error('服务未确认重置，请重试。');
+      resetAt = result.resetAt;
+    }
+    await applyBankResets(
+      repository,
+      courseId,
+      problemIds.map((problemId) => ({ problemId, resetAt })),
+    );
+  });
 }
 
 function uploadOf(attempt: LocalProblemAttempt): NativeProblemAttemptUpload | null {
@@ -342,7 +420,9 @@ export function syncCourseProblems(
     pending = new Map();
     problemSyncs.set(repository, pending);
   }
-  return singleFlight(pending, courseId, () => syncCourseProblemsOnce(repository, courseId));
+  return singleFlight(pending, courseId, () =>
+    withBankProgressLock(courseId, () => syncCourseProblemsOnce(repository, courseId)),
+  );
 }
 
 async function syncCourseProblemsOnce(
@@ -415,6 +495,15 @@ async function syncCourseProblemsOnce(
   }
 
   // 做题进度：网页上最后一次作答更晚（比如在网页上做过）就用网页的。
+  const resetChanged = await applyBankResets(
+    repository,
+    courseId,
+    remote.progress.flatMap((row) =>
+      row.resetAt ? [{ problemId: row.problemId, resetAt: row.resetAt }] : [],
+    ),
+  );
+  changed ||= resetChanged;
+  const resets = bankResetTimes(courseId);
   const localProgress = new Map(
     (await repository.listProblemProgress(courseId)).map((progress) => [
       progress.problemId,
@@ -425,6 +514,7 @@ async function syncCourseProblemsOnce(
   const progressUpdates: LocalProblemProgress[] = [];
   for (const progress of remote.progress) {
     if (!knownProblemIds.has(progress.problemId)) continue;
+    if ((resets[progress.problemId] ?? 0) > (progress.resetAt ?? 0)) continue;
     const existing = localProgress.get(progress.problemId);
     if (
       existing &&

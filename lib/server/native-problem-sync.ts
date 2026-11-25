@@ -61,6 +61,41 @@ export async function visibleProblemWhere(prisma: PrismaClient, userId: string, 
   };
 }
 
+/** Card statistics use the same allowed questions as sync, without sending question bodies. */
+export async function readNativeBankOverview(
+  prisma: PrismaClient,
+  userId: string,
+  courseId: string,
+) {
+  const where = await visibleProblemWhere(prisma, userId, courseId);
+  if (!where) return null;
+  const rows = await prisma.notebookProblem.findMany({
+    where,
+    orderBy: { updatedAt: 'desc' },
+    take: NATIVE_PROBLEM_LIMIT,
+    select: {
+      id: true,
+      status: true,
+      ownerId: true,
+      progress: { where: { userId }, select: { attemptedCount: true, resetAt: true } },
+    },
+  });
+  return {
+    problems: rows.map(({ id, status, ownerId }) => ({
+      id,
+      status,
+      layer: ownerId ? 'private' : 'public',
+    })),
+    progress: rows.flatMap(({ id, progress }) =>
+      progress.map(({ attemptedCount, resetAt }) => ({
+        problemId: id,
+        attemptedCount,
+        resetAt: resetAt?.getTime() ?? null,
+      })),
+    ),
+  };
+}
+
 export async function readNativeProblems(
   prisma: PrismaClient,
   userId: string,
@@ -110,6 +145,7 @@ export async function readNativeProblems(
       select: {
         problemId: true,
         latestAttemptId: true,
+        resetAt: true,
         status: true,
         score: true,
         attemptedCount: true,
@@ -157,6 +193,7 @@ export async function readNativeProblems(
     progress: progress.map((row) => ({
       problemId: row.problemId,
       latestAttemptId: row.latestAttemptId,
+      resetAt: row.resetAt?.getTime() ?? null,
       status: row.status,
       // App 用 0–1 的得分率，网页存的是按题目分值算的分。
       score:

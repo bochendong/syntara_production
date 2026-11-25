@@ -32,6 +32,7 @@ function fixture(verifiedSession = null) {
   const mocks = {
     '@/lib/problem-bank/schema': schema,
     '@/lib/problem-bank/photo-answer': photo,
+    '@/lib/server/native-brawl-reward-verification': { verifyNativeBrawlReward: async () => false },
     '@/lib/server/class-session-attempts': {
       classSessionForAttempt: async ({ classSessionId }) =>
         classSessionId === verifiedSession ? verifiedSession : null,

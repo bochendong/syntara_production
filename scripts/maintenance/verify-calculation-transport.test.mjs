@@ -66,6 +66,7 @@ test('isolated staging handler, schema and native sync retain per-question opt-i
         name: 'Fixture',
         ownerId: 'owner',
         externalBinding: null,
+        managers: [],
       }),
     },
     notebook: { findMany: async () => [] },

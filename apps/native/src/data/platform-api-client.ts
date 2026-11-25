@@ -1,3 +1,7 @@
+import type {
+  BankComparison,
+  BankComparisonGroup,
+} from '../../../../lib/problem-bank/bank-comparison';
 import { browserApp, previewChat } from './browser-runtime';
 import {
   browserChat,
@@ -50,7 +54,7 @@ import type {
   PlatformCommandOptions,
   PlatformJsonCommandRequest,
 } from './platform-api-contracts';
-import type { LocalProblem, LocalStudyMemory } from '../domain/models';
+import type { LocalProblem, LocalProblemProgress, LocalStudyMemory } from '../domain/models';
 import { resolveNativePlatformToken } from './platform-auth-token';
 
 function isTauriRuntime(): boolean {
@@ -543,6 +547,15 @@ export function getNativeProblems(
   });
 }
 
+export function getNativeBankOverview(courseId: string): Promise<{
+  problems: Pick<NativeProblemSnapshot['problems'][number], 'id' | 'status' | 'layer'>[];
+  progress: (Pick<LocalProblemProgress, 'problemId' | 'attemptedCount'> & {
+    resetAt?: number | null;
+  })[];
+}> {
+  return invokeQuery('native_get_problems', { courseId, overview: 1 });
+}
+
 /** The signed-in learner's own text submissions and grading results; photos are omitted. */
 export function getNativeProblemAttempts(
   courseId: string,
@@ -569,6 +582,26 @@ export function getNativeClassStanding(
     standing: 1,
     period,
     tz: new Date().getTimezoneOffset(),
+  });
+}
+
+export function getNativeBankComparison(
+  courseId: string,
+  group: BankComparisonGroup,
+): Promise<BankComparison | NativeClassStanding> {
+  return invokeQuery('native_get_problems', {
+    courseId,
+    standing: 1,
+    bankGroup: group,
+    period: 'all',
+  });
+}
+
+export function resetNativeBankPractice(courseId: string, problemIds: string[], through: number) {
+  const payload = { action: 'resetPractice', courseId, problemIds, through };
+  return invokeJson<typeof payload, { resetAt: number }>('native_upload_problem_attempts', {
+    requestId: crypto.randomUUID(),
+    payload,
   });
 }
 

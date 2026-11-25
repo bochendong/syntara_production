@@ -1016,6 +1016,7 @@ const noop = () => undefined;
 const navigation = {
   active: 'teach' as const,
   avatarUrl: '',
+  onOpenProblemBanks: noop,
   onOpenCalendar: noop,
   onOpenStore: noop,
   onOpenSettings: noop,

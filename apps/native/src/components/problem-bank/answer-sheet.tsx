@@ -50,6 +50,9 @@ export function useProblemStatuses(
     }
     return initial;
   });
+  const [progressById, setProgressById] = useState<Map<string, LocalProblemProgress> | null>(() =>
+    preview ? new Map(preview.listProblemProgress().map((row) => [row.problemId, row])) : null,
+  );
   const [mistakes, setMistakes] = useState<Set<string>>(() => new Set());
   const [tick, setTick] = useState(0);
   useEffect(() => {
@@ -76,8 +79,9 @@ export function useProblemStatuses(
         const next = new Map<string, ProblemStatus>();
         for (const item of progress) {
           const status = progressStatus(item.status);
-          if (status) next.set(item.problemId, status);
+          if (item.attemptedCount && status) next.set(item.problemId, status);
         }
+        setProgressById(new Map(progress.map((row) => [row.problemId, row])));
         setStatuses(next);
         setMistakes(
           new Set(
@@ -90,7 +94,7 @@ export function useProblemStatuses(
       alive = false;
     };
   }, [courseId, revision, tick, classSessionId, problemIds, preview]);
-  return [statuses, setStatuses, mistakes] as const;
+  return [statuses, setStatuses, mistakes, progressById] as const;
 }
 
 const DIFFICULTY_TICKS: Record<LocalProblem['difficulty'], number> = {
