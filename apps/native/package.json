@@ -20,6 +20,7 @@
     "ios:build:staging": "node scripts/build-channel.mjs staging ios"
   },
   "dependencies": {
+    "@lezer/python": "^1.1.19",
     "@tauri-apps/api": "^2.12.4",
     "@tauri-apps/plugin-opener": "^2.5.0",
     "@tauri-apps/plugin-sql": "^2.4.0",

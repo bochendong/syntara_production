@@ -27,3 +27,57 @@
     font-size: 16px;
   }
 }
+
+.native-slot-sheet {
+  display: flex;
+  align-items: flex-start;
+  min-width: 0;
+  overflow: auto;
+  padding-block: 12px;
+  font:
+    14px/24px ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    monospace;
+}
+.native-slot-numbers {
+  flex: 0 0 3rem;
+  padding-inline: 8px;
+  text-align: right;
+  color: #94a3b8;
+  user-select: none;
+}
+.native-slot-source {
+  flex: none;
+  margin: 0;
+  padding-inline: 16px;
+  font: inherit;
+  white-space: pre;
+}
+.native-slot-source input,
+.native-slot-source textarea {
+  box-sizing: border-box;
+  border: 1px solid #a8bed8;
+  border-radius: 4px;
+  padding: 0 4px;
+  background: #f3f8ff;
+  color: #142f51;
+  font: inherit;
+  line-height: 20px;
+}
+.native-slot-source input:focus,
+.native-slot-source textarea:focus {
+  outline: 2px solid #3183d8;
+  outline-offset: -1px;
+}
+.native-slot-source textarea {
+  width: 36ch;
+  vertical-align: top;
+}
+@media (max-width: 600px) {
+  .native-slot-sheet {
+    font-size: 16px;
+  }
+}

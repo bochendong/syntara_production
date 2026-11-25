@@ -2617,6 +2617,7 @@ export function ProblemPracticePage({
                     {codeSlots ? (
                       <NativeCodeSlots
                         template={codeSlots}
+                        locale={language}
                         className="min-h-0 flex-1 rounded-none border-0 shadow-none"
                         value={answer.code}
                         onChange={(code) => {

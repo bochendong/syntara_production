@@ -126,7 +126,10 @@ export function ProblemChoices({
           <>
             <strong>{selected ? <img src={marbleImages.blue} alt="" /> : option.id}</strong>
             <span>
-              <ProblemRichText content={option.label} />
+              <ProblemRichText
+                content={option.label}
+                choicePrompt={String(problem.publicContent.stem ?? '')}
+              />
             </span>
           </>
         );
@@ -223,7 +226,10 @@ export function ProblemReferenceAnswer({
                 <div key={option.id} className="native-problem-choice is-readonly">
                   <strong>{option.id}</strong>
                   <span>
-                    <ProblemRichText content={option.label} />
+                    <ProblemRichText
+                      content={option.label}
+                      choicePrompt={String(problem.publicContent.stem ?? '')}
+                    />
                   </span>
                 </div>
               ))}

@@ -213,7 +213,13 @@ function CodeSamplesSection({
                 </span>
                 {'\n'}
                 <span className="font-semibold text-emerald-700 dark:text-emerald-300">
-                  {locale === 'zh-CN' ? '输出:' : 'Output:'}
+                  {sample.output === 'None' && !isRacketLanguage(language)
+                    ? locale === 'zh-CN'
+                      ? '返回值:'
+                      : 'Return value:'
+                    : locale === 'zh-CN'
+                      ? '输出:'
+                      : 'Output:'}
                 </span>{' '}
                 <span>
                   {isRacketLanguage(language) ? highlightRacket(sample.output) : sample.output}
@@ -224,7 +230,7 @@ function CodeSamplesSection({
                     <span className="font-semibold text-amber-700 dark:text-amber-300">
                       {locale === 'zh-CN' ? '解释:' : 'Explanation:'}
                     </span>{' '}
-                    <span>{sample.explanation}</span>
+                    <span className="whitespace-pre-wrap">{sample.explanation}</span>
                   </>
                 ) : null}
               </code>
