@@ -115,11 +115,23 @@ const OPEN_CHAPTER_KEY = 'syntara.problem-bank-open-chapter';
 // 章节墙 / 套题墙，按课程记着。
 const BANK_MODE_KEY = 'syntara.problem-bank-mode.v1';
 const PAPER_SET_PREFIX = 'paper-set:';
-const PAPER_SET_GROUPS: { kind: PaperSetKind; title: string; color: MarbleColor }[] = [
-  { kind: 'final', title: '期末', color: 'pink' },
-  { kind: 'test', title: '期中与小测', color: 'purple' },
-  { kind: 'practice', title: '练习卷', color: 'blue' },
-];
+const PAPER_SET_COLORS: Record<PaperSetKind, MarbleColor> = {
+  tt1: 'green',
+  tt2: 'amber',
+  midterm: 'purple',
+  final: 'pink',
+  test: 'purple',
+  practice: 'blue',
+};
+const PAPER_SET_TITLES: Record<PaperSetKind, string> = {
+  tt1: 'TT1',
+  tt2: 'TT2',
+  midterm: 'Midterm',
+  final: '期末',
+  test: '期中与小测',
+  practice: '练习卷',
+};
+const CSC108_PAPER_SET_TITLES = { ...PAPER_SET_TITLES, final: 'Final', test: '其他测验' };
 const LIST_PAGE_SIZE = 20;
 
 function storage(kind: 'local' | 'session'): Storage | undefined {
@@ -510,7 +522,8 @@ export function ProblemBankPage({
     return numbers;
   }, [chapters, layered, layers]);
   // 套题：同一道题可以在好几套里，每套按原卷题号排。
-  const paperSetChapters = useMemo<Chapter[]>(
+  const paperSetTitles = useCsc108Names ? CSC108_PAPER_SET_TITLES : PAPER_SET_TITLES;
+  const paperSetChapters = useMemo(
     () =>
       problemPaperSets(bankProblems, useCsc108Names, (a, b) =>
         problemOrder(sourceProblems.get(a.id) ?? a, sourceProblems.get(b.id) ?? b),
@@ -520,7 +533,7 @@ export function ProblemBankPage({
           key: `${PAPER_SET_PREFIX}${set.name}`,
           number: year,
           title: set.name,
-          color: PAPER_SET_GROUPS.find((group) => group.kind === set.kind)?.color ?? 'blue',
+          color: PAPER_SET_COLORS[set.kind],
           order: index,
           problems: set.problems,
           passed: 0,
@@ -533,19 +546,9 @@ export function ProblemBankPage({
           else if (status === 'failed') chapter.failed += 1;
           else if (status === 'partial') chapter.partial += 1;
         }
-        return chapter;
+        return { ...chapter, kind: set.kind };
       }),
     [bankProblems, useCsc108Names, sourceProblems, statuses],
-  );
-  const paperSetKinds = useMemo(
-    () =>
-      new Map(
-        problemPaperSets(bankProblems, useCsc108Names).map((set) => [
-          `${PAPER_SET_PREFIX}${set.name}`,
-          set.kind,
-        ]),
-      ),
-    [bankProblems, useCsc108Names],
   );
   const [bankModeState, setBankModeState] = useState<BankMode>(() =>
     readCourseValue<BankMode>('session', BANK_MODE_KEY, courseId) === 'sets' ? 'sets' : 'chapters',
@@ -1237,18 +1240,15 @@ export function ProblemBankPage({
                     </div>
                   ) : null}
                   {bankMode === 'sets' ? (
-                    PAPER_SET_GROUPS.map((group) => {
-                      const sets = paperSetChapters.filter(
-                        (set) => paperSetKinds.get(set.key) === group.kind,
-                      );
-                      if (!sets.length) return null;
+                    [...new Set(paperSetChapters.map((set) => set.kind))].map((kind) => {
+                      const sets = paperSetChapters.filter((set) => set.kind === kind);
                       const total = sets.reduce((sum, set) => sum + set.problems.length, 0);
                       const done = sets.filter((set) => !firstUnpassed(set.problems)).length;
                       return (
-                        <section key={group.kind} className="pb-set-group">
+                        <section key={kind} className="pb-set-group">
                           <p className="phone-group-title pb-wall-title">
                             <span>
-                              {group.title} · {sets.length} 套 · {total} 题
+                              {paperSetTitles[kind]} · {sets.length} 套 · {total} 题
                             </span>
                             <span>
                               {done}/{sets.length} 套做完

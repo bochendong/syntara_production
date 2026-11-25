@@ -132,10 +132,16 @@ export function problemPaperSeries(
   return [...counts].sort(([a], [b]) => a.localeCompare(b, 'zh-CN', { numeric: true }));
 }
 
-export type PaperSetKind = 'final' | 'test' | 'practice';
+const paperSetOrder = ['tt1', 'tt2', 'midterm', 'final', 'test', 'practice'] as const;
+export type PaperSetKind = (typeof paperSetOrder)[number];
 
-/** 套题墙分三组：期末、期中与小测、练习卷。 */
-export function paperSetKind(name: string): PaperSetKind {
+export function paperSetKind(name: string, useCsc108Names = false): PaperSetKind {
+  if (useCsc108Names) {
+    const number = /\b(?:TT|Term[ -]*Test|Quiz)[ -]*([12])(?!\d)/i.exec(name)?.[1];
+    if (number === '1') return 'tt1';
+    if (number === '2') return 'tt2';
+    if (/mid[ -]?term|期中/i.test(name)) return 'midterm';
+  }
   if (/\bFinal\b|期末/i.test(name)) return 'final';
   if (/Midterm|\bTT\d|Term Test|Quiz|Timed|Examlet|期中|测验|模考|模拟/i.test(name)) return 'test';
   return 'practice';
@@ -165,11 +171,10 @@ export function problemPaperSets<P extends { id: string; tags?: readonly string[
       else bySet.set(label, [problem]);
     }
   }
-  const kindOrder: Record<PaperSetKind, number> = { final: 0, test: 1, practice: 2 };
   return [...bySet]
     .map(([name, members]) => ({
       name,
-      kind: paperSetKind(name),
+      kind: paperSetKind(name, useCsc108Names),
       problems: [...members].sort((a, b) => {
         const pa = paperSetPosition(a.tags, name);
         const pb = paperSetPosition(b.tags, name);
@@ -184,7 +189,7 @@ export function problemPaperSets<P extends { id: string; tags?: readonly string[
     }))
     .sort(
       (a, b) =>
-        kindOrder[a.kind] - kindOrder[b.kind] ||
+        paperSetOrder.indexOf(a.kind) - paperSetOrder.indexOf(b.kind) ||
         paperSetYear(b.name) - paperSetYear(a.name) ||
         a.name.localeCompare(b.name, 'zh-CN', { numeric: true }),
     );

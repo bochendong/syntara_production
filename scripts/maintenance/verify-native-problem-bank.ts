@@ -203,4 +203,34 @@ assert.deepEqual(
 );
 assert.equal(paperSetKind('UTSG 2024F TT1 V2'), 'test');
 assert.equal(paperSetKind('Worksheet 16'), 'practice');
+const csc108SetNames = [
+  'Worksheet 16',
+  'UTM 2022 Timed Test',
+  'UTM 2023 Final',
+  'UTSG-2026-Midterm-A',
+  'UTSG-2026-Quiz 2 Review-A',
+  'UTM-2026-Term Test 1-A',
+];
+const csc108Sets = problemPaperSets(
+  csc108SetNames.map((name) => ({ id: name, tags: [name] })),
+  true,
+);
+assert.deepEqual(
+  csc108Sets.map((set) => set.kind),
+  ['tt1', 'tt2', 'midterm', 'practice'],
+);
+assert.deepEqual(
+  problemPaperSets(
+    csc108SetNames.map((name) => ({ id: name, tags: [paperSetPositionTag(name, '1')] })),
+    true,
+  ).map((set) => set.kind),
+  ['tt1', 'tt2', 'midterm', 'final', 'test', 'practice'],
+);
+for (const name of ['Quiz 1', 'Quiz1', 'UTSG 2024F TT1 V2', 'TT1模拟A卷']) {
+  assert.equal(paperSetKind(name, true), 'tt1');
+}
+for (const name of ['Quiz 2', 'quiz2', 'UTM-2026-Term Test 2 Mock-A']) {
+  assert.equal(paperSetKind(name, true), 'tt2');
+}
+assert.equal(paperSetKind('Quiz 12', true), 'test');
 console.log('Native problem filters, paper sets and reference-proof/rubric requests passed.');
