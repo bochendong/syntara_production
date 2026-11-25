@@ -2,6 +2,8 @@
 
 核对日期：2026-11-25（America/Toronto）。当前测试服已更新，源码基线与实际部署对应。
 
+2026-11-25 CSC108 套题卡和详情已上线「考试原题」「模拟题」标签与来源筛选。通过已部署的网页和只读课程数据，在两校区核对了来源切换、进入试卷和返回列表。UTSG 为 29 套考试原题、22 套模拟题，UTM 为 28 套考试原题、22 套模拟题。见 [PR #85](https://github.com/bochendong/syntara_production/pull/85)。
+
 2026-11-25 测试服 CSC108 题库按 TT1、TT2、Midterm、Final 展示套题，Quiz 1 和 Quiz 2 分别归入 TT1 和 TT2。两校区的测试服网页已使用只读题库核对分组、打开 Quiz 2 卷并返回。应用源码 `8a14dd38`，Railway 发布 `c54e0d5a` 成功。见 [PR #84](https://github.com/bochendong/syntara_production/pull/84)。
 
 2026-11-22 测试服网页版已上线 CSC108 内存图。UTSG 更新 17 道、UTM 更新 15 道，含 27 张可填写的图和 15 张参考图。变量、对象及已知对象分区展示，类型使用下拉选择，直接引用和列表元素以蓝绿区分。保留原题 ID、判分和旧客户端的中英文题图。应用源码 `eed60bc3`，Railway 发布 `d7e0807e` 成功。见[发布记录](releases/staging-2026-11-22-csc108-memory-diagrams.json)。
@@ -156,7 +158,7 @@ MAT102 双语讲义的学习进度已统一：24 个语言版本按 12 本讲义
 
 | 用途 | 分支或标签 | 内容 |
 | --- | --- | --- |
-| 测试服源码基线 | `codex/staging-baseline` | `8a14dd38` 的应用源码，对应 Railway 发布 `c54e0d5a`，发布记录见上方 |
+| 测试服源码基线 | `codex/staging-baseline` | `d6a56187` 的应用源码，对应 Railway 发布 `bb66245b`，发布记录见上方 |
 | 上一次发布标记 | `staging/2026-10-25-b8d0b5c6` | 布局修复前的发布，继续保留 |
 | 测试服主要发布分支 | `codex/staging-next` | GitHub 是发布源；已授权目标仓库并启用自动部署 |
 | 主分支 | `main` | 仍为 `88de1691`，不是当前测试服源码 |
@@ -197,7 +199,7 @@ MAT102 双语讲义的学习进度已统一：24 个语言版本按 12 本讲义
 ## 基线怎样确认
 
 - Railway 服务：`native-api-staging`，环境：`staging`。
-- 当前应用发布：`c54e0d5a-c779-4cbf-9217-99f21831c27b`，源码提交：`8a14dd38d4a443d6ed40a471413e57bd2cc7fa28`。
+- 当前应用发布：`bb66245b-0095-409e-8473-b932cb4b6019`，源码提交：`d6a56187ec2442de8ce794bad432e271980a1043`。
 - 本次核对了线上版本及健康接口，使用已部署的网页资源和只读预览网关验证两校区的套题分组及详情导航。
 - 旧基线 `a5849b24` 和 `staging/2026-10-24-7dbd3393` 标签继续保留。
 - 测试服直接拉取 GitHub 的 `codex/staging-next`，使用 `railway.toml` 的 `staging` 覆盖配置；不再依赖本机源码快照上传。
