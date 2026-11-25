@@ -15,8 +15,11 @@ import {
   paperLabels,
   matchesProblemFilters,
   namedMidtermYear,
+  paperSetPositions,
   problemPaperSeries,
+  problemPaperSets,
   usesCsc108PaperNames,
+  type PaperSetKind,
 } from '../data/problem-bank-filters';
 import { practiceLaunchForResults } from '../data/problem-practice-scope';
 import { ProblemTitleText } from './problem-bank/problem-rich-text';
@@ -86,6 +89,7 @@ type ProblemBankPageProps = {
 type TypeFilter = 'all' | string;
 type DifficultyFilter = 'all' | LocalProblem['difficulty'];
 type SheetView = 'grid' | 'list';
+type BankMode = 'chapters' | 'sets';
 
 type Chapter = {
   key: string;
@@ -108,6 +112,14 @@ const LAST_STORAGE_KEY = 'syntara.problem-bank-last.v1';
 const VIEW_STORAGE_KEY = 'syntara.problem-bank-view.v1';
 // 从做题页回来时回到刚才那一章（只在这次打开 App 期间记着）。
 const OPEN_CHAPTER_KEY = 'syntara.problem-bank-open-chapter';
+// 章节墙 / 套题墙，按课程记着。
+const BANK_MODE_KEY = 'syntara.problem-bank-mode.v1';
+const PAPER_SET_PREFIX = 'paper-set:';
+const PAPER_SET_GROUPS: { kind: PaperSetKind; title: string; color: MarbleColor }[] = [
+  { kind: 'final', title: '期末', color: 'pink' },
+  { kind: 'test', title: '期中与小测', color: 'purple' },
+  { kind: 'practice', title: '练习卷', color: 'blue' },
+];
 const LIST_PAGE_SIZE = 20;
 
 function storage(kind: 'local' | 'session'): Storage | undefined {
@@ -258,9 +270,13 @@ function ProblemRow({
           <span className="pb-row-type">{problemTypeLabel(problem.type)}</span>
           {[
             problem.chapterName,
-            ...(problem.tags.some((tag) => courseSeries.test(tag))
-              ? [...paperLabels(problem.tags), courseQuestionNumber(problem.tags)]
-              : problem.tags.slice(0, 2)),
+            ...(paperSetPositions(problem.tags).length
+              ? paperSetPositions(problem.tags).map(
+                  (position) => `${position.set} ${position.label}`,
+                )
+              : problem.tags.some((tag) => courseSeries.test(tag))
+                ? [...paperLabels(problem.tags), courseQuestionNumber(problem.tags)]
+                : problem.tags.slice(0, 2)),
           ]
             .filter(Boolean)
             .join(' · ')}
@@ -493,9 +509,65 @@ export function ProblemBankPage({
     }
     return numbers;
   }, [chapters, layered, layers]);
+  // 套题：同一道题可以在好几套里，每套按原卷题号排。
+  const paperSetChapters = useMemo<Chapter[]>(
+    () =>
+      problemPaperSets(bankProblems, useCsc108Names, (a, b) =>
+        problemOrder(sourceProblems.get(a.id) ?? a, sourceProblems.get(b.id) ?? b),
+      ).map((set, index) => {
+        const year = /20(\d{2})/.exec(set.name)?.[1] ?? null;
+        const chapter: Chapter = {
+          key: `${PAPER_SET_PREFIX}${set.name}`,
+          number: year,
+          title: set.name,
+          color: PAPER_SET_GROUPS.find((group) => group.kind === set.kind)?.color ?? 'blue',
+          order: index,
+          problems: set.problems,
+          passed: 0,
+          failed: 0,
+          partial: 0,
+        };
+        for (const problem of set.problems) {
+          const status = statuses.get(problem.id);
+          if (status === 'passed') chapter.passed += 1;
+          else if (status === 'failed') chapter.failed += 1;
+          else if (status === 'partial') chapter.partial += 1;
+        }
+        return chapter;
+      }),
+    [bankProblems, useCsc108Names, sourceProblems, statuses],
+  );
+  const paperSetKinds = useMemo(
+    () =>
+      new Map(
+        problemPaperSets(bankProblems, useCsc108Names).map((set) => [
+          `${PAPER_SET_PREFIX}${set.name}`,
+          set.kind,
+        ]),
+      ),
+    [bankProblems, useCsc108Names],
+  );
+  const [bankModeState, setBankModeState] = useState<BankMode>(() =>
+    readCourseValue<BankMode>('session', BANK_MODE_KEY, courseId) === 'sets' ? 'sets' : 'chapters',
+  );
+  const bankMode: BankMode = paperSetChapters.length ? bankModeState : 'chapters';
+  const setBankMode = (next: BankMode) => {
+    setBankModeState(next);
+    writeCourseValue('session', BANK_MODE_KEY, courseId, next);
+  };
+  const isPaperSetKey = (key: string | null | undefined) =>
+    Boolean(key?.startsWith(PAPER_SET_PREFIX));
+  /** 套题里的题号就是在这套里的位置；章节里沿用章节题号。 */
+  const numberIn = (chapter: Chapter | null | undefined, problem: LocalProblem) =>
+    chapter && isPaperSetKey(chapter.key)
+      ? chapter.problems.indexOf(problem) + 1
+      : numberById.get(problem.id);
   const chapterByKey = useMemo(
-    () => new Map([...chapters, allChapter].map((chapter) => [chapter.key, chapter])),
-    [chapters, allChapter],
+    () =>
+      new Map(
+        [...chapters, ...paperSetChapters, allChapter].map((chapter) => [chapter.key, chapter]),
+      ),
+    [chapters, paperSetChapters, allChapter],
   );
 
   const [openKey, setOpenKey] = useState<string | null>(() =>
@@ -515,7 +587,7 @@ export function ProblemBankPage({
   const openChapter =
     openKey === ALL_CHAPTERS
       ? allChapter
-      : chapters.length === 1
+      : chapters.length === 1 && bankMode === 'chapters' && !isPaperSetKey(openKey)
         ? chapters[0]
         : openKey
           ? (chapterByKey.get(openKey) ?? null)
@@ -660,14 +732,15 @@ export function ProblemBankPage({
     type: activeTypeFilter,
   };
   const filterGroups: BankFilterGroup[] = [
-    ...(visibleSeriesOptions.length
+    // 已经在一套题里面时不再按套题筛。
+    ...(visibleSeriesOptions.length && !isPaperSetKey(openChapter?.key)
       ? [
           {
             key: 'series' as const,
-            label: '系列',
-            allLabel: '全部系列',
+            label: '套题',
+            allLabel: '全部套题',
             options: [
-              { value: '', label: '全部系列', count: scopeProblems.length },
+              { value: '', label: '全部套题', count: scopeProblems.length },
               ...visibleSeriesOptions.map(([value, count]) => ({ value, label: value, count })),
             ],
           },
@@ -806,12 +879,14 @@ export function ProblemBankPage({
           <div className="pb-column">
             {liveBanner}
             <div className="pb-chapter-head" style={accentVars(openChapter.color)}>
-              {chapters.length > 1 || openChapter.key === ALL_CHAPTERS ? (
+              {chapters.length > 1 ||
+              openChapter.key === ALL_CHAPTERS ||
+              isPaperSetKey(openChapter.key) ? (
                 <button
                   type="button"
                   className="pb-wall-back"
                   onClick={() => openChapterKey(null)}
-                  aria-label="回到章节"
+                  aria-label={isPaperSetKey(openChapter.key) ? '回到套题' : '回到章节'}
                 >
                   <ArrowLeft size={16} />
                 </button>
@@ -856,7 +931,12 @@ export function ProblemBankPage({
               </div>
             ) : null}
             <div className="pb-chapter-body">
-              <aside className="pb-chapter-stats-row" aria-label="这一章的作答情况">
+              <aside
+                className="pb-chapter-stats-row"
+                aria-label={
+                  isPaperSetKey(openChapter.key) ? '这一套的作答情况' : '这一章的作答情况'
+                }
+              >
                 <div className="pb-chapter-stats" aria-label="这一章">
                   {chapterStats.map((stat) => (
                     <span key={stat.key} className={`is-${stat.key}`}>
@@ -886,7 +966,7 @@ export function ProblemBankPage({
                         >
                           <LayerItem label={problem.title} onMore={moreFor(problem)}>
                             <SheetCell
-                              number={hasFilters ? index + 1 : numberById.get(problem.id)}
+                              number={hasFilters ? index + 1 : numberIn(openChapter, problem)}
                               status={statuses.get(problem.id)}
                               previouslyIncorrect={historicalMistakes.has(problem.id)}
                               difficulty={problem.difficulty}
@@ -926,7 +1006,7 @@ export function ProblemBankPage({
                           <LayerItem label={problem.title} onMore={moreFor(problem)}>
                             <ProblemRow
                               problem={problem}
-                              number={hasFilters ? index + 1 : numberById.get(problem.id)}
+                              number={hasFilters ? index + 1 : numberIn(openChapter, problem)}
                               status={statuses.get(problem.id)}
                               badges={badgesFor(problem)}
                               onClick={() => practice(problem)}
@@ -959,7 +1039,13 @@ export function ProblemBankPage({
                 <img key={color} src={marbleImages[color]} alt="" />
               ))}
             </span>
-            {allPassed ? '再刷一遍' : '继续刷'}
+            {isPaperSetKey(openChapter.key)
+              ? allPassed
+                ? '再做一遍'
+                : '继续做'
+              : allPassed
+                ? '再刷一遍'
+                : '继续刷'}
             {next ? <small>{`第 ${sheetProblems.indexOf(next) + 1} 题`}</small> : null}
           </button>
         ) : null}
@@ -1086,7 +1172,7 @@ export function ProblemBankPage({
                             {lastChapter.color ? (
                               <img src={marbleImages[lastChapter.color]} alt="" />
                             ) : null}
-                            <b>{numberById.get(resumeTarget.id)}</b>
+                            <b>{numberIn(lastChapter, resumeTarget)}</b>
                           </span>
                           <span className="pb-hero-copy">
                             <small>接着上次</small>
@@ -1128,68 +1214,159 @@ export function ProblemBankPage({
                     </div>
                   ) : null}
 
-                  <p className="phone-group-title pb-wall-title">
-                    <span>
-                      {chapters.length} 章 · 共 {bankProblems.length} 道题
-                    </span>
-                    <span>
-                      {passedTotal}/{bankProblems.length} 通过
-                    </span>
-                  </p>
-                  <div className="pb-wall">
-                    {chapters.map((chapter, index) => {
-                      const nextInChapter = firstUnpassed(chapter.problems);
-                      const freshCount = layered
-                        ? chapter.problems.filter((problem) => isProblemNew(layers, problem.id))
-                            .length
-                        : 0;
-                      return (
-                        <div
-                          key={chapter.key}
-                          className={`pb-wall-card${nextInChapter ? '' : ' is-done'}`}
-                          style={{
-                            ...accentVars(chapter.color),
-                            animationDelay: `${Math.min(index, 16) * 26}ms`,
-                          }}
+                  {paperSetChapters.length ? (
+                    <div className="pb-mode-switch" role="tablist" aria-label="题库分组">
+                      {(
+                        [
+                          ['chapters', '按章节', chapters.length],
+                          ['sets', '按套题', paperSetChapters.length],
+                        ] as const
+                      ).map(([mode, label, count]) => (
+                        <button
+                          key={mode}
+                          type="button"
+                          role="tab"
+                          aria-selected={bankMode === mode}
+                          className={bankMode === mode ? 'is-active' : ''}
+                          onClick={() => setBankMode(mode)}
                         >
-                          <button
-                            type="button"
-                            className="pb-wall-open"
-                            onClick={() => openChapterKey(chapter.key)}
-                          >
-                            <ChapterMarble chapter={chapter} />
-                            <strong>{chapter.title}</strong>
-                            {freshCount ? (
-                              <span className="pb-wall-new">
-                                <LayerBadges fresh />
-                                {freshCount > 1 ? (
-                                  <b className="pb-wall-new-count">{freshCount}</b>
-                                ) : null}
-                              </span>
-                            ) : null}
-                          </button>
-                          <div className="pb-wall-foot">
-                            <ChapterTube chapter={chapter} />
-                            <button
-                              type="button"
-                              className="pb-wall-go"
-                              onClick={() =>
-                                startPractice(
-                                  chapter.problems,
-                                  nextInChapter,
-                                  chapter.title,
-                                  chapter.key,
-                                )
-                              }
-                            >
-                              <Play size={12} fill="currentColor" />
-                              {nextInChapter ? '继续刷' : '再刷'}
-                            </button>
-                          </div>
-                        </div>
+                          {label}
+                          <small>{count}</small>
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                  {bankMode === 'sets' ? (
+                    PAPER_SET_GROUPS.map((group) => {
+                      const sets = paperSetChapters.filter(
+                        (set) => paperSetKinds.get(set.key) === group.kind,
                       );
-                    })}
-                  </div>
+                      if (!sets.length) return null;
+                      const total = sets.reduce((sum, set) => sum + set.problems.length, 0);
+                      const done = sets.filter((set) => !firstUnpassed(set.problems)).length;
+                      return (
+                        <section key={group.kind} className="pb-set-group">
+                          <p className="phone-group-title pb-wall-title">
+                            <span>
+                              {group.title} · {sets.length} 套 · {total} 题
+                            </span>
+                            <span>
+                              {done}/{sets.length} 套做完
+                            </span>
+                          </p>
+                          <div className="pb-wall">
+                            {sets.map((set, index) => {
+                              const nextInSet = firstUnpassed(set.problems);
+                              return (
+                                <div
+                                  key={set.key}
+                                  className={`pb-wall-card pb-set-card${nextInSet ? '' : ' is-done'}`}
+                                  style={{
+                                    ...accentVars(set.color),
+                                    animationDelay: `${Math.min(index, 16) * 26}ms`,
+                                  }}
+                                >
+                                  <button
+                                    type="button"
+                                    className="pb-wall-open"
+                                    onClick={() => openChapterKey(set.key)}
+                                  >
+                                    <ChapterMarble chapter={set} />
+                                    <span className="pb-set-copy">
+                                      <strong>{set.title}</strong>
+                                      <small>{set.problems.length} 题</small>
+                                    </span>
+                                  </button>
+                                  <div className="pb-wall-foot">
+                                    <ChapterTube chapter={set} />
+                                    <button
+                                      type="button"
+                                      className="pb-wall-go"
+                                      onClick={() =>
+                                        startPractice(set.problems, nextInSet, set.title, set.key)
+                                      }
+                                    >
+                                      <Play size={12} fill="currentColor" />
+                                      {set.passed + set.failed + set.partial === 0
+                                        ? '开始做'
+                                        : nextInSet
+                                          ? '继续做'
+                                          : '再做一遍'}
+                                    </button>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </section>
+                      );
+                    })
+                  ) : (
+                    <>
+                      <p className="phone-group-title pb-wall-title">
+                        <span>
+                          {chapters.length} 章 · 共 {bankProblems.length} 道题
+                        </span>
+                        <span>
+                          {passedTotal}/{bankProblems.length} 通过
+                        </span>
+                      </p>
+                      <div className="pb-wall">
+                        {chapters.map((chapter, index) => {
+                          const nextInChapter = firstUnpassed(chapter.problems);
+                          const freshCount = layered
+                            ? chapter.problems.filter((problem) => isProblemNew(layers, problem.id))
+                                .length
+                            : 0;
+                          return (
+                            <div
+                              key={chapter.key}
+                              className={`pb-wall-card${nextInChapter ? '' : ' is-done'}`}
+                              style={{
+                                ...accentVars(chapter.color),
+                                animationDelay: `${Math.min(index, 16) * 26}ms`,
+                              }}
+                            >
+                              <button
+                                type="button"
+                                className="pb-wall-open"
+                                onClick={() => openChapterKey(chapter.key)}
+                              >
+                                <ChapterMarble chapter={chapter} />
+                                <strong>{chapter.title}</strong>
+                                {freshCount ? (
+                                  <span className="pb-wall-new">
+                                    <LayerBadges fresh />
+                                    {freshCount > 1 ? (
+                                      <b className="pb-wall-new-count">{freshCount}</b>
+                                    ) : null}
+                                  </span>
+                                ) : null}
+                              </button>
+                              <div className="pb-wall-foot">
+                                <ChapterTube chapter={chapter} />
+                                <button
+                                  type="button"
+                                  className="pb-wall-go"
+                                  onClick={() =>
+                                    startPractice(
+                                      chapter.problems,
+                                      nextInChapter,
+                                      chapter.title,
+                                      chapter.key,
+                                    )
+                                  }
+                                >
+                                  <Play size={12} fill="currentColor" />
+                                  {nextInChapter ? '继续刷' : '再刷'}
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
                 </>
               )}
             </div>
