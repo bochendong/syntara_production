@@ -26,12 +26,6 @@ export type MistakeGroup = {
   problems: LocalProblem[];
 };
 
-const TABS: { key: MistakeTab; label: string }[] = [
-  { key: 'todo', label: '待订正' },
-  { key: 'fixed', label: '已订正' },
-  { key: 'removed', label: '已移出' },
-];
-
 function accent(color: MarbleColor | null): CSSProperties {
   const marble = color ?? 'pink';
   return {
@@ -47,12 +41,13 @@ function statusMarble(entry: MistakeEntry): MarbleColor {
   return 'pink';
 }
 
+/** 现在这道题的样子：错题本不分「改没改对」，只用小标签说一下最近一次。 */
 function statusTag(entry: MistakeEntry) {
   if (entry.tab === 'removed') return { text: '已移出', tone: 'muted' };
-  if (entry.status === 'passed') return { text: '已订正', tone: 'green' };
+  if (entry.status === 'passed') return { text: '最近做对', tone: 'green' };
   if (entry.status === 'partial') return { text: '对一部分', tone: 'amber' };
   if (entry.status === 'pending') return { text: '待批改', tone: 'blue' };
-  return { text: '待订正', tone: 'pink' };
+  return { text: '做错', tone: 'pink' };
 }
 
 /** 每道错题最近一次错的作答，压成一行；只读当前看得见的几十道。 */
@@ -119,14 +114,16 @@ export function MistakeBookView({
   onBack: () => void;
   onPractice: (problems: LocalProblem[], initial: LocalProblem, title: string) => void;
 }) {
-  const [tab, setTab] = useState<MistakeTab>('todo');
+  // 错题本就一张单子；移出的题收在「已移出」里，能找回。
+  const [showRemoved, setShowRemoved] = useState(false);
   const [type, setType] = useState('all');
   const counts = useMemo(() => {
-    const result: Record<MistakeTab, number> = { todo: 0, fixed: 0, removed: 0 };
+    const result: Record<MistakeTab, number> = { book: 0, removed: 0 };
     for (const entry of entries) result[entry.tab] += 1;
     return result;
   }, [entries]);
-  const inTab = useMemo(() => entries.filter((entry) => entry.tab === tab), [entries, tab]);
+  const viewing: MistakeTab = showRemoved && counts.removed ? 'removed' : 'book';
+  const inTab = useMemo(() => entries.filter((entry) => entry.tab === viewing), [entries, viewing]);
   const typeOptions = useMemo(() => {
     const byType = new Map<string, number>();
     for (const entry of inTab)
@@ -159,8 +156,7 @@ export function MistakeBookView({
   const shown = sections.flatMap((section) => section.items);
   const snippets = useSnippets(shown);
   const focusGroup = focusKey ? groups.find((group) => group.key === focusKey) : null;
-  const todoShown = tab === 'todo' ? shown : [];
-  const fixedShown = tab === 'fixed' ? shown : [];
+  const bookShown = viewing === 'book' ? shown : [];
 
   const practice = (items: MistakeEntry[], initial: MistakeEntry, title: string) =>
     onPractice(
@@ -177,10 +173,14 @@ export function MistakeBookView({
           题库
         </button>
         <div className="mb-bar-copy">
-          <strong>错题本 · {counts.todo} 道待订正</strong>
+          <strong>
+            {viewing === 'removed' ? `已移出 · ${counts.removed} 道` : `错题本 · ${counts.book} 道`}
+          </strong>
           <small>
             {focusGroup ? `只看「${focusGroup.title}」` : `跟着题库：按${groupLabel}`}
-            {counts.fixed ? ` · ${counts.fixed} 道改对了，等你移出` : ''}
+            {viewing === 'removed'
+              ? ' · 点「找回」放回错题本'
+              : ' · 做错过的题都在这，不想要了就移出'}
           </small>
         </div>
         {focusGroup ? (
@@ -188,73 +188,67 @@ export function MistakeBookView({
             看全部
           </button>
         ) : null}
-        {todoShown.length ? (
+        {bookShown.length ? (
           <button
             type="button"
             className="mb-cta"
             onClick={() =>
               practice(
-                todoShown,
-                todoShown[0],
+                bookShown,
+                bookShown[0],
                 focusGroup ? `${focusGroup.title} · 错题` : '错题本',
               )
             }
           >
             <Play size={14} fill="currentColor" />
-            全部重做 {todoShown.length} 道
-          </button>
-        ) : fixedShown.length ? (
-          <button
-            type="button"
-            className="mb-cta is-green"
-            onClick={() =>
-              removeMistakes(
-                courseId,
-                fixedShown.map((entry) => entry.problem.id),
-              )
-            }
-          >
-            <Check size={14} strokeWidth={3} />
-            移出改对的 {fixedShown.length} 道
+            全部重做 {bookShown.length} 道
           </button>
         ) : null}
       </div>
 
-      <div className="mb-tabs" role="tablist" aria-label="错题本分类">
-        {TABS.map((item) => (
-          <button
-            key={item.key}
-            type="button"
-            role="tab"
-            aria-selected={tab === item.key}
-            className={tab === item.key ? `is-active is-${item.key}` : ''}
-            onClick={() => setTab(item.key)}
-          >
-            {item.label}
-            <small>{counts[item.key]}</small>
-          </button>
-        ))}
-      </div>
-
-      {typeOptions.length > 1 ? (
+      {counts.removed || typeOptions.length > 1 ? (
         <div className="mb-chips" role="group" aria-label="题型">
-          <button
-            type="button"
-            className={activeType === 'all' ? 'mb-chip is-active' : 'mb-chip'}
-            onClick={() => setType('all')}
-          >
-            全部题型
-          </button>
-          {typeOptions.map(([value, count]) => (
+          {typeOptions.length > 1 ? (
+            <>
+              <button
+                type="button"
+                className={activeType === 'all' ? 'mb-chip is-active' : 'mb-chip'}
+                onClick={() => setType('all')}
+              >
+                全部题型
+              </button>
+              {typeOptions.map(([value, count]) => (
+                <button
+                  key={value}
+                  type="button"
+                  className={activeType === value ? 'mb-chip is-active' : 'mb-chip'}
+                  onClick={() => setType(value)}
+                >
+                  {problemTypeLabel(value)} <small>{count}</small>
+                </button>
+              ))}
+            </>
+          ) : null}
+          {counts.removed ? (
             <button
-              key={value}
               type="button"
-              className={activeType === value ? 'mb-chip is-active' : 'mb-chip'}
-              onClick={() => setType(value)}
+              className={`mb-chip mb-removed-toggle${viewing === 'removed' ? ' is-active' : ''}`}
+              aria-pressed={viewing === 'removed'}
+              onClick={() => setShowRemoved(viewing !== 'removed')}
             >
-              {problemTypeLabel(value)} <small>{count}</small>
+              {viewing === 'removed' ? (
+                <>
+                  <ArrowLeft size={12} />
+                  回错题本
+                </>
+              ) : (
+                <>
+                  <RotateCcw size={12} />
+                  已移出 <small>{counts.removed}</small>
+                </>
+              )}
             </button>
-          ))}
+          ) : null}
         </div>
       ) : null}
 
@@ -264,24 +258,10 @@ export function MistakeBookView({
         </p>
       ) : !sections.length ? (
         <div className="mb-empty">
-          <img src={marbleImages[tab === 'todo' ? 'green' : 'blue']} alt="" />
-          <strong>
-            {tab === 'todo'
-              ? counts.fixed
-                ? '错题都改对了'
-                : '还没有错题'
-              : tab === 'fixed'
-                ? '还没有改对的题'
-                : '没有移出的题'}
-          </strong>
+          <img src={marbleImages[viewing === 'book' ? 'green' : 'blue']} alt="" />
+          <strong>{viewing === 'book' ? '还没有错题' : '没有移出的题'}</strong>
           <small>
-            {tab === 'todo'
-              ? counts.fixed
-                ? '去「已订正」把它们移出错题本吧'
-                : '做错的题会自动收进来'
-              : tab === 'fixed'
-                ? '重做做对之后会出现在这里'
-                : '移出的题会放在这里，随时能找回'}
+            {viewing === 'book' ? '做错的题会自动收进来' : '移出的题会放在这里，随时能找回'}
           </small>
         </div>
       ) : (
@@ -294,7 +274,7 @@ export function MistakeBookView({
               </span>
               <strong>{group.title}</strong>
               <small>{items.length} 道</small>
-              {tab === 'todo' ? (
+              {viewing === 'book' ? (
                 <button
                   type="button"
                   className="mb-ghost"
@@ -332,7 +312,7 @@ export function MistakeBookView({
                           <span className={`mb-tag is-${tag.tone}`}>{tag.text}</span>
                           <span className="mb-tag">{problemTypeLabel(entry.problem.type)}</span>
                           <span>
-                            {entry.tab === 'fixed' ? '错过' : '错'} {entry.wrongCount} 次
+                            错过 {entry.wrongCount} 次
                             {entry.lastAttemptAt ? ` · ${relativeDay(entry.lastAttemptAt)}` : ''}
                           </span>
                         </small>
@@ -344,23 +324,25 @@ export function MistakeBookView({
                         </span>
                       ) : null}
                     </button>
-                    {entry.tab === 'todo' ? (
-                      <button
-                        type="button"
-                        className="mb-action"
-                        onClick={() => practice(items, entry, `${group.title} · 错题`)}
-                      >
-                        重做
-                      </button>
-                    ) : entry.tab === 'fixed' ? (
-                      <button
-                        type="button"
-                        className="mb-action is-green"
-                        onClick={() => removeMistakes(courseId, [entry.problem.id])}
-                      >
-                        <Check size={12} strokeWidth={3} />
-                        移出
-                      </button>
+                    {entry.tab === 'book' ? (
+                      <span className="mb-row-actions">
+                        <button
+                          type="button"
+                          className="mb-action"
+                          onClick={() => practice(items, entry, `${group.title} · 错题`)}
+                        >
+                          重做
+                        </button>
+                        <button
+                          type="button"
+                          className="mb-action is-muted"
+                          aria-label="移出错题本"
+                          onClick={() => removeMistakes(courseId, [entry.problem.id])}
+                        >
+                          <Check size={12} strokeWidth={3} />
+                          移出
+                        </button>
+                      </span>
                     ) : (
                       <button
                         type="button"

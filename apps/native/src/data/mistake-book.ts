@@ -2,15 +2,15 @@ import type { LocalProblem, LocalProblemAttempt, LocalProblemProgress } from '..
 import { accountStorageKey } from './browser-runtime';
 
 /**
- * 错题本：做错过的题一直留着，改对了也不自己走，学生点「移出」才离开。
+ * 错题本：做错过的题都在一张单子里，改对了也不自己走，学生点「移出」才离开。
  * 移出记在本机（按课程、按账号），之后再做错会自动回来。
  */
-export type MistakeTab = 'todo' | 'fixed' | 'removed';
+export type MistakeTab = 'book' | 'removed';
 
 export type MistakeEntry = {
   problem: LocalProblem;
   tab: MistakeTab;
-  /** 最新状态：没改对时是 failed / partial / pending，改对了是 passed。 */
+  /** 最近一次的状态（failed / partial / pending / passed），只用来给弹珠上色。 */
   status: string | undefined;
   wrongCount: number;
   lastAttemptAt: number | null;
@@ -60,7 +60,7 @@ const isWrong = (status: string | undefined) =>
   status === 'failed' || status === 'partial' || status === 'pending';
 
 /**
- * 把题目分进「待订正 / 已订正 / 已移出」。
+ * 把做错过的题分进「错题本 / 已移出」。
  * `mistakes` 是做错过的题（任何一次作答错了或部分对）。
  * 移出之后又做错（最新状态是错、且在移出之后作答）就回到待订正。
  */
@@ -80,8 +80,7 @@ export function sortMistakes(
     if (!mistakes.has(problem.id) && !(status === 'failed' || status === 'partial')) continue;
     const removedAt = removed[problem.id];
     const wrongAgain = isWrong(status) && (record?.lastAttemptAt ?? 0) > (removedAt ?? 0);
-    const tab: MistakeTab =
-      removedAt !== undefined && !wrongAgain ? 'removed' : status === 'passed' ? 'fixed' : 'todo';
+    const tab: MistakeTab = removedAt !== undefined && !wrongAgain ? 'removed' : 'book';
     entries.push({
       problem,
       tab,

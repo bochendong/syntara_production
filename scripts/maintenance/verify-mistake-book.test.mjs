@@ -21,7 +21,7 @@ const row = (problemId, status, lastAttemptAt, attemptedCount = 2, passedCount =
   passedCount,
 });
 
-test('mistakes stay after a correct redo and leave only when the student removes them', () => {
+test('every problem ever wrong stays in one list until the student removes it', () => {
   const problems = [
     problem('wrong'),
     problem('fixed'),
@@ -43,7 +43,7 @@ test('mistakes stay after a correct redo and leave only when the student removes
   const tabs = Object.fromEntries(
     sortMistakes(problems, mistakes, records, removed).map((e) => [e.problem.id, e.tab]),
   );
-  assert.deepEqual(tabs, { wrong: 'todo', fixed: 'fixed', removed: 'removed', back: 'todo' });
+  assert.deepEqual(tabs, { wrong: 'book', fixed: 'book', removed: 'removed', back: 'book' });
 });
 
 test('a currently failed problem counts even before its attempt history loads', () => {
@@ -53,7 +53,7 @@ test('a currently failed problem counts even before its attempt history loads', 
     new Map([['p', row('p', 'partial', 1, 1)]]),
     {},
   );
-  assert.equal(entries[0].tab, 'todo');
+  assert.equal(entries[0].tab, 'book');
 });
 
 test('snippets show the chosen and correct option letters and failing tests', () => {

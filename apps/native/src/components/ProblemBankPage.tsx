@@ -703,18 +703,16 @@ export function ProblemBankPage({
     [progress.problems, attemptHistory.mistakes, progressById, removedMistakes],
   );
   const mistakeCounts = useMemo(() => {
-    const todo = new Set<string>();
-    let fixed = 0;
+    const book = new Set<string>();
     let removed = 0;
     for (const entry of mistakeEntries) {
-      if (entry.tab === 'todo') todo.add(entry.problem.id);
-      else if (entry.tab === 'fixed') fixed += 1;
+      if (entry.tab === 'book') book.add(entry.problem.id);
       else removed += 1;
     }
-    return { todo, fixed, removed };
+    return { book, removed };
   }, [mistakeEntries]);
   const mistakes = useMemo(
-    () => mistakeEntries.filter((entry) => entry.tab === 'todo').map((entry) => entry.problem),
+    () => mistakeEntries.filter((entry) => entry.tab === 'book').map((entry) => entry.problem),
     [mistakeEntries],
   );
   const [mistakeMode, setMistakeModeState] = useState(
@@ -1436,18 +1434,12 @@ export function ProblemBankPage({
                       >
                         <span className="pb-hero-stack" aria-hidden>
                           {mistakes.slice(0, 3).map((problem) => (
-                            <img
-                              key={problem.id}
-                              src={
-                                marbleImages[STATUS_MARBLES[statuses.get(problem.id) ?? 'failed']]
-                              }
-                              alt=""
-                            />
+                            <img key={problem.id} src={marbleImages.pink} alt="" />
                           ))}
                         </span>
                         <span className="pb-hero-copy">
                           <small>错题本</small>
-                          <strong>{mistakes.length} 道待订正</strong>
+                          <strong>{mistakes.length} 道错题</strong>
                         </span>
                         <span className="pb-hero-go" aria-hidden>
                           <Play size={16} fill="currentColor" />

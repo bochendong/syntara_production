@@ -108,47 +108,6 @@
   box-shadow: 0 8px 18px rgb(15 143 90 / 22%);
 }
 
-.mb-tabs {
-  display: flex;
-  gap: 18px;
-  padding: 0 4px;
-  border-bottom: 1px solid rgb(15 23 42 / 7%);
-}
-
-.mb-tabs button {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 4px;
-  margin-bottom: -1px;
-  padding: 8px 0;
-  border: 0;
-  border-bottom: 2px solid transparent;
-  background: transparent;
-  color: #64748b;
-  font: inherit;
-  font-size: 14px;
-  cursor: pointer;
-}
-
-.mb-tabs button small {
-  color: #94a3b8;
-  font-size: 11px;
-}
-
-.mb-tabs button.is-active {
-  border-bottom-color: var(--marble-pink-deep);
-  color: #0f172a;
-  font-weight: 650;
-}
-
-.mb-tabs button.is-active.is-fixed {
-  border-bottom-color: var(--marble-green-deep);
-}
-
-.mb-tabs button.is-active.is-removed {
-  border-bottom-color: #94a3b8;
-}
-
 .mb-chips {
   display: flex;
   flex-wrap: wrap;
@@ -162,6 +121,16 @@
 
 .mb-chip small {
   color: #94a3b8;
+}
+
+.mb-removed-toggle {
+  margin-left: auto;
+}
+
+.mb-row-actions {
+  display: flex;
+  flex: none;
+  gap: 6px;
 }
 
 .mb-chip.is-active {
