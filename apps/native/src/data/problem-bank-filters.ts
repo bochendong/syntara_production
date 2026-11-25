@@ -147,6 +147,23 @@ export function paperSetKind(name: string, useCsc108Names = false): PaperSetKind
   return 'practice';
 }
 
+export type PaperSourceTag = '考试原题' | '模拟题';
+
+// Classify the paper, not its members: a past-exam question can also appear on a mock.
+export function csc108PaperSourceTag(label: string): PaperSourceTag | undefined {
+  const name = csc108PaperName(label);
+  if (/\b(?:mock|review|adapted|sample|practice)\b|模拟|模考|复习卷|改编/i.test(name))
+    return '模拟题';
+  // Published past papers carry a campus, a year, and an exam designation.
+  if (
+    /^UT(?:SG|M|SC)[ -]20\d{2}[FWS]?[ -](?:TT[12]|Term Test [12]|Quiz[ -]?[12]|Midterm|Final|Timed Test)(?:[ -](?:V\d+|[A-Z]))?$/i.test(
+      name,
+    )
+  )
+    return '考试原题';
+  return undefined;
+}
+
 function paperSetYear(name: string): number {
   const match = /20(\d{2})|(\d{2})[FWS]\b/.exec(name);
   return match ? Number(match[1] ?? match[2]) : 0;

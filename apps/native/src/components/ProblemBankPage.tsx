@@ -11,6 +11,7 @@ import { ArrowLeft, Check, ChevronLeft, LayoutGrid, List, Play } from 'lucide-re
 import { difficultyLabel, problemTypeLabel } from '../data/local-problem-grading';
 import {
   courseSeries,
+  csc108PaperSourceTag,
   courseQuestionNumber,
   paperLabels,
   matchesProblemFilters,
@@ -20,6 +21,7 @@ import {
   problemPaperSets,
   usesCsc108PaperNames,
   type PaperSetKind,
+  type PaperSourceTag,
 } from '../data/problem-bank-filters';
 import { practiceLaunchForResults } from '../data/problem-practice-scope';
 import { ProblemTitleText } from './problem-bank/problem-rich-text';
@@ -92,6 +94,7 @@ type SheetView = 'grid' | 'list';
 type BankMode = 'chapters' | 'sets';
 
 type Chapter = {
+  sourceTag?: PaperSourceTag;
   key: string;
   number: string | null;
   title: string;
@@ -534,6 +537,7 @@ export function ProblemBankPage({
           number: year,
           title: set.name,
           color: PAPER_SET_COLORS[set.kind],
+          sourceTag: useCsc108Names ? csc108PaperSourceTag(set.name) : undefined,
           order: index,
           problems: set.problems,
           passed: 0,
@@ -550,6 +554,11 @@ export function ProblemBankPage({
       }),
     [bankProblems, useCsc108Names, sourceProblems, statuses],
   );
+  const [paperSource, setPaperSource] = useState<PaperSourceTag | '全部'>('全部');
+  const visiblePaperSets =
+    useCsc108Names && paperSource !== '全部'
+      ? paperSetChapters.filter((set) => set.sourceTag === paperSource)
+      : paperSetChapters;
   const [bankModeState, setBankModeState] = useState<BankMode>(() =>
     readCourseValue<BankMode>('session', BANK_MODE_KEY, courseId) === 'sets' ? 'sets' : 'chapters',
   );
@@ -896,6 +905,9 @@ export function ProblemBankPage({
               ) : null}
               <ChapterMarble chapter={openChapter} />
               <strong>{openChapter.title}</strong>
+              {openChapter.sourceTag && (
+                <span className="pb-paper-source">{openChapter.sourceTag}</span>
+              )}
               <ChapterTube chapter={openChapter} />
               <div
                 className="pb-view-toggle"
@@ -1239,9 +1251,27 @@ export function ProblemBankPage({
                       ))}
                     </div>
                   ) : null}
+                  {bankMode === 'sets' && useCsc108Names ? (
+                    <div className="pb-mode-switch" role="group" aria-label="试卷来源">
+                      {(['全部', '考试原题', '模拟题'] as const).map((source) => (
+                        <button
+                          key={source}
+                          type="button"
+                          aria-pressed={paperSource === source}
+                          className={paperSource === source ? 'is-active' : ''}
+                          onClick={() => setPaperSource(source)}
+                        >
+                          {source}
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                  {bankMode === 'sets' && !visiblePaperSets.length ? (
+                    <p role="status">暂无{paperSource}套题</p>
+                  ) : null}
                   {bankMode === 'sets' ? (
-                    [...new Set(paperSetChapters.map((set) => set.kind))].map((kind) => {
-                      const sets = paperSetChapters.filter((set) => set.kind === kind);
+                    [...new Set(visiblePaperSets.map((set) => set.kind))].map((kind) => {
+                      const sets = visiblePaperSets.filter((set) => set.kind === kind);
                       const total = sets.reduce((sum, set) => sum + set.problems.length, 0);
                       const done = sets.filter((set) => !firstUnpassed(set.problems)).length;
                       return (
@@ -1274,7 +1304,12 @@ export function ProblemBankPage({
                                     <ChapterMarble chapter={set} />
                                     <span className="pb-set-copy">
                                       <strong>{set.title}</strong>
-                                      <small>{set.problems.length} 题</small>
+                                      <small>
+                                        {set.sourceTag && (
+                                          <span className="pb-paper-source">{set.sourceTag}</span>
+                                        )}
+                                        {set.problems.length} 题
+                                      </small>
                                     </span>
                                   </button>
                                   <div className="pb-wall-foot">
