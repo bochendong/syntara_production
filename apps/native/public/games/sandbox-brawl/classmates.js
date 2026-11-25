@@ -1,4 +1,4 @@
-import { scholarLook } from './student-chibi.js?v=hit-feel';
+import { scholarLook } from './student-chibi.js?v=ghost-grey';
 
 export const CLASSES = {
   brawler:  { name: '体育委员', tag: 'melee',  hp: 150, start: 'sweep',   desc: '血厚，原地抡一圈大尺子，周围全砍', look: { style: 'spiky', outfit: 'track', skin: 0xf2c49a, hair: 0x2b1d18, top: 0xd8423a, pants: 0x2b3a5c, iris: 0x7a3a22, item: 'bat', band: 0xffffff, big: true } },

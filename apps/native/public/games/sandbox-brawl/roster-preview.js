@@ -2,7 +2,7 @@ import { CLASSES } from './classmates.js';
 import { ALT, BOSSES, WEAPONS } from './combat-catalog.js';
 import { campusMatchHalfHeight } from './campus-map-plan.js?v=match-camera';
 import { createGameAudio } from './game-audio.js?v=pickup-audio';
-import { studentIcon } from './student-chibi.js?v=hit-feel';
+import { studentIcon } from './student-chibi.js?v=ghost-grey';
 import { ROSTER_MONSTERS } from './roster-match-art.js';
 import { createRosterActions } from './roster-actions.js?v=workbench';
 import {

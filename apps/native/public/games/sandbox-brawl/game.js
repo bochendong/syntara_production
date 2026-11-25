@@ -5,7 +5,7 @@ import { rosterArenaSide, rosterBossSkillLabel, rosterEncounter, rosterSkillElem
 import { campusMatchCameraDistance, campusMatchHalfHeight, hallNorth, hallSouth, mapHalfDepth, roomViews } from './campus-map-plan.js?v=match-camera';
 import { advanceScholar } from './scholar.js?v=front-mirror';
 import { CLASSES } from './classmates.js';
-import { studentCardGeometry, poseChibi, studentIcon, studentTexture, useStudentCells } from './student-chibi.js?v=hit-feel';
+import { studentCardGeometry, poseChibi, studentIcon, studentTexture, useStudentCells } from './student-chibi.js?v=ghost-grey';
 import { buildInkPortal, buildPortraitRoom } from './campus-models.js?v=painted-court';
 import { castShadowMatrix } from './campus-mesh.js';
 import { createCampusItems, ITEM } from './campus-items.js?v=bar-magnet';
@@ -687,7 +687,7 @@ class Rig {
     this.n = 0;
   }
 }
-const GHOSTC = new THREE.Color(0xdcefff);
+const GHOSTC = new THREE.Color(0xa9a9a9);   // 灵魂：灰色
 const SHM = new THREE.Matrix4();
 // 镜头是俯视的：角色整体往后仰一点，脸和身体才看得见，不会只看到头顶
 const LW = new THREE.Matrix4(), LEAN_ROT = new THREE.Matrix4(), LEAN_AX = new THREE.Vector3(); let leanAngle = 0;
@@ -1029,9 +1029,10 @@ function pushOutProps(o, r) { pushOutWalls(o, r); clampFieldPosition(o, r); }
 
 /* ================= 游戏状态 ================= */
 const DIFFS = {
-  easy:   { name: '简单', hp: 0.85, dmg: 0.8,  rate: 0.9,  boss: 32000, cd: 4.2, enrage: false, storm: false, revive: 2, elite: 90 },
-  normal: { name: '中等', hp: 1,    dmg: 1,    rate: 1,    boss: 48000, cd: 3.6, enrage: true,  storm: false, revive: 1, elite: 75 },
-  hard:   { name: '困难', hp: 1.35, dmg: 1.35, rate: 1.25, boss: 72000, cd: 3.0, enrage: true,  storm: true, revive: 1, elite: 60 },
+  // 2026-11-25 学生反馈太难：血量、伤害、出怪量、Boss 血量整体下调约两成。
+  easy:   { name: '简单', hp: 0.7,  dmg: 0.65, rate: 0.7,  boss: 24000, cd: 4.2, enrage: false, storm: false, revive: 2, elite: 90 },
+  normal: { name: '中等', hp: 0.82, dmg: 0.82, rate: 0.8,  boss: 38000, cd: 3.6, enrage: true,  storm: false, revive: 1, elite: 75 },
+  hard:   { name: '困难', hp: 1.15, dmg: 1.15, rate: 1.05, boss: 60000, cd: 3.0, enrage: true,  storm: true, revive: 1, elite: 60 },
 };
 const MODES = {
   std:     { name: '标准' },
@@ -1493,7 +1494,8 @@ function enemyHpScale() {
   return (base + (end - base) * clamp(waveElapsed() / BOSS_T, 0, 1)) * DF().hp * netHp();
 }
 const tDmg = () => 1 + T / 30 * 0.06 + Math.max(0, T - BOSS_T) / 60 * 0.05;
-const ENEMY_START_SPEED = 1.5, ENDLESS_WAVE_START_SPEED = 1.8, ENEMY_SPEED_PER_MINUTE = 0.4;
+// 10 分钟时约 4.1（原 5.5），始终明显慢于玩家 5.7。
+const ENEMY_START_SPEED = 1.3, ENDLESS_WAVE_START_SPEED = 1.55, ENEMY_SPEED_PER_MINUTE = 0.28;
 // 场上所有怪都按同一波的起步速度和已用时间移动。
 function enemyMoveSpeed() {
   const startSpeed = endlessWaveStartedAt === null ? ENEMY_START_SPEED : ENDLESS_WAVE_START_SPEED;
@@ -3367,7 +3369,7 @@ const NET_TYPES = Object.keys(ET), NET_TI = Object.fromEntries(NET_TYPES.map((t,
 const TEAM_COLORS = ['#66c4ff', '#ffcb52', '#68dfa5', '#f7a7d3'];
 const ptags = document.createElement('div'); ptags.id = 'ptags'; ptags.hidden = true; document.body.appendChild(ptags);
 let netName = ''; try { netName = localStorage.getItem('syntara.brawl.name') || ''; } catch (e) {}
-const netHp = () => (NET && NET.on && NET.host ? 1 + 0.5 * (NET.n - 1) : 1);
+const netHp = () => (NET && NET.on && NET.host ? 1 + 0.35 * (NET.n - 1) : 1);
 async function netPost(body) {
   let r; try { r = await fetch(NET_API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }); } catch (e) { throw new Error('连不上联机服务器。网页版和 iPad 可以联机，桌面 App 暂时不行'); }
   let j = null; try { j = await r.json(); } catch (e) {}

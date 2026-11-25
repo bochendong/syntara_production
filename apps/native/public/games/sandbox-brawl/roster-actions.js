@@ -1,5 +1,5 @@
 import * as THREE from './vendor/three.module.js';
-import { CHIBI_CELL, poseChibi, studentTexture } from './student-chibi.js?v=hit-feel';
+import { CHIBI_CELL, poseChibi, studentTexture } from './student-chibi.js?v=ghost-grey';
 
 const clips = {
   attack: { name: '蓄力 → 挥出 → 收招', length: 0.86 },
