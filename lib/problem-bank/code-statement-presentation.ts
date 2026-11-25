@@ -154,10 +154,15 @@ export function codeStatementPresentation(content: CodeStatementInput, locale: '
     }))
     .filter((section) => section.body || section.items.length || section.code);
   const hasDocstringExamples = /(?:"""|''')[\s\S]*>>>/.test(given);
+  const samples = content.sampleIO ?? [];
+  // A doctest may omit a None return and the observable effect of the call.
+  const hasExplainedNone = samples.some(
+    (sample) => sample.output.trim() === 'None' && sample.explanation?.trim(),
+  );
   return {
     stem,
     sections,
-    samples: hasDocstringExamples ? [] : (content.sampleIO ?? []),
+    samples: hasDocstringExamples && !hasExplainedNone ? [] : samples,
     constraints: [...new Set([...(content.constraints ?? []), ...extractedConstraints])].filter(
       (item) => !FILLER.has(normalize(item)),
     ),

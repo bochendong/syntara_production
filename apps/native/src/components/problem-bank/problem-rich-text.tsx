@@ -1,4 +1,5 @@
 import { memo, useMemo } from 'react';
+import { parser as pythonParser } from '@lezer/python';
 import { ZoomableProblemImage } from '../../../../../lib/problem-bank/zoomable-problem-image';
 import {
   renderHtmlWithLatex,
@@ -916,20 +917,51 @@ function textToHtml(text: string): string {
   return protectedMath.restore(renderHtmlWithLatex(html));
 }
 
-export function renderProblemRichTextHtml(content: string): string {
-  return content.trim() ? textToHtml(content) : '';
+// Older choice labels can contain unmarked source or repr() output alongside ordinary prose.
+function isPythonChoice(label: string, prompt: string) {
+  if (/^(?:`|~~~|#{1,6}\s|[-+*]\s)|^\[[^\n]*\]\(|^\$/.test(label)) return false;
+  const pythonPrompt = /\bpython\b|(?:`{3}|~{3})py\b|^>>> /im.test(prompt);
+  // A quoted collection or a Python statement can also identify itself in a short prompt.
+  if (!pythonPrompt && !/^(?:[\[({]\s*['"]|def\s+\w+\(|for\s+\w+\s+in\s|print\()/.test(label))
+    return false;
+  if (/^[\p{L}_][\p{L}\p{N}_]*$/u.test(label))
+    return (
+      PYTHON_LITERALS.has(label) ||
+      PYTHON_BUILTINS.has(label) ||
+      /^[A-Z]\w+Error$/.test(label) ||
+      prompt.includes(`'${label}'`) ||
+      prompt.includes(`"${label}"`)
+    );
+
+  const cursor = pythonParser.parse(label).cursor();
+  do {
+    if (cursor.type.isError) return false;
+  } while (cursor.next());
+  return true;
+}
+
+export function renderProblemRichTextHtml(content: string, choicePrompt?: string): string {
+  const label = content.trim();
+  if (!label) return '';
+  if (choicePrompt !== undefined && isPythonChoice(label, choicePrompt)) {
+    if (content.includes('\n')) return renderCodeBlock(content.split(/\r?\n/), 'python');
+    return `<code class="problem-rich-inline-code whitespace-pre-wrap">${renderHighlightedPythonCode(content)}</code>`;
+  }
+  return textToHtml(content);
 }
 
 export const ProblemRichText = memo(function ProblemRichText({
   content,
   className,
+  choicePrompt,
 }: {
   content?: string;
   className?: string;
+  choicePrompt?: string;
 }) {
   const html = useMemo(
-    () => (content?.trim() ? renderProblemRichTextHtml(content) : ''),
-    [content],
+    () => renderProblemRichTextHtml(content ?? '', choicePrompt),
+    [content, choicePrompt],
   );
   if (!html) return null;
   return (

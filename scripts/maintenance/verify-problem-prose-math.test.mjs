@@ -2,10 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import fs from 'node:fs';
 import path from 'node:path';
-import { createRequire } from 'node:module';
 import { createJiti } from 'jiti';
 import ts from 'typescript';
-const require = createRequire(import.meta.url);
 const jiti = createJiti(import.meta.url, { alias: { '@': path.resolve('.') } });
 const helpers = await jiti.import('../../lib/problem-bank/problem-prose-math.ts');
 const repair = helpers.repairProblemProseMath;
@@ -19,6 +17,7 @@ async function renderer(native) {
     ),
   );
   const mocks = {
+    './racket-code.css': {},
     '../../lib/math-engine': math,
     '@/lib/math-engine': math,
     '../../lib/render-html-with-latex': html,
@@ -39,6 +38,7 @@ async function renderer(native) {
   const filename = native
     ? 'apps/native/src/components/problem-bank/problem-rich-text.tsx'
     : 'components/problem-bank/problem-rich-text.tsx';
+  const require = createJiti(path.resolve(filename));
   const compiled = ts.transpileModule(fs.readFileSync(filename, 'utf8'), {
     compilerOptions: {
       module: ts.ModuleKind.CommonJS,

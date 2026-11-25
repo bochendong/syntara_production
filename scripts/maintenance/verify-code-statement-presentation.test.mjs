@@ -111,6 +111,18 @@ test('docstring tasks show one description, retaining concrete implementation re
   assert.deepEqual(content, before);
 });
 
+test('a doctest does not hide the explained effect of a None return', () => {
+  const sampleIO = [
+    { input: 'increment([1])', output: 'None', explanation: 'The original list contains [2].' },
+  ];
+  const content = {
+    stem: 'Increment each element.',
+    starterCode: 'def increment(values):\n    """\n    >>> increment([])\n    """',
+    sampleIO,
+  };
+  assert.deepEqual(codeStatementPresentation(content, 'en-US').samples, sampleIO);
+});
+
 test('tasks requiring students to write their own docstring retain that requirement', () => {
   const result = codeStatementPresentation(
     {

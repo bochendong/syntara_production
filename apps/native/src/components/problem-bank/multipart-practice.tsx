@@ -66,6 +66,7 @@ function caseName(id: string) {
 /** 大题里的代码小问：玻璃编辑器 + 自己试 + 运行公开测试（不算提交）。 */
 function PartCode({
   part,
+  locale,
   answer,
   disabled,
   onChange,
@@ -76,6 +77,7 @@ function PartCode({
   onRunHiddenTests,
 }: {
   part: LocalProblemPart;
+  locale: 'zh-CN' | 'en-US';
   answer: LocalPartAnswer;
   disabled: boolean;
   onChange: (next: LocalPartAnswer) => void;
@@ -100,6 +102,7 @@ function PartCode({
         {slots ? (
           <NativeCodeSlots
             template={slots}
+            locale={locale}
             value={code}
             disabled={disabled}
             className="min-h-0 flex-1 rounded-none border-0 shadow-none"
@@ -287,6 +290,7 @@ function PartPrompt({
   if (part.type === 'code')
     return (
       <PartCode
+        locale={locale}
         part={part}
         answer={answer}
         disabled={disabled}
@@ -403,7 +407,7 @@ function PartPrompt({
               >
                 <strong>{on ? <img src={marbleImages.blue} alt="" /> : option.id}</strong>
                 <span>
-                  <ProblemRichText content={option.label} />
+                  <ProblemRichText content={option.label} choicePrompt={part.prompt} />
                 </span>
               </button>
             );
