@@ -943,6 +943,18 @@ span.pb-row-marble img {
   font-variant-numeric: tabular-nums;
 }
 
+.pb-paper-source {
+  display: inline-block;
+  margin-inline-end: 6px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: #edf1f7;
+  color: #43536a;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
 .pb-set-group + .pb-set-group .pb-wall-title {
   margin-top: 22px;
 }

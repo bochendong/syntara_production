@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import {
   matchesProblemFilters,
+  csc108PaperSourceTag,
   paperSetKind,
   paperSetPositionTag,
   paperSetPositions,
@@ -233,4 +234,29 @@ for (const name of ['Quiz 2', 'quiz2', 'UTM-2026-Term Test 2 Mock-A']) {
   assert.equal(paperSetKind(name, true), 'tt2');
 }
 assert.equal(paperSetKind('Quiz 12', true), 'test');
+for (const label of [
+  'TT2原版模拟A卷',
+  'Midterm Set 03',
+  'UTSG-2026-Quiz 2 Review-A',
+  'TT2 模考 A',
+  'UTM Term Test 2 Mock C',
+]) {
+  assert.equal(csc108PaperSourceTag(label), '模拟题');
+}
+for (const label of [
+  'UTM 2023 Final',
+  'UTSG 2026W TT1 V1',
+  'UTSG-2026-Midterm-A',
+  'UTM 2022 Timed Test',
+  'TT1原版模拟A卷',
+]) {
+  assert.equal(csc108PaperSourceTag(label), '考试原题');
+}
+for (const label of ['Worksheet 16', 'TT2', 'Untitled paper']) {
+  assert.equal(csc108PaperSourceTag(label), undefined);
+}
+assert.deepEqual(
+  problemPaperSets([sharedQ5], true).map((set) => csc108PaperSourceTag(set.name)),
+  ['模拟题', '考试原题'],
+);
 console.log('Native problem filters, paper sets and reference-proof/rubric requests passed.');
