@@ -143,6 +143,79 @@ test('rejects stale, foreign and private questions as well as invalid option IDs
   assert.equal(version(), 1);
 });
 
+test('patches bilingual multipart presentation without rewriting code, IDs or grading', async () => {
+  const question = row('part', 'multipart');
+  const code = {
+    ...row('code', 'code').publicContentJson,
+    starterCode: 'def f():\n    pass',
+    statementSections: [
+      { id: 'requirements', body: 'Pick a block.', code: 'A. return x', codeLanguage: 'python' },
+    ],
+    translations: { 'zh-CN': { stem: '原题题面' }, 'en-US': { stem: 'Original prompt' } },
+  };
+  question.publicContentJson.parts = [{ label: 'a', points: 2, content: code }];
+  const path = ['parts', 0, 'content'];
+  const change = {
+    ...target(question),
+    action: 'presentation',
+    edits: [
+      { path: [...path, 'translations', 'zh-CN', 'stem'], before: '原题题面', after: '中文题面' },
+      {
+        path: [...path, 'translations', 'en-US', 'stem'],
+        before: 'Original prompt',
+        after: 'English prompt',
+      },
+      {
+        path: [...path, 'statementSections', 0, 'body'],
+        before: 'Pick a block.',
+        after: 'Pick a block.\n\nA. `return x`',
+      },
+      { path: [...path, 'statementSections', 0, 'code'], before: 'A. return x', after: null },
+      { path: [...path, 'statementSections', 0, 'codeLanguage'], before: 'python', after: null },
+    ],
+  };
+  const { state, db, version } = fixture(question);
+  const input = { changes: [change] };
+  assert.equal((await reviseCourseProblems(db, 'course', input)).updated, 0);
+  assert.deepEqual(state.get(question.id), question);
+  assert.equal((await reviseCourseProblems(db, 'course', { ...input, apply: true })).updated, 1);
+  assert.equal(version(), 2);
+  const after = state.get(question.id);
+  assert.deepEqual(after.gradingJson, question.gradingJson);
+  assert.deepEqual(after.publicContentJson.parts[0], {
+    label: 'a',
+    points: 2,
+    content: {
+      ...code,
+      translations: { 'zh-CN': { stem: '中文题面' }, 'en-US': { stem: 'English prompt' } },
+      statementSections: [{ id: 'requirements', body: 'Pick a block.\n\nA. `return x`' }],
+    },
+  });
+  assert.equal((await reviseCourseProblems(db, 'course', { ...input, apply: true })).unchanged, 1);
+});
+
+test('rejects stale text and writes to executable, identity, or grading fields', async () => {
+  const question = row('restricted', 'code');
+  const { db, version } = fixture(question);
+  for (const edit of [
+    { path: ['stem'], before: 'Stale prompt', after: 'New prompt' },
+    { path: ['starterCode'], before: 'pass', after: 'return x' },
+    { path: ['options', 0, 'id'], before: 'a', after: 'b' },
+    { path: ['grading', 'referenceAnswer'], before: 'Old answer', after: 'New answer' },
+    { path: ['__proto__', 'stem'], before: 'Original prompt', after: 'New prompt' },
+    { path: ['statementSections', 0, 'code'], before: 'return x', after: null },
+  ]) {
+    await assert.rejects(
+      reviseCourseProblems(db, 'course', {
+        apply: true,
+        changes: [{ ...target(question), action: 'presentation', edits: [edit] }],
+      }),
+      CourseProblemRevisionConflict,
+    );
+  }
+  assert.equal(version(), 1);
+});
+
 test('memory diagrams revise localized multipart presentation without touching grading', async () => {
   const question = row('memory', 'multipart');
   const stemTemplate = 'Fill the numbered image.';

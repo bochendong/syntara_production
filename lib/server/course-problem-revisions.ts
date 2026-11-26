@@ -45,6 +45,23 @@ const choice = z
     grading: notebookProblemGradingChoiceSchema,
   })
   .strict();
+const presentationEdit = z
+  .object({
+    path: z
+      .array(z.union([z.string().min(1).max(40), z.number().int().min(0).max(1_000)]))
+      .min(1)
+      .max(9),
+    before: z.string().max(16_000),
+    after: z.string().min(1).max(16_000).nullable(),
+  })
+  .strict();
+const presentation = z
+  .object({
+    ...identity,
+    action: z.literal('presentation'),
+    edits: z.array(presentationEdit).min(1).max(64),
+  })
+  .strict();
 const archive = z.object({ ...identity, action: z.literal('archive') }).strict();
 const diagramPresentation = problemMemoryDiagramViewSchema.extend({
   memoryDiagram: problemMemoryDiagramSchema,
@@ -65,7 +82,9 @@ const schema = z
   .object({
     apply: z.boolean().default(false),
     changes: z
-      .array(z.discriminatedUnion('action', [display, choice, archive, memoryDiagram]))
+      .array(
+        z.discriminatedUnion('action', [display, presentation, choice, archive, memoryDiagram]),
+      )
       .min(1)
       .max(100),
   })
@@ -120,6 +139,82 @@ function updateDisplay(content: Record<string, unknown>, change: z.infer<typeof 
     });
     requireMatch(updates.size === 0, 'A statement section was not found.');
     next = { ...next, statementSections: sections };
+  }
+  return next;
+}
+
+type PresentationPath = z.infer<typeof presentationEdit>['path'];
+
+function presentationField(path: PresentationPath, isRemoval: boolean) {
+  let field = path;
+  if (field[0] === 'parts') {
+    if (typeof field[1] !== 'number' || field[2] !== 'content') return false;
+    field = field.slice(3);
+  }
+  const translated = field[0] === 'translations';
+  if (translated) {
+    if (field[1] !== 'en-US' && field[1] !== 'zh-CN') return false;
+    field = field.slice(2);
+  }
+  const [name, index, key, itemIndex] = field;
+  if (isRemoval) {
+    return (
+      !translated &&
+      field.length === 3 &&
+      name === 'statementSections' &&
+      typeof index === 'number' &&
+      (key === 'code' || key === 'codeLanguage')
+    );
+  }
+  if (field.length === 1) return name === 'stem' || name === 'stemTemplate';
+  if (typeof index !== 'number') return false;
+  if (field.length === 2) return name === 'constraints';
+  if (field.length === 3) {
+    return (
+      (name === 'options' && key === 'label') ||
+      (name === 'statementSections' && key === 'body') ||
+      (name === (translated ? 'sampleExplanations' : 'sampleIO') && key === 'explanation')
+    );
+  }
+  return (
+    field.length === 4 &&
+    name === 'statementSections' &&
+    key === 'items' &&
+    typeof itemIndex === 'number'
+  );
+}
+
+/** Patch reviewed display text without reserializing or replacing the rest of a question. */
+function updatePresentation(
+  content: Record<string, unknown>,
+  change: z.infer<typeof presentation>,
+) {
+  const next = structuredClone(content);
+  const edits = new Map(change.edits.map((edit) => [JSON.stringify(edit.path), edit]));
+  requireMatch(edits.size === change.edits.length, 'Presentation paths must be unique.');
+  for (const { path, before, after } of change.edits) {
+    requireMatch(presentationField(path, after === null), 'This field is not presentation text.');
+    if (after === null) {
+      const body = edits.get(JSON.stringify([...path.slice(0, -1), 'body']));
+      requireMatch(body && body.after !== null, 'Move section code into its display body first.');
+    }
+    let parent: unknown = next;
+    for (const segment of path.slice(0, -1)) {
+      parent =
+        typeof segment === 'number'
+          ? Array.isArray(parent)
+            ? parent[segment]
+            : undefined
+          : record(parent)[segment];
+    }
+    const key = path[path.length - 1];
+    const value =
+      typeof key === 'number' && Array.isArray(parent) ? parent[key] : record(parent)[key];
+    if (value === (after ?? undefined)) continue;
+    requireMatch(value === before, 'The presentation text changed after review.');
+    if (after === null) delete record(parent)[key];
+    else if (typeof key === 'number' && Array.isArray(parent)) parent[key] = after;
+    else record(parent)[key] = after;
   }
   return next;
 }
@@ -276,10 +371,13 @@ export async function reviseCourseProblems(db: PrismaClient, courseId: string, i
             }),
           };
         } else {
+          const original = record(row.publicContentJson);
           const content =
             change.action === 'memory-diagram'
-              ? updateMemoryDiagram(record(row.publicContentJson), record(row.gradingJson), change)
-              : updateDisplay(record(row.publicContentJson), change);
+              ? updateMemoryDiagram(original, record(row.gradingJson), change)
+              : change.action === 'presentation'
+                ? updatePresentation(original, change)
+                : updateDisplay(original, change);
           unchanged = stable(content) === stable(row.publicContentJson);
           patch = { publicContentJson: content as Prisma.InputJsonValue };
         }
