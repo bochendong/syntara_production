@@ -95,6 +95,7 @@ test('series launch captures the visible sequence across chapters and excludes o
     'relation-a2': 4,
   });
   assert.equal(launch.title, 'TT1模拟A卷');
+  assert.equal(launch.language, undefined);
   assert.equal(launch.initialProblemId, 'function-a2');
   assert.equal(adjacentPracticeProblem(launch.problemIds, 'function-a2', 1), 'relation-a1');
   visible.reverse();

@@ -44,6 +44,12 @@ import {
   notebookLanguage,
   notebookVariants,
 } from '../lib/notebook-translations';
+import {
+  DEFAULT_PROBLEM_CONTENT_LANGUAGE,
+  hasBilingualProblem,
+  localizeProblem,
+  type ProblemContentLanguage,
+} from '../lib/problem-language';
 
 const PROGRESS_STATUS_LABELS: Record<string, string> = {
   passed: '已通过',
@@ -727,8 +733,12 @@ function ProblemViewer({
   document: LocalProblemDocument;
   onClose: () => void;
 }) {
-  const statements = readableProblemParts(document.problem.publicContent);
-  const choices = problemChoices(document.problem.publicContent);
+  const [language, setLanguage] = useState<ProblemContentLanguage>(
+    DEFAULT_PROBLEM_CONTENT_LANGUAGE,
+  );
+  const problem = localizeProblem(document.problem, language);
+  const statements = readableProblemParts(problem.publicContent);
+  const choices = problemChoices(problem.publicContent);
   const progress = document.progress;
   return (
     <section className="local-resource-sheet local-problem-sheet" aria-label="本地题目阅读器">
@@ -739,8 +749,11 @@ function ProblemViewer({
         </button>
         <div>
           <span>本地题库</span>
-          <h2>{document.problem.title}</h2>
+          <h2>{problem.title}</h2>
         </div>
+        {hasBilingualProblem(document.problem) ? (
+          <ContentLanguageSwitch label="题目语言" value={language} onChange={setLanguage} />
+        ) : null}
         <span className="local-resource-storage">
           <HardDrive size={14} />
           无需加载服务器

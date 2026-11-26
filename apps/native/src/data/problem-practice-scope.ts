@@ -20,7 +20,6 @@ export function practiceLaunchForResults(
   const problemIds = [...new Set(problems.map((problem) => problem.id))];
   if (!problemIds.length) return null;
   return {
-    language: 'zh-CN',
     problemIds,
     initialProblemId: initialId && problemIds.includes(initialId) ? initialId : problemIds[0],
     numbers: Object.fromEntries(problemIds.map((id, index) => [id, index + 1])),

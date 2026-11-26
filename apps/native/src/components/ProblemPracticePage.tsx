@@ -203,6 +203,7 @@ import {
 import type { ProblemChatAttachment } from '../lib/problem-chat';
 import type { ProblemCoachMove } from '../../../../lib/problem-bank/problem-coach';
 import {
+  DEFAULT_PROBLEM_CONTENT_LANGUAGE,
   hasBilingualProblem,
   localizeProblem,
   type ProblemContentLanguage,
@@ -406,7 +407,9 @@ export function ProblemPracticePage({
     [launch.teacherPreview, problems, teacherPracticeStore],
   );
   const [previewDraftScope] = useState(() => `teacher-preview:${crypto.randomUUID()}`);
-  const [language, setLanguage] = useState<ProblemContentLanguage>(launch.language ?? 'zh-CN');
+  const [languageChoice, setLanguageChoice] = useState<ProblemContentLanguage | undefined>(
+    launch.language,
+  );
   const problemMap = useMemo(
     () => new Map(problems.map((problem) => [problem.id, problem])),
     [problems],
@@ -546,6 +549,9 @@ export function ProblemPracticePage({
 
   const currentIndex = Math.max(0, orderedIds.indexOf(currentId));
   const currentProblem = problemMap.get(currentId) || null;
+  const canSwitchLanguage = currentProblem ? hasBilingualProblem(currentProblem) : false;
+  const language =
+    languageChoice ?? (canSwitchLanguage ? DEFAULT_PROBLEM_CONTENT_LANGUAGE : 'zh-CN');
   const resetAt = currentProblem && bankResetTimes(currentProblem.courseId)[currentProblem.id];
   const draftScope = launch.teacherPreview
     ? previewDraftScope
@@ -2145,11 +2151,11 @@ export function ProblemPracticePage({
         </div>
         <div className="pp-header-tools">
           {onAskAi && currentProblem ? <ProblemAiAskMenu disabled={loading} onAsk={askAi} /> : null}
-          {hasBilingualProblem(currentProblem) ? (
+          {canSwitchLanguage ? (
             <ContentLanguageSwitch
               label="题目语言"
               value={language}
-              onChange={setLanguage}
+              onChange={setLanguageChoice}
               busy={submitting || snapshotBusy}
             />
           ) : null}

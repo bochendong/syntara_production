@@ -24,6 +24,7 @@ import { useSettingsStore } from '@/lib/store/settings';
 import { useNotificationStore } from '@/lib/store/notifications';
 import { parsePdfForGeneration } from '@/lib/pdf/parse-for-generation';
 import {
+  DEFAULT_PROBLEM_CONTENT_LANGUAGE,
   getLocalizedProblemContent,
   getLocalizedProblemTitle,
   hasProblemTranslation,
@@ -493,7 +494,7 @@ export function ProblemBankView({ notebookId }: { notebookId: string }) {
   const [problems, setProblems] = useState<NotebookProblemClientRecord[]>([]);
   const [selectedProblemId, setSelectedProblemId] = useState<string | null>(null);
   const [problemLanguage, setProblemLanguage] = useState<ProblemContentLanguage>(
-    locale === 'zh-CN' ? 'zh-CN' : 'en-US',
+    DEFAULT_PROBLEM_CONTENT_LANGUAGE,
   );
   const [attempts, setAttempts] = useState<NotebookProblemAttemptRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -566,10 +567,6 @@ export function ProblemBankView({ notebookId }: { notebookId: string }) {
   useEffect(() => {
     void loadProblems();
   }, [loadProblems]);
-
-  useEffect(() => {
-    setProblemLanguage(locale === 'zh-CN' ? 'zh-CN' : 'en-US');
-  }, [locale]);
 
   const filteredProblems = useMemo(
     () =>

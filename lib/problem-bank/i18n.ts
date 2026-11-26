@@ -1,5 +1,8 @@
 export type ProblemContentLanguage = 'zh-CN' | 'en-US';
 
+/** Prefer the English version. The localization helpers fall back to the original content. */
+export const DEFAULT_PROBLEM_CONTENT_LANGUAGE: ProblemContentLanguage = 'en-US';
+
 /** Structural contract shared with the native client, without server schema dependencies. */
 export type LocalizableProblemContent = {
   type: string;
@@ -69,7 +72,7 @@ function readTitleTranslation(
 
 export function getLocalizedProblemTitle(
   problem: LocalizableProblemRecord,
-  language: ProblemContentLanguage,
+  language: ProblemContentLanguage = DEFAULT_PROBLEM_CONTENT_LANGUAGE,
 ): string {
   return (
     problem.publicContent.translations?.[language]?.title ??
@@ -80,7 +83,7 @@ export function getLocalizedProblemTitle(
 
 export function getLocalizedProblemContent<T extends LocalizableProblemContent>(
   content: T,
-  language: ProblemContentLanguage,
+  language: ProblemContentLanguage = DEFAULT_PROBLEM_CONTENT_LANGUAGE,
 ): T {
   const translation = content.translations?.[language];
   const next = { ...content };
@@ -207,6 +210,10 @@ function contentHasTranslation(
     translation?.stemTemplate ||
     translation?.explanation ||
     translation?.constraints?.length ||
+    translation?.starterCodeDescription ||
+    translation?.statementSections?.some(
+      (section) => section.title || section.body || section.items?.length,
+    ) ||
     translation?.sampleExplanations?.length ||
     translation?.assetTexts?.length ||
     translation?.options?.length ||

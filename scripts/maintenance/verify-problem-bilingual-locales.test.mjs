@@ -43,8 +43,10 @@ test('English translation preserves the Chinese base and option identities', () 
   ]);
   assert.deepEqual(content, before);
   assert.deepEqual(getLocalizedProblemContent(content, 'zh-CN').options, content.options);
+  assert.equal(getLocalizedProblemTitle(problem), 'Choose a colour');
+  assert.deepEqual(getLocalizedProblemContent(content), en);
   assert.equal(hasBilingualProblem(problem), true);
-  assert.equal(localizeProblem(problem, 'en-US').title, 'Choose a colour');
+  assert.equal(localizeProblem(problem).title, 'Choose a colour');
 });
 
 test('English base and Chinese translations retain existing behavior', () => {
@@ -63,10 +65,8 @@ test('English base and Chinese translations retain existing behavior', () => {
     getLocalizedProblemContent(problem.publicContent, 'zh-CN').stemTemplate,
     '数值：{{x}}',
   );
-  assert.equal(
-    getLocalizedProblemContent(problem.publicContent, 'en-US').stemTemplate,
-    'Value: {{x}}',
-  );
+  assert.equal(getLocalizedProblemContent(problem.publicContent).stemTemplate, 'Value: {{x}}');
+  assert.equal(localizeProblem(problem).title, 'Default title');
 });
 
 test('nested translations are detected and recursively localized', () => {
@@ -116,8 +116,27 @@ test('metadata title and missing translations fall back without modifying conten
   assert.equal(getLocalizedProblemTitle(problem, 'en-US'), 'Original');
   assert.equal(hasProblemTranslation(problem), true);
   assert.equal(getLocalizedProblemContent(problem.publicContent, 'en-US').stem, '原题内容');
+  assert.equal(getLocalizedProblemContent(problem.publicContent).stem, '原题内容');
+  assert.equal(localizeProblem({ ...problem, sourceMeta: undefined }).title, '原题');
   assert.equal(
     hasProblemTranslation({ title: '原题', publicContent: problem.publicContent }),
     false,
+  );
+});
+
+test('translated code requirements are shown by default and enable the language switch', () => {
+  const publicContent = {
+    type: 'code',
+    stem: '完成函数',
+    statementSections: [{ id: 'requirements', body: '使用循环。' }],
+    translations: {
+      'en-US': { statementSections: [{ id: 'requirements', body: 'Use a loop.' }] },
+    },
+  };
+  assert.equal(hasProblemTranslation({ title: '循环', publicContent }, 'en-US'), true);
+  assert.equal(getLocalizedProblemContent(publicContent).statementSections[0].body, 'Use a loop.');
+  assert.equal(
+    getLocalizedProblemContent(publicContent, 'zh-CN').statementSections[0].body,
+    '使用循环。',
   );
 });

@@ -446,7 +446,7 @@ export function ProblemBankPage({
       workspace.problems,
       (p) => layered && isPrivateProblem(layers, p.id),
     );
-    return visible.map((problem) => localizeProblem(problem, 'zh-CN'));
+    return visible.map((problem) => localizeProblem(problem));
   }, [layered, layers, workspace.problems]);
 
   // 真实课程章节优先；未分课程章节的旧题仍沿用笔记 / 知识点分组。

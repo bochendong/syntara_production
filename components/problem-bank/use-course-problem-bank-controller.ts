@@ -10,6 +10,7 @@ import { toast } from '@/lib/notifications/client-toast';
 import { useRouter } from 'next/navigation';
 import { useI18n } from '@/lib/hooks/use-i18n';
 import {
+  DEFAULT_PROBLEM_CONTENT_LANGUAGE,
   getLocalizedProblemContent,
   getLocalizedProblemTitle,
   hasProblemTranslation,
@@ -235,7 +236,7 @@ export function useCourseProblemBankController({
   >(null);
   const [selectedProblemId, setSelectedProblemId] = useState<string | null>(null);
   const [problemLanguage, setProblemLanguage] = useState<ProblemContentLanguage>(
-    locale === 'zh-CN' ? 'zh-CN' : 'en-US',
+    DEFAULT_PROBLEM_CONTENT_LANGUAGE,
   );
   const [problemInfoTab, setProblemInfoTab] = useState<ProblemInfoTab>('description');
   const [answerPanelTab, setAnswerPanelTab] = useState<AnswerPanelTab>('answer');
@@ -587,10 +588,6 @@ export function useCourseProblemBankController({
     if (canEditProblems) return;
     setProblemInfoTab((current) => (current === 'edit' ? 'description' : current));
   }, [canEditProblems]);
-
-  useEffect(() => {
-    setProblemLanguage(locale === 'zh-CN' ? 'zh-CN' : 'en-US');
-  }, [locale]);
 
   useEffect(() => {
     if (!isPracticeMode || problems.length === 0) return;

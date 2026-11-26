@@ -1,4 +1,5 @@
 import {
+  DEFAULT_PROBLEM_CONTENT_LANGUAGE,
   getLocalizedProblemContent,
   hasProblemTranslation,
   type ProblemContentLanguage,
@@ -8,6 +9,7 @@ import type { LocalProblem } from '../domain/models';
 import { splitNotebookName } from './notebook-reading';
 
 export type { ProblemContentLanguage } from '../../../../lib/problem-bank/i18n';
+export { DEFAULT_PROBLEM_CONTENT_LANGUAGE };
 
 export function hasBilingualProblem(problem: LocalProblem): boolean {
   return hasProblemTranslation({
@@ -19,7 +21,7 @@ export function hasBilingualProblem(problem: LocalProblem): boolean {
 /** Localize only the presentation; attempts and grading keep the original record. */
 export function localizeProblem(
   problem: LocalProblem,
-  language: ProblemContentLanguage,
+  language: ProblemContentLanguage = DEFAULT_PROBLEM_CONTENT_LANGUAGE,
 ): LocalProblem {
   const publicContent = getLocalizedProblemContent(
     problem.publicContent as LocalizableProblemContent,
