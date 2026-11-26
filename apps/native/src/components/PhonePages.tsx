@@ -295,6 +295,7 @@ const ROLE_LABELS: Record<NativeDeviceUser['role'], string> = {
   ADMIN: '管理员',
   STUDENT: '学生',
   TEACHER: '老师',
+  TEACHING_ASSISTANT: '助教',
   USER: '用户',
 };
 

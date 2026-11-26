@@ -1,9 +1,13 @@
-import type { Prisma } from '@/lib/server/generated-prisma';
+import { Prisma } from '@/lib/server/generated-prisma';
 import type { DbClient, RootDbClient } from '@/lib/server/repositories/types';
 import {
   listCourseEnrollmentsForUser,
   withCourseEnrollmentSchemaFallback,
 } from '@/lib/server/repositories/course-enrollment-repository';
+import {
+  activeCourseTeachingAssistant,
+  activeTeachingAssistantCoursesSql,
+} from '@/lib/server/repositories/course-teaching-assistant-repository';
 import { teacherCourseAccessWhere } from '@/lib/server/external-course-access';
 
 export type CreateOwnedCourseData = Omit<
@@ -93,6 +97,10 @@ export function listAccessibleCoursesForUser(
                   AND "studentMembership"."active" = true
               )
             )
+
+          UNION ALL
+
+          ${activeTeachingAssistantCoursesSql(Prisma.sql`(SELECT "id" FROM "ResolvedUser")`)}
 
           UNION ALL
 
@@ -292,12 +300,16 @@ export function listAccessibleCoursesForUser(
 }
 
 export async function listJoinedCoursesWithOwner(db: DbClient, userId: string) {
-  const [enrollments, legacyPurchases] = await Promise.all([
+  const [enrollments, legacyPurchases, assistantAssignments] = await Promise.all([
     listCourseEnrollmentsForUser(db, userId),
     db.coursePurchase.findMany({
       where: { buyerId: userId },
       select: { sourceCourseId: true, createdAt: true },
       orderBy: { createdAt: 'desc' },
+    }),
+    db.courseTeachingAssistant.findMany({
+      where: activeCourseTeachingAssistant(userId),
+      select: { courseId: true, addedAt: true },
     }),
   ]);
   const enrollmentCourseIds = enrollments.map((enrollment) => enrollment.courseId);
@@ -305,6 +317,7 @@ export async function listJoinedCoursesWithOwner(db: DbClient, userId: string) {
     new Set([
       ...enrollmentCourseIds,
       ...legacyPurchases.map((purchase) => purchase.sourceCourseId),
+      ...assistantAssignments.map((assignment) => assignment.courseId),
     ]),
   );
   if (courseIds.length === 0) return [];
@@ -312,6 +325,12 @@ export async function listJoinedCoursesWithOwner(db: DbClient, userId: string) {
   const joinedAtByCourseId = new Map<string, Date>();
   for (const enrollment of enrollments) {
     joinedAtByCourseId.set(enrollment.courseId, enrollment.joinedAt);
+  }
+  for (const assignment of assistantAssignments) {
+    const joinedAt = joinedAtByCourseId.get(assignment.courseId);
+    if (!joinedAt || joinedAt < assignment.addedAt) {
+      joinedAtByCourseId.set(assignment.courseId, assignment.addedAt);
+    }
   }
   for (const purchase of legacyPurchases) {
     if (!joinedAtByCourseId.has(purchase.sourceCourseId)) {

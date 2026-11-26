@@ -13,16 +13,17 @@ export function StudentUsageAppClient() {
   const hydrated = usePersistHydrated(useAuthStore);
   const isLoggedIn = useAuthStore((state) => state.isLoggedIn);
   const role = useAuthStore((state) => state.role);
+  const canViewUsage = role === 'STUDENT' || role === 'TEACHING_ASSISTANT';
   const studentId = useAuthStore((state) => state.userId);
 
   useEffect(() => {
     if (!hydrated) return;
-    if (!isLoggedIn || role !== 'STUDENT') {
+    if (!isLoggedIn || !canViewUsage) {
       router.replace('/speedup/signed-out?role=student');
     }
-  }, [hydrated, isLoggedIn, role, router]);
+  }, [canViewUsage, hydrated, isLoggedIn, router]);
 
-  if (!hydrated || !isLoggedIn || role !== 'STUDENT' || !studentId) return null;
+  if (!hydrated || !isLoggedIn || !canViewUsage || !studentId) return null;
 
   return (
     <StudentAppShell

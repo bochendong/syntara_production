@@ -80,7 +80,8 @@ async function reconcileSpeedupCourseMembershipsForUserUncached(
   });
   if (!speedupAccount) return 'skipped';
 
-  const role = speedupAccount.user.role;
+  const accountRole = speedupAccount.user.role;
+  const role = accountRole === 'TEACHING_ASSISTANT' ? 'STUDENT' : accountRole;
   if (role !== 'STUDENT' && role !== 'TEACHER') return 'skipped';
 
   const courses = await listSpeedupCoursesForUser(userId, role);

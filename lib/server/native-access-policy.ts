@@ -43,7 +43,7 @@ export function nativeAccessDecision(
     return account &&
       account.expires_at !== null &&
       account.expires_at * 1_000 > now &&
-      (user.role === 'TEACHER' || user.role === 'STUDENT')
+      (user.role === 'TEACHER' || user.role === 'STUDENT' || user.role === 'TEACHING_ASSISTANT')
       ? 'allowed'
       : 'speedup_required';
   }

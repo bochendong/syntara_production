@@ -1,4 +1,5 @@
 import { CheckCircle2 } from 'lucide-react';
+import Link from 'next/link';
 
 import { SyntaraMark } from '@/components/brand/syntara-mark';
 
@@ -28,6 +29,14 @@ export default async function SpeedupSignedOutPage({
         <p className="mt-4 text-base leading-7 text-slate-600">
           当前 AI 课程会话已安全退出。请回到 Speedup 系统重新登录，再从课程页面进入 AI 课程。
         </p>
+        {role === '学生端' ? (
+          <Link
+            href="/login?role=assistant"
+            className="mt-5 inline-flex text-sm font-medium text-sky-700 underline underline-offset-4"
+          >
+            助教账号登录
+          </Link>
+        ) : null}
         <div className="mt-7 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-500">
           此页面无需继续操作，您可以直接关闭当前页面。
         </div>

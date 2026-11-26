@@ -3,6 +3,7 @@ import {
   findCourseAccessRole,
   removeCourseEnrollmentForUser,
 } from '@/lib/server/repositories/course-enrollment-repository';
+import { removeCourseTeachingAssistant } from '@/lib/server/repositories/course-teaching-assistant-repository';
 import { deleteOwnedCourseWithNotebooks } from '@/lib/server/repositories/course-repository';
 import { recordTutorialStep } from '@/lib/server/onboarding';
 
@@ -43,13 +44,17 @@ export async function removeCourseForUser(
     return { status: 'deleted' };
   }
 
-  const { removedEnrollment, removedLegacyPurchases } = await prisma.$transaction(async (tx) => ({
-    removedEnrollment: await removeCourseEnrollmentForUser(tx, userId, courseId),
-    removedLegacyPurchases: await tx.coursePurchase.deleteMany({
-      where: { buyerId: userId, sourceCourseId: courseId },
+  const { removedEnrollment, removedLegacyPurchases, removedAssistant } = await prisma.$transaction(
+    async (tx) => ({
+      removedEnrollment: await removeCourseEnrollmentForUser(tx, userId, courseId),
+      removedAssistant: await removeCourseTeachingAssistant(tx, userId, courseId),
+      removedLegacyPurchases: await tx.coursePurchase.deleteMany({
+        where: { buyerId: userId, sourceCourseId: courseId },
+      }),
     }),
-  }));
-  if (removedEnrollment === 0 && removedLegacyPurchases.count === 0) return { status: 'not_found' };
+  );
+  if (removedEnrollment === 0 && removedLegacyPurchases.count === 0 && removedAssistant.count === 0)
+    return { status: 'not_found' };
   await recordTutorialStep(prisma, userId, courseId, 'delete');
   return { status: 'removed' };
 }

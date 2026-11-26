@@ -59,6 +59,7 @@ enum UserRole {
   USER
   STUDENT
   TEACHER
+  TEACHING_ASSISTANT
   ADMIN
 }
 
@@ -234,6 +235,7 @@ model User {
   courseEnrollments         CourseEnrollment[]
   ownedProblems             NotebookProblem[]            @relation("NotebookProblemOwner")
   courseContentHides        CourseContentHide[]
+  teachingAssistantCourses  CourseTeachingAssistant[]
   organizationMemberships   OrganizationMember[]
   courseHardRules           CourseHardRule[]
   assignmentSubmissions     CourseAssignmentSubmission[]
@@ -441,6 +443,7 @@ model Course {
   clonePurchase          CoursePurchase?           @relation("CoursePurchaseClone")
   enrollments            CourseEnrollment[]
   contentHides           CourseContentHide[]
+  teachingAssistants     CourseTeachingAssistant[]
   reviews                CourseReview[]
   backgroundJobs         BackgroundJob[]
   studyMemories          StudyMemory[]
@@ -1683,6 +1686,20 @@ model CourseContentHide {
 
   @@unique([userId, targetType, targetId])
   @@index([userId, courseId, targetType])
+}
+
+model CourseTeachingAssistant {
+  courseId  String
+  userId    String
+  addedAt   DateTime  @default(now())
+  /// 保留历史，以便移除助教后仍能识别其上传的私人笔记。
+  removedAt DateTime?
+
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([courseId, userId])
+  @@index([userId, removedAt])
 }
 
 model ExternalCourseBinding {

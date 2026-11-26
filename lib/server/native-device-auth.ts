@@ -17,7 +17,7 @@ export type NativeDeviceUser = {
   name: string | null;
   email: string | null;
   image: string | null;
-  role: 'USER' | 'STUDENT' | 'TEACHER' | 'ADMIN';
+  role: 'USER' | 'STUDENT' | 'TEACHER' | 'TEACHING_ASSISTANT' | 'ADMIN';
 };
 
 export type NativeDevicePrincipal = {

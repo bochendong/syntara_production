@@ -167,7 +167,9 @@ function buildProviders() {
           });
           if (
             !user?.isActive ||
-            (user.role !== 'STUDENT' && user.role !== 'USER') ||
+            (user.role !== 'STUDENT' &&
+              user.role !== 'USER' &&
+              user.role !== 'TEACHING_ASSISTANT') ||
             !user.passwordHash ||
             !(await verifyPassword(password, user.passwordHash))
           ) {
@@ -266,6 +268,7 @@ export const authOptions: NextAuthOptions = {
         accountUser.isActive !== false &&
         (accountUser.role === 'USER' ||
           accountUser.role === 'STUDENT' ||
+          accountUser.role === 'TEACHING_ASSISTANT' ||
           accountUser.role === 'TEACHER' ||
           accountUser.role === 'ADMIN')
       );
@@ -280,7 +283,8 @@ export const authOptions: NextAuthOptions = {
         token.role =
           accountUser.role === 'ADMIN' ||
           accountUser.role === 'TEACHER' ||
-          accountUser.role === 'STUDENT'
+          accountUser.role === 'STUDENT' ||
+          accountUser.role === 'TEACHING_ASSISTANT'
             ? accountUser.role
             : 'USER';
         token.isActive = accountUser.isActive !== false;
@@ -320,12 +324,16 @@ export const authOptions: NextAuthOptions = {
         if (user) {
           session.user.id = user.id;
           session.user.role =
-            (user as { role?: 'USER' | 'STUDENT' | 'TEACHER' | 'ADMIN' }).role || 'USER';
+            (user as { role?: 'USER' | 'STUDENT' | 'TEACHER' | 'TEACHING_ASSISTANT' | 'ADMIN' })
+              .role || 'USER';
           session.user.isActive = (user as { isActive?: boolean }).isActive !== false;
         } else if (token?.sub) {
           session.user.id = token.sub;
           session.user.role =
-            token.role === 'TEACHER' || token.role === 'ADMIN' || token.role === 'STUDENT'
+            token.role === 'TEACHER' ||
+            token.role === 'ADMIN' ||
+            token.role === 'STUDENT' ||
+            token.role === 'TEACHING_ASSISTANT'
               ? token.role
               : 'USER';
           session.user.isActive = token.isActive !== false;

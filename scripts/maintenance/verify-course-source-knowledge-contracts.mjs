@@ -111,7 +111,7 @@ requireText(
 );
 requireText(
   sourceLibraryPath,
-  /course\.ownerId === args\.userId[\s\S]*hasCourseEnrollment\([\s\S]*accessRole: 'enrolled'/,
+  /course\.ownerId === args\.userId[\s\S]*hasCourseLearnerAccess\([\s\S]*accessRole: 'enrolled'/,
   'course readers must resolve materials through the course owner',
 );
 requireText(

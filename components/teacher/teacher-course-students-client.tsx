@@ -27,6 +27,7 @@ import {
 import { findLocalDemoTeacherHomeCourse } from '@/lib/teacher/local-demo-fixtures';
 import { LOCAL_DEMO_STUDENT_ROSTER } from '@/lib/teacher/local-demo-student-roster';
 import { StudioList, StudioListItem, StudioPagination } from '@/components/teacher/studio-list';
+import { TeacherCourseAssistants } from '@/components/teacher/teacher-course-assistants';
 import { TeacherTemporaryAiDialog } from '@/components/teacher/teacher-temporary-ai-dialog';
 import { academicTermLabel, type AcademicTerm } from '@/lib/teacher/online-course-studio';
 import { cn } from '@/lib/utils';
@@ -424,6 +425,8 @@ export function TeacherCourseStudentsClient({
                 {error}
               </div>
             ) : null}
+
+            {!mockMode ? <TeacherCourseAssistants key={courseId} courseId={courseId} /> : null}
 
             <div>
               <div className="flex flex-wrap items-center gap-2">

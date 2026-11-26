@@ -2,6 +2,10 @@ import crypto from 'node:crypto';
 import { Prisma } from '@/lib/server/generated-prisma';
 import { orderCourseNotebooks } from '@/lib/learning/course-notebook-order';
 import type { DbClient } from '@/lib/server/repositories/types';
+import {
+  activeCourseTeachingAssistant,
+  hasCourseTeachingAssistantAccess,
+} from '@/lib/server/repositories/course-teaching-assistant-repository';
 
 export type CourseAccessRole = 'owner' | 'enrolled';
 
@@ -153,6 +157,13 @@ export async function hasCourseEnrollment(
   return Boolean(legacyPurchase);
 }
 
+export async function hasCourseLearnerAccess(db: DbClient, userId: string, courseId: string) {
+  return (
+    (await hasCourseEnrollment(db, userId, courseId)) ||
+    (await hasCourseTeachingAssistantAccess(db, userId, courseId))
+  );
+}
+
 export async function listEnrolledCourseIds(
   db: DbClient,
   userId: string,
@@ -161,7 +172,7 @@ export async function listEnrolledCourseIds(
   const uniqueCourseIds = Array.from(new Set(courseIds.map((id) => id.trim()).filter(Boolean)));
   if (uniqueCourseIds.length === 0) return new Set();
 
-  const [enrollmentRows, legacyPurchases] = await Promise.all([
+  const [enrollmentRows, legacyPurchases, assistantAssignments] = await Promise.all([
     withCourseEnrollmentSchemaFallback(db, () =>
       db.$queryRaw<Array<{ courseId: string }>>(
         Prisma.sql`
@@ -190,21 +201,26 @@ export async function listEnrolledCourseIds(
       },
       select: { sourceCourseId: true },
     }),
+    db.courseTeachingAssistant.findMany({
+      where: { courseId: { in: uniqueCourseIds }, ...activeCourseTeachingAssistant(userId) },
+      select: { courseId: true },
+    }),
   ]);
 
   return new Set([
     ...enrollmentRows.map((row) => row.courseId),
+    ...assistantAssignments.map((row) => row.courseId),
     ...legacyPurchases
       .map((row) => row.sourceCourseId)
       .filter((courseId): courseId is string => Boolean(courseId)),
   ]);
 }
 
-export async function findCourseAccessRole(
+async function findCourseAccess(
   db: DbClient,
   userId: string,
   courseId: string,
-): Promise<CourseAccessRole | null> {
+): Promise<{ role: CourseAccessRole; assistant: boolean; ownerId: string } | null> {
   const course = await db.course.findUnique({
     where: { id: courseId },
     select: {
@@ -213,6 +229,10 @@ export async function findCourseAccessRole(
       claimedTeacher: { select: { isActive: true } },
       managers: {
         where: { userId, user: { isActive: true, role: { in: ['TEACHER', 'ADMIN'] } } },
+        select: { userId: true },
+      },
+      teachingAssistants: {
+        where: activeCourseTeachingAssistant(userId),
         select: { userId: true },
       },
       externalBinding: {
@@ -226,24 +246,38 @@ export async function findCourseAccessRole(
     },
   });
   if (!course) return null;
-  if (course.managers.length) return 'owner';
+  const assistant = course.teachingAssistants.length > 0;
+  if (course.managers.length) return { role: 'owner', assistant, ownerId: course.ownerId };
   if (
     !course.externalBinding &&
     course.claimedTeacherId === userId &&
     course.claimedTeacher?.isActive
   )
-    return 'owner';
+    return { role: 'owner', assistant, ownerId: course.ownerId };
   if (course.externalBinding) {
     if (course.externalBinding.memberships.some((membership) => membership.role === 'TEACHER')) {
-      return 'owner';
+      return { role: 'owner', assistant, ownerId: course.ownerId };
     }
-    if (!course.externalBinding.memberships.some((membership) => membership.role === 'STUDENT')) {
+    if (
+      !assistant &&
+      !course.externalBinding.memberships.some((membership) => membership.role === 'STUDENT')
+    ) {
       return null;
     }
   } else if (course.ownerId === userId) {
-    return 'owner';
+    return { role: 'owner', assistant, ownerId: course.ownerId };
   }
-  return (await hasCourseEnrollment(db, userId, courseId)) ? 'enrolled' : null;
+  return assistant || (await hasCourseEnrollment(db, userId, courseId))
+    ? { role: 'enrolled', assistant, ownerId: course.ownerId }
+    : null;
+}
+
+export async function findCourseAccessRole(
+  db: DbClient,
+  userId: string,
+  courseId: string,
+): Promise<CourseAccessRole | null> {
+  return (await findCourseAccess(db, userId, courseId))?.role ?? null;
 }
 
 export async function resolveCourseNotebookAccess(
@@ -251,10 +285,8 @@ export async function resolveCourseNotebookAccess(
   userId: string,
   courseId: string,
 ): Promise<CourseNotebookAccess | null> {
-  const accessRole = await findCourseAccessRole(db, userId, courseId);
-  if (!accessRole) return null;
-  const course = await db.course.findUnique({ where: { id: courseId }, select: { ownerId: true } });
-  if (!course) return null;
+  const access = await findCourseAccess(db, userId, courseId);
+  if (!access) return null;
 
   const notebooks = orderCourseNotebooks(
     (
@@ -263,7 +295,7 @@ export async function resolveCourseNotebookAccess(
         where: {
           courseId,
           removedAt: null,
-          OR: [{ ownerId: userId }, { ownerId: course.ownerId }],
+          OR: [{ ownerId: userId }, { ownerId: access.ownerId }],
         },
         select: { id: true, ownerId: true, name: true, createdAt: true, coverSlideJson: true },
       })
@@ -276,17 +308,17 @@ export async function resolveCourseNotebookAccess(
     })),
   );
   const orderedNotebookIds = notebooks.map((notebook) => notebook.id);
-  if (accessRole === 'owner') {
+  if (access.role === 'owner') {
     return {
-      role: 'owner',
+      role: access.role,
       notebookAccessLimit: null,
       orderedNotebookIds,
       allowedNotebookIds: orderedNotebookIds,
     };
   }
 
-  const enrollment = await findCourseEnrollment(db, userId, courseId);
-  if (!enrollment) {
+  const enrollment = access.assistant ? null : await findCourseEnrollment(db, userId, courseId);
+  if (!access.assistant && !enrollment) {
     const legacyPurchase = await db.coursePurchase.findFirst({
       where: { buyerId: userId, sourceCourseId: courseId },
       select: { id: true },

@@ -27,11 +27,19 @@ type CourseOption = {
   academicTerm: 'winter' | 'summer' | 'fall' | null;
 };
 
+type LearnerRole = 'STUDENT' | 'TEACHING_ASSISTANT';
+
+const roleLabels: Record<LearnerRole, string> = {
+  STUDENT: '学生',
+  TEACHING_ASSISTANT: '助教',
+};
+
 type StudentRow = {
   id: string;
   email: string;
   name: string;
   isActive: boolean;
+  role: LearnerRole;
   courses: Array<CourseOption & { notebookAccessLimit: number | null; joinedAt: string }>;
   createdAt: string;
   updatedAt: string;
@@ -54,6 +62,8 @@ export function AdminStudentsSection({ refreshKey = 0 }: { refreshKey?: number }
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [name, setName] = useState('');
+  const [role, setRole] = useState<LearnerRole>('STUDENT');
+  const [assistantEmail, setAssistantEmail] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [courseIds, setCourseIds] = useState<string[]>([]);
@@ -92,16 +102,57 @@ export function AdminStudentsSection({ refreshKey = 0 }: { refreshKey?: number }
       await backendJson('/api/admin/students', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ name, email, password, courseIds }),
+        body: JSON.stringify({ name, email, password, courseIds, role }),
       });
       setName('');
       setEmail('');
       setPassword('');
       setCourseIds([]);
-      toast.success('学生账号已创建，课程已写入共享数据库');
+      toast.success(`已创建${roleLabels[role]}账号`);
       await load();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : '学生创建失败');
+      toast.error(error instanceof Error ? error.message : '账号创建失败');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const assignAssistantRole = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setBusyId('assign-role');
+    try {
+      await backendJson('/api/admin/students', {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ email: assistantEmail }),
+      });
+      setAssistantEmail('');
+      toast.success('已分配助教角色');
+      await load();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '助教角色分配失败');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const updateLearnerRole = async (student: StudentRow, nextRole: LearnerRole) => {
+    if (
+      nextRole === 'STUDENT' &&
+      !window.confirm('改为学生后，该账号的课程助教资格将一并移除。确定继续吗？')
+    )
+      return;
+    setBusyId(student.id);
+    try {
+      await backendJson(`/api/admin/students/${encodeURIComponent(student.id)}`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ role: nextRole }),
+      });
+      toast.success(`已改为${roleLabels[nextRole]}`);
+      await load();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '账号角色更新失败');
     } finally {
       setBusyId(null);
     }
@@ -184,16 +235,16 @@ export function AdminStudentsSection({ refreshKey = 0 }: { refreshKey?: number }
   };
 
   const removeStudent = async (student: StudentRow) => {
-    if (!window.confirm(`确定删除学生“${student.name || student.email}”吗？`)) return;
+    if (!window.confirm(`确定删除账号“${student.name || student.email}”吗？`)) return;
     setBusyId(student.id);
     try {
       await backendJson(`/api/admin/students/${encodeURIComponent(student.id)}`, {
         method: 'DELETE',
       });
       setStudents((current) => current.filter((item) => item.id !== student.id));
-      toast.success('学生账号已删除');
+      toast.success('账号已删除');
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : '学生删除失败');
+      toast.error(error instanceof Error ? error.message : '账号删除失败');
     } finally {
       setBusyId(null);
     }
@@ -205,15 +256,13 @@ export function AdminStudentsSection({ refreshKey = 0 }: { refreshKey?: number }
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Plus className="size-4" />
-            添加学生
+            创建学习账号
           </CardTitle>
-          <CardDescription>
-            创建可登录的学生账号并分配课程；登录后课程会自动作为桌面 App 出现。
-          </CardDescription>
+          <CardDescription>教师可以在课程成员管理中添加已分配助教角色的账号。</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4 lg:grid-cols-3">
           <div className="space-y-2">
-            <Label htmlFor="student-name">学生姓名</Label>
+            <Label htmlFor="student-name">姓名</Label>
             <Input
               id="student-name"
               value={name}
@@ -238,8 +287,24 @@ export function AdminStudentsSection({ refreshKey = 0 }: { refreshKey?: number }
               onChange={(event) => setPassword(event.target.value)}
             />
           </div>
+          <div className="space-y-2">
+            <Label htmlFor="learner-role">账号角色</Label>
+            <select
+              id="learner-role"
+              value={role}
+              onChange={(event) =>
+                setRole(
+                  event.target.value === 'TEACHING_ASSISTANT' ? 'TEACHING_ASSISTANT' : 'STUDENT',
+                )
+              }
+              className="h-9 w-full rounded-md border bg-background px-3 text-sm"
+            >
+              <option value="STUDENT">学生</option>
+              <option value="TEACHING_ASSISTANT">助教</option>
+            </select>
+          </div>
           <div className="space-y-2 lg:col-span-2">
-            <Label htmlFor="student-courses">分配课程（可多选）</Label>
+            <Label htmlFor="student-courses">分配学习课程（可多选）</Label>
             <select
               id="student-courses"
               multiple
@@ -276,17 +341,40 @@ export function AdminStudentsSection({ refreshKey = 0 }: { refreshKey?: number }
               ) : (
                 <Plus className="mr-2 size-4" />
               )}
-              创建学生
+              创建账号
             </Button>
           </div>
         </CardContent>
       </Card>
 
       <Card>
+        <CardHeader>
+          <CardTitle>将已有账号设为助教</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form className="flex flex-wrap items-end gap-3" onSubmit={assignAssistantRole}>
+            <div className="w-full space-y-2 sm:w-72">
+              <Label htmlFor="existing-assistant-email">账号邮箱</Label>
+              <Input
+                id="existing-assistant-email"
+                type="email"
+                required
+                value={assistantEmail}
+                onChange={(event) => setAssistantEmail(event.target.value)}
+              />
+            </div>
+            <Button type="submit" disabled={Boolean(busyId) || !assistantEmail.trim()}>
+              分配助教角色
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+
+      <Card>
         <CardHeader className="flex-row items-center justify-between space-y-0">
           <div>
-            <CardTitle>学生数据库</CardTitle>
-            <CardDescription>{students.length} 个学生账号</CardDescription>
+            <CardTitle>学习账号</CardTitle>
+            <CardDescription>{students.length} 个账号</CardDescription>
           </div>
           <Button variant="outline" size="sm" onClick={() => void load()} disabled={loading}>
             <RefreshCw className={`mr-2 size-4 ${loading ? 'animate-spin' : ''}`} />
@@ -309,9 +397,12 @@ export function AdminStudentsSection({ refreshKey = 0 }: { refreshKey?: number }
                           <GraduationCap className="size-4" />
                         </span>
                         <div>
-                          <p className="font-semibold">{student.name || '未命名学生'}</p>
-                          <p className="text-xs text-muted-foreground">{student.email}</p>
+                          <p className="font-semibold">{student.name || '未命名账号'}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {student.email || `账号 ID ${student.id}`}
+                          </p>
                         </div>
+                        <Badge variant="outline">{roleLabels[student.role]}</Badge>
                         <Badge variant={student.isActive ? 'default' : 'secondary'}>
                           {student.isActive ? '已启用' : '已停用'}
                         </Badge>
@@ -334,19 +425,40 @@ export function AdminStudentsSection({ refreshKey = 0 }: { refreshKey?: number }
                       </div>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => void openStudent(student.id)}
-                        disabled={busyId === student.id}
-                      >
-                        {busyId === student.id ? (
-                          <Loader2 className="mr-2 size-4 animate-spin" />
-                        ) : (
-                          <Eye className="mr-2 size-4" />
-                        )}
-                        进入学生页面
-                      </Button>
+                      {student.role === 'TEACHING_ASSISTANT' ? (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => void updateLearnerRole(student, 'STUDENT')}
+                          disabled={busyId === student.id}
+                        >
+                          改为学生
+                        </Button>
+                      ) : (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => void openStudent(student.id)}
+                          disabled={busyId === student.id}
+                        >
+                          {busyId === student.id ? (
+                            <Loader2 className="mr-2 size-4 animate-spin" />
+                          ) : (
+                            <Eye className="mr-2 size-4" />
+                          )}
+                          进入学生页面
+                        </Button>
+                      )}
+                      {student.role === 'STUDENT' ? (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => void updateLearnerRole(student, 'TEACHING_ASSISTANT')}
+                          disabled={busyId === student.id}
+                        >
+                          设为助教
+                        </Button>
+                      ) : null}
                       <Button
                         variant="outline"
                         size="sm"
@@ -372,7 +484,7 @@ export function AdminStudentsSection({ refreshKey = 0 }: { refreshKey?: number }
                         disabled={busyId === student.id}
                       >
                         <Trash2 className="mr-2 size-4" />
-                        删除学生
+                        删除账号
                       </Button>
                     </div>
                   </div>
@@ -381,7 +493,7 @@ export function AdminStudentsSection({ refreshKey = 0 }: { refreshKey?: number }
             })
           ) : (
             <div className="grid min-h-40 place-items-center text-sm text-muted-foreground">
-              还没有学生账号。
+              还没有学习账号。
             </div>
           )}
         </CardContent>

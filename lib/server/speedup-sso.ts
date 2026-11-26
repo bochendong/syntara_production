@@ -1,5 +1,6 @@
 import { courseDisplayCode } from '@/lib/course-space/course-display-name';
 import { encode } from 'next-auth/jwt';
+import type { UserRole } from '@/lib/server/generated-prisma';
 import { getOptionalPrisma } from '@/lib/server/prisma-safe';
 import { MARBLE_AVATAR_URLS } from '@/lib/constants/marble-avatars';
 import { pickMarbleAvatar } from '@/lib/server/native-initial-profile';
@@ -361,11 +362,12 @@ export async function createSpeedupUserSession(identity: SpeedupVerifiedIdentity
     throw new SpeedupSsoError(503, 'AI 课程登录数据库尚未配置，请联系管理员。');
   }
 
-  let user: { id: string; name: string | null };
+  let user: { id: string; name: string | null; role: UserRole };
   if (!prisma) {
     user = {
       id: `speedup:${identity.externalUserId}`,
       name: identity.name,
+      role: identity.role,
     };
   } else {
     const providerAccountId = identity.externalUserId;
@@ -377,7 +379,7 @@ export async function createSpeedupUserSession(identity: SpeedupVerifiedIdentity
           providerAccountId,
         },
       },
-      select: { id: true, userId: true, user: { select: { name: true } } },
+      select: { id: true, userId: true, user: { select: { name: true, role: true } } },
     });
 
     if (existingAccount) {
@@ -395,10 +397,12 @@ export async function createSpeedupUserSession(identity: SpeedupVerifiedIdentity
           data: {
             // The local profile is authoritative after the account is created.
             ...(!existingAccount.user.name?.trim() ? { name: identity.name } : {}),
-            role: identity.role,
+            ...(identity.role === 'STUDENT' && existingAccount.user.role === 'TEACHING_ASSISTANT'
+              ? {}
+              : { role: identity.role }),
             isActive: true,
           },
-          select: { id: true, name: true },
+          select: { id: true, name: true, role: true },
         }),
       ]);
       user = results[1];
@@ -420,7 +424,7 @@ export async function createSpeedupUserSession(identity: SpeedupVerifiedIdentity
             },
           },
         },
-        select: { id: true, name: true },
+        select: { id: true, name: true, role: true },
       });
     }
   }
@@ -432,7 +436,7 @@ export async function createSpeedupUserSession(identity: SpeedupVerifiedIdentity
     token: {
       sub: user.id,
       name: user.name,
-      role: identity.role,
+      role: user.role,
       isActive: true,
       authSource: 'speedup',
     },

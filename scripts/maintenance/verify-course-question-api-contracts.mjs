@@ -74,7 +74,7 @@ assert.doesNotMatch(
 );
 
 for (const source of [contextBuilder, trustedTurn]) {
-  assert.match(source, /findCourseAccessRole|hasCourseEnrollment/);
+  assert.match(source, /findCourseAccessRole|hasCourseLearnerAccess/);
 }
 assert.match(contextBuilder, /listCourseSourceUploads\(/);
 assert.match(contextBuilder, /includeTextSections:\s*false/);

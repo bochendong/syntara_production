@@ -17,6 +17,9 @@ test('course removal keeps managed courses safe and removes only the current lea
     export const removeCourseEnrollmentForUser = async (_, userId, courseId) => {
       calls.push(['enrollment', userId, courseId]); return 1;
     };
+    export const removeCourseTeachingAssistant = async (_, userId, courseId) => {
+      calls.push(['assistant', userId, courseId]); return { count: 1 };
+    };
     export const deleteOwnedCourseWithNotebooks = async (_, userId, courseId) => {
       calls.push(['delete-owned', userId, courseId]);
     };
@@ -31,6 +34,7 @@ test('course removal keeps managed courses safe and removes only the current lea
   for (const name of [
     '@/lib/server/repositories/course-enrollment-repository',
     '@/lib/server/repositories/course-repository',
+    '@/lib/server/repositories/course-teaching-assistant-repository',
     '@/lib/server/onboarding',
   ]) {
     source = source.replaceAll(`'${name}'`, `'${accessModule}'`);
@@ -40,6 +44,7 @@ test('course removal keeps managed courses safe and removes only the current lea
   let managed = false;
   const purchaseRemovals = [];
   const prisma = {
+    course: { findUnique: async () => ({ ownerId: 'learner' }) },
     externalCourseBinding: { findUnique: async () => (managed ? { id: 'binding' } : null) },
     $transaction: async (run) =>
       run({
@@ -82,5 +87,9 @@ test('course removal keeps managed courses safe and removes only the current lea
   assert.deepEqual(purchaseRemovals, [
     { where: { buyerId: 'learner', sourceCourseId: 'store-course' } },
   ]);
+  assert.deepEqual(
+    calls.find(([action]) => action === 'assistant'),
+    ['assistant', 'learner', 'store-course'],
+  );
   assert.deepEqual(calls.at(-1), ['tutorial', 'learner', 'store-course', 'delete']);
 });

@@ -13,7 +13,7 @@ import {
   type StoredCourseSource,
 } from '@/features/memory/server/course-source-store';
 import {
-  hasCourseEnrollment,
+  hasCourseLearnerAccess,
   type CourseAccessRole,
 } from '@/lib/server/repositories/course-enrollment-repository';
 import { detachCourseProblemSource } from '@/features/memory/server/detach-course-problem-source.mjs';
@@ -614,7 +614,7 @@ async function requireReadableCourse(args: {
   if (course.ownerId === args.userId) {
     return { ownerId: course.ownerId, accessRole: 'owner' };
   }
-  const enrolled = await hasCourseEnrollment(args.prisma, args.userId, args.courseId);
+  const enrolled = await hasCourseLearnerAccess(args.prisma, args.userId, args.courseId);
   if (!enrolled) throw new Error('Course not found');
   return { ownerId: course.ownerId, accessRole: 'enrolled' };
 }

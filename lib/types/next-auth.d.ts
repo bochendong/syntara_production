@@ -8,7 +8,7 @@ declare module 'next-auth' {
   interface Session {
     user?: DefaultSession['user'] & {
       id: string;
-      role?: 'USER' | 'STUDENT' | 'TEACHER' | 'ADMIN';
+      role?: 'USER' | 'STUDENT' | 'TEACHER' | 'TEACHING_ASSISTANT' | 'ADMIN';
       isActive?: boolean;
     };
   }
@@ -16,7 +16,7 @@ declare module 'next-auth' {
 
 declare module 'next-auth/jwt' {
   interface JWT {
-    role?: 'USER' | 'STUDENT' | 'TEACHER' | 'ADMIN';
+    role?: 'USER' | 'STUDENT' | 'TEACHER' | 'TEACHING_ASSISTANT' | 'ADMIN';
     isActive?: boolean;
     authSource?: 'speedup' | 'local-demo';
   }

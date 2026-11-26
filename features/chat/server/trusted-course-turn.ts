@@ -12,7 +12,7 @@ import { buildCoursePackPromptContext } from '@/lib/server/course-pack-context';
 import { requireUserId } from '@/lib/server/api-auth';
 import type { PrismaClient } from '@/lib/server/generated-prisma';
 import { prisma } from '@/lib/server/prisma';
-import { hasCourseEnrollment } from '@/lib/server/repositories/course-enrollment-repository';
+import { hasCourseLearnerAccess } from '@/lib/server/repositories/course-enrollment-repository';
 import { reconcileSpeedupCourseMembershipsIfAvailable } from '@/lib/server/speedup-course-provisioning';
 import type { CourseChatContext, StatelessChatRequest, StatelessEvent } from '@/lib/types/chat';
 import type { ThinkingConfig } from '@/lib/types/provider';
@@ -286,7 +286,7 @@ export async function resolveTrustedCourseAccess(args: {
   const role =
     course.ownerId === userId
       ? 'owner'
-      : (await hasCourseEnrollment(db, userId, courseId))
+      : (await hasCourseLearnerAccess(db, userId, courseId))
         ? 'enrolled'
         : null;
   return role ? { userId, role, course } : null;

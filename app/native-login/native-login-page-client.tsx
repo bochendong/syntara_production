@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { signIn, signOut, useSession } from 'next-auth/react';
 import type { NativeAccessPolicy } from '@/lib/server/native-access-policy';
 import {
@@ -237,7 +238,15 @@ export function NativeLoginPageClient({
                 使用 GitHub 登录
               </button>
             ) : null}
-            {!providers.google && !providers.github && accessPolicy !== 'speedup' ? (
+            {accessPolicy === 'activation' && userCode ? (
+              <Link
+                href={`/login?role=assistant&user_code=${encodeURIComponent(userCode)}`}
+                className="apple-btn flex h-12 w-full items-center justify-center rounded-xl text-sm font-medium"
+              >
+                使用助教账号登录
+              </Link>
+            ) : null}
+            {accessPolicy === 'google-test' && !providers.google ? (
               <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
                 平台尚未配置 OAuth 登录。
               </p>

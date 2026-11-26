@@ -124,7 +124,7 @@ function navigationItems({
       ? [
           {
             key: 'students' as const,
-            label: '学生管理',
+            label: '成员管理',
             href: `/teacher/courses/${encodedCourseId}/students${previewMode ? '?mock=1' : ''}`,
             Icon: Users,
           },

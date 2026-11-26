@@ -10,6 +10,7 @@ const updateStudentSchema = z.object({
   name: z.string().trim().min(1).max(120).optional(),
   password: z.string().min(10).max(200).optional(),
   isActive: z.boolean().optional(),
+  role: z.enum(['STUDENT', 'TEACHING_ASSISTANT']).optional(),
   courseIds: z.array(z.string().trim().min(1).max(200)).max(40).optional(),
 });
 
@@ -23,7 +24,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ stude
       return NextResponse.json({ error: '没有可更新的学生字段。' }, { status: 400 });
     }
     const current = await prisma.user.findFirst({
-      where: { id: studentId, role: 'STUDENT' },
+      where: { id: studentId, role: { in: ['STUDENT', 'TEACHING_ASSISTANT'] } },
       select: { id: true },
     });
     if (!current) return NextResponse.json({ error: '学生账号不存在。' }, { status: 404 });
@@ -43,16 +44,25 @@ export async function PATCH(request: Request, context: { params: Promise<{ stude
       ? await hashPassword(parsed.data.password)
       : undefined;
 
-    await prisma.$transaction(async (tx) => {
-      await tx.user.update({
-        where: { id: studentId },
+    const updated = await prisma.$transaction(async (tx) => {
+      const account = await tx.user.updateMany({
+        where: { id: studentId, role: { in: ['STUDENT', 'TEACHING_ASSISTANT'] } },
         data: {
+          updatedAt: new Date(),
           ...(parsed.data.email ? { email: parsed.data.email.toLowerCase() } : {}),
           ...(parsed.data.name ? { name: parsed.data.name } : {}),
           ...(parsed.data.isActive !== undefined ? { isActive: parsed.data.isActive } : {}),
           ...(passwordHash ? { passwordHash } : {}),
+          ...(parsed.data.role ? { role: parsed.data.role } : {}),
         },
       });
+      if (!account.count) return false;
+      if (parsed.data.role === 'STUDENT') {
+        await tx.courseTeachingAssistant.updateMany({
+          where: { userId: studentId, removedAt: null },
+          data: { removedAt: new Date() },
+        });
+      }
       if (courseIds) {
         await tx.courseEnrollment.deleteMany({
           where: { userId: studentId, courseId: { notIn: courseIds } },
@@ -69,7 +79,9 @@ export async function PATCH(request: Request, context: { params: Promise<{ stude
           });
         }
       }
+      return true;
     });
+    if (!updated) return NextResponse.json({ error: '学习账号不存在。' }, { status: 404 });
     return NextResponse.json({ success: true });
   });
 }
@@ -82,7 +94,9 @@ export async function DELETE(
     const admin = await requireAdmin();
     if ('response' in admin) return admin.response;
     const { studentId } = await context.params;
-    const deleted = await prisma.user.deleteMany({ where: { id: studentId, role: 'STUDENT' } });
+    const deleted = await prisma.user.deleteMany({
+      where: { id: studentId, role: { in: ['STUDENT', 'TEACHING_ASSISTANT'] } },
+    });
     if (!deleted.count) return NextResponse.json({ error: '学生账号不存在。' }, { status: 404 });
     return NextResponse.json({ success: true });
   });

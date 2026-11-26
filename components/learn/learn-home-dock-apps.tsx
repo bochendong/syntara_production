@@ -145,7 +145,12 @@ function LearnHomeProfileApp({ courses, onBack }: { courses: CourseRecord[]; onB
     avatar !== profileAvatar ||
     school.trim() !== savedSchool;
 
-  const roleLabel = role === 'TEACHER' ? '教师账户' : role === 'ADMIN' ? '管理员账户' : '学生账户';
+  const roleLabel = {
+    TEACHER: '教师账户',
+    ADMIN: '管理员账户',
+    TEACHING_ASSISTANT: '助教账户',
+    STUDENT: '学生账户',
+  }[role];
 
   const saveProfile = async () => {
     setSaveError('');

@@ -29,7 +29,7 @@ import { AdminActivationCodesSection } from '@/components/admin/admin-activation
 const SECTIONS = [
   { id: 'llm', label: '模型设置', icon: Bot },
   { id: 'usage', label: '用量明细', icon: BarChart3 },
-  { id: 'students', label: '学生管理', icon: Users },
+  { id: 'students', label: '学生与助教', icon: Users },
   { id: 'teachers', label: '老师管理', icon: Users },
   { id: 'usage-limits', label: '云端限额', icon: Gauge },
   { id: 'activation-codes', label: 'App 激活码', icon: KeyRound },

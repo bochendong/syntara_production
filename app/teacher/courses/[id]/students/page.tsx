@@ -4,8 +4,8 @@ import { TeacherCourseStudentsClient } from '@/components/teacher/teacher-course
 import { currentCoursePageAccess } from '@/lib/server/current-course-page-access';
 
 export const metadata: Metadata = {
-  title: '学生管理 · Syntara',
-  description: '管理课程学生名单与访问资格。',
+  title: '成员管理 · Syntara',
+  description: '管理课程学生与助教名单。',
 };
 
 export default async function TeacherCourseStudentsPage({

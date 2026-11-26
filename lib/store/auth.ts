@@ -3,7 +3,11 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
-export type PortalRole = 'STUDENT' | 'TEACHER' | 'ADMIN';
+export type PortalRole = 'STUDENT' | 'TEACHER' | 'TEACHING_ASSISTANT' | 'ADMIN';
+
+function portalRole(role?: string): PortalRole {
+  return role === 'ADMIN' || role === 'TEACHER' || role === 'TEACHING_ASSISTANT' ? role : 'STUDENT';
+}
 
 interface AuthState {
   isLoggedIn: boolean;
@@ -17,7 +21,7 @@ interface AuthState {
     userId: string;
     name: string;
     email: string;
-    role?: 'USER' | 'STUDENT' | 'TEACHER' | 'ADMIN';
+    role?: 'USER' | 'STUDENT' | 'TEACHER' | 'TEACHING_ASSISTANT' | 'ADMIN';
   }) => void;
   logout: () => void;
 }
@@ -39,7 +43,7 @@ export const useAuthStore = create<AuthState>()(
           username: '',
           name: name.trim(),
           email: email.trim().toLowerCase(),
-          role: role === 'ADMIN' ? 'ADMIN' : role === 'TEACHER' ? 'TEACHER' : 'STUDENT',
+          role: portalRole(role),
           attributes: {},
         }),
       logout: () =>
@@ -64,12 +68,7 @@ export const useAuthStore = create<AuthState>()(
           username: p.username ?? '',
           name: p.name ?? '',
           email: p.email ?? '',
-          role:
-            (p.role as string | undefined) === 'ADMIN'
-              ? 'ADMIN'
-              : (p.role as string | undefined) === 'TEACHER'
-                ? 'TEACHER'
-                : 'STUDENT',
+          role: portalRole(p.role),
           attributes: p.attributes ?? {},
         };
       },

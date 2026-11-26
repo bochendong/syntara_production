@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
+import type { UserRole } from '@/lib/server/generated-prisma';
 import { prisma } from '@/lib/server/prisma';
 import { requireAdmin } from '@/lib/server/admin-auth';
 import { hashPassword } from '@/lib/server/password-hash';
@@ -11,6 +12,7 @@ const createStudentSchema = z.object({
   email: z.string().trim().email().max(240),
   name: z.string().trim().min(1).max(120),
   password: z.string().min(10).max(200),
+  role: z.enum(['STUDENT', 'TEACHING_ASSISTANT']).default('STUDENT'),
   courseIds: z.array(z.string().trim().min(1).max(200)).max(40).default([]),
 });
 
@@ -18,6 +20,7 @@ function studentPayload(student: {
   id: string;
   email: string | null;
   name: string | null;
+  role: UserRole;
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -37,6 +40,7 @@ function studentPayload(student: {
     id: student.id,
     email: student.email || '',
     name: student.name || '',
+    role: student.role,
     isActive: student.isActive,
     courses: student.courseEnrollments.map((enrollment) => ({
       ...enrollment.course,
@@ -52,6 +56,7 @@ const studentSelect = {
   id: true,
   email: true,
   name: true,
+  role: true,
   isActive: true,
   createdAt: true,
   updatedAt: true,
@@ -78,7 +83,7 @@ export async function GET() {
     const admin = await requireAdmin();
     if ('response' in admin) return admin.response;
     const students = await prisma.user.findMany({
-      where: { role: 'STUDENT' },
+      where: { role: { in: ['STUDENT', 'TEACHING_ASSISTANT'] } },
       select: studentSelect,
       orderBy: [{ isActive: 'desc' }, { updatedAt: 'desc' }],
       take: 500,
@@ -94,7 +99,7 @@ export async function POST(request: Request) {
     const parsed = createStudentSchema.safeParse(await request.json().catch(() => null));
     if (!parsed.success) {
       return NextResponse.json(
-        { error: '请填写有效邮箱、学生姓名和至少 10 位的初始密码。' },
+        { error: '请填写有效邮箱、姓名和至少 10 位的初始密码。' },
         { status: 400 },
       );
     }
@@ -116,7 +121,7 @@ export async function POST(request: Request) {
           email,
           name: parsed.data.name,
           image: pickMarbleAvatar(MARBLE_AVATAR_URLS),
-          role: 'STUDENT',
+          role: parsed.data.role,
           isActive: true,
           passwordHash,
         },
@@ -137,5 +142,29 @@ export async function POST(request: Request) {
     });
 
     return NextResponse.json({ student: studentPayload(student) }, { status: 201 });
+  });
+}
+
+const assignAssistantRoleSchema = z.object({ email: z.string().trim().email().max(240) });
+
+export async function PUT(request: Request) {
+  return safeRoute(async () => {
+    const admin = await requireAdmin();
+    if ('response' in admin) return admin.response;
+    const parsed = assignAssistantRoleSchema.safeParse(await request.json().catch(() => null));
+    if (!parsed.success) {
+      return NextResponse.json({ error: '请输入有效的账号邮箱。' }, { status: 400 });
+    }
+    const updated = await prisma.user.updateMany({
+      where: {
+        email: parsed.data.email.toLowerCase(),
+        role: { in: ['USER', 'STUDENT', 'TEACHING_ASSISTANT'] },
+      },
+      data: { role: 'TEACHING_ASSISTANT' },
+    });
+    if (!updated.count) {
+      return NextResponse.json({ error: '未找到可设为助教的学习账号。' }, { status: 404 });
+    }
+    return NextResponse.json({ success: true });
   });
 }
