@@ -81,6 +81,7 @@ test('each reward and each free draw is prompted once', () => {
     ['reward', '连续学习 3 天', '去领限定饰品'],
   );
   seen = nudge.markGameStudyPromptSeen(status, seen);
+  assert.equal(nudge.markGameStudyPromptSeen(status, seen), seen);
   assert.equal(nudge.nextGameStudyPrompt(status, seen), null);
   assert.equal(
     nudge.nextGameStudyPrompt({ ...status, claimable: [], day: '2026-11-18' }, seen).kind,

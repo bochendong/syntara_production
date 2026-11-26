@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Gift, Sparkles, X } from 'lucide-react';
 import { getBrawlStudyStatus, type BrawlStudyStatus } from '../data/brawl-study';
 import { marbleImages } from '../lib/learning-action-marbles';
@@ -48,12 +48,13 @@ export function useGameStudy({
   }, [enabled, refreshKey]);
 
   const prompt = enabled && !blocked ? nextGameStudyPrompt(status, seen) : null;
-  const markSeen = () => {
+  const markSeen = useCallback(() => {
     if (!status) return;
-    const next = markGameStudyPromptSeen(status, seen);
-    writeGameStudySeen(next);
-    setSeen(next);
-  };
+    setSeen((previous) => markGameStudyPromptSeen(status, previous));
+  }, [status]);
+  useEffect(() => {
+    writeGameStudySeen(seen);
+  }, [seen]);
   const latestMarkSeen = useRef(markSeen);
   useEffect(() => {
     latestMarkSeen.current = markSeen;

@@ -56,10 +56,13 @@ export function markGameStudyPromptSeen(
   status: GameStudyStatus,
   seen: GameStudySeen,
 ): GameStudySeen {
-  return {
-    rewards: [...new Set([...seen.rewards, ...status.claimable.map((item) => item.id)])],
-    drawDay: status.freeDraw ? status.day : seen.drawDay,
-  };
+  const newRewards = status.claimable
+    .map((item) => item.id)
+    .filter((id) => !seen.rewards.includes(id));
+  const drawDay = status.freeDraw ? status.day : seen.drawDay;
+  if (newRewards.length === 0 && drawDay === seen.drawDay) return seen;
+
+  return { rewards: [...seen.rewards, ...new Set(newRewards)], drawDay };
 }
 
 /** 庆祝卡片上的一行小字：离下一个限定奖励还差几天。 */
