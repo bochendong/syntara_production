@@ -7,6 +7,8 @@ export type BrawlStudyStatus = {
   /** 到今天为止连续学习了几天。 */
   streak: number;
   best: number;
+  /** 游戏存档里已有的积分（没玩过是 0）。 */
+  gamePoints: number;
   /** 做题赚到、还没转进游戏的积分。 */
   pendingPoints: number;
   /** 天数够了、还没进游戏领的限定奖励。 */

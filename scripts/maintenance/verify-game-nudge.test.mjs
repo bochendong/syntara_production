@@ -5,44 +5,8 @@ import { createJiti } from 'jiti';
 const jiti = createJiti(import.meta.url);
 const nudge = jiti('../../apps/native/src/lib/game-nudge.ts');
 const DAY = '2026-11-17';
-const minutes = (count) => count * 60_000;
-
-test('first prompt needs 25 active minutes, later ones 40', () => {
-  let state = nudge.addGameNudgeActiveTime(nudge.freshGameNudgeState(DAY), DAY, minutes(24));
-  assert.equal(nudge.gameNudgeDue(state, DAY), false);
-  state = nudge.addGameNudgeActiveTime(state, DAY, minutes(1));
-  assert.equal(nudge.gameNudgeDue(state, DAY), true);
-  state = nudge.markGameNudgeShown(state, DAY);
-  assert.deepEqual([state.activeMs, state.shown, state.hint], [0, 1, true]);
-  state = nudge.addGameNudgeActiveTime(state, DAY, minutes(39));
-  assert.equal(nudge.gameNudgeDue(state, DAY), false);
-  assert.equal(nudge.gameNudgeDue(nudge.addGameNudgeActiveTime(state, DAY, minutes(1)), DAY), true);
-});
-
-test('dismissing mutes the rest of the day and the daily limit holds', () => {
-  let state = nudge.addGameNudgeActiveTime(nudge.freshGameNudgeState(DAY), DAY, minutes(90));
-  assert.equal(nudge.gameNudgeDue(nudge.markGameNudgeDismissed(state, DAY), DAY), false);
-  for (let shown = 0; shown < nudge.GAME_NUDGE_DAILY_LIMIT; shown += 1) {
-    assert.equal(nudge.gameNudgeDue(state, DAY), true);
-    state = nudge.addGameNudgeActiveTime(nudge.markGameNudgeShown(state, DAY), DAY, minutes(90));
-  }
-  assert.equal(nudge.gameNudgeDue(state, DAY), false);
-});
-
-test('playing restarts the timer and a new day starts clean', () => {
-  let state = nudge.markGameNudgeShown(
-    nudge.addGameNudgeActiveTime(nudge.freshGameNudgeState(DAY), DAY, minutes(30)),
-    DAY,
-  );
-  state = nudge.markGamePlayed(nudge.addGameNudgeActiveTime(state, DAY, minutes(20)), DAY);
-  assert.deepEqual([state.activeMs, state.hint, state.shown], [0, false, 1]);
-  const muted = nudge.markGameNudgeDismissed(state, DAY);
-  const next = nudge.addGameNudgeActiveTime(muted, '2026-11-18', minutes(25));
-  assert.deepEqual([next.shown, next.muted], [0, false]);
-  assert.equal(nudge.gameNudgeDue(next, '2026-11-18'), true);
-});
-
 const study = jiti('../../lib/server/brawl-study.ts');
+const notify = jiti('../../apps/native/src/lib/practice-game-notify.ts');
 const gameSource = (await import('node:fs')).readFileSync(
   new URL('../../apps/native/public/games/sandbox-brawl/game.js', import.meta.url),
   'utf8',
@@ -124,4 +88,59 @@ test('each reward and each free draw is prompted once', () => {
   );
   assert.equal(nudge.gameStreakHint(status), '连续学习 3 天 · 再 4 天解锁限定皮肤');
   assert.equal(nudge.gameStreakHint({ ...status, next: null }), null);
+});
+
+const status = (over = {}) => ({
+  gamePoints: 0,
+  pendingPoints: 0,
+  freeDraw: false,
+  claimable: [],
+  streak: 1,
+  ...over,
+});
+
+test('practice notices stay quiet on the first status', () => {
+  const events = notify.practiceGameEvents(null, status({ pendingPoints: 40, freeDraw: true }));
+  assert.deepEqual(events, { gained: 0, banner: null, reward: null });
+});
+
+test('practice notices report the real server gain and the draw threshold', () => {
+  const before = status({ gamePoints: 20, pendingPoints: 5 });
+  const small = notify.practiceGameEvents(before, status({ gamePoints: 20, pendingPoints: 8 }));
+  assert.deepEqual([small.gained, small.banner], [3, null]);
+  const enough = notify.practiceGameEvents(before, status({ gamePoints: 20, pendingPoints: 10 }));
+  assert.equal(enough.gained, 5);
+  assert.equal(enough.banner?.kind, 'draw');
+  assert.equal(enough.banner?.title, '够抽一次了！');
+  const ten = notify.practiceGameEvents(
+    status({ gamePoints: 265 }),
+    status({ gamePoints: 265, pendingPoints: 8 }),
+  );
+  assert.equal(ten.banner?.kind, 'ten');
+});
+
+test('free draw beats the points banner and new rewards pop once', () => {
+  const reward = { id: 'scholar_s', days: 7, name: '学霸 · 晨读之星', label: '限定皮肤' };
+  const events = notify.practiceGameEvents(
+    status({ gamePoints: 25 }),
+    status({ gamePoints: 25, pendingPoints: 5, freeDraw: true, claimable: [reward] }),
+  );
+  assert.equal(events.banner?.kind, 'free');
+  assert.equal(events.reward?.name, reward.name);
+  const again = notify.practiceGameEvents(
+    status({ claimable: [reward], freeDraw: true }),
+    status({ claimable: [reward], freeDraw: true }),
+  );
+  assert.deepEqual([again.banner, again.reward], [null, null]);
+});
+
+test('the points bar counts problems left to the next draw', () => {
+  assert.equal(notify.gameDrawProgress(22).label, '再 2 题就能抽一次');
+  assert.equal(notify.gameDrawProgress(0).label, '再 6 题就能抽一次');
+  assert.equal(notify.gameDrawProgress(65).label, '能抽 2 次 · 再 5 题多一次');
+  const gacha = /const GACHA = \{ one: (\d+), ten: (\d+)/.exec(gameSource);
+  assert.deepEqual(
+    [notify.GAME_SINGLE_DRAW, notify.GAME_TEN_DRAW],
+    [Number(gacha?.[1]), Number(gacha?.[2])],
+  );
 });

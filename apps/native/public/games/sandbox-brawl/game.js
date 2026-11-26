@@ -3017,7 +3017,7 @@ function showCodex(tab = cdxTab, sel, drawPool) {
     if (nameOnly) return;
     detail.insertAdjacentHTML('beforeend', `
       ${cdxTab === 'heroes' ? heroStats(CLASSES[item.id]) : ''}
-      <p>${item.desc}</p>${!item.open && price ? `<button class="primary" id="cbuy" ${meta.pts < price ? 'disabled' : ''}>${meta.pts < price ? `还差 ${price - meta.pts} 积分` : `兑换 · ${price} 积分`}</button>` : !item.open && item.hint ? `<p><b>${item.hint}</b></p>` : ''}`);
+      <p>${item.desc}</p>${!item.open && price ? `<button class="primary" id="cbuy" ${meta.pts < price ? 'disabled' : ''}>${meta.pts < price ? `还差 ${price - meta.pts} 积分` : `兑换 · ${price} 积分`}</button>${meta.pts < price ? practiceLink(price - meta.pts) : ''}` : !item.open && item.hint ? `<p><b>${item.hint}</b></p>` : ''}`);
     if (canPreviewSkill) {
       const weapon = WEAPONS[item.id];
       const forms = { base: { name: '基础形态', desc: item.desc }, evo: weapon.evo };
@@ -3211,7 +3211,7 @@ function renderGacha() {
         ${free ? '<button class="big free" id="g1" data-unread aria-description="今天做对了题，送一次">免费单抽</button>' : `<button class="${gachaPool === 'heroes' ? 'primary ' : ''}big" id="g1" ${canGachaDraw(gachaPool, 1) ? '' : 'disabled'}>单抽 · ${gachaCost(gachaPool, 1)}</button>`}
         ${gachaPool === 'heroes' ? '' : `<button class="primary big" id="g10" ${canGachaDraw(gachaPool, 10) ? '' : 'disabled'}>十连 · ${gachaCost(gachaPool, 10)}</button>`}
         <button id="gPool"${unreadDot(hasUnreadDraw(gachaPool))}>看奖池</button>
-      </div><small class="gPoolDetails">${gachaPoolDetails()}</small>`}</div>`;
+      </div>${!free && !gachaPreview && !canGachaDraw(gachaPool, 1) && gachaPool !== 'heroes' ? practiceLink(gachaCost(gachaPool, 1) - meta.pts) : ''}<small class="gPoolDetails">${gachaPoolDetails()}</small>`}</div>`;
   theater ??= createGachaTheater();
   titleEl.prepend(theater.canvas);
   if (!gch.on) { gch.t = 0; gch.revealed = false; }
@@ -5972,6 +5972,24 @@ function applyStudy(next) {
   saveMeta();
   return unlocked;
 }
+/* ---------- 积分不够时直接回 App 做题；做题入账显示得大一点 ---------- */
+// 做对一道中等题 5 积分（lib/server/brawl-practice-points.ts），换算题数时按这个算。
+const PRACTICE_POINTS_PER_PROBLEM = 5;
+const practiceLinked = () => !!study && window.parent !== window;
+function practiceLink(missing) {
+  if (!practiceLinked() || !(missing > 0)) return '';
+  const problems = Math.max(1, Math.ceil(missing / PRACTICE_POINTS_PER_PROBLEM));
+  return `<button type="button" class="practiceGo" data-practice>还差 ${missing} 积分 ≈ ${problems} 道题 · 去做题</button>`;
+}
+document.addEventListener('click', (event) => {
+  if (!event.target.closest?.('[data-practice]')) return;
+  window.parent.postMessage({ type: 'sandbox-brawl:open-practice' }, location.origin);
+});
+function practiceIncome(points) {
+  const problems = Math.max(1, Math.round(points / PRACTICE_POINTS_PER_PROBLEM));
+  const draws = Math.floor(meta.pts / GACHA.one);
+  showBanner(`<div class="practiceIncome"><small>做题入账</small><b>+${points} 积分</b><span>大约做对 ${problems} 道题 · 现在有 ${meta.pts} 积分${draws ? `，能抽 ${draws} 次` : ''}</span></div>`, 'practice-income', 3.6);
+}
 function studyBanner(unlocked) {
   const top = unlocked[unlocked.length - 1];
   banner(`连续学习 ${top.days} 天`, `解锁${unlocked.map((reward) => `${reward.label}「${reward.name}」`).join('、')}`);
@@ -6088,7 +6106,7 @@ async function startCloudGame() {
   const unlocked = applyStudy(result.study);
   showTitle();
   if (unlocked) studyBanner(unlocked);
-  else if (result.practicePoints) banner(`做题积分 +${result.practicePoints}`, `当前有 ${meta.pts} 积分`);
+  else if (result.practicePoints) practiceIncome(result.practicePoints);
 
   let refreshing = false;
   async function refresh() {
@@ -6104,7 +6122,7 @@ async function startCloudGame() {
       const unlocked = applyStudy(updated.study);
       renderHome();
       if (unlocked) studyBanner(unlocked);
-      else if (updated.practicePoints) banner(`做题积分 +${updated.practicePoints}`, `当前有 ${meta.pts} 积分`);
+      else if (updated.practicePoints) practiceIncome(updated.practicePoints);
     } catch (error) { showSaveError(error); }
     finally {
       titleEl.inert = false;

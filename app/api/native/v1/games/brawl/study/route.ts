@@ -12,7 +12,7 @@ import {
 
 export const runtime = 'nodejs';
 
-/** App 用来决定要不要提示「去游戏里领」：连续学习天数、没领的限定奖励、今天的免费单抽、待转入的做题积分。 */
+/** App 用来决定要不要提示「去游戏里领」：连续学习天数、没领的限定奖励、今天的免费单抽、存档积分和待转入的做题积分。 */
 export async function GET(request: NextRequest) {
   const requestId = publicApiRequestId(request);
   const principal = await requireNativePlatformApi(request, requestId);
@@ -35,8 +35,14 @@ export async function GET(request: NextRequest) {
       db.brawlCloudSave.findUnique({ where: { userId }, select: { data: true } }),
     ]);
     const data = save?.data && typeof save.data === 'object' ? save.data : null;
+    const savedPoints = (data as { pts?: unknown } | null)?.pts;
     return publicApiSuccess(requestId, {
       day: study.day,
+      // 游戏存档里已有的积分；加上 pendingPoints 就是学生下次进游戏时手里的总数。
+      gamePoints:
+        typeof savedPoints === 'number' && Number.isFinite(savedPoints)
+          ? Math.max(0, Math.floor(savedPoints))
+          : 0,
       streak: study.streak,
       best: study.best,
       pendingPoints: account.brawlPracticePoints,

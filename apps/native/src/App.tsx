@@ -51,7 +51,7 @@ import { StudentClassroomPage } from './components/StudentClassroomPage';
 import { TeachPage } from './components/TeachPage';
 import { AdminPage } from './components/AdminPage';
 import { GamePage } from './components/GamePage';
-import { GameNudge, useGameNudge, useGameStudy } from './components/GameNudge';
+import { GameNudge, useGameStudy } from './components/GameNudge';
 import { gameStreakHint } from './lib/game-nudge';
 import { OnboardingCoach } from './components/OnboardingCoach';
 import { SpeedupPhoneDialog } from './components/SpeedupPhoneDialog';
@@ -571,11 +571,6 @@ function AuthenticatedApp() {
     (!browserApp || accountRole !== null);
   const gameNudgeBlocked =
     loading || practiceExpanded || globalPage !== null || classroom.state.sessions.length > 0;
-  const gameNudge = useGameNudge({
-    enabled: gameAvailable,
-    playing: globalPage === 'game',
-    blocked: gameNudgeBlocked,
-  });
   // 做完题、从游戏回来后重新问一次：连续学习天数、能领的限定奖励、免费单抽、待领积分。
   const [gameStudyRevision, setGameStudyRevision] = useState(0);
   const refreshGameStudy = useCallback(() => setGameStudyRevision((value) => value + 1), []);
@@ -586,7 +581,6 @@ function AuthenticatedApp() {
       gameStudyRevision + (practiceExpanded ? 0 : 0.5) + (globalPage === 'game' ? 0 : 0.25),
   });
   const openGame = () => {
-    gameNudge.played();
     gameStudy.markSeen();
     setGlobalPage('game');
   };
@@ -798,7 +792,7 @@ function AuthenticatedApp() {
     onOpenStore: () => setGlobalPage('store'),
     // 手机屏幕太小玩不了，只在 iPad、电脑和网页版放入口。
     onOpenGame: phoneLayout ? undefined : openGame,
-    gameHint: gameNudge.hint || gameStudy.hint,
+    gameHint: gameStudy.hint,
     onOpenSettings: () => setGlobalPage('profile'),
     // 老师从「教学」卡片进入班级；学生保留独立的上课入口。
     onOpenClassroom:
@@ -888,11 +882,13 @@ function AuthenticatedApp() {
                 gameAvailable
                   ? {
                       onPlay: playGame,
-                      // 作答要先同步到服务器，积分才会变，所以隔几秒再问一次。
-                      onMilestone: () => {
-                        refreshGameStudy();
+                      // 作答要先同步到服务器，积分才会变：马上问一次，隔几秒再问一次。
+                      onPassed: () => {
+                        window.setTimeout(refreshGameStudy, 800);
                         window.setTimeout(refreshGameStudy, 4000);
                       },
+                      onNoticeSeen: gameStudy.markSeen,
+                      status: gameStudy.status,
                       points: gameStudy.status?.pendingPoints,
                       hint: gameStreakHint(gameStudy.status),
                     }
@@ -1035,7 +1031,10 @@ function AuthenticatedApp() {
             ) : globalPage === 'admin' ? (
               <AdminPage onBack={() => setGlobalPage(null)} />
             ) : globalPage === 'game' ? (
-              <GamePage onBack={compactLayout ? () => setGlobalPage(null) : undefined} />
+              <GamePage
+                onBack={compactLayout ? () => setGlobalPage(null) : undefined}
+                onOpenPractice={navigation.onOpenProblemBanks}
+              />
             ) : globalPage === 'store' ? (
               <StorePage
                 onBack={() => setGlobalPage(null)}
@@ -1097,17 +1096,6 @@ function AuthenticatedApp() {
             title={gameStudy.prompt.title}
             onPlay={playGame}
             onDismiss={gameStudy.markSeen}
-          />
-        ) : gameNudge.minutes !== null ? (
-          <GameNudge
-            eyebrow={
-              gameStudy.status?.pendingPoints
-                ? `学了 ${gameNudge.minutes} 分钟 · 攒了 ${gameStudy.status.pendingPoints} 积分`
-                : `学了 ${gameNudge.minutes} 分钟`
-            }
-            title="去玩一把"
-            onPlay={playGame}
-            onDismiss={gameNudge.dismiss}
           />
         ) : null}
 

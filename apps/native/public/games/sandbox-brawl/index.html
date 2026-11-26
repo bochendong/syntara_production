@@ -219,6 +219,13 @@ button[disabled] { opacity: .5; cursor: not-allowed; transform: none; box-shadow
 .tagline { margin: 6px 0 0; font-weight: 800; font-size: clamp(13px, 2.4vw, 17px); background: var(--paper); border: 2.5px solid var(--ink); border-radius: 999px; padding: 4px 18px; box-shadow: 0 3px 0 var(--ink); rotate: -1.5deg; animation: logoIn .6s .45s var(--bounce) backwards; pointer-events: none; text-align: center; }
 .studyChip { margin-top: 10px; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 2px 8px; max-width: 92vw; padding: 4px 14px; font-weight: 800; font-size: clamp(12px, 2vw, 14.5px); background: #fff3c4; border: 2.5px solid var(--ink); border-radius: 999px; box-shadow: 0 3px 0 var(--ink); rotate: 1deg; animation: logoIn .6s .6s var(--bounce) backwards; pointer-events: none; text-align: center; }
 .studyChip b { color: #c2551b; }
+.practiceGo { display: block; margin: 8px auto 0; padding: 7px 14px; font: inherit; font-weight: 800; font-size: 13px; color: var(--ink); background: #ffd34d; border: 2.5px solid var(--ink); border-radius: 999px; box-shadow: 0 3px 0 var(--ink); cursor: pointer; pointer-events: auto; }
+.practiceGo:hover { background: #ffe07a; }
+.gBot .practiceGo { margin: 0; }
+#banner.practice-income .practiceIncome { display: grid; justify-items: center; gap: 6px; padding: 14px 30px 16px; background: #fff3c4; border: 3px solid var(--ink); border-radius: 22px; box-shadow: 0 6px 0 var(--ink); }
+#banner.practice-income .practiceIncome small { margin: 0; font-size: 14px; color: #c2551b; background: none; border: 0; box-shadow: none; padding: 0; }
+#banner.practice-income .practiceIncome b { font-size: clamp(34px, 7vw, 60px); background: var(--coral); }
+#banner.practice-income .practiceIncome span { font-weight: 800; font-size: 14px; color: var(--ink); }
 .gBot .free { background: #ffd23f; }
 .homeBot { grid-area: 3 / 1 / 4 / -1; display: grid; justify-items: center; gap: 12px; animation: rise .5s .5s var(--bounce) backwards; }
 .homeBot .big { font-size: 34px; padding: 8px 64px 13px; animation: breathe 1.4s ease-in-out infinite alternate; }

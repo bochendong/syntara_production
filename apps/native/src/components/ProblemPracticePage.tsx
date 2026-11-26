@@ -6,6 +6,18 @@ import {
   PracticeCelebration,
   type PracticeCelebrationSnapshot,
 } from './problem-bank/PracticeCelebration';
+import {
+  PracticeGameBannerCard,
+  PracticeGamePoints,
+  PracticeGameRewardDialog,
+} from './problem-bank/PracticeGameNotice';
+import {
+  gameWallet,
+  practiceGameEvents,
+  type PracticeGameBanner,
+  type PracticeGameReward,
+  type PracticeGameStatus,
+} from '../lib/practice-game-notify';
 import { prepareHandwritingAnswers, prepareProblemHandwriting } from '../data/handwriting-answer';
 import { problemAttemptHasMistake } from '../data/problem-attempt-history';
 import { HandwritingAnswerInput } from './problem-bank/handwriting-answer-input';
@@ -203,10 +215,18 @@ type ProblemPracticePageProps = {
   onMinimize?: () => void;
   /** iPad/桌面：「问 AI」把这道题交给课程主聊天。没有时不显示按钮。 */
   onAskAi?: (attachment: ProblemChatAttachment, move: ProblemCoachMove) => void;
-  /** 庆祝卡片上的「去玩一把」。手机、老师试做和上课做题时不传或不显示。 */
+  /**
+   * 做题时的游戏通知：顶部积分条、每题「+N」、够抽了横幅、连续学习解锁弹窗，
+   * 以及庆祝卡片上的「去玩一把」。手机、老师试做和上课做题时不传或不显示。
+   */
   gameInvite?: {
     onPlay: () => void;
-    onMilestone?: () => void;
+    /** 做对一道之前没做对过的题：App 去服务器重新拿游戏状态。 */
+    onPassed?: () => void;
+    /** 横幅或弹窗已经给学生看过：App 外面的同类提示就不再弹。 */
+    onNoticeSeen?: () => void;
+    /** 服务器给的游戏状态；还没拿到是 null。 */
+    status?: PracticeGameStatus | null;
     points?: number;
     hint?: string | null;
   };
@@ -556,11 +576,36 @@ export function ProblemPracticePage({
   const chapterTitle = launch.title || displayedProblem?.chapterName || undefined;
   const total = orderedIds.length;
   const showGameInvite = gameInvite && !launch.classSessionId && !launch.teacherPreview;
+  const gameStatus = showGameInvite ? (gameInvite.status ?? null) : null;
+  // 每次服务器状态变了，跟上一次比：到账多少积分、是不是刚够抽、有没有新解锁。
+  const [gameGain, setGameGain] = useState<{ id: number; points: number } | null>(null);
+  const [gameBanner, setGameBanner] = useState<PracticeGameBanner | null>(null);
+  const [gameReward, setGameReward] = useState<PracticeGameReward | null>(null);
+  const lastGameStatus = useRef<PracticeGameStatus | null>(null);
+  useEffect(() => {
+    if (!gameStatus) return;
+    const events = practiceGameEvents(lastGameStatus.current, gameStatus);
+    lastGameStatus.current = gameStatus;
+    if (events.gained > 0)
+      setGameGain((previous) => ({ id: (previous?.id ?? 0) + 1, points: events.gained }));
+    if (events.banner) setGameBanner(events.banner);
+    if (events.reward) setGameReward(events.reward);
+  }, [gameStatus]);
+  useEffect(() => {
+    if (!gameGain) return;
+    const timer = window.setTimeout(() => setGameGain(null), 1800);
+    return () => window.clearTimeout(timer);
+  }, [gameGain]);
+  const noticeSeen = gameInvite?.onNoticeSeen;
+  useEffect(() => {
+    if (gameBanner || gameReward) noticeSeen?.();
+  }, [gameBanner, gameReward, noticeSeen]);
   const celebrateSubmission = useCallback(
     (problemId: string, status: ProblemStatus, nextStatuses: Map<string, ProblemStatus>) => {
+      if (showGameInvite && status === 'passed' && statuses.get(problemId) !== 'passed')
+        gameInvite.onPassed?.();
       const newlyPassed = milestones.current.record(problemId, statuses.get(problemId), status);
       if (newlyPassed === null) return;
-      if (showGameInvite) gameInvite.onMilestone?.();
       setCelebration({
         newlyPassed,
         passed: orderedIds.filter((id) => nextStatuses.get(id) === 'passed').length,
@@ -2108,6 +2153,13 @@ export function ProblemPracticePage({
               busy={submitting || snapshotBusy}
             />
           ) : null}
+          {showGameInvite && gameStatus ? (
+            <PracticeGamePoints
+              total={gameWallet(gameStatus)}
+              gain={gameGain}
+              onOpen={gameInvite.onPlay}
+            />
+          ) : null}
           <div className="pp-nav">
             <button
               type="button"
@@ -2140,6 +2192,27 @@ export function ProblemPracticePage({
         </button>
       </header>
 
+      {showGameInvite && gameBanner && !celebration ? (
+        <PracticeGameBannerCard
+          banner={gameBanner}
+          onPlay={() => {
+            setGameBanner(null);
+            gameInvite.onPlay();
+          }}
+          onLater={() => setGameBanner(null)}
+        />
+      ) : null}
+      {showGameInvite && gameReward && !celebration ? (
+        <PracticeGameRewardDialog
+          reward={gameReward}
+          streak={gameStatus?.streak ?? gameReward.days}
+          onPlay={() => {
+            setGameReward(null);
+            gameInvite.onPlay();
+          }}
+          onClose={() => setGameReward(null)}
+        />
+      ) : null}
       {celebration ? (
         <PracticeCelebration
           snapshot={celebration}

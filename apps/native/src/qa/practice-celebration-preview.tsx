@@ -22,6 +22,7 @@ import { PracticeCelebration } from '../components/problem-bank/PracticeCelebrat
 import { GameNudge } from '../components/GameNudge';
 import { getLocalRepository } from '../data/repository';
 import { setBrowserAccount, browserApp } from '../data/browser-runtime';
+import type { PracticeGameStatus } from '../lib/practice-game-notify';
 import { SYNTARA_ARCHIVE_FORMAT, SYNTARA_ARCHIVE_VERSION } from '../data/archive';
 import type { LocalCourse, LocalProblem } from '../domain/models';
 import type { NativeClassroomSession } from '../data/platform-api-client';
@@ -172,7 +173,27 @@ function Preview() {
   );
   const [notice, setNotice] = useState('');
   const scene = new URLSearchParams(location.search).get('scene');
-  const [nudge, setNudge] = useState(scene === 'nudge' || scene === 'reward' || scene === 'draw');
+  const [nudge, setNudge] = useState(scene === 'reward' || scene === 'draw');
+  // 做题时的游戏通知：模拟服务器状态，做对一题（或点下面的按钮）就加 5 积分。
+  const [gameStatus, setGameStatus] = useState<PracticeGameStatus>({
+    gamePoints: 12,
+    pendingPoints: 10,
+    freeDraw: false,
+    claimable: [],
+    streak: 6,
+  });
+  const earnFive = () =>
+    setGameStatus((current) => ({
+      ...current,
+      pendingPoints: current.pendingPoints + 5,
+      freeDraw: true,
+    }));
+  const unlockStreak = () =>
+    setGameStatus((current) => ({
+      ...current,
+      streak: 7,
+      claimable: [{ id: 'scholar_s', days: 7, name: '学霸 · 晨读之星', label: '限定皮肤' }],
+    }));
   const [classroomOpen, setClassroomOpen] = useState(false);
   const [classroomDismissed, setClassroomDismissed] = useState(false);
   const expanded = Boolean(launch && !minimized);
@@ -312,6 +333,16 @@ function Preview() {
               launch={launch}
               onBack={() => setMinimized(true)}
               onMinimize={() => setMinimized(true)}
+              gameInvite={{
+                onPlay: () => {
+                  setMinimized(true);
+                  setNotice('本地 Mock：这里会直接打开游戏页。');
+                },
+                onPassed: () => window.setTimeout(earnFive, 600),
+                status: gameStatus,
+                points: gameStatus.pendingPoints,
+                hint: '连续学习 6 天 · 再 1 天解锁限定皮肤',
+              }}
             />
           </PracticeOverlay>
         ) : null}
@@ -330,17 +361,9 @@ function Preview() {
         ) : null}
         {nudge && !expanded ? (
           <GameNudge
-            kind={scene === 'reward' ? 'reward' : scene === 'draw' ? 'draw' : 'time'}
-            eyebrow={
-              scene === 'reward'
-                ? '连续学习 3 天'
-                : scene === 'draw'
-                  ? '今天做对题了'
-                  : '学了 25 分钟 · 攒了 24 积分'
-            }
-            title={
-              scene === 'reward' ? '去领限定饰品' : scene === 'draw' ? '免费抽一次' : '去玩一把'
-            }
+            kind={scene === 'reward' ? 'reward' : 'draw'}
+            eyebrow={scene === 'reward' ? '连续学习 3 天' : '今天做对题了'}
+            title={scene === 'reward' ? '去领限定饰品' : '免费抽一次'}
             onDismiss={() => setNudge(false)}
             onPlay={() => {
               setNudge(false);
@@ -358,7 +381,13 @@ function Preview() {
           重置
         </button>
         <button type="button" onClick={() => setNudge(true)}>
-          看「去玩一把」胶囊
+          看「免费抽一次」胶囊
+        </button>
+        <button type="button" onClick={earnFive}>
+          模拟做对一题 +5
+        </button>
+        <button type="button" onClick={unlockStreak}>
+          模拟连续 7 天
         </button>
         <button type="button" onClick={() => setExample(true)}>
           看礼花与卡片
