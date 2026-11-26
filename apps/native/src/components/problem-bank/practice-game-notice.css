@@ -1,0 +1,298 @@
+/* 做题时的游戏通知：顶部积分条、+N、够抽了横幅、连续学习解锁弹窗。 */
+
+.pg-points {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 36px;
+  padding: 0 11px 0 6px;
+  border: 1px solid rgb(var(--marble-amber-rgb) / 45%);
+  border-radius: 14px;
+  background: rgb(255 248 228 / 92%);
+  color: var(--marble-amber-ink);
+  font: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.pg-points:hover {
+  background: rgb(255 240 200 / 96%);
+}
+.pg-points > img {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+}
+.pg-points-main {
+  display: grid;
+  gap: 3px;
+  min-width: 48px;
+}
+.pg-points-main b {
+  font-size: 13px;
+  line-height: 1;
+}
+.pg-points-bar {
+  display: block;
+  height: 5px;
+  border-radius: 4px;
+  background: rgb(var(--marble-amber-rgb) / 25%);
+  overflow: hidden;
+}
+.pg-points-bar i {
+  display: block;
+  height: 100%;
+  border-radius: 4px;
+  background: var(--marble-amber-mid);
+  transition: width 0.6s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.pg-points-label {
+  font-size: 11.5px;
+  font-weight: 600;
+}
+.pg-points.is-bumped > img {
+  animation: pg-coin 0.7s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.pg-points-gain {
+  position: absolute;
+  top: 50%;
+  left: 14px;
+  color: var(--marble-amber-deep);
+  font-size: 22px;
+  font-weight: 900;
+  text-shadow: 0 2px 10px rgb(var(--marble-amber-rgb) / 70%);
+  pointer-events: none;
+  animation: pg-gain 1.6s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+@keyframes pg-gain {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 120px) scale(0.6);
+  }
+  25% {
+    opacity: 1;
+    transform: translate(-50%, 46px) scale(1.25);
+  }
+  70% {
+    opacity: 1;
+    transform: translate(-50%, -18px) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -30px) scale(0.85);
+  }
+}
+@keyframes pg-coin {
+  0%,
+  100% {
+    transform: scale(1) rotate(0);
+  }
+  40% {
+    transform: scale(1.35) rotate(-20deg);
+  }
+  70% {
+    transform: scale(0.95) rotate(8deg);
+  }
+}
+@media (max-width: 1099px) {
+  .pg-points-label {
+    display: none;
+  }
+}
+
+.pg-banner {
+  position: absolute;
+  z-index: 40;
+  top: calc(56px + env(safe-area-inset-top));
+  left: 50%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: min(520px, calc(100% - 32px));
+  padding: 12px 12px 12px 14px;
+  border-radius: 20px;
+  background: linear-gradient(120deg, #2a1f55, #4a2f8a);
+  color: #fff;
+  box-shadow: 0 16px 36px rgb(40 20 90 / 35%);
+  transform: translateX(-50%);
+  animation: pg-banner-in 0.45s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.pg-banner.is-free {
+  background: linear-gradient(120deg, #5a1f4a, #a33a78);
+}
+@keyframes pg-banner-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -24px) scale(0.96);
+  }
+}
+.pg-banner-marble {
+  position: relative;
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+}
+.pg-banner-marble img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+}
+.pg-banner-marble svg {
+  position: relative;
+  color: #fff;
+  filter: drop-shadow(0 1px 2px rgb(0 0 0 / 40%));
+}
+.pg-banner-text {
+  display: grid;
+  flex: 1;
+  gap: 2px;
+  min-width: 0;
+}
+.pg-banner-text b {
+  font-size: 16px;
+}
+.pg-banner-text small {
+  color: rgb(255 255 255 / 75%);
+  font-size: 12px;
+}
+.pg-banner-actions {
+  display: grid;
+  flex: none;
+  gap: 4px;
+  justify-items: center;
+}
+.pg-banner-go {
+  padding: 7px 14px;
+  border: 0;
+  border-radius: 11px;
+  background: #ffd34d;
+  color: #3a2600;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.pg-banner-later {
+  padding: 2px 4px;
+  border: 0;
+  background: none;
+  color: rgb(255 255 255 / 70%);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.pg-reward-backdrop {
+  position: fixed;
+  z-index: 2000;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgb(20 16 40 / 0%);
+  transition: background 0.3s ease;
+}
+.pg-reward-backdrop.is-shown {
+  background: rgb(20 16 40 / 45%);
+}
+.pg-reward {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  width: min(340px, 100%);
+  padding: 26px 24px 18px;
+  border-radius: 28px;
+  background: linear-gradient(170deg, #fffaf0, #fff);
+  box-shadow: 0 24px 60px rgb(40 20 90 / 30%);
+  text-align: center;
+  opacity: 0;
+  transform: scale(0.85);
+  transition:
+    opacity 0.3s ease,
+    transform 0.45s cubic-bezier(0.2, 1.4, 0.4, 1);
+}
+.pg-reward-backdrop.is-shown .pg-reward {
+  opacity: 1;
+  transform: scale(1);
+}
+.pg-reward-eyebrow {
+  color: var(--marble-amber-ink);
+  font-size: 13px;
+  font-weight: 700;
+}
+.pg-reward-marble {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 108px;
+  height: 108px;
+  margin: 6px 0;
+}
+.pg-reward-marble img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  filter: drop-shadow(0 12px 22px rgb(var(--marble-amber-rgb) / 55%));
+  animation: pg-reward-spin 6s linear infinite;
+}
+.pg-reward-marble svg {
+  position: relative;
+  color: #fff;
+  filter: drop-shadow(0 2px 4px rgb(0 0 0 / 35%));
+}
+@keyframes pg-reward-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.pg-reward h2 {
+  margin: 0;
+  font-size: 20px;
+}
+.pg-reward p {
+  margin: 0 0 8px;
+  color: #6b6478;
+  font-size: 13px;
+}
+.pg-reward-go {
+  width: 100%;
+  padding: 12px;
+  border: 0;
+  border-radius: 14px;
+  background: #1d1b2e;
+  color: #fff;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.pg-reward-later {
+  padding: 8px;
+  border: 0;
+  background: none;
+  color: #6b6478;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pg-points.is-bumped > img,
+  .pg-banner,
+  .pg-reward-marble img {
+    animation: none;
+  }
+  .pg-points-gain {
+    animation-duration: 0.01s;
+    animation-delay: 1.2s;
+  }
+  .pg-reward {
+    transition: none;
+  }
+}
