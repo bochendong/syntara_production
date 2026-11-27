@@ -935,6 +935,26 @@ function teachAction<T>(payload: unknown): Promise<T> {
   return invokeJson('native_teach_action', { requestId: crypto.randomUUID(), payload });
 }
 
+export type CourseAssistant = {
+  id: string;
+  name: string | null;
+  email: string | null;
+  active: boolean;
+};
+
+export function getCourseAssistants(courseId: string): Promise<{ assistants: CourseAssistant[] }> {
+  return invokeQuery('native_get_teach', { assistants: courseId });
+}
+
+export function changeCourseAssistant(
+  courseId: string,
+  change:
+    | { action: 'add-assistant'; account: { email: string } | { userId: string } }
+    | { action: 'remove-assistant'; userId: string },
+): Promise<{ assistants: CourseAssistant[] }> {
+  return teachAction({ courseId, ...change });
+}
+
 export type TeachClaimableCourse = {
   id: string;
   name: string;
@@ -994,7 +1014,7 @@ export function teachSessionAction(payload: TeachSessionAction): Promise<TeachSe
   return teachAction(payload);
 }
 
-export type AdminRole = 'USER' | 'STUDENT' | 'TEACHER' | 'ADMIN';
+export type AdminRole = 'USER' | 'STUDENT' | 'TEACHING_ASSISTANT' | 'TEACHER' | 'ADMIN';
 
 export type AdminUsage = { estimatedCostUsd: number; requestCount: number };
 

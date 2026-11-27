@@ -4,8 +4,8 @@ import { hasTeacherCourseAccess } from '@/lib/server/external-course-access';
 import { safeRoute } from '@/lib/server/json-error-response';
 import { prisma } from '@/lib/server/prisma';
 import {
-  activeTeachingAssistantAccount,
   addCourseTeachingAssistant,
+  listCourseTeachingAssistants,
   removeCourseTeachingAssistant,
 } from '@/lib/server/repositories/course-teaching-assistant-repository';
 import { requireTeacher } from '@/lib/server/teacher-auth';
@@ -32,20 +32,8 @@ export async function GET(_request: Request, context: Context) {
   return safeRoute(async () => {
     const access = await requireCourseTeacher(context);
     if ('response' in access) return access.response;
-    const assignments = await prisma.courseTeachingAssistant.findMany({
-      where: { courseId: access.courseId, removedAt: null },
-      orderBy: { addedAt: 'desc' },
-      select: {
-        user: { select: { id: true, name: true, email: true, role: true, isActive: true } },
-      },
-    });
     return NextResponse.json({
-      assistants: assignments.map(({ user }) => ({
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        active: user.isActive && user.role === activeTeachingAssistantAccount.role,
-      })),
+      assistants: await listCourseTeachingAssistants(prisma, access.courseId),
     });
   });
 }

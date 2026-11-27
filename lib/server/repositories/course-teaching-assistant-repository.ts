@@ -23,6 +23,22 @@ export async function hasCourseTeachingAssistantAccess(
   );
 }
 
+export async function listCourseTeachingAssistants(db: DbClient, courseId: string) {
+  const assignments = await db.courseTeachingAssistant.findMany({
+    where: { courseId, removedAt: null },
+    orderBy: { addedAt: 'desc' },
+    select: {
+      user: { select: { id: true, name: true, email: true, role: true, isActive: true } },
+    },
+  });
+  return assignments.map(({ user }) => ({
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    active: user.isActive && user.role === activeTeachingAssistantAccount.role,
+  }));
+}
+
 export function activeTeachingAssistantCoursesSql(userId: Prisma.Sql) {
   return Prisma.sql`
     SELECT assignment."courseId", assignment."addedAt" AS "joinedAt"

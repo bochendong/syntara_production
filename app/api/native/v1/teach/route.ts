@@ -36,6 +36,12 @@ import {
   listClaimableCourses,
   releaseCourseClaim,
 } from '@/lib/server/teacher-course-claim';
+import { hasTeacherCourseAccess } from '@/lib/server/external-course-access';
+import {
+  addCourseTeachingAssistant,
+  listCourseTeachingAssistants,
+  removeCourseTeachingAssistant,
+} from '@/lib/server/repositories/course-teaching-assistant-repository';
 
 export const runtime = 'nodejs';
 
@@ -70,6 +76,16 @@ function classroomError(requestId: string, error: unknown) {
   throw error;
 }
 
+async function assistantManager(viewer: ClassroomViewer, courseId: string) {
+  const db = getOptionalPrisma();
+  if (!db) throw new ClassroomError(503, '教学服务暂不可用。');
+  if (viewer.role !== 'TEACHER' && viewer.role !== 'ADMIN')
+    throw new ClassroomError(403, '需要教师权限。');
+  if (!(await hasTeacherCourseAccess(db, viewer.userId, courseId)))
+    throw new ClassroomError(404, '课程不存在或无管理权限。');
+  return db;
+}
+
 /**
  * ?classId= 班级；?sessionId= 一节课；?choices=<sessionId> 可以加的题；
  * ?answers=<sessionId>&problemId=&userId= 一个学生一道题的提交；
@@ -82,6 +98,14 @@ export async function GET(request: NextRequest) {
   if (viewer instanceof NextResponse) return viewer;
   const query = request.nextUrl.searchParams;
   try {
+    const assistantsFor = query.get('assistants');
+    if (assistantsFor !== null) {
+      const courseId = id.parse(assistantsFor);
+      const db = await assistantManager(viewer, courseId);
+      return publicApiSuccess(requestId, {
+        assistants: await listCourseTeachingAssistants(db, courseId),
+      });
+    }
     const classId = query.get('classId');
     const sessionId = query.get('sessionId');
     const choices = query.get('choices');
@@ -139,6 +163,8 @@ export async function GET(request: NextRequest) {
     if (classId) return publicApiSuccess(requestId, await getClassOverview(viewer, classId));
     return publicApiSuccess(requestId, await listTeachableCourses(viewer));
   } catch (error) {
+    if (error instanceof z.ZodError)
+      return publicApiError(requestId, 400, 'invalid_request', '请求无效。');
     return classroomError(requestId, error);
   }
 }
@@ -148,6 +174,15 @@ const actionSchema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('open-class'), courseId: id }),
   z.object({ action: z.literal('claim'), courseId: id }),
   z.object({ action: z.literal('release-claim'), courseId: id }),
+  z.object({
+    action: z.literal('add-assistant'),
+    courseId: id,
+    account: z.union([
+      z.object({ email: z.string().trim().email().max(240) }),
+      z.object({ userId: id }),
+    ]),
+  }),
+  z.object({ action: z.literal('remove-assistant'), courseId: id, userId: id }),
   z.object({ action: z.literal('add-member'), classId: id, email: z.string().trim().email() }),
   z.object({ action: z.literal('remove-member'), classId: id, userId: id }),
   z.object({ action: z.literal('reset-code'), classId: id }),
@@ -187,6 +222,20 @@ export async function POST(request: NextRequest) {
       case 'release-claim':
         await releaseCourseClaim(viewer, input.courseId);
         return publicApiSuccess(requestId, await listTeachableCourses(viewer));
+      case 'add-assistant':
+      case 'remove-assistant': {
+        const db = await assistantManager(viewer, input.courseId);
+        if (input.action === 'add-assistant') {
+          const added = await addCourseTeachingAssistant(db, input.courseId, input.account);
+          if (!added)
+            throw new ClassroomError(404, '未找到已启用的助教账号，请先由管理员分配助教角色。');
+        } else {
+          await removeCourseTeachingAssistant(db, input.userId, input.courseId);
+        }
+        return publicApiSuccess(requestId, {
+          assistants: await listCourseTeachingAssistants(db, input.courseId),
+        });
+      }
       case 'open-class':
         return publicApiSuccess(requestId, {
           classId: await ensureCurrentTermClass(viewer, input.courseId),

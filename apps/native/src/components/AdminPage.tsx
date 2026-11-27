@@ -44,6 +44,7 @@ const TABS: Array<{ id: Tab; label: string }> = [
 
 const ROLES: Array<{ id: AdminRole; label: string; marble: string }> = [
   { id: 'STUDENT', label: '学生', marble: marbleImages.green },
+  { id: 'TEACHING_ASSISTANT', label: '助教', marble: marbleImages.amber },
   { id: 'TEACHER', label: '老师', marble: marbleImages.blue },
   { id: 'ADMIN', label: '管理员', marble: marbleImages.pink },
   { id: 'USER', label: '用户', marble: marbleImages.purple },

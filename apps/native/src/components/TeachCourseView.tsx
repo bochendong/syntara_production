@@ -5,6 +5,7 @@ import { CourseContentManager } from './CourseContentManager';
 import { CourseAiRulesView } from './CourseAiRulesView';
 import { CourseUploadSheet } from './CourseUploadSheet';
 import { CourseStudentsView } from './CourseStudentsView';
+import { CourseAssistantsView } from './CourseAssistantsView';
 import { CourseModal } from './CourseModal';
 import {
   getCoursePublication,
@@ -26,7 +27,7 @@ import { GlassSkeletonRows } from './GlassLoadMore';
 import './course-publication.css';
 import './teach-course-view.css';
 
-type Tab = ManagedContentKind | 'rules' | 'students' | 'applications';
+type Tab = ManagedContentKind | 'rules' | 'students' | 'assistants' | 'applications';
 
 /**
  * 「教学」里的单门课程管理：头部是课程、「发布更新」、「上传」和更多菜单（资料、商城）；
@@ -164,6 +165,7 @@ export function TeachCourseView({
           { id: 'notes' as const, label: '笔记', count: counts.notes },
           { id: 'problems' as const, label: '题库', count: counts.problems },
           { id: 'rules' as const, label: 'AI 规则' },
+          { id: 'assistants' as const, label: '课程助教' },
         ]
       : []),
     { id: 'students', label: '课程学生' },
@@ -350,6 +352,10 @@ export function TeachCourseView({
             <p className="cp-muted">这里显示已加入课程的学生；班级成员请在“上课”中管理。</p>
             <CourseStudentsView courseId={courseId} />
           </>
+        ) : null}
+
+        {publication && activeTab === 'assistants' ? (
+          <CourseAssistantsView key={courseId} courseId={courseId} />
         ) : null}
 
         {publication && activeTab === 'applications' ? (

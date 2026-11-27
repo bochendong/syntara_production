@@ -27,7 +27,13 @@ import { getSystemLLMConfigView, updateSystemLLMConfig } from '@/lib/server/syst
  * 复用网页 /admin 管理中心的同一套服务端配置，只是换成 App 的登录方式。
  */
 
-export const ADMIN_CONSOLE_ROLES = ['USER', 'STUDENT', 'TEACHER', 'ADMIN'] as const;
+export const ADMIN_CONSOLE_ROLES = [
+  'USER',
+  'STUDENT',
+  'TEACHING_ASSISTANT',
+  'TEACHER',
+  'ADMIN',
+] as const;
 export type AdminConsoleRole = (typeof ADMIN_CONSOLE_ROLES)[number];
 
 export class AdminConsoleError extends Error {
@@ -300,8 +306,29 @@ export async function setAdminConsoleUserRole(
   if (userId === viewer.userId && role !== 'ADMIN') {
     throw new AdminConsoleError(400, '不能修改自己的管理员身份。');
   }
-  await loadUser(db, userId);
-  const user = await db.user.update({ where: { id: userId }, data: { role }, select: USER_SELECT });
+  const current = await loadUser(db, userId);
+  if (
+    role === 'TEACHING_ASSISTANT' &&
+    current.role !== 'USER' &&
+    current.role !== 'STUDENT' &&
+    current.role !== 'TEACHING_ASSISTANT'
+  ) {
+    throw new AdminConsoleError(400, '只能将学习账号设为助教。');
+  }
+  const user = await db.$transaction(async (tx) => {
+    const changed = await tx.user.update({
+      where: { id: userId, role: current.role },
+      data: { role },
+      select: USER_SELECT,
+    });
+    if (current.role === 'TEACHING_ASSISTANT' && role !== 'TEACHING_ASSISTANT') {
+      await tx.courseTeachingAssistant.updateMany({
+        where: { userId, removedAt: null },
+        data: { removedAt: new Date() },
+      });
+    }
+    return changed;
+  });
   return withUsage(db, user);
 }
 
