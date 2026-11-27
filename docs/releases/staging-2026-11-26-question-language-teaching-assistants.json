@@ -1,0 +1,39 @@
+{
+  "status": "deployed",
+  "at": "2026-11-27T01:03:57.690Z",
+  "environment": "staging",
+  "revision": "856af786843ea7c7b7ad699a1a73defcf3def4ad",
+  "deploymentId": "511f8f7c-5969-41d2-bc8b-738213e79a82",
+  "previousRevision": "032180082fc958d2f0118ae57d92d444d8fd1510",
+  "migration": "20261126220000_course_teaching_assistants",
+  "courseContent": {
+    "UTSG-CSC108Y": {
+      "verifiedRevisions": 157,
+      "publishedQuestions": 691,
+      "unrelatedPresentationsVerified": 534
+    },
+    "UTM-CSC108": {
+      "verifiedRevisions": 156,
+      "publishedQuestions": 683,
+      "unrelatedPresentationsVerified": 527
+    }
+  },
+  "verification": {
+    "live": {
+      "health": 200,
+      "version": 200,
+      "revision": "856af786843ea7c7b7ad699a1a73defcf3def4ad",
+      "login": 200,
+      "fullApp": 200,
+      "appAsset": {
+        "path": "/native-web/assets/index-DPR5x-1S.js",
+        "sha256": "b31efc8e6ba9ebc003e40481e6f3943c930dc478d40f4a57f58db56abd0844c7"
+      },
+      "anonymousAssistantList": 401,
+      "authorizedAssistantList": 200
+    },
+    "questionPresentation": "All four batches previewed before applying. All revised public presentations matched the reviewed patch in full on readback. Native problem readback verified question IDs, grading, types, chapter and notebook placement, and tags.",
+    "application": "33 targeted regressions, selected-file format/lint, root and native type checks, and the local and Railway staging web builds passed.",
+    "teachingAssistants": "Local PostgreSQL and the built App APIs verified role promotion, learner access scoped to assigned courses, private notebook isolation, management by a teacher for their own course, add/remove, demotion, and joining a live class. Write checks used disposable local accounts."
+  }
+}
