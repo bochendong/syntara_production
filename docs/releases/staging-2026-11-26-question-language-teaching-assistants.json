@@ -8,14 +8,14 @@
   "migration": "20261126220000_course_teaching_assistants",
   "courseContent": {
     "UTSG-CSC108Y": {
-      "verifiedRevisions": 157,
+      "verifiedRevisions": 158,
       "publishedQuestions": 691,
-      "unrelatedPresentationsVerified": 534
+      "unrelatedPresentationsVerified": 533
     },
     "UTM-CSC108": {
-      "verifiedRevisions": 156,
+      "verifiedRevisions": 157,
       "publishedQuestions": 683,
-      "unrelatedPresentationsVerified": 527
+      "unrelatedPresentationsVerified": 526
     }
   },
   "verification": {
@@ -32,7 +32,7 @@
       "anonymousAssistantList": 401,
       "authorizedAssistantList": 200
     },
-    "questionPresentation": "All four batches previewed before applying. All revised public presentations matched the reviewed patch in full on readback. Native problem readback verified question IDs, grading, types, chapter and notebook placement, and tags.",
+    "questionPresentation": "The main batches and the final inline-code and option corrections were previewed before applying. All revised public presentations matched the reviewed edits on readback. Native problem readback verified question IDs, grading, types, chapter and notebook placement, and tags for the main batches and published display fields for the final corrections.",
     "application": "33 targeted regressions, selected-file format/lint, root and native type checks, and the local and Railway staging web builds passed.",
     "teachingAssistants": "Local PostgreSQL and the built App APIs verified role promotion, learner access scoped to assigned courses, private notebook isolation, management by a teacher for their own course, add/remove, demotion, and joining a live class. Write checks used disposable local accounts."
   }

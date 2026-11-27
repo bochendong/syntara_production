@@ -2,7 +2,7 @@
 
 核对日期：2026-11-26（America/Toronto）。当前测试服已更新，源码基线与实际部署对应。
 
-2026-11-26 测试服上线题目英文优先和课程助教。管理员可为账号设置助教角色，老师可在「教学」的课程管理页添加或移除助教，助教可用课堂码上课。CSC108 套题已更新 UTSG 157 道和 UTM 156 道双语题面，逐题读回核对了行内代码和代码块。应用源码 `856af786`，Railway 发布 `511f8f7c` 成功。见[发布记录](releases/staging-2026-11-26-question-language-teaching-assistants.json)。
+2026-11-26 测试服上线题目英文优先和课程助教。管理员可为账号设置助教角色，老师可在「教学」的课程管理页添加或移除助教，助教可用课堂码上课。CSC108 套题已更新 UTSG 158 道和 UTM 157 道双语题面，逐题读回核对了行内代码和代码块。应用源码 `856af786`，Railway 发布 `511f8f7c` 成功。见[发布记录](releases/staging-2026-11-26-question-language-teaching-assistants.json)。
 
 2026-11-25 测试服已下调小游戏难度与联机怪物血量加成，并上线单列表错题本。核对了 7 个线上游戏文件。两个独立浏览器客户端在测试服同一房间开局，倒地状态在双方同步，角色着色器的灰度输出通过验证。用线上网页和只读 UTSG-CSC108Y 数据验证了错题移出、找回及列表数量恢复。已知情况：已移出的题再答错会回来，紧接着答对会再次列入已移出。见 [PR #89](https://github.com/bochendong/syntara_production/pull/89) 和 [PR #90](https://github.com/bochendong/syntara_production/pull/90)。
 
