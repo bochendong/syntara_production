@@ -21,6 +21,12 @@ import {
 } from '@/lib/server/cloud-usage-limits';
 import { getAdminProviderEnvHints, getSiteProviderAdminView } from '@/lib/server/provider-config';
 import { getSystemLLMConfigView, updateSystemLLMConfig } from '@/lib/server/system-llm-config';
+import { getCloudUsageWeekWindow } from '@/lib/cloud-usage-week';
+import { PROVIDERS } from '@/lib/ai/providers';
+import {
+  estimateTrackedModelUsageRetailCostUsd,
+  getOpenAITextPricing,
+} from '@/lib/utils/openai-pricing';
 
 /**
  * App 里的「管理」页（测试服管理员控制台）：全站模型、API Key、账号身份、用量额度。
@@ -129,11 +135,97 @@ export type AdminConsoleOverview = {
     source: 'database' | 'environment';
     updatedAt: string | null;
   };
-  modelOptions: Array<{ id: string; label: string; description: string }>;
+  modelOptions: AdminConsoleModelOption[];
   providers: AdminConsoleProvider[];
   usage: { limit: CloudUsageGlobalLimit; usage: CloudUsageSummary };
   roleCounts: Record<AdminConsoleRole, number>;
 };
+
+/** 模型详情页用：官方价格（每百万 token，美元）、上下文、能力和本周用量（估算费用和用量页一致）。 */
+export type AdminConsoleModelOption = {
+  id: string;
+  label: string;
+  description: string;
+  contextWindow: number | null;
+  outputWindow: number | null;
+  capabilities: { vision: boolean; tools: boolean; thinking: boolean };
+  pricing: {
+    inputUsdPerMillion: number;
+    cachedInputUsdPerMillion: number;
+    outputUsdPerMillion: number;
+  } | null;
+  weekUsage: {
+    requestCount: number;
+    inputTokens: number;
+    outputTokens: number;
+    estimatedCostUsd: number;
+  };
+};
+
+type ModelUsageRow = {
+  providerId: string;
+  modelId: string;
+  requestCount: bigint | number;
+  inputTokens: bigint | number | null;
+  outputTokens: bigint | number | null;
+};
+
+async function modelOptionsView(db: PrismaClient): Promise<AdminConsoleModelOption[]> {
+  const { start, end } = getCloudUsageWeekWindow();
+  const startUtc = Prisma.sql`(${start}::timestamptz AT TIME ZONE 'UTC')`;
+  const endUtc = Prisma.sql`(${end}::timestamptz AT TIME ZONE 'UTC')`;
+  const rows = await db
+    .$queryRaw<ModelUsageRow[]>(
+      Prisma.sql`
+        SELECT "providerId", "modelId", COUNT(*) AS "requestCount",
+          SUM("inputTokens") AS "inputTokens", SUM("outputTokens") AS "outputTokens"
+        FROM "LLMUsageLog"
+        WHERE "createdAt" >= ${startUtc} AND "createdAt" < ${endUtc}
+        GROUP BY "providerId", "modelId"
+      `,
+    )
+    .catch(() => [] as ModelUsageRow[]);
+  const known = PROVIDERS.openai?.models ?? [];
+  return ADMIN_TEXT_MODEL_OPTIONS.map((option) => {
+    const info = known.find((model) => model.id === option.id);
+    const price = getOpenAITextPricing(option.id);
+    const weekUsage = { requestCount: 0, inputTokens: 0, outputTokens: 0, estimatedCostUsd: 0 };
+    for (const row of rows) {
+      if (row.modelId.toLowerCase() !== option.id) continue;
+      const inputTokens = Number(row.inputTokens ?? 0);
+      const outputTokens = Number(row.outputTokens ?? 0);
+      weekUsage.requestCount += Number(row.requestCount);
+      weekUsage.inputTokens += inputTokens;
+      weekUsage.outputTokens += outputTokens;
+      weekUsage.estimatedCostUsd +=
+        estimateTrackedModelUsageRetailCostUsd({
+          providerId: row.providerId,
+          modelId: row.modelId,
+          modelString: `${row.providerId}:${row.modelId}`,
+          inputTokens,
+          outputTokens,
+        }) ?? 0;
+    }
+    return {
+      ...option,
+      contextWindow: info?.contextWindow ?? null,
+      outputWindow: info?.outputWindow ?? null,
+      capabilities: {
+        vision: Boolean(info?.capabilities?.vision),
+        tools: Boolean(info?.capabilities?.tools),
+        thinking: Boolean(info?.capabilities?.thinking),
+      },
+      pricing: price
+        ? {
+            inputUsdPerMillion: price.inputUsdPerMillionTokens,
+            cachedInputUsdPerMillion: price.cachedInputUsdPerMillionTokens,
+            outputUsdPerMillion: price.outputUsdPerMillionTokens,
+          }
+        : null,
+      weekUsage,
+    };
+  });
+}
 
 async function llmView(): Promise<AdminConsoleOverview['llm']> {
   const config = await getSystemLLMConfigView();
@@ -157,11 +249,12 @@ export async function getAdminConsoleOverview(
   db: PrismaClient,
   viewer: AdminConsoleViewer,
 ): Promise<AdminConsoleOverview> {
-  const [llm, providers, usage, grouped] = await Promise.all([
+  const [llm, providers, usage, grouped, modelOptions] = await Promise.all([
     llmView(),
     providerStatus(),
     usageView(db),
     db.user.groupBy({ by: ['role'], where: { isActive: true }, _count: { _all: true } }),
+    modelOptionsView(db),
   ]);
   const roleCounts = Object.fromEntries(ADMIN_CONSOLE_ROLES.map((role) => [role, 0])) as Record<
     AdminConsoleRole,
@@ -171,7 +264,7 @@ export async function getAdminConsoleOverview(
   return {
     me: viewer,
     llm,
-    modelOptions: ADMIN_TEXT_MODEL_OPTIONS.map((option) => ({ ...option })),
+    modelOptions,
     providers,
     usage,
     roleCounts,

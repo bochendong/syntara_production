@@ -25,6 +25,7 @@ import { GlassSkeletonRows } from './GlassLoadMore';
 import { PhoneConfirm, PhoneEmpty, PhonePage } from './PhonePages';
 import './admin-page.css';
 import { AdminCoursesTab } from './AdminCoursesTab';
+import { AdminModelDetail, AdminModelsTab } from './AdminModelsTab';
 
 /**
  * 「管理」页：测试服管理员控制台，只有管理员账号能看到入口。
@@ -55,12 +56,6 @@ const ROLE_LABEL = Object.fromEntries(ROLES.map((role) => [role.id, role.label])
   string
 >;
 
-const TIERS: Array<{ id: keyof AdminLlmConfig['tierModels']; label: string; hint: string }> = [
-  { id: 'low', label: '低', hint: '日常问答' },
-  { id: 'medium', label: '中', hint: '分步讲解' },
-  { id: 'high', label: '高', hint: '难题推理' },
-];
-
 function money(value: number) {
   return `$${value.toFixed(value >= 100 ? 0 : 2)}`;
 }
@@ -87,6 +82,7 @@ export function AdminPage({ onBack }: { onBack: () => void }) {
   const [refreshKey, setRefreshKey] = useState(0);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [modelDetailId, setModelDetailId] = useState<string | null>(null);
 
   const reload = useCallback(async () => {
     try {
@@ -114,7 +110,7 @@ export function AdminPage({ onBack }: { onBack: () => void }) {
     setNotice(message);
   };
 
-  return (
+  const page = (
     <PhonePage title="管理" overlay largeTitle onBack={onBack}>
       <div className="ap-page">
         <header className="phone-large-head ap-head">
@@ -149,14 +145,14 @@ export function AdminPage({ onBack }: { onBack: () => void }) {
         {!overview && !error ? <GlassSkeletonRows rows={4} height={54} /> : null}
 
         {overview && tab === 'models' ? (
-          <ModelsTab
-            key={overview.llm.updatedAt ?? 'env'}
+          <AdminModelsTab
             overview={overview}
-            onSaved={(llm) => {
+            onSaved={(llm, message) => {
               setOverview({ ...overview, llm });
-              saved('模型已更新');
+              saved(message);
             }}
             onError={setError}
+            onOpen={setModelDetailId}
           />
         ) : null}
         {overview && tab === 'keys' ? (
@@ -189,15 +185,32 @@ export function AdminPage({ onBack }: { onBack: () => void }) {
             onError={setError}
           />
         ) : null}
-
-        {notice ? (
-          <div className="ap-notice" role="status">
-            <img src={marbleImages.green} alt="" />
-            {notice}
-          </div>
-        ) : null}
       </div>
     </PhonePage>
+  );
+
+  return (
+    <>
+      {page}
+      {overview && modelDetailId ? (
+        <AdminModelDetail
+          overview={overview}
+          modelId={modelDetailId}
+          onSaved={(llm, message) => {
+            setOverview({ ...overview, llm });
+            saved(message);
+          }}
+          onError={setError}
+          onBack={() => setModelDetailId(null)}
+        />
+      ) : null}
+      {notice ? (
+        <div className="ap-notice" role="status">
+          <img src={marbleImages.green} alt="" />
+          {notice}
+        </div>
+      ) : null}
+    </>
   );
 }
 
@@ -221,115 +234,6 @@ function SaveBar({
         {busy ? '保存中…' : label}
       </button>
     </div>
-  );
-}
-
-function ModelSelect({
-  value,
-  options,
-  onChange,
-  label,
-}: {
-  value: string;
-  options: AdminOverview['modelOptions'];
-  onChange: (value: string) => void;
-  label: string;
-}) {
-  const known = options.some((option) => option.id === value);
-  return (
-    <span className="ap-select">
-      <select aria-label={label} value={value} onChange={(event) => onChange(event.target.value)}>
-        {known ? null : <option value={value}>{value}</option>}
-        {options.map((option) => (
-          <option key={option.id} value={option.id}>
-            {option.label}
-          </option>
-        ))}
-      </select>
-      <ChevronDown size={14} aria-hidden />
-    </span>
-  );
-}
-
-function ModelsTab({
-  overview,
-  onSaved,
-  onError,
-}: {
-  overview: AdminOverview;
-  onSaved: (llm: AdminLlmConfig) => void;
-  onError: (message: string) => void;
-}) {
-  const { llm, modelOptions } = overview;
-  const [modelId, setModelId] = useState(llm.modelId);
-  const [tiers, setTiers] = useState(llm.tierModels);
-  const [busy, setBusy] = useState(false);
-  const dirty =
-    modelId !== llm.modelId || TIERS.some((tier) => tiers[tier.id] !== llm.tierModels[tier.id]);
-  const description = (id: string) => modelOptions.find((option) => option.id === id)?.description;
-  const unsupported = [modelId, ...Object.values(tiers)].some(
-    (id) => !modelOptions.some((option) => option.id === id),
-  );
-
-  const save = async () => {
-    setBusy(true);
-    try {
-      onSaved(await saveAdminLlm({ modelId, tierModels: tiers }));
-    } catch (cause) {
-      onError(errorText(cause, '保存失败'));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <>
-      <p className="phone-group-title">全站默认模型</p>
-      <div className="phone-group">
-        <div className="phone-row">
-          <img className="ap-row-marble" src={marbleImages.purple} alt="" />
-          <span className="phone-row-copy">
-            <strong>默认模型</strong>
-            <small>{description(modelId) ?? '生成笔记、出题、后台任务'}</small>
-          </span>
-          <ModelSelect
-            value={modelId}
-            options={modelOptions}
-            onChange={setModelId}
-            label="默认模型"
-          />
-        </div>
-      </div>
-
-      <p className="phone-group-title">聊天回复强度</p>
-      <div className="phone-group">
-        {TIERS.map((tier) => (
-          <div key={tier.id} className="phone-row">
-            <span className={`ap-tier ap-tier-${tier.id}`}>{tier.label}</span>
-            <span className="phone-row-copy">
-              <strong>{tier.hint}</strong>
-              <small>{description(tiers[tier.id])}</small>
-            </span>
-            <ModelSelect
-              value={tiers[tier.id]}
-              options={modelOptions}
-              label={`回复强度 ${tier.label}`}
-              onChange={(value) => setTiers((current) => ({ ...current, [tier.id]: value }))}
-            />
-          </div>
-        ))}
-      </div>
-      <p className="phone-group-footer">
-        {llm.source === 'database' ? '来自管理员设置' : '还在用环境变量的默认值'}
-        {llm.updatedAt ? ` · ${new Date(llm.updatedAt).toLocaleString('zh-CN')}` : ''}
-      </p>
-
-      <SaveBar dirty={dirty && !unsupported} busy={busy} onSave={() => void save()}>
-        {unsupported ? (
-          <span className="ap-save-hint">有模型不在可选列表里，请先换一个</span>
-        ) : null}
-      </SaveBar>
-    </>
   );
 }
 

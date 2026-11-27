@@ -1042,7 +1042,7 @@ export type AdminGlobalUsage = {
 export type AdminOverview = {
   me: { userId: string; email: string | null };
   llm: AdminLlmConfig;
-  modelOptions: Array<{ id: string; label: string; description: string }>;
+  modelOptions: AdminModelOption[];
   providers: Array<{
     kind: 'image' | 'tts' | 'webSearch';
     id: string;
@@ -1069,6 +1069,27 @@ export type AdminUser = {
     disabled: boolean;
   } | null;
   usage: AdminUsage;
+};
+
+export type AdminModelOption = {
+  id: string;
+  label: string;
+  description: string;
+  /** 下面这些是新接口才有的，旧服务端没有时页面要能退回只显示名字和简介。 */
+  contextWindow?: number | null;
+  outputWindow?: number | null;
+  capabilities?: { vision: boolean; tools: boolean; thinking: boolean };
+  pricing?: {
+    inputUsdPerMillion: number;
+    cachedInputUsdPerMillion: number;
+    outputUsdPerMillion: number;
+  } | null;
+  weekUsage?: {
+    requestCount: number;
+    inputTokens: number;
+    outputTokens: number;
+    estimatedCostUsd: number;
+  };
 };
 
 /** 只有管理员能拿到 true；其他账号接口返回 403，这里当成 false。 */
